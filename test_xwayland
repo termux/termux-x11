@@ -1,0 +1,8 @@
+#!/bin/bash
+export WAYLAND_DEBUG=1
+export DISPLAY=:1
+Xwayland $DISPLAY &
+sleep 0.3
+openbox &
+sleep 0.3
+pcmanfm

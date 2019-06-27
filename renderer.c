@@ -26,7 +26,9 @@ static const char gSimpleFS[] =
     "varying vec2 outTexCoords;\n"
     "uniform sampler2D texture;\n"
     "\nvoid main(void) {\n"
-    "   gl_FragColor = texture2D(texture, outTexCoords);\n"
+    //"   gl_FragColor = texture2D(texture, outTexCoords);\n"
+    "   gl_FragColor = texture2D(texture, outTexCoords).bgra;\n"
+    //"   gl_FragColor = vec4(outTexCoords.x/outTexCoords.y,outTexCoords.y/outTexCoords.x, 0.0, 0.0);\n"
     "}\n\n";
 
 static void checkGlError(const char* op) {

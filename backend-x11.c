@@ -30,6 +30,7 @@ static xcb_connection_t *xcb_connection;
 static int32_t keyboard_device_id;
 static struct xkb_keymap *keymap;
 static struct xkb_state *state;
+static Atom  atom1, atom2;
 
 static void create_window (void) {
 	// setup EGL	
@@ -74,6 +75,10 @@ static void create_window (void) {
 		CWEventMask|CWColormap, // attribute mask
 		&window_attributes // attributes
 	);
+	
+    atom1 = XInternAtom(x_display, "WM_PROTOCOLS", 0);
+    atom2 = XInternAtom(x_display, "WM_DELETE_WINDOW", 0);
+    XSetWMProtocols(x_display, window.window, &atom2, 1);
 	
 	// EGL context and surface	
 	eglBindAPI (EGL_OPENGL_ES_API);
@@ -162,6 +167,18 @@ void backend_dispatch_nonblocking (void) {
 			xkb_state_unref (state);
 			state = xkb_x11_state_new_from_device (keymap, xcb_connection, keyboard_device_id);
 			update_modifiers ();
+		}
+		else if (event.type == ClientMessage) {
+		if(event.xclient.message_type == atom1 &&
+			event.xclient.data.l[0] == atom2) {
+				//XDestroyWindow(x_display, event.xclient.window);
+				callbacks.terminate();
+			}
+			break;
+		}
+		else if (event.type == DestroyNotify) {
+			callbacks.terminate();
+			break;
 		}
 	}
 }

@@ -30,10 +30,12 @@ proxy_srcs = [
 	'renderer.c'
 ]
 
+add_global_arguments('-finstrument-functions', language : 'c')
+
 proxy = executable(
 	'proxy',
 	sources: proxy_srcs,
 	include_directories: incdirs,
 	dependencies: [egl, glesv2, libx11, libx11_xcb, wayland_server, libxkbcommon, libxkbcommon_x11],
-	link_args: ['-lm', '-g', '-rdynamic']
+	link_args: ['-O0', '-lm', '-ldl', '-g', '-rdynamic', '-finstrument-functions']
 )

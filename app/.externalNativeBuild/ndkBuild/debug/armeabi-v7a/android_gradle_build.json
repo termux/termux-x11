@@ -1,0 +1,40 @@
+{
+  "buildFiles": [
+    "/home/twaik/WTermux/app/src/main/jni/Android.mk"
+  ],
+  "cleanCommands": [
+    "/opt/AndroidSdk/ndk-bundle/ndk-build NDK_PROJECT_PATH\u003dnull APP_BUILD_SCRIPT\u003d/home/twaik/WTermux/app/src/main/jni/Android.mk APP_ABI\u003darmeabi-v7a NDK_ALL_ABIS\u003darmeabi-v7a NDK_DEBUG\u003d1 APP_PLATFORM\u003dandroid-19 NDK_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj NDK_LIBS_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/lib clean"
+  ],
+  "libraries": {
+    "lorie-debug-armeabi-v7a": {
+      "buildCommand": "/opt/AndroidSdk/ndk-bundle/ndk-build NDK_PROJECT_PATH\u003dnull APP_BUILD_SCRIPT\u003d/home/twaik/WTermux/app/src/main/jni/Android.mk APP_ABI\u003darmeabi-v7a NDK_ALL_ABIS\u003darmeabi-v7a NDK_DEBUG\u003d1 APP_PLATFORM\u003dandroid-19 NDK_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj NDK_LIBS_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/lib /home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/armeabi-v7a/liblorie.so",
+      "toolchain": "toolchain-armeabi-v7a",
+      "abi": "armeabi-v7a",
+      "artifactName": "lorie",
+      "files": [
+        {
+          "src": "/home/twaik/WTermux/app/src/main/jni/lorie/backend-android.c",
+          "flags": "-target armv7-none-linux-androideabi19 -fdata-sections -ffunction-sections -fstack-protector-strong -funwind-tables -no-canonical-prefixes --sysroot /opt/AndroidSdk/ndk-bundle/toolchains/llvm/prebuilt/linux-x86_64/sysroot -g -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -fno-addrsig -fpic -march\u003darmv7-a -mthumb -O0 -UNDEBUG -fno-limit-debug-info -I/home/twaik/WTermux/app/src/main/jni/prebuilt/include -I/home/twaik/WTermux/app/src/main/jni/lorie -DANDROID -Wa,--noexecstack -Wformat -Werror\u003dformat-security"
+        },
+        {
+          "src": "/home/twaik/WTermux/app/src/main/jni/lorie/main.c",
+          "flags": "-target armv7-none-linux-androideabi19 -fdata-sections -ffunction-sections -fstack-protector-strong -funwind-tables -no-canonical-prefixes --sysroot /opt/AndroidSdk/ndk-bundle/toolchains/llvm/prebuilt/linux-x86_64/sysroot -g -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -fno-addrsig -fpic -march\u003darmv7-a -mthumb -O0 -UNDEBUG -fno-limit-debug-info -I/home/twaik/WTermux/app/src/main/jni/prebuilt/include -I/home/twaik/WTermux/app/src/main/jni/lorie -DANDROID -Wa,--noexecstack -Wformat -Werror\u003dformat-security"
+        },
+        {
+          "src": "/home/twaik/WTermux/app/src/main/jni/lorie/renderer.c",
+          "flags": "-target armv7-none-linux-androideabi19 -fdata-sections -ffunction-sections -fstack-protector-strong -funwind-tables -no-canonical-prefixes --sysroot /opt/AndroidSdk/ndk-bundle/toolchains/llvm/prebuilt/linux-x86_64/sysroot -g -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -fno-addrsig -fpic -march\u003darmv7-a -mthumb -O0 -UNDEBUG -fno-limit-debug-info -I/home/twaik/WTermux/app/src/main/jni/prebuilt/include -I/home/twaik/WTermux/app/src/main/jni/lorie -DANDROID -Wa,--noexecstack -Wformat -Werror\u003dformat-security"
+        }
+      ],
+      "output": "/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/armeabi-v7a/liblorie.so"
+    }
+  },
+  "toolchains": {
+    "toolchain-armeabi-v7a": {
+      "cCompilerExecutable": "/opt/AndroidSdk/ndk-bundle/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
+    }
+  },
+  "cFileExtensions": [
+    "c"
+  ],
+  "cppFileExtensions": []
+}

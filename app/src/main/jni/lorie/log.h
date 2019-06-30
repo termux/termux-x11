@@ -32,3 +32,25 @@
 #endif
 
 #define DBG LOGD("Here! %s %d", __FILE__, __LINE__)
+
+extern int trace_funcs;
+#if defined(TRACE_FUNCS) && !defined(__ANDROID__)
+#include <execinfo.h>
+#include <dlfcn.h>
+void __attribute__((no_instrument_function))
+__cyg_profile_func_enter (void *func,  void *caller) {
+  if (!trace_funcs) return;
+  Dl_info info;
+  if (dladdr(func, &info))
+    LOGD ("enter %p [%s] %s\n", func, (info.dli_fname) ? info.dli_fname : "?", info.dli_sname ? info.dli_sname : "?");
+}
+void __attribute__((no_instrument_function))
+__cyg_profile_func_exit (void *func,  void *caller) {
+  if (!trace_funcs) return;
+  Dl_info info;
+  if (dladdr(func, &info))
+    LOGD ("leave %p [%s] %s\n", func, (info.dli_fname) ? info.dli_fname : "?", info.dli_sname ? info.dli_sname : "?");
+}
+
+#define static // backtrace do not report static function names
+#endif

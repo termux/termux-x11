@@ -1,5 +1,6 @@
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
+#include <stdint.h>
 
 struct modifier_state {
 	uint32_t depressed, latched, locked, group;
@@ -22,5 +23,6 @@ void backend_dispatch_nonblocking (void);
 void backend_wait_for_events (int wayland_fd);
 void backend_get_keymap (int *fd, int *size);
 long backend_get_timestamp (void);
+void backend_get_dimensions(uint32_t *width, uint32_t *height);
 
-void glDrawPixels(GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid * data);
+void lorie_start(void);

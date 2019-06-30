@@ -1,5 +1,4 @@
 #define _GNU_SOURCE
-#include "backend.h"
 #include <wayland-server.h>
 #include <X11/Xlib.h>
 #include <linux/input.h>
@@ -14,6 +13,10 @@
 #include <time.h>
 #include <stdio.h>
 #include <poll.h>
+#include <signal.h>
+#include <execinfo.h>
+#include "backend.h"
+#include "log.h"
 
 #define WINDOW_WIDTH 1024
 #define WINDOW_HEIGHT 600
@@ -91,7 +94,21 @@ static void create_window (void) {
 	XMapWindow (x_display, window.window);
 }
 
+void handler(int sig) {
+  void *array[10];
+  size_t size;
+
+  // get void*'s for all entries on the stack
+  size = backtrace(array, 10);
+
+  // print out all the frames to stderr
+  fprintf(stderr, "Error: signal %d:\n", sig);
+  backtrace_symbols_fd(array, size, STDERR_FILENO);
+  exit(1);
+}
+
 void backend_init (struct callbacks *_callbacks) {
+	signal(SIGSEGV, handler);
 	callbacks = *_callbacks;
 	x_display = XOpenDisplay (NULL);
 	
@@ -116,6 +133,7 @@ void backend_swap_buffers (void) {
 }
 
 static void update_modifiers (void) {
+	if (!callbacks.modifiers) return;
 	struct modifier_state modifier_state;
 	modifier_state.depressed = xkb_state_serialize_mods (state, XKB_STATE_MODS_DEPRESSED);
 	modifier_state.latched = xkb_state_serialize_mods (state, XKB_STATE_MODS_LATCHED);
@@ -128,16 +146,16 @@ void backend_dispatch_nonblocking (void) {
 	XEvent event;
 	while (XPending(x_display)) {
 		XNextEvent (x_display, &event);
-		if (event.type == ConfigureNotify) {
+		if (event.type == ConfigureNotify && callbacks.resize) {
 			callbacks.resize (event.xconfigure.width, event.xconfigure.height);
 		}
-		else if (event.type == Expose) {
+		else if (event.type == Expose && callbacks.draw) {
 			callbacks.draw ();
 		}
-		else if (event.type == MotionNotify) {
+		else if (event.type == MotionNotify && callbacks.mouse_motion) {
 			callbacks.mouse_motion (event.xbutton.x, event.xbutton.y);
 		}
-		else if (event.type == ButtonPress) {
+		else if (event.type == ButtonPress && callbacks.mouse_button) {
 			if (event.xbutton.button == Button1)
 				callbacks.mouse_button (BTN_LEFT, WL_POINTER_BUTTON_STATE_PRESSED);
 			else if (event.xbutton.button == Button2)
@@ -145,7 +163,7 @@ void backend_dispatch_nonblocking (void) {
 			else if (event.xbutton.button == Button3)
 				callbacks.mouse_button (BTN_RIGHT, WL_POINTER_BUTTON_STATE_PRESSED);
 		}
-		else if (event.type == ButtonRelease) {
+		else if (event.type == ButtonRelease && callbacks.mouse_button) {
 			if (event.xbutton.button == Button1)
 				callbacks.mouse_button (BTN_LEFT, WL_POINTER_BUTTON_STATE_RELEASED);
 			else if (event.xbutton.button == Button2)
@@ -153,12 +171,12 @@ void backend_dispatch_nonblocking (void) {
 			else if (event.xbutton.button == Button3)
 				callbacks.mouse_button (BTN_RIGHT, WL_POINTER_BUTTON_STATE_RELEASED);
 		}
-		else if (event.type == KeyPress) {
+		else if (event.type == KeyPress && callbacks.key) {
 			callbacks.key (event.xkey.keycode - 8, WL_KEYBOARD_KEY_STATE_PRESSED);
 			xkb_state_update_key (state, event.xkey.keycode, XKB_KEY_DOWN);
 			update_modifiers ();
 		}
-		else if (event.type == KeyRelease) {
+		else if (event.type == KeyRelease && callbacks.key) {
 			callbacks.key (event.xkey.keycode - 8, WL_KEYBOARD_KEY_STATE_RELEASED);
 			xkb_state_update_key (state, event.xkey.keycode, XKB_KEY_UP);
 			update_modifiers ();
@@ -168,7 +186,7 @@ void backend_dispatch_nonblocking (void) {
 			state = xkb_x11_state_new_from_device (keymap, xcb_connection, keyboard_device_id);
 			update_modifiers ();
 		}
-		else if (event.type == ClientMessage) {
+		else if (event.type == ClientMessage && callbacks.terminate) {
 		if(event.xclient.message_type == atom1 &&
 			event.xclient.data.l[0] == atom2) {
 				//XDestroyWindow(x_display, event.xclient.window);
@@ -176,7 +194,7 @@ void backend_dispatch_nonblocking (void) {
 			}
 			break;
 		}
-		else if (event.type == DestroyNotify) {
+		else if (event.type == DestroyNotify && callbacks.terminate) {
 			callbacks.terminate();
 			break;
 		}
@@ -204,4 +222,17 @@ long backend_get_timestamp (void) {
 	struct timespec t;
 	clock_gettime (CLOCK_MONOTONIC, &t);
 	return t.tv_sec * 1000 + t.tv_nsec / 1000000;
+}
+
+void backend_get_dimensions(uint32_t *width, uint32_t *height) {
+	if (width != NULL)  *width  = WINDOW_WIDTH;
+	if (height != NULL) *height = WINDOW_HEIGHT;
+}
+
+int main(int argc, char *argv[]) {
+#ifndef __ANDROID__
+	if (argc == 2 && !strcmp("-f", argv[1])) trace_funcs = 1;
+#endif
+	lorie_start();
+	return 0;
 }

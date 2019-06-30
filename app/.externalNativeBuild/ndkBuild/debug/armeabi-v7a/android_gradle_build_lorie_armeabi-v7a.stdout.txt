@@ -1,0 +1,1 @@
+make: `/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/armeabi-v7a/liblorie.so' is up to date.

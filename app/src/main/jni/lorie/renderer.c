@@ -139,7 +139,7 @@ struct texture *texture_create(int width, int height) {
 		return NULL;
 	}
 	
-	//LOGD("Creating %dx%d texture", width, height);
+	LOGD("Creating %dx%d texture", width, height);
 	
     glActiveTexture(GL_TEXTURE0);
 	glGenTextures(1, &texture->id);

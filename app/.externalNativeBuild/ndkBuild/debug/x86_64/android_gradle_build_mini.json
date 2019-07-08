@@ -1,0 +1,23 @@
+{
+  "buildFiles": [
+    "/home/twaik/WTermux/app/src/main/jni/Android.mk",
+    "/home/twaik/WTermux/app/src/main/jni/Application.mk"
+  ],
+  "cleanCommands": [
+    "/opt/AndroidSdk/ndk-bundle/ndk-build NDK_PROJECT_PATH\u003dnull APP_BUILD_SCRIPT\u003d/home/twaik/WTermux/app/src/main/jni/Android.mk NDK_APPLICATION_MK\u003d/home/twaik/WTermux/app/src/main/jni/Application.mk APP_ABI\u003dx86_64 NDK_ALL_ABIS\u003dx86_64 NDK_DEBUG\u003d1 APP_PLATFORM\u003dandroid-19 NDK_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj NDK_LIBS_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/lib clean"
+  ],
+  "libraries": {
+    "xkbcommon-debug-x86_64": {
+      "artifactName": "xkbcommon",
+      "buildCommand": "/opt/AndroidSdk/ndk-bundle/ndk-build NDK_PROJECT_PATH\u003dnull APP_BUILD_SCRIPT\u003d/home/twaik/WTermux/app/src/main/jni/Android.mk NDK_APPLICATION_MK\u003d/home/twaik/WTermux/app/src/main/jni/Application.mk APP_ABI\u003dx86_64 NDK_ALL_ABIS\u003dx86_64 NDK_DEBUG\u003d1 APP_PLATFORM\u003dandroid-19 NDK_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj NDK_LIBS_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/lib /home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/x86_64/libxkbcommon.a",
+      "abi": "x86_64",
+      "output": "/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/x86_64/libxkbcommon.a"
+    },
+    "lorie-debug-x86_64": {
+      "artifactName": "lorie",
+      "buildCommand": "/opt/AndroidSdk/ndk-bundle/ndk-build NDK_PROJECT_PATH\u003dnull APP_BUILD_SCRIPT\u003d/home/twaik/WTermux/app/src/main/jni/Android.mk NDK_APPLICATION_MK\u003d/home/twaik/WTermux/app/src/main/jni/Application.mk APP_ABI\u003dx86_64 NDK_ALL_ABIS\u003dx86_64 NDK_DEBUG\u003d1 APP_PLATFORM\u003dandroid-19 NDK_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj NDK_LIBS_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/lib /home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/x86_64/liblorie.so",
+      "abi": "x86_64",
+      "output": "/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/x86_64/liblorie.so"
+    }
+  }
+}

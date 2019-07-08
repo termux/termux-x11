@@ -1,0 +1,14 @@
+Executable : /opt/AndroidSdk/ndk-bundle/ndk-build
+arguments : 
+NDK_PROJECT_PATH=null
+APP_BUILD_SCRIPT=/home/twaik/WTermux/app/src/main/jni/Android.mk
+NDK_APPLICATION_MK=/home/twaik/WTermux/app/src/main/jni/Application.mk
+APP_ABI=x86_64
+NDK_ALL_ABIS=x86_64
+NDK_DEBUG=1
+APP_PLATFORM=android-19
+NDK_OUT=/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj
+NDK_LIBS_OUT=/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/lib
+/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/x86_64/liblorie.so
+jvmArgs : 
+

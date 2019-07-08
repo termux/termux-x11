@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <wayland-server.h>
+#include <unistd.h>
 #include "backend.h"
 #include "renderer.h"
 #include "interfaces.h"
@@ -184,11 +185,11 @@ static void seat_get_pointer (struct wl_client *client, struct wl_resource *reso
 static void seat_get_keyboard (struct wl_client *client, struct wl_resource *resource, uint32_t id) {
 	struct wl_resource *keyboard = wl_resource_create (client, &wl_keyboard_interface, 7, id);
 	wl_resource_set_implementation (keyboard, &lorie_keyboard_interface, NULL, NULL);
-	//get_client(client)->keyboard = keyboard;
-	//int fd, size;
-	//backend_get_keymap (&fd, &size);
-	//wl_keyboard_send_keymap (keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, fd, size);
-	//close (fd);
+	get_client(client)->keyboard = keyboard;
+	int fd, size;
+	backend_get_keymap (&fd, &size);
+	wl_keyboard_send_keymap (keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, fd, size);
+	close (fd);
 }
 static struct wl_seat_interface seat_interface = {&seat_get_pointer, &seat_get_keyboard, NO_OP(wl_seat_get_touch_t)};
 static void wl_seat_bind (struct wl_client *client, void *data, uint32_t version, uint32_t id) {
@@ -243,11 +244,11 @@ static void handle_resize_event (int width, int height) {
 	if (width == c.width && height == c.height) return;
 	glViewport(0, 0, width, height);
 	c.width = width;
-	c.height = height;	
+	c.height = height;
 	if (c.wl_output) {
 		wl_output_send_mode(c.wl_output, 3, width, height, 60000);
 		wl_output_send_done(c.wl_output);
-		
+
 		if (c.toplevel && c.toplevel->shell_surface) {
 			wl_shell_surface_send_configure(c.toplevel->shell_surface->shell_surface, 0, width, height);
 			wl_shell_surface_send_ping(c.toplevel->shell_surface->shell_surface, 33231);
@@ -282,19 +283,29 @@ static void handle_mouse_button_event (int button, int state) {
 	}
 }
 static void handle_key_event (int key, int state) {
-	//if (!c.toplevel || !c.toplevel->client->keyboard) return;
-	//wl_keyboard_send_key (c.toplevel->client->keyboard, 0, backend_get_timestamp(), key, state);
+	if (!c.toplevel || !c.toplevel->client->keyboard) return;
+	wl_keyboard_send_key (c.toplevel->client->keyboard, 0, backend_get_timestamp(), key, state);
 }
 static void handle_modifiers_changed (struct modifier_state new_state) {
-	//if (new_state.depressed == c.modifier_state.depressed && new_state.latched == c.modifier_state.latched && new_state.locked == c.modifier_state.locked && new_state.group == c.modifier_state.group) return;
-	//c.modifier_state = new_state;
-	//if (c.toplevel && c.toplevel->client->keyboard)
-	//	wl_keyboard_send_modifiers (c.toplevel->client->keyboard, 0, c.modifier_state.depressed, c.modifier_state.latched, c.modifier_state.locked, c.modifier_state.group);
+	if (new_state.depressed == c.modifier_state.depressed && new_state.latched == c.modifier_state.latched && new_state.locked == c.modifier_state.locked && new_state.group == c.modifier_state.group) return;
+	c.modifier_state = new_state;
+	if (c.toplevel && c.toplevel->client->keyboard)
+		wl_keyboard_send_modifiers (c.toplevel->client->keyboard, 0, c.modifier_state.depressed, c.modifier_state.latched, c.modifier_state.locked, c.modifier_state.group);
+}
+static void handle_keymap_changed() {
+	struct client *client;
+	int fd, size;
+	backend_get_keymap (&fd, &size);
+	wl_list_for_each (client, &c.clients, link) {
+		if (client && client->keyboard)
+			wl_keyboard_send_keymap (client->keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, fd, size);
+	}
+	close (fd);
 }
 static void handle_terminate() {
 	c.running = false;
 }
-static struct callbacks callbacks = {&handle_resize_event, &handle_draw_event, &handle_mouse_motion_event, &handle_mouse_button_event, &handle_key_event, &handle_modifiers_changed, &handle_terminate};
+static struct callbacks callbacks = {&handle_resize_event, &handle_draw_event, &handle_mouse_motion_event, &handle_mouse_button_event, &handle_key_event, &handle_modifiers_changed, &handle_keymap_changed, &handle_terminate};
 
 static void draw (void) {
 	glClearColor (0, 0, 0, 0);

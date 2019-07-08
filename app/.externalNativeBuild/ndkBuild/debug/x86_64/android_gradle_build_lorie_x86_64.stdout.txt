@@ -1,0 +1,40 @@
+Android NDK: WARNING:/home/twaik/WTermux/app/src/main/jni/lorie/Android.mk:lorie: non-system libraries in linker flags: -lwayland-server    
+Android NDK:     This is likely to result in incorrect builds. Try using LOCAL_STATIC_LIBRARIES    
+Android NDK:     or LOCAL_SHARED_LIBRARIES instead to list the library dependencies of the    
+Android NDK:     current module    
+[x86_64] Compile        : lorie <= main.c
+[x86_64] Compile        : lorie <= backend-android.c
+[x86_64] Compile        : lorie <= renderer.c
+[x86_64] Compile        : xkbcommon <= parser.c
+[x86_64] Compile        : xkbcommon <= paths.c
+[x86_64] Compile        : xkbcommon <= state.c
+[x86_64] Compile        : xkbcommon <= table.c
+[x86_64] Compile        : xkbcommon <= action.c
+[x86_64] Compile        : xkbcommon <= ast-build.c
+[x86_64] Compile        : xkbcommon <= compat.c
+[x86_64] Compile        : xkbcommon <= expr.c
+[x86_64] Compile        : xkbcommon <= include.c
+[x86_64] Compile        : xkbcommon <= keycodes.c
+[x86_64] Compile        : xkbcommon <= keymap.c
+[x86_64] Compile        : xkbcommon <= keymap-dump.c
+[x86_64] Compile        : xkbcommon <= keywords.c
+[x86_64] Compile        : xkbcommon <= parser.c
+[x86_64] Compile        : xkbcommon <= rules.c
+[x86_64] Compile        : xkbcommon <= scanner.c
+[x86_64] Compile        : xkbcommon <= symbols.c
+[x86_64] Compile        : xkbcommon <= types.c
+[x86_64] Compile        : xkbcommon <= vmod.c
+[x86_64] Compile        : xkbcommon <= xkbcomp.c
+[x86_64] Compile        : xkbcommon <= atom.c
+[x86_64] Compile        : xkbcommon <= context.c
+[x86_64] Compile        : xkbcommon <= context-priv.c
+[x86_64] Compile        : xkbcommon <= keysym.c
+[x86_64] Compile        : xkbcommon <= keysym-utf.c
+[x86_64] Compile        : xkbcommon <= keymap.c
+[x86_64] Compile        : xkbcommon <= keymap-priv.c
+[x86_64] Compile        : xkbcommon <= state.c
+[x86_64] Compile        : xkbcommon <= text.c
+[x86_64] Compile        : xkbcommon <= utf8.c
+[x86_64] Compile        : xkbcommon <= utils.c
+[x86_64] SharedLibrary  : libxkbcommon.so
+[x86_64] SharedLibrary  : liblorie.so

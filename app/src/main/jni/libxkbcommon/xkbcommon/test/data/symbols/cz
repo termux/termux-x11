@@ -1,0 +1,185 @@
+default  partial alphanumeric_keys
+xkb_symbols "basic" {
+
+    // This layout conforms to a new Czech compromise standard
+    // designed to satisfy most Unix, Windows and Mac users.
+    // 2001 by Kamil Toman <ktoman@email.cz>
+
+    include "latin"
+    name[Group1]= "Czech";
+
+    key <TLDE>  { [ semicolon, dead_abovering,    grave,   asciitilde ] };
+    key <AE01>  { [      plus,          1,       exclam,   dead_tilde ] };
+    key <AE02>  { [    ecaron,          2,           at,   dead_caron ] };
+    key <AE03>  { [    scaron,          3,   numbersign, dead_circumflex ] };
+    key <AE04>  { [    ccaron,          4,       dollar,   dead_breve ] };
+    key <AE05>  { [    rcaron,          5,      percent, dead_abovering]};
+    key <AE06>  { [    zcaron,          6,  asciicircum,  dead_ogonek ] };
+    key <AE07>  { [    yacute,          7,    ampersand,   dead_grave ] };
+    key <AE08>  { [    aacute,          8,     asterisk, dead_abovedot] };
+    key <AE09>  { [    iacute,          9,    braceleft,   dead_acute ] };
+    key <AE10>  { [    eacute,          0,   braceright, dead_doubleacute ] };
+    key <AE11>  { [     equal,    percent,     NoSymbol, dead_diaeresis]};
+    key <AE12>  { [dead_acute, dead_caron,  dead_macron, dead_cedilla ] };
+
+    key <AD01>  { [         q,          Q,    backslash,     NoSymbol ] };
+    key <AD02>  { [         w,          W,          bar,     Nosymbol ] };
+    key <AD03>  { [         e,          E,     EuroSign,     NoSymbol ] };
+    key <AD04>  { [         r,          R,     NoSymbol,     NoSymbol ] };
+    key <AD05>  { [         t,          T,     NoSymbol,     NoSymbol ] };
+    key <AD06>  { [         z,          Z,     NoSymbol,     NoSymbol ] };
+    key <AD07>  { [         u,          U,     NoSymbol,     NoSymbol ] };
+    key <AD08>  { [         i,          I,     NoSymbol,     NoSymbol ] };
+    key <AD09>  { [         o,          O,     NoSymbol,     NoSymbol ] };
+    key <AD10>  { [         p,          P,     NoSymbol,     NoSymbol ] };
+
+    key <AD11>  { [    uacute,      slash,  bracketleft,     division ] };
+    key <AD12>  { [parenright,  parenleft, bracketright,     multiply ] };
+
+    key <AC01>  { [         a,          A,   asciitilde,     NoSymbol ] };
+    key <AC02>  { [         s,          S,      dstroke,     NoSymbol ] };
+    key <AC03>  { [         d,          D,      Dstroke,     NoSymbol ] };
+    key <AC04>  { [         f,          F,  bracketleft,     NoSymbol ] };
+    key <AC05>  { [         g,          G, bracketright,     NoSymbol ] };
+    key <AC06>  { [         h,          H,        grave,     NoSymbol ] };
+    key <AC07>  { [         j,          J,   apostrophe,     NoSymbol ] };
+    key <AC08>  { [         k,          K,      lstroke,     NoSymbol ] };
+    key <AC09>  { [         l,          L,      Lstroke,     NoSymbol ] };
+
+    key <AC10>  { [     uring,   quotedbl,       dollar,     NoSymbol ] };
+    key <AC11>  { [   section,     exclam,   apostrophe,       ssharp ] };
+    key <AC12>  { [  EuroSign, dead_diaeresis, NoSymbol,     NoSymbol ] };
+    key <BKSL>  { [dead_diaeresis, apostrophe, backslash,         bar ] };
+
+    key <LSGT>  { [ backslash,        bar,        slash,     NoSymbol ] };
+    key <AB01>  { [         y,          Y,       degree,     NoSymbol ] };
+    key <AB02>  { [         x,          X,   numbersign,     Nosymbol ] };
+    key <AB03>  { [         c,          C,    ampersand,     NoSymbol ] };
+    key <AB04>  { [         v,          V,           at,     NoSymbol ] };
+    key <AB05>  { [         b,          B,    braceleft,     NoSymbol ] };
+    key <AB06>  { [         n,          N,   braceright,     NoSymbol ] };
+    key <AB07>  { [         m,          M,  asciicircum,     NoSymbol ] };
+    key <AB08>  { [     comma,   question,         less,     NoSymbol ] };
+    key <AB09>  { [    period,      colon,      greater,     NoSymbol ] };
+    key <AB10>  { [     minus, underscore,     asterisk,     NoSymbol ] };
+
+    key <SPCE>  { [     space,      space,        space,       space  ] };
+
+    include "level3(ralt_switch)"
+};
+
+xkb_symbols "bksl" {
+
+    // Use <BKSL> instead of <LSGT> (useful for keyboards without <LSGT> key).
+
+    include "cz(basic)"
+    name[Group1]= "Czech (with <\|> key)";
+
+    key <BKSL>  { [ backslash,        bar,        slash,     NoSymbol ] };
+};
+
+partial alphanumeric_keys
+xkb_symbols "qwerty" {
+
+    // This layout represents the actual Czech keyboards;
+    // it complies with the symbols printed on the keys.
+    // 2011 by Lukáš Mojžíš <lmojzis@grenames.cz>
+
+    include "cz(basic)"
+    name[Group1]= "Czech (qwerty)";
+
+    key <AB01>  { [         z,          Z,       degree,         NoSymbol ] };
+    key <AC10>  { [     uring,   quotedbl,    semicolon,            colon ] };
+    key <AC11>  { [   section,     exclam,   apostrophe,           ssharp ] };
+    key <AD06>  { [         y,          Y,     NoSymbol,         NoSymbol ] };
+    key <AD11>  { [    uacute,      slash,  bracketleft,        braceleft ] };
+    key <AD12>  { [parenright,  parenleft, bracketright,       braceright ] };
+    key <AE09>  { [    iacute,          9,    parenleft,       dead_acute ] };
+    key <AE10>  { [    eacute,          0,   parenright, dead_doubleacute ] };
+};
+
+xkb_symbols "qwerty_bksl" {
+
+    // Use <BKSL> instead of <LSGT> (useful for keyboards without <LSGT> key).
+
+    include "cz(qwerty)"
+    name[Group1]= "Czech (qwerty, extended Backslash)";
+
+    key <BKSL>  { [ backslash,        bar,        slash,     NoSymbol ] };
+};
+
+partial alphanumeric_keys alternate_group
+xkb_symbols "ucw" {
+
+    // This layout is usually used as the second group,
+    // it contains accented characters only, no 'latin' set.
+    // 2008 by Milan Vancura <mvancura@suse.cz>
+
+    name[Group1]= "Czech (UCW layout, accented letters only)";
+
+    key <AB01> { [zcaron,      Zcaron      ] };
+    key <AB02> { [ssharp                   ] };
+    key <AB03> { [ccaron,      Ccaron      ] };
+    key <AB04> { [ccedilla,    Ccedilla    ] };
+    key <AB05> { [ntilde,      Ntilde      ] };
+    key <AB06> { [ncaron,      Ncaron      ] };
+    key <AB07> { [lacute,      Lacute      ] };
+
+    key <AC01> { [aacute,      Aacute      ] };
+    key <AC02> { [scaron,      Scaron      ] };
+    key <AC03> { [dcaron,      Dcaron      ] };
+    key <AC04> { [ediaeresis,  Ediaeresis  ] };
+    key <AC05> { [racute,      Racute      ] };
+    key <AC06> { [uacute,      Uacute      ] };
+    key <AC07> { [udiaeresis,  Udiaeresis  ] };
+    key <AC08> { [ocircumflex, Ocircumflex ] };
+    key <AC09> { [lcaron,      Lcaron      ] };
+
+    key <AD01> { [adiaeresis,  Adiaeresis  ] };
+    key <AD02> { [ecaron,      Ecaron      ] };
+    key <AD03> { [eacute,      Eacute      ] };
+    key <AD04> { [rcaron,      Rcaron      ] };
+    key <AD05> { [tcaron,      Tcaron      ] };
+    key <AD06> { [yacute,      Yacute      ] };
+    key <AD07> { [uring,       Uring       ] };
+    key <AD08> { [iacute,      Iacute      ] };
+    key <AD09> { [oacute,      Oacute      ] };
+    key <AD10> { [odiaeresis,  Odiaeresis  ] };
+};
+
+partial alphanumeric_keys
+xkb_symbols "dvorak-ucw" {
+
+    // US Dvorak layout extended with UCW,
+    // AltGr produces accented characters.
+
+    include "us(dvorak)"
+    name[Group1]= "Czech (US Dvorak with CZ UCW support)";
+
+    key <AB03> { [ j, J, eacute, Eacute ] };
+    key <AB04> { [ k, K, uacute, Uacute ] };
+    key <AB10> { [ z, Z, zcaron, Zcaron ] };
+
+    key <AC01> { [ a, A, aacute, Aacute ] };
+    key <AC02> { [ o, O, oacute, Oacute ] };
+    key <AC03> { [ e, E, ecaron, Ecaron ] };
+    key <AC04> { [ u, U, uring,  Uring  ] };
+    key <AC05> { [ i, I, iacute, Iacute ] };
+    key <AC06> { [ d, D, dcaron, Dcaron ] };
+    key <AC08> { [ t, T, tcaron, Tcaron ] };
+    key <AC09> { [ n, N, ncaron, Ncaron ] };
+    key <AC10> { [ s, S, scaron, Scaron ] };
+
+    key <AD05> { [ y, Y, yacute, Yacute ] };
+    key <AD08> { [ c, C, ccaron, Ccaron ] };
+    key <AD09> { [ r, R, rcaron, Rcaron ] };
+
+    include "level3(ralt_switch)"
+};
+
+// EXTRAS:
+
+partial alphanumeric_keys
+	xkb_symbols "sun_type6" {
+	include "sun_vndr/cz(sun_type6)"
+};

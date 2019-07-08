@@ -1,0 +1,19 @@
+LOCAL_PATH := $(call my-dir)
+
+define ev-prebuilt
+include $$(CLEAR_VARS) 
+LOCAL_MODULE := $(strip $1)
+LOCAL_SRC_FILES:= $$(TARGET_ARCH_ABI)/lib$(strip $1).so 
+include $$(PREBUILT_SHARED_LIBRARY) 
+
+endef
+
+prebuilt = $(eval $(call ev-prebuilt, $1))
+
+# libs are prebuilt with termux
+$(info $(call ev-prebuilt, android-support))
+$(info $(call ev-prebuilt, ffi))
+$(info $(call ev-prebuilt, wayland-server))
+$(call prebuilt, android-support)
+$(call prebuilt, ffi)
+$(call prebuilt, wayland-server)

@@ -13,6 +13,7 @@ struct callbacks {
 	void (*mouse_button) (int button, int state);
 	void (*key) (int key, int state);
 	void (*modifiers) (struct modifier_state modifier_state);
+	void (*keymap) ();
 	void (*terminate) ();
 };
 

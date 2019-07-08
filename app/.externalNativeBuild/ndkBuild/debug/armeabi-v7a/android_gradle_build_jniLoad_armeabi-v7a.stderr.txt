@@ -1,0 +1,23 @@
+/home/twaik/WTermux/app/src/main/jni/patchelf.cpp:158:9: error: cannot use 'throw' with exceptions disabled
+        throw SysError(msg);
+        ^
+/home/twaik/WTermux/app/src/main/jni/patchelf.cpp:160:9: error: cannot use 'throw' with exceptions disabled
+        throw std::runtime_error(msg);
+        ^
+/home/twaik/WTermux/app/src/main/jni/patchelf.cpp:173:9: error: cannot use 'throw' with exceptions disabled
+        throw SysError(fmt("getting info about '", fileName, "'"));
+        ^
+/home/twaik/WTermux/app/src/main/jni/patchelf.cpp:176:9: error: cannot use 'throw' with exceptions disabled
+        throw SysError(fmt("cannot read file of size ", st.st_size, " into memory"));
+        ^
+/home/twaik/WTermux/app/src/main/jni/patchelf.cpp:185:19: error: cannot use 'throw' with exceptions disabled
+    if (fd == -1) throw SysError(fmt("opening '", fileName, "'"));
+                  ^
+/home/twaik/WTermux/app/src/main/jni/patchelf.cpp:193:9: error: cannot use 'throw' with exceptions disabled
+        throw SysError(fmt("reading '", fileName, "'"));
+        ^
+/home/twaik/WTermux/app/src/main/jni/patchelf.cpp:374:2: error: cannot use 'try' with exceptions disabled
+        try {
+        ^
+7 errors generated.
+make: *** [/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/armeabi-v7a/objs-debug/jniLoad/patchelf.o] Error 1

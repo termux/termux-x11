@@ -1,0 +1,2 @@
+[x86_64] Compile        : jniLoader <= dt_needed_main.c
+[x86_64] SharedLibrary  : libjniLoader.so

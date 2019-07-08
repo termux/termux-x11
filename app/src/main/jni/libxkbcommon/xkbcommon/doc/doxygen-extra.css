@@ -1,0 +1,9 @@
+div#top, div.header, div.contents {
+        margin-left: auto;
+        margin-right: auto;
+        width: 960px;
+}
+
+.footer {
+        display: none;
+}

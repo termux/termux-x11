@@ -1,0 +1,10 @@
+libdir=@abs_top_builddir@/.libs
+includedir=@abs_top_srcdir@
+
+Name: xkbcommon-x11
+Description: XKB API common to servers and clients - X11 support (uninstalled)
+Version: @PACKAGE_VERSION@
+Requires: xkbcommon
+Requires.private: xcb xcb-xkb
+Cflags: -I${includedir}
+Libs: -L${libdir} -lxkbcommon-x11

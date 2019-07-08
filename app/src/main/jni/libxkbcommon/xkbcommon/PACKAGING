@@ -1,0 +1,50 @@
+libxkbcommon consists of two shared libraries, libxkbcommon (the main
+library) and libxkbcommon-x11 (an addon library for XCB clients).
+
+The files for libxkbcommon-x11 are:
+    libxkbcommon-x11.a libxkbcommon.so* xkbcommon/xkbcommon-x11.h
+    xkbcommon-x11.map xkbcommon-x11.pc
+
+libxkbcommon-x11 can be disabled with --disable-x11 (see
+`./configure --help` for other options/variables).
+
+Dependencies for libxkbcommon:
+- C compiler, autoconf, automake, pkg-config, libc, etc.
+
+- (build optional) xorg-util-macros.
+  Output included in tarball.
+
+- (build optional) bison (preferred) or byacc>=20141006.
+  Output included in tarball.
+  byacc must be configured with --enable-btyacc.
+
+- (build optional, runtime) xkeyboard-config.
+  During build, for automatically detecting the value of
+  --with-xkb-config-root instead of guessing (/usr/share/X11/xkb).
+  During runtime, not strictly needed, but most users of the library
+  would need it.
+
+- (runtime) libX11.
+  Contains the dataset for Compose support (/usr/share/X11/locale).
+  Please don't depend on it explicitly.
+
+- (build optional) doxygen.
+  For generating the HTML documentation.
+
+- (build optional) gperf.
+  Output included in git and tarball. To regenerate, use
+  `make update-keywords`.
+
+Dependencies for libxkbcommon-x11:
+- libxkbcommon.
+
+- libxcb>=1.10 with libxcb-xkb.
+
+Dependencies for libxkbcommon-x11 tests:
+- xkbcomp, Xvfb.
+  If they are not available, the relevant tests are skipped.
+
+Unless libxcb is always available as part of the system, it is preferred
+that libxkbcommon and libxkbcommon-x11 be split into separate packages,
+such that the main library does not depend on libxcb. This avoids a
+transitive dependency of Wayland clients on X libraries.

@@ -1,0 +1,12 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: xkbcommon-x11
+Description: XKB API common to servers and clients - X11 support
+Version: @PACKAGE_VERSION@
+Requires: xkbcommon
+Requires.private: xcb xcb-xkb
+Cflags: -I${includedir}
+Libs: -L${libdir} -lxkbcommon-x11

@@ -1,0 +1,12 @@
+language: c
+
+before_install:
+    - sudo apt-get update -qq
+    - sudo apt-get install xutils-dev
+
+compiler:
+    - gcc
+    - clang
+
+# libxcb too old -- should enable when possible.
+script: ./autogen.sh --disable-x11 && make && make check

@@ -21,6 +21,11 @@ android {
             path "src/main/jni/Android.mk"
         }
     }
+    sourceSets {
+        main {
+            jniLibs.srcDirs 'src/main/jni/prebuilt'
+        }
+    }
 }
 
 dependencies {

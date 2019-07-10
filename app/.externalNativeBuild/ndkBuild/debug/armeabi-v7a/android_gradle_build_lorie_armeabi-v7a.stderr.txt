@@ -1,4 +1,0 @@
-/home/twaik/WTermux/app/src/main/jni/lorie/backend-android.c:257:33: warning: result of comparison against a string literal is unspecified (use strncmp instead) [-Wstring-compare]
-                if (backend->xkb_names.layout != "us") {
-                                              ^  ~~~~
-1 warning generated.

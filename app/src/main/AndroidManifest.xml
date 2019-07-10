@@ -17,7 +17,7 @@
         tools:ignore="GoogleAppIndexingWarning">
         <activity android:name=".MainActivity"
             android:theme="@style/NoActionBar"
-            android:configChanges="orientation|screenSize">
+            android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

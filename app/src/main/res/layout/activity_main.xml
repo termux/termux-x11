@@ -6,6 +6,7 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
+
     <SurfaceView
         android:id="@+id/WestonView"
         android:layout_width="match_parent"
@@ -13,9 +14,24 @@
         android:visibility="visible"
         tools:visibility="visible" />
 
-    <LinearLayout
-        android:id="@+id/MenuHolder"
+    <!-- RelativeLayout and ScrollView inside are needed to make ExtraKeysView visible after soft keyboard is shown -->
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"></LinearLayout>
+        android:layout_height="match_parent">
+
+        <ScrollView
+            android:id="@+id/scrollview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_above="@+id/extra_keys">
+        </ScrollView>
+        <com.termux.wtermux.AdditionalKeyboardView
+            android:id="@+id/extra_keys"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_alignParentBottom="true" />
+
+    </RelativeLayout>
+
+
 </FrameLayout>

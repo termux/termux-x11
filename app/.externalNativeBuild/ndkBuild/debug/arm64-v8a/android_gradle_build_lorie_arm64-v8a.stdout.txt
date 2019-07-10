@@ -3,38 +3,7 @@ Android NDK:     This is likely to result in incorrect builds. Try using LOCAL_S
 Android NDK:     or LOCAL_SHARED_LIBRARIES instead to list the library dependencies of the    
 Android NDK:     current module    
 [arm64-v8a] Compile        : lorie <= main.c
+[arm64-v8a] Compile        : lorie <= android-utils.c
 [arm64-v8a] Compile        : lorie <= backend-android.c
 [arm64-v8a] Compile        : lorie <= renderer.c
-[arm64-v8a] Compile        : xkbcommon <= parser.c
-[arm64-v8a] Compile        : xkbcommon <= paths.c
-[arm64-v8a] Compile        : xkbcommon <= state.c
-[arm64-v8a] Compile        : xkbcommon <= table.c
-[arm64-v8a] Compile        : xkbcommon <= action.c
-[arm64-v8a] Compile        : xkbcommon <= ast-build.c
-[arm64-v8a] Compile        : xkbcommon <= compat.c
-[arm64-v8a] Compile        : xkbcommon <= expr.c
-[arm64-v8a] Compile        : xkbcommon <= include.c
-[arm64-v8a] Compile        : xkbcommon <= keycodes.c
-[arm64-v8a] Compile        : xkbcommon <= keymap.c
-[arm64-v8a] Compile        : xkbcommon <= keymap-dump.c
-[arm64-v8a] Compile        : xkbcommon <= keywords.c
-[arm64-v8a] Compile        : xkbcommon <= parser.c
-[arm64-v8a] Compile        : xkbcommon <= rules.c
-[arm64-v8a] Compile        : xkbcommon <= scanner.c
-[arm64-v8a] Compile        : xkbcommon <= symbols.c
-[arm64-v8a] Compile        : xkbcommon <= types.c
-[arm64-v8a] Compile        : xkbcommon <= vmod.c
-[arm64-v8a] Compile        : xkbcommon <= xkbcomp.c
-[arm64-v8a] Compile        : xkbcommon <= atom.c
-[arm64-v8a] Compile        : xkbcommon <= context.c
-[arm64-v8a] Compile        : xkbcommon <= context-priv.c
-[arm64-v8a] Compile        : xkbcommon <= keysym.c
-[arm64-v8a] Compile        : xkbcommon <= keysym-utf.c
-[arm64-v8a] Compile        : xkbcommon <= keymap.c
-[arm64-v8a] Compile        : xkbcommon <= keymap-priv.c
-[arm64-v8a] Compile        : xkbcommon <= state.c
-[arm64-v8a] Compile        : xkbcommon <= text.c
-[arm64-v8a] Compile        : xkbcommon <= utf8.c
-[arm64-v8a] Compile        : xkbcommon <= utils.c
-[arm64-v8a] SharedLibrary  : libxkbcommon.so
 [arm64-v8a] SharedLibrary  : liblorie.so

@@ -54,6 +54,10 @@ int android_keycode_to_linux_event_code(int keyCode, int *eventCode, int *shift,
 		KEYCODE1(Z);
 		KEYCODE1(COMMA);
 		KEYCODE2(PERIOD, DOT);
+		KEYCODE2(DPAD_UP, UP);
+		KEYCODE2(DPAD_LEFT, LEFT);
+		KEYCODE2(DPAD_DOWN, DOWN);
+		KEYCODE2(DPAD_RIGHT, RIGHT);
 		KEYCODE2(ALT_LEFT, LEFTALT);
 		KEYCODE2(ALT_RIGHT, RIGHTALT);
 		KEYCODE2(SHIFT_LEFT, LEFTSHIFT);
@@ -107,7 +111,7 @@ int android_keycode_to_linux_event_code(int keyCode, int *eventCode, int *shift,
 		KEYCODE2(MOVE_END, END);
 		KEYCODE1(INSERT);
 		KEYCODE1(FORWARD);
-		KEYCODE1(BACK);
+		KEYCODE2(BACK, ESC);
 		KEYCODE1(F1);
 		KEYCODE1(F2);
 		KEYCODE1(F3);

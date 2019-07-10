@@ -85,7 +85,7 @@ typedef struct {
 		struct {
 			EGLDisplay dpy;
 			EGLNativeWindowType win;
-			uint32_t width, height;
+			uint32_t width, height, mmWidth, mmHeight;
 		} window_change;
 		#ifdef __ANDROID__
 		struct {
@@ -155,7 +155,7 @@ void lorie_pointer_event(void __unused *b, uint8_t state, uint16_t button, uint3
 	write(backend->fds[0], &e, sizeof(lorie_event));
 }
 
-void lorie_window_change_event(void __unused *b, EGLDisplay dpy, EGLNativeWindowType win, uint32_t width, uint32_t height) {
+void lorie_window_change_event(void __unused *b, EGLDisplay dpy, EGLNativeWindowType win, uint32_t width, uint32_t height, uint32_t mmWidth, uint32_t mmHeight) {
 	if (!backend) return;
 	
 	lorie_event e;
@@ -166,6 +166,8 @@ void lorie_window_change_event(void __unused *b, EGLDisplay dpy, EGLNativeWindow
 	e.window_change.win = win;
 	e.window_change.width = width;
 	e.window_change.height = height;
+	e.window_change.mmWidth = mmWidth;
+	e.window_change.mmHeight = mmHeight;
 	
 	write(backend->fds[0], &e, sizeof(lorie_event));
 }
@@ -205,18 +207,18 @@ Java_com_termux_wtermux_LorieService_createLorieThread(JNIEnv __unused *env, job
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_wtermux_LorieService_windowChanged(JNIEnv *env, jobject __unused instance, jlong __unused jcompositor, jobject jsurface, jint width, jint height) {
+Java_com_termux_wtermux_LorieService_windowChanged(JNIEnv *env, jobject __unused instance, jlong __unused jcompositor, jobject jsurface, jint width, jint height, jint mmWidth, jint mmHeight) {
 	if (backend == NULL) return;
 #if 1
 	EGLNativeWindowType win = ANativeWindow_fromSurface(env, jsurface);
 	if (win == NULL) {
 		LOGE("Surface is invalid");
-		lorie_window_change_event(backend, NULL, NULL, (uint32_t) width, (uint32_t) height);
+		lorie_window_change_event(backend, NULL, NULL, (uint32_t) width, (uint32_t) height, (uint32_t) mmWidth, (uint32_t) mmHeight);
 		return;
 	} 
 	
 	lorie_window_change_event(backend, NULL, win, (uint32_t) width,
-							  (uint32_t) height);
+							  (uint32_t) height, (uint32_t) mmWidth, (uint32_t) mmHeight);
 #else
 	JavaVM* jvm;
 	(*env)->GetJavaVM(env, &jvm);
@@ -372,7 +374,7 @@ void backend_dispatch_nonblocking (void)
 				eglMakeCurrent(backend->dpy, backend->sfc, backend->sfc, backend->ctx); checkEGLError();
 
 				if (backend->callbacks.resize)
-				    backend->callbacks.resize(ev.window_change.width, ev.window_change.height);
+				    backend->callbacks.resize(ev.window_change.width, ev.window_change.height, ev.window_change.mmWidth, ev.window_change.mmHeight);
 				break;
 		    case ACTION_LAYOUT_CHANGE:
 		        xkb_keymap_unref(backend->xkb_keymap);
@@ -461,4 +463,5 @@ void backend_get_dimensions(uint32_t *width, uint32_t *height) {
 	if (width) *width = 480;
 	if (height) *height = 800;
 }
+
 #pragma clang diagnostic pop

@@ -1,7 +1,9 @@
 package com.termux.wtermux;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
+import android.app.Activity;
+import android.content.res.Configuration;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -9,12 +11,14 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
-import android.view.inputmethod.InputMethodManager;
-import android.view.inputmethod.InputMethodSubtype;
+import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.widget.FrameLayout;
+import android.widget.RelativeLayout;
+import android.widget.ScrollView;
 
-import java.util.Locale;
-
-public class LorieService implements SurfaceHolder.Callback, View.OnTouchListener, View.OnKeyListener {
+public class LorieService extends FrameLayout implements SurfaceHolder.Callback, View.OnTouchListener, View.OnKeyListener, KeyboardUtils.SoftKeyboardToggleListener {
+    private final static int SV2_ID = 0xACCEDED;
     private static final int BTN_LEFT = 0x110;
     private static final int BTN_MIDDLE = 0x110;
     private static final int BTN_RIGHT = 0x110;
@@ -23,28 +27,68 @@ public class LorieService implements SurfaceHolder.Callback, View.OnTouchListene
     private static final int WL_STATE_RELEASED = 0;
 
     private static final int WL_POINTER_MOTION = 2;
+    private static int[] keys = {
+            KeyEvent.KEYCODE_ESCAPE,
+            KeyEvent.KEYCODE_TAB,
+            KeyEvent.KEYCODE_CTRL_LEFT,
+            KeyEvent.KEYCODE_ALT_LEFT,
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+    };
     //private static final int WL_POINTER_BUTTON = 3;
-    private InputMethodManager imm;
     private long compositor;
-    Context ctx;
-    LorieService(Context context) {
-        imm = (InputMethodManager)context.getSystemService(Context.INPUT_METHOD_SERVICE);
-        ctx = context;
+    private Activity act;
+    private AdditionalKeyboardView kbd;
+    @SuppressLint("ClickableViewAccessibility")
+    LorieService(Activity activity) {
+        super(activity);
+        act = activity;
         compositor = createLorieThread();
         if (compositor == 0) {
-            Log.e("WestonService", "compositor thread was not created");
+            Log.e("LorieService", "compositor thread was not created");
+            return;
         }
+
+        int dp = (int) act.getResources().getDisplayMetrics().density;
+        ViewGroup.LayoutParams match_parent = new WindowManager.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        setLayoutParams(match_parent);
+
+        SurfaceView lorieView = new SurfaceView(act);
+        addView(lorieView, match_parent);
+
+        RelativeLayout rl = new RelativeLayout(act);
+        ScrollView sv = new ScrollView(act);
+        kbd = new AdditionalKeyboardView(act);
+        RelativeLayout.LayoutParams svlp = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT);
+        RelativeLayout.LayoutParams kbdlp = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, 50*dp);
+
+        svlp.addRule(RelativeLayout.BELOW, SV2_ID);
+        kbdlp.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        kbd.setId(SV2_ID);
+        rl.addView(kbd, kbdlp);
+        rl.addView(sv, svlp);
+        addView(rl);
+
+        kbd.setVisibility(View.INVISIBLE);
+
+        lorieView.getHolder().addCallback(this);
+        lorieView.setOnTouchListener(this);
+        lorieView.setOnKeyListener(this);
+
+        lorieView.setFocusable(true);
+        lorieView.setFocusableInTouchMode(true);
+        lorieView.requestFocus();
+
+        kbd.reload(keys, lorieView, this);
+
+        // prevents SurfaceView from being resized but interrupts additional keyboard showing process
+        // act.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
     }
 
-    @SuppressLint("ClickableViewAccessibility")
-    void connectSurfaceView(SurfaceView surface) {
-        surface.getHolder().addCallback(this);
-        surface.setOnTouchListener(this);
-        surface.setOnKeyListener(this);
-
-        surface.setFocusable(true);
-        surface.setFocusableInTouchMode(true);
-        surface.requestFocus();
+    void finishInit() {
+        KeyboardUtils.addKeyboardToggleListener(act, this);
     }
 
     @Override
@@ -54,7 +98,22 @@ public class LorieService implements SurfaceHolder.Callback, View.OnTouchListene
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        windowChanged(compositor, holder.getSurface(), width, height);
+        DisplayMetrics dm = new DisplayMetrics();
+        int mmWidth, mmHeight;
+        act.getWindowManager().getDefaultDisplay().getMetrics(dm);
+
+        if (act.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT) {
+            mmWidth = (int) Math.round((width * 25.4) / dm.xdpi);
+            mmHeight = (int) Math.round((height * 25.4) / dm.ydpi);
+        } else {
+            mmWidth = (int) Math.round((width * 25.4) / dm.ydpi);
+            mmHeight = (int) Math.round((height * 25.4) / dm.xdpi);
+        }
+
+
+        Log.e("debug","mmWidth: " + mmWidth + "; mmHeight: " + mmHeight + "; xdpi: " + dm.xdpi + "; ydpi: " + dm.ydpi);
+
+        windowChanged(compositor, holder.getSurface(), width, height, mmWidth, mmHeight);
     }
 
     @Override
@@ -106,15 +165,25 @@ public class LorieService implements SurfaceHolder.Callback, View.OnTouchListene
     @Override
     public boolean onKey(View v, int keyCode, KeyEvent e) {
         int action = 0;
-        int shift = e.isShiftPressed() ? 1 : 0;
+
+        if (e.getAction() == KeyEvent.ACTION_UP && keyCode == KeyEvent.KEYCODE_BACK) {
+            KeyboardUtils.toggleKeyboardVisibility(act);
+        }
+
         if (e.getAction() == KeyEvent.ACTION_DOWN) action = WL_STATE_PRESSED;
         if (e.getAction() == KeyEvent.ACTION_UP) action = WL_STATE_RELEASED;
-        onKey(compositor, action, keyCode, shift, e.getCharacters());
+        onKey(compositor, action, keyCode, e.isShiftPressed() ? 1 : 0, e.getCharacters());
         return false;
     }
 
+    @Override
+    public void onToggleSoftKeyboard(boolean isVisible) {
+        kbd.setVisibility((isVisible)?View.VISIBLE:View.INVISIBLE);
+        Log.d("LorieActivity", "keyboard is " + (isVisible?"visible":"not visible"));
+    }
+
     private native long createLorieThread();
-    private native void windowChanged(long compositor, Surface surface, int width, int height);
+    private native void windowChanged(long compositor, Surface surface, int width, int height, int mmWidth, int mmHeight);
     private native void onTouch(long compositor, int type, int button, int x, int y);
     private native void onKey(long compositor, int type, int key, int shift, String characters);
 

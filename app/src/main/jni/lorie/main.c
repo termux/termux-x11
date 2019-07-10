@@ -86,8 +86,8 @@ static void surface_attach (struct wl_client *client, struct wl_resource *resour
 		return;
 	}
 
-	surface->width = wl_shm_buffer_get_width (shm_buffer);
-	surface->height = wl_shm_buffer_get_height (shm_buffer);
+	surface->width = (uint32_t) wl_shm_buffer_get_width (shm_buffer);
+	surface->height = (uint32_t) wl_shm_buffer_get_height (shm_buffer);
 
 	if (!surface->texture || 
 		surface->texture->width != surface->width || 
@@ -240,12 +240,13 @@ wl_output_bind(struct wl_client *client, void *data, uint32_t version, uint32_t 
 }
 
 // backend callbacks
-static void handle_resize_event (int width, int height) {
+static void handle_resize_event (int width, int height, int mmWidth, int mmHeight) {
 	if (width == c.width && height == c.height) return;
 	glViewport(0, 0, width, height);
 	c.width = width;
 	c.height = height;
 	if (c.wl_output) {
+		wl_output_send_geometry(c.wl_output, 0, 0, mmWidth, mmHeight, 0, "non-weston", "none", 0);
 		wl_output_send_mode(c.wl_output, 3, width, height, 60000);
 		wl_output_send_done(c.wl_output);
 

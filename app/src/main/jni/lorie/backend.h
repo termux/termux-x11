@@ -7,7 +7,7 @@ struct modifier_state {
 };
 
 struct callbacks {
-	void (*resize) (int width, int height);
+	void (*resize) (int width, int height, int mmWidth, int mmHeight);
 	void (*draw) (void);
 	void (*mouse_motion) (int x, int y);
 	void (*mouse_button) (int button, int state);

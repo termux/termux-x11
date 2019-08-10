@@ -1,0 +1,12 @@
+#!/bin/bash
+grep -E -v \
+	-e checkGlError \
+	-e wl_shm \
+	-e delete_id \
+	-e "wl_display@[0-9]*.delete_id" \
+	-e "wl_buffer@[0-9]*.destroy" \
+	-e "wl_buffer@[0-9]*.release" \
+	-e "wl_pointer@[0-9]*.motion" \
+	-e "wl_pointer@[0-9]*.frame" \
+	-e "wl_keyboard@[0-9]*.modifiers" \
+	-e "wl_shm"

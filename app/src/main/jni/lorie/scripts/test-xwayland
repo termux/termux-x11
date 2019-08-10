@@ -1,0 +1,8 @@
+#!/bin/bash
+export DISPLAY=:1
+Xwayland ${DISPLAY} -shm &
+openbox &
+pcmanfm
+killall pcmanfm >/dev/null 2>&1
+killall openbox >/dev/null 2>&1
+killall Xwayland >/dev/null 2>&1

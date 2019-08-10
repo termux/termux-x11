@@ -1,23 +1,23 @@
 {
   "buildFiles": [
-    "/home/twaik/WTermux/app/src/main/jni/Android.mk",
-    "/home/twaik/WTermux/app/src/main/jni/Application.mk"
+    "/home/twaik/TermuxX11/app/src/main/jni/Android.mk",
+    "/home/twaik/TermuxX11/app/src/main/jni/Application.mk"
   ],
   "cleanCommands": [
-    "/opt/AndroidSdk/ndk-bundle/ndk-build NDK_PROJECT_PATH\u003dnull APP_BUILD_SCRIPT\u003d/home/twaik/WTermux/app/src/main/jni/Android.mk NDK_APPLICATION_MK\u003d/home/twaik/WTermux/app/src/main/jni/Application.mk APP_ABI\u003darm64-v8a NDK_ALL_ABIS\u003darm64-v8a NDK_DEBUG\u003d1 APP_PLATFORM\u003dandroid-19 NDK_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj NDK_LIBS_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/lib clean"
+    "/opt/AndroidSdk/ndk-bundle/ndk-build NDK_PROJECT_PATH\u003dnull APP_BUILD_SCRIPT\u003d/home/twaik/TermuxX11/app/src/main/jni/Android.mk NDK_APPLICATION_MK\u003d/home/twaik/TermuxX11/app/src/main/jni/Application.mk APP_ABI\u003darm64-v8a NDK_ALL_ABIS\u003darm64-v8a NDK_DEBUG\u003d1 APP_PLATFORM\u003dandroid-19 NDK_OUT\u003d/home/twaik/TermuxX11/app/build/intermediates/ndkBuild/debug/obj NDK_LIBS_OUT\u003d/home/twaik/TermuxX11/app/build/intermediates/ndkBuild/debug/lib clean"
   ],
   "libraries": {
     "lorie-debug-arm64-v8a": {
       "artifactName": "lorie",
-      "buildCommand": "/opt/AndroidSdk/ndk-bundle/ndk-build NDK_PROJECT_PATH\u003dnull APP_BUILD_SCRIPT\u003d/home/twaik/WTermux/app/src/main/jni/Android.mk NDK_APPLICATION_MK\u003d/home/twaik/WTermux/app/src/main/jni/Application.mk APP_ABI\u003darm64-v8a NDK_ALL_ABIS\u003darm64-v8a NDK_DEBUG\u003d1 APP_PLATFORM\u003dandroid-19 NDK_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj NDK_LIBS_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/lib /home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/arm64-v8a/liblorie.so",
+      "buildCommand": "/opt/AndroidSdk/ndk-bundle/ndk-build NDK_PROJECT_PATH\u003dnull APP_BUILD_SCRIPT\u003d/home/twaik/TermuxX11/app/src/main/jni/Android.mk NDK_APPLICATION_MK\u003d/home/twaik/TermuxX11/app/src/main/jni/Application.mk APP_ABI\u003darm64-v8a NDK_ALL_ABIS\u003darm64-v8a NDK_DEBUG\u003d1 APP_PLATFORM\u003dandroid-19 NDK_OUT\u003d/home/twaik/TermuxX11/app/build/intermediates/ndkBuild/debug/obj NDK_LIBS_OUT\u003d/home/twaik/TermuxX11/app/build/intermediates/ndkBuild/debug/lib /home/twaik/TermuxX11/app/build/intermediates/ndkBuild/debug/obj/local/arm64-v8a/liblorie.so",
       "abi": "arm64-v8a",
-      "output": "/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/arm64-v8a/liblorie.so"
+      "output": "/home/twaik/TermuxX11/app/build/intermediates/ndkBuild/debug/obj/local/arm64-v8a/liblorie.so"
     },
     "xkbcommon-debug-arm64-v8a": {
       "artifactName": "xkbcommon",
-      "buildCommand": "/opt/AndroidSdk/ndk-bundle/ndk-build NDK_PROJECT_PATH\u003dnull APP_BUILD_SCRIPT\u003d/home/twaik/WTermux/app/src/main/jni/Android.mk NDK_APPLICATION_MK\u003d/home/twaik/WTermux/app/src/main/jni/Application.mk APP_ABI\u003darm64-v8a NDK_ALL_ABIS\u003darm64-v8a NDK_DEBUG\u003d1 APP_PLATFORM\u003dandroid-19 NDK_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj NDK_LIBS_OUT\u003d/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/lib /home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/arm64-v8a/libxkbcommon.a",
+      "buildCommand": "/opt/AndroidSdk/ndk-bundle/ndk-build NDK_PROJECT_PATH\u003dnull APP_BUILD_SCRIPT\u003d/home/twaik/TermuxX11/app/src/main/jni/Android.mk NDK_APPLICATION_MK\u003d/home/twaik/TermuxX11/app/src/main/jni/Application.mk APP_ABI\u003darm64-v8a NDK_ALL_ABIS\u003darm64-v8a NDK_DEBUG\u003d1 APP_PLATFORM\u003dandroid-19 NDK_OUT\u003d/home/twaik/TermuxX11/app/build/intermediates/ndkBuild/debug/obj NDK_LIBS_OUT\u003d/home/twaik/TermuxX11/app/build/intermediates/ndkBuild/debug/lib /home/twaik/TermuxX11/app/build/intermediates/ndkBuild/debug/obj/local/arm64-v8a/libxkbcommon.so",
       "abi": "arm64-v8a",
-      "output": "/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/arm64-v8a/libxkbcommon.a"
+      "output": "/home/twaik/TermuxX11/app/build/intermediates/ndkBuild/debug/obj/local/arm64-v8a/libxkbcommon.so"
     }
   }
 }

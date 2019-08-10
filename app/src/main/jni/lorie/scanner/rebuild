@@ -1,0 +1,7 @@
+#!/bin/bash
+
+#set -x
+
+rm -f scanner wayland.hpp wayland.cpp
+gcc src/scanner.c src/wayland-util.c src/dtddata.S -o scanner `xml2-config --cflags --libs` `pkg-config expat --cflags --libs` && \
+	./scanner server-header protocol/wayland.xml wayland

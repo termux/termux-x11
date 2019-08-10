@@ -1,1 +1,0 @@
-[armeabi-v7a] Compile++ thumb: jniLoad <= patchelf.cpp

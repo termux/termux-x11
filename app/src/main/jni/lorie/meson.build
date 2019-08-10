@@ -1,6 +1,6 @@
 project(
-	'xwayland_proxy',
-	'c',
+	'lorie',
+	'c', 'cpp',
 	version: '0.0.1',
 	license: 'MIT',
 	meson_version: '>=0.47.0',
@@ -8,7 +8,6 @@ project(
 		'c_std=c11',
 		'warning_level=1',
 		'b_lundef=false',
-		'prefix=/usr/local'
 	],
 )
 
@@ -23,19 +22,33 @@ libxkbcommon = dependency('xkbcommon')
 libxkbcommon_x11 = dependency('xkbcommon-x11')
 libx11_xcb = dependency('x11-xcb')
 
-incdirs = include_directories('.')
+incdirs = include_directories('.', 'include', 'scanner')
 proxy_srcs = [
-	'backend-x11.c', 
-	'main.c',
-	'renderer.c'
+	'client.cpp',
+	'clipboard.cpp',
+	'compositor.cpp',
+	'egl-helper.cpp',
+	'message-queue.cpp',
+	'renderer.cpp',
+	'seat.cpp',
+	'surface.cpp',
+	'output.cpp',
+	'utils/log.cpp',
+	'utils/utils.cpp',
+	'scanner/wayland.cpp',
+	
+	'backend/x11/x11.cpp',
+	'backend/x11/x11-window.cpp',
+	'backend/x11/stacktrace.cpp'
 ]
 
 add_global_arguments('-finstrument-functions', language : 'c')
+add_global_arguments('-finstrument-functions', language : 'cpp')
 
-proxy = executable(
-	'proxy',
+lorie = executable(
+	'lorie',
 	sources: proxy_srcs,
 	include_directories: incdirs,
 	dependencies: [egl, glesv2, libx11, libx11_xcb, wayland_server, libxkbcommon, libxkbcommon_x11],
-	link_args: ['-O0', '-lm', '-ldl', '-g', '-rdynamic', '-finstrument-functions']
+	link_args: ['-O0', '-lm', '-ldl', '-lXcursor', '-lpthread', '-g', '-rdynamic', '-finstrument-functions']
 )

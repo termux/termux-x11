@@ -1,4 +1,0 @@
-/home/twaik/WTermux/app/src/main/jni/jniLoader/dt_needed_main.c:206:8: warning: initializing 'char *' with an expression of type 'const char *' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]
-        char *name = (*env)->GetStringUTFChars(env, name_, 0);
-              ^      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-1 warning generated.

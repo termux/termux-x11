@@ -1,0 +1,23 @@
+#!/bin/bash
+
+SRC_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"/..
+BUILD_DIR=/tmp/lorie-build
+
+if [ ! -f ${BUILD_DIR}/build.ninja ]; then
+	rm -rf ${BUILD_DIR}
+	mkdir -p ${BUILD_DIR}
+	cd ${BUILD_DIR}
+	meson ${SRC_DIR}
+fi
+
+cd ${BUILD_DIR}
+ninja
+
+if [ $? -eq 0 ]; then
+	#bash -c "sleep 10; killall -KILL lorie > /dev/null 2>&1" &
+	#bash -c "sleep 1; weston-terminal" &
+	bash -c "cd ${SRC_DIR}; sleep 1; scripts/test-xwayland >/dev/null 2>&1" &
+	./lorie
+else 
+	echo Build failed
+fi

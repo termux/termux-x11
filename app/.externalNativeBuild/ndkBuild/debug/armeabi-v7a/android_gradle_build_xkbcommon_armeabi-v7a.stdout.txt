@@ -1,5 +1,5 @@
-Android NDK: WARNING:/home/twaik/WTermux/app/src/main/jni/lorie/Android.mk:lorie: non-system libraries in linker flags: -lwayland-server    
+Android NDK: WARNING:/home/twaik/TermuxX11/app/src/main/jni/lorie/Android.mk:lorie: non-system libraries in linker flags: -lwayland-server    
 Android NDK:     This is likely to result in incorrect builds. Try using LOCAL_STATIC_LIBRARIES    
 Android NDK:     or LOCAL_SHARED_LIBRARIES instead to list the library dependencies of the    
 Android NDK:     current module    
-make: `/home/twaik/WTermux/app/build/intermediates/ndkBuild/debug/obj/local/armeabi-v7a/libxkbcommon.so' is up to date.
+make: `/home/twaik/TermuxX11/app/build/intermediates/ndkBuild/debug/obj/local/armeabi-v7a/libxkbcommon.so' is up to date.

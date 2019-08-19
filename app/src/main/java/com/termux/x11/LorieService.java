@@ -31,7 +31,7 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Toast;
 
-@SuppressWarnings("ConstantConditions")
+@SuppressWarnings({"ConstantConditions", "SameParameterValue"})
 @SuppressLint({"ClickableViewAccessibility", "StaticFieldLeak"})
 public class LorieService extends Service {
 
@@ -68,6 +68,7 @@ public class LorieService extends Service {
         }
     }
 
+    @SuppressLint("BatteryLife")
     @Override
     public void onCreate() {
         if (isServiceRunningInForeground(this, LorieService.class)) return;
@@ -155,12 +156,8 @@ public class LorieService extends Service {
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(instance);
 
-        instance.mTP.setMode(
-                Integer.parseInt(
-                        preferences.getString("touchMode", "1")
-                )
-        );
-        act.showAdditionalKbd = preferences.getBoolean("showAdditionalKbd", true);
+        int mode = Integer.parseInt(preferences.getString("touchMode", "1"));
+        instance.mTP.setMode(mode);
         Log.e("LorieService", "Preferences changed");
     }
 
@@ -233,6 +230,7 @@ public class LorieService extends Service {
         return null;
     }
 
+    @SuppressWarnings("SameParameterValue")
     private static class ServiceEventListener implements SurfaceHolder.Callback, View.OnTouchListener, View.OnKeyListener, View.OnHoverListener, View.OnGenericMotionListener, TouchParser.OnTouchParseListener {
         LorieService svc;
 

@@ -2,7 +2,9 @@ package com.termux.x11;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Rect;
+import android.preference.PreferenceManager;
 import android.support.v7.widget.AppCompatTextView;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -10,6 +12,7 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewTreeObserver;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 
@@ -17,9 +20,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 @SuppressWarnings("unused")
-public class AdditionalKeyboardView extends HorizontalScrollView {
-    private final static int KEYCODE_BASE = KeyEvent.KEYCODE_REFRESH + 100;
+public class AdditionalKeyboardView extends HorizontalScrollView implements ViewTreeObserver.OnGlobalLayoutListener {
+    private final static int KEYCODE_BASE = 300;
     public final static int PREFERENCES_KEY = KEYCODE_BASE + 1;
+    public final static int KEY_HEIGHT_DP = 35;
     Context ctx;
     View targetView = null;
     View.OnKeyListener targetListener = null;
@@ -39,13 +43,40 @@ public class AdditionalKeyboardView extends HorizontalScrollView {
         ctx = context;
         density = (int) context.getResources().getDisplayMetrics().density;
 
-        //setFillViewport(true);
+        getViewTreeObserver().addOnGlobalLayoutListener(this);
+
         setBackgroundColor(0xFF000000);
-        LayoutParams lp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT);
+        LayoutParams lp = new LayoutParams(LayoutParams.WRAP_CONTENT, KEY_HEIGHT_DP * density);
         root = new LinearLayout(context);
         root.setLayoutParams(lp);
         root.setOrientation(LinearLayout.HORIZONTAL);
         addView(root);
+    }
+
+    @Override
+    public void onGlobalLayout() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(ctx);
+        if (!preferences.getBoolean("showAdditionalKbd", true)) {
+            if (getVisibility() != View.GONE)
+                setVisibility(View.GONE);
+            return;
+        }
+
+        Rect r = new Rect();
+        getWindowVisibleDisplayFrame(r);
+
+        float mScreenDensity = getResources().getDisplayMetrics().density;
+        int MAGIC_NUMBER = 200;
+
+        int heightDiff = getRootView().getHeight() - (r.bottom - r.top);
+        float dp = heightDiff/ mScreenDensity;
+        int visibility = (dp > MAGIC_NUMBER)?View.VISIBLE:View.INVISIBLE;
+
+        if (getVisibility() == visibility) return;
+
+        if (visibility == View.VISIBLE)
+            setY(r.bottom - r.top - getHeight());
+        setVisibility(visibility);
     }
 
     public void reload(int[] keys, View TargetView, View.OnKeyListener TargetListener) {

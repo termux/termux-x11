@@ -31,7 +31,8 @@
         <activity android:name=".MainActivity"
             android:theme="@style/NoActionBar"
             android:launchMode="singleInstance"
-            android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density">
+            android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density"
+            android:windowSoftInputMode="adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

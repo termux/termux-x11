@@ -1,10 +1,8 @@
 package com.termux.x11;
 
 import android.content.SharedPreferences;
-import android.inputmethodservice.InputMethodService;
 import android.os.Build;
 import android.preference.PreferenceManager;
-import android.provider.Settings;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.KeyEvent;
@@ -13,9 +11,8 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
-import android.view.inputmethod.InputMethodManager;
 
-public class MainActivity extends AppCompatActivity implements KeyboardUtils.SoftKeyboardToggleListener  {
+public class MainActivity extends AppCompatActivity {
 
     private static int[] keys = {
             KeyEvent.KEYCODE_ESCAPE,
@@ -29,31 +26,24 @@ public class MainActivity extends AppCompatActivity implements KeyboardUtils.Sof
     };
 
     AdditionalKeyboardView kbd;
-    boolean showAdditionalKbd = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
         LorieService.setMainActivity(this);
         LorieService.start(LorieService.ACTION_START_FROM_ACTIVITY);
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
         requestWindowFeature(Window.FEATURE_NO_TITLE);
-
         setContentView(R.layout.main_activity);
 
         kbd = findViewById(R.id.additionalKbd);
-        kbd.setVisibility(View.INVISIBLE);
-        KeyboardUtils.addKeyboardToggleListener(this, this);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
             getWindow().
              getDecorView().
               setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
-        getResources().getConfiguration();
     }
 
     public void onLorieServiceStart(LorieService instance) {
@@ -86,13 +76,6 @@ public class MainActivity extends AppCompatActivity implements KeyboardUtils.Sof
             window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             decorView.setSystemUiVisibility(0);
         }
-    }
-
-
-    @Override
-    public void onToggleSoftKeyboard(boolean isVisible) {
-        if (kbd != null && showAdditionalKbd)
-            kbd.setVisibility((isVisible)?View.VISIBLE:View.INVISIBLE);
     }
 
     @Override

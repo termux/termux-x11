@@ -25,6 +25,11 @@ public:
 	void real_terminate();
 	void real_output_redraw();
 	void real_output_resize(uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height);
+
+	void real_touch_down(uint32_t id, uint32_t x, uint32_t y);
+	void real_touch_motion(uint32_t id, uint32_t x, uint32_t y);
+	void real_touch_up(uint32_t id);
+	void real_touch_frame();
 	void real_pointer_motion(uint32_t x, uint32_t y); // absolute values
 	void real_pointer_scroll(uint32_t axis, float value);
 	void real_pointer_button(uint32_t button, uint32_t state);
@@ -37,6 +42,10 @@ public:
 	wrapper(terminate);
 	wrapper(output_redraw);
 	wrapper(output_resize);
+	wrapper(touch_down);
+	wrapper(touch_motion);
+	wrapper(touch_up);
+	wrapper(touch_frame);
 	wrapper(pointer_motion);
 	wrapper(pointer_scroll);
 	wrapper(pointer_button);

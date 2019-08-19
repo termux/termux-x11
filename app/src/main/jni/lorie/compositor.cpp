@@ -15,6 +15,10 @@ LorieCompositor::LorieCompositor() :
 wrapper(terminate),
 wrapper(output_redraw),
 wrapper(output_resize),
+wrapper(touch_down),
+wrapper(touch_motion),
+wrapper(touch_up),
+wrapper(touch_frame),
 wrapper(pointer_motion),
 wrapper(pointer_scroll),
 wrapper(pointer_button),
@@ -97,21 +101,62 @@ void LorieCompositor::real_output_redraw() {
 }
 
 void LorieCompositor::real_output_resize(uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height) {
+	// Xwayland segfaults without that line
+	if (width == 0 || height == 0 || physical_width == 0 || physical_height == 0) return;
 	renderer.resize(width, height, physical_width, physical_height);
 	output_redraw();
 }
 
+void LorieCompositor::real_touch_down(uint32_t id, uint32_t x, uint32_t y) {
+	LorieClient *client = get_toplevel_client();
+	if (toplevel == nullptr || client == nullptr) return;
+
+	wl_fixed_t surface_x = wl_fixed_from_int (x);
+	wl_fixed_t surface_y = wl_fixed_from_int (y);
+
+	client->touch.send_down(next_serial(), LorieUtils::timestamp(), toplevel->resource, id, surface_x, surface_y);
+	renderer.setCursorVisibility(false);
+}
+
+void LorieCompositor::real_touch_motion(uint32_t id, uint32_t x, uint32_t y) {
+	LorieClient *client = get_toplevel_client();
+	if (toplevel == nullptr || client == nullptr) return;
+
+	wl_fixed_t surface_x = wl_fixed_from_int (x);
+	wl_fixed_t surface_y = wl_fixed_from_int (y);
+
+	client->touch.send_motion(LorieUtils::timestamp(), id, surface_x, surface_y);
+	renderer.setCursorVisibility(false);
+}
+
+void LorieCompositor::real_touch_up(uint32_t id) {
+	LorieClient *client = get_toplevel_client();
+	if (toplevel == nullptr || client == nullptr) return;
+
+	client->touch.send_up(next_serial(), LorieUtils::timestamp(), id);
+	renderer.setCursorVisibility(false);
+}
+
+void LorieCompositor::real_touch_frame() {
+	LorieClient *client = get_toplevel_client();
+	if (toplevel == nullptr || client == nullptr) return;
+
+	client->touch.send_frame();
+	renderer.setCursorVisibility(false);
+}
+
 void LorieCompositor::real_pointer_motion(uint32_t x, uint32_t y) {
-    LorieClient *client = get_toplevel_client();
-    if (client == nullptr) return;
+	LorieClient *client = get_toplevel_client();
+	if (client == nullptr) return;
 
-    wl_fixed_t surface_x = wl_fixed_from_int (x);
-    wl_fixed_t surface_y = wl_fixed_from_int (y);
+	wl_fixed_t surface_x = wl_fixed_from_int (x);
+	wl_fixed_t surface_y = wl_fixed_from_int (y);
 
-    client->pointer.send_motion(LorieUtils::timestamp(), surface_x, surface_y);
-    client->pointer.send_frame();
+	client->pointer.send_motion(LorieUtils::timestamp(), surface_x, surface_y);
+	client->pointer.send_frame();
 
-    renderer.cursorMove(x, y);
+	renderer.setCursorVisibility(true);
+	renderer.cursorMove(x, y);
 }
 
 void LorieCompositor::real_pointer_scroll(uint32_t axis, float value) {
@@ -123,6 +168,7 @@ void LorieCompositor::real_pointer_scroll(uint32_t axis, float value) {
     client->pointer.send_axis_discrete(axis, (scroll>=0)?1:-1);
     client->pointer.send_axis(LorieUtils::timestamp(), axis, scroll);
     client->pointer.send_frame();
+	renderer.setCursorVisibility(true);
 }
 
 void LorieCompositor::real_pointer_button(uint32_t button, uint32_t state) {
@@ -132,6 +178,7 @@ void LorieCompositor::real_pointer_button(uint32_t button, uint32_t state) {
 	LOGI("pointer button: %d %d", button, state);
 	client->pointer.send_button (next_serial(), LorieUtils::timestamp(), button, state);
 	client->pointer.send_frame();
+	renderer.setCursorVisibility(true);
 }
 
 void LorieCompositor::real_keyboard_key(uint32_t key, uint32_t state) {

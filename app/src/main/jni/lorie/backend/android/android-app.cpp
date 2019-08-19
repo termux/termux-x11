@@ -122,7 +122,7 @@ void LorieBackendAndroid::get_keymap(int *fd, int *size) {
 }
 
 void LorieBackendAndroid::window_change_callback(EGLNativeWindowType win, uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height) {
-
+	LOGE("WindowChangeCallback");
 	helper.setWindow(win);
 	output_resize(width, height, physical_width, physical_height);
 }
@@ -195,6 +195,42 @@ JNI_DECLARE(LorieService, windowChanged)(JNIEnv *env, jobject __unused instance,
 }
 
 extern "C" JNIEXPORT void JNICALL
+JNI_DECLARE(LorieService, touchDown)(JNIEnv __unused *env, jobject __unused instance, jlong jcompositor, jint id, jint x, jint y) {
+    if (jcompositor == 0) return;
+    LorieBackendAndroid *b = fromLong(jcompositor);
+	LOGV("JNI: touch down");
+
+    b->touch_down(static_cast<uint32_t>(id), static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+}
+
+extern "C" JNIEXPORT void JNICALL
+JNI_DECLARE(LorieService, touchMotion)(JNIEnv __unused *env, jobject __unused instance, jlong jcompositor, jint id, jint x, jint y) {
+    if (jcompositor == 0) return;
+    LorieBackendAndroid *b = fromLong(jcompositor);
+	LOGV("JNI: touch motion");
+
+    b->touch_motion(static_cast<uint32_t>(id), static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+}
+
+extern "C" JNIEXPORT void JNICALL
+JNI_DECLARE(LorieService, touchUp)(JNIEnv __unused *env, jobject __unused instance, jlong jcompositor, jint id) {
+    if (jcompositor == 0) return;
+    LorieBackendAndroid *b = fromLong(jcompositor);
+	LOGV("JNI: touch up");
+
+    b->touch_up(static_cast<uint32_t>(id));
+}
+
+extern "C" JNIEXPORT void JNICALL
+JNI_DECLARE(LorieService, touchFrame)(JNIEnv __unused *env, jobject __unused instance, jlong jcompositor) {
+    if (jcompositor == 0) return;
+    LorieBackendAndroid *b = fromLong(jcompositor);
+	LOGV("JNI: touch frame");
+
+    b->touch_frame();
+}
+
+extern "C" JNIEXPORT void JNICALL
 JNI_DECLARE(LorieService, pointerMotion)(JNIEnv __unused *env, jobject __unused instance, jlong jcompositor, jint x, jint y) {
     if (jcompositor == 0) return;
     LorieBackendAndroid *b = fromLong(jcompositor);
@@ -208,8 +244,8 @@ JNI_DECLARE(LorieService, pointerScroll)(JNIEnv __unused *env, jobject __unused 
     if (jcompositor == 0) return;
     LorieBackendAndroid *b = fromLong(jcompositor);
 
-    LOGV("JNI: pointer scroll %d  %d", axis, value);
-    b->pointer_scroll(axis, value);
+    LOGV("JNI: pointer scroll %d  %f", axis, value);
+    b->pointer_scroll(static_cast<uint32_t>(axis), value);
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -220,21 +256,6 @@ JNI_DECLARE(LorieService, pointerButton)(JNIEnv __unused *env, jobject __unused 
     LOGV("JNI: pointer button %d type %d", button, type);
     b->pointer_button(static_cast<uint32_t>(button), static_cast<uint32_t>(type));
 }
-
-/*extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, onTouch)(JNIEnv __unused *env, jobject __unused instance, jlong __unused jcompositor, jint type, jint button, jint x, jint y) {
-    if (jcompositor == 0) return;
-    LorieBackendAndroid *b = fromLong(jcompositor);
-
-    if (type == WL_POINTER_MOTION) {
-        LOGV("JNI: pointer motion %dx%d", x, y);
-        b->pointer_motion(x, y);
-    }
-    else {
-        LOGV("JNI: pointer button %d type %d", button, type);
-        b->pointer_button(button, type);
-    }
-}*/
 
 extern "C" void get_character_data(char** layout, int *shift, int *ec, char *ch);
 extern "C" void android_keycode_get_eventcode(int kc, int *ec, int *shift);
@@ -257,7 +278,6 @@ JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, jobject __unused instance,
 		LOGE("kc: %d ec: %d", key_code, event_code);
 		if (strcmp(b->xkb_names.layout, "us") && event_code != 0) {
 			b->queue.call(&LorieBackendAndroid::layout_change_callback, b, (char*)"us");
-			//lorie_layout_change_event(backend, "us");
 		}
     }
     if (!key_code && characters) {
@@ -265,7 +285,6 @@ JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, jobject __unused instance,
         get_character_data(&layout, &shift, &event_code, characters);
         if (layout && b->xkb_names.layout != layout) {
 			b->queue.call(&LorieBackendAndroid::layout_change_callback, b, layout);
-            //lorie_layout_change_event(backend, layout);
         }
     }
 	LOGE("Keyboard input: keyCode: %d; eventCode: %d; characters: %s; shift: %d, type: %d", key_code, event_code, characters, shift, type);

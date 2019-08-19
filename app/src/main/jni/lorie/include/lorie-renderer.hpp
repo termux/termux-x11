@@ -14,10 +14,13 @@ public:
 	uint32_t physical_width = 270;
 	uint32_t physical_height = 158;
 	
+	bool cursorVisible = false;
+	
 	uint32_t hotspot_x, hotspot_y;
 	
 	void resize(uint32_t w, uint32_t h, uint32_t pw, uint32_t ph); 
 	void cursorMove(uint32_t x, uint32_t y);
+	void setCursorVisibility(bool visibility);
 	~LorieRenderer();
 private:
 	static void idleDraw(void *data);

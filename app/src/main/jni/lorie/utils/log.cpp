@@ -23,6 +23,13 @@ extern "C" {
 extern void *blacklist[];
 #define skip_blacklisted(f) for (int z=0; blacklist[z]!=NULL; z++) if (blacklist[z]==f) return;
 
+static bool lock_needed = 
+#ifndef __ANDROID__
+	true;
+#else
+	false;
+#endif
+
 static pthread_mutex_t lock;
 
 // see https://github.com/littlstar/asprintf.c/blob/master/asprintf.c
@@ -102,16 +109,16 @@ static void LogMessageInternal(int priority, const char *format, ...) {
 void LogMessage(int priority, const char *format, ...) {
 	if (logFunction == NULL) return;
 
-    pthread_mutex_lock(&::lock);
+    if (lock_needed) pthread_mutex_lock(&::lock);
 	va_list argptr;
 	va_start(argptr, format);
 	logFunction(priority, format, argptr);
 	va_end(argptr);
-    pthread_mutex_unlock(&::lock);
+    if (lock_needed) pthread_mutex_unlock(&::lock);
 }
 
 void LogInit(void) {
-	if (pthread_mutex_init(&::lock, NULL) != 0) {
+	if (lock_needed && pthread_mutex_init(&::lock, NULL) != 0) {
 		LogMessageInternal(LOG_ERROR, "Logger mutex init failed\n");
 		return;
 	}

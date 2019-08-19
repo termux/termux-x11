@@ -1,17 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.termux.x11"
     android:sharedUserId="com.termux">
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+        android:theme="@style/AppTheme"
+        tools:ignore="GoogleAppIndexingWarning" >
+        <service
+            android:name=".LorieService"
+            android:enabled="true"
+            android:exported="false"
+            android:persistent="true" />
+        <service
+            android:name=".LorieTestService"
+            android:enabled="true"
+            android:exported="true"
+            android:process="com.termux.x11.separated"
+            android:persistent="true" />
         <activity android:name=".MainActivity"
             android:theme="@style/NoActionBar"
+            android:launchMode="singleInstance"
             android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -19,6 +38,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:theme="@style/Theme.AppCompat.DayNight"
+            android:excludeFromRecents="true"
+            android:name=".LoriePreferences" >
+        </activity>
+
     </application>
 
 </manifest>

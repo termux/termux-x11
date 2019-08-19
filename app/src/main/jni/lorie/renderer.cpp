@@ -171,6 +171,11 @@ void LorieRenderer::cursorMove(uint32_t x, uint32_t y) {
 	requestRedraw();
 }
 
+void LorieRenderer::setCursorVisibility(bool visibility) {
+	if (cursorVisible != visibility)
+		cursorVisible = visibility;
+}
+
 void LorieRenderer::idleDraw(void *data) {
 	LorieRenderer* r = static_cast<LorieRenderer*> (data);
 	
@@ -207,7 +212,8 @@ void LorieRenderer::redraw() {
 		compositor.toplevel->texture.draw(-1.0, -1.0, 1.0, 1.0);
 	}
 
-	drawCursor();
+	if (cursorVisible)
+		drawCursor();
 	
 	compositor.swap_buffers();
 }

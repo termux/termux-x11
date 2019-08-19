@@ -4,7 +4,8 @@
 #include <unistd.h>
 
 void LorieSeat::on_create() {
-	send_capabilities (WL_SEAT_CAPABILITY_POINTER|WL_SEAT_CAPABILITY_KEYBOARD);
+	uint32_t capabilities = (*client)->compositor.input_capabilities();
+	send_capabilities (capabilities);
 	send_name("default");
 }
 

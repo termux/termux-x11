@@ -2,7 +2,7 @@
 #include <android/log.h>
 
 #ifndef LOG_TAG
-#define LOG_TAG "XLorie"
+#define LOG_TAG "LorieNative"
 #endif
 
 #define LOG(prio, ...) __android_log_print(prio, LOG_TAG, __VA_ARGS__)

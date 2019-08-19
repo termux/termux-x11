@@ -5,6 +5,7 @@ Android NDK:     current module
 [arm64-v8a] Compile++      : lorie <= client.cpp
 [arm64-v8a] Compile++      : lorie <= clipboard.cpp
 [arm64-v8a] Compile++      : lorie <= compositor.cpp
+[arm64-v8a] Compile++      : lorie <= egl-helper.cpp
 [arm64-v8a] Compile++      : lorie <= message-queue.cpp
 [arm64-v8a] Compile++      : lorie <= renderer.cpp
 [arm64-v8a] Compile++      : lorie <= seat.cpp
@@ -14,5 +15,5 @@ Android NDK:     current module
 [arm64-v8a] Compile++      : lorie <= utils.cpp
 [arm64-v8a] Compile++      : lorie <= wayland.cpp
 [arm64-v8a] Compile++      : lorie <= android-app.cpp
-[arm64-v8a] Compile++      : lorie <= GLContext.cpp
+[arm64-v8a] Compile        : lorie <= utils.c
 [arm64-v8a] SharedLibrary  : liblorie.so

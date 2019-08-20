@@ -106,7 +106,7 @@ public class LorieService extends Service {
         Notification notification = new NotificationCompat.Builder(this, channelId)
                 .setContentTitle("Termux:X11")
                 .setSmallIcon(R.drawable.ic_x11_icon)
-                .setContentText("is running in foreground")
+                .setContentText("Pull down to show options")
                 .setContentIntent(pendingIntent)
                 .setOngoing(true)
                 .setPriority(priority)
@@ -176,6 +176,7 @@ public class LorieService extends Service {
             sleep(500);
             act.finish();
             stopSelf();
+            System.exit(0); // This is needed to completely finish the process
         }
 
         onPreferencesChanged();
@@ -359,7 +360,7 @@ public class LorieService extends Service {
 
     }
 
-    void sleep(long millis) {
+    static void sleep(long millis) {
         try {
             Thread.sleep(millis);
         } catch (InterruptedException e) {

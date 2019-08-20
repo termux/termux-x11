@@ -239,7 +239,7 @@ void LorieRenderer::redraw() {
 
 	if (cursorVisible)
 		drawCursor();
-	
+
 	compositor.swap_buffers();
 }
 

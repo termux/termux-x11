@@ -27,7 +27,8 @@ public:
 	void window_change_callback(EGLNativeWindowType win, uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height);
 	void layout_change_callback(char *layout);
 
-	void egl_after_init();
+	void on_egl_init();
+	void on_egl_uninit();
 	
 	LorieEGLHelper helper;
 
@@ -43,8 +44,12 @@ LorieBackendAndroid::LorieBackendAndroid()
 
 
 
-void LorieBackendAndroid::egl_after_init() {
+void LorieBackendAndroid::on_egl_init() {
 	renderer.init();
+}
+
+void LorieBackendAndroid::on_egl_uninit() {
+	renderer.uninit();
 }
 
 void LorieBackendAndroid::backend_init() {
@@ -52,7 +57,8 @@ void LorieBackendAndroid::backend_init() {
 	    LOGE("Failed to initialize EGL context");
 	}
 
-	helper.onInit = std::bind(std::mem_fn(&LorieBackendAndroid::egl_after_init), this);
+	helper.onInit = std::bind(std::mem_fn(&LorieBackendAndroid::on_egl_init), this);
+	//helper.onUninit = std::bind(std::mem_fn(&LorieBackendAndroid::on_egl_uninit), this);
 
 	if (xkb_context == nullptr) {
 		xkb_context = xkb_context_new((enum xkb_context_flags) 0);
@@ -183,10 +189,9 @@ extern "C" JNIEXPORT void JNICALL
 JNI_DECLARE(LorieService, terminate)(JNIEnv __unused *env, jobject __unused instance,  jlong jcompositor) {
 	if (jcompositor == 0) return;
     	LorieBackendAndroid *b = fromLong(jcompositor);
-
+	LOGI("JNI: requested termination");
     b->terminate();
     b->self.join();
-    DBG;
 }
 
 extern "C" JNIEXPORT void JNICALL

@@ -30,8 +30,8 @@ void LorieSurface::request_frame(uint32_t callback) {
 }
 
 void LorieSurface::request_commit() {
-	//if (!buffer) return;
-	//wl_buffer_send_release (buffer);
+	if (!buffer) return;
+	wl_buffer_send_release (buffer);
 		
 	if (frame_callback) {
 		wl_callback_send_done (frame_callback, LorieUtils::timestamp());

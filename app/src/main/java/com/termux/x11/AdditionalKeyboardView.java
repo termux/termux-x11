@@ -13,14 +13,13 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewTreeObserver;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 
 import java.util.HashMap;
 import java.util.Map;
 
-@SuppressWarnings("unused")
+@SuppressWarnings({"unused", "FieldCanBeLocal"})
 public class AdditionalKeyboardView extends HorizontalScrollView implements ViewTreeObserver.OnGlobalLayoutListener {
     private final static int KEYCODE_BASE = 300;
     public final static int PREFERENCES_KEY = KEYCODE_BASE + 1;
@@ -154,14 +153,14 @@ public class AdditionalKeyboardView extends HorizontalScrollView implements View
                     toggle = false;
             }
 
-            setMinEms(4);
-            setPadding(10*density, 0, 10*density, 0);
-            setGravity(Gravity.CENTER);
 
             setTextColor(TEXT_COLOR);
             setBackgroundColor(BUTTON_COLOR);
             String text = keyCodesForString.get(keyCode);
+            float textWidth = getPaint().measureText(text);
+            setWidth((int) (textWidth + 20 * density));
             setText(text);
+            setGravity(Gravity.CENTER);
             setOnClickListener(this);
             setOnTouchListener(this);
         }

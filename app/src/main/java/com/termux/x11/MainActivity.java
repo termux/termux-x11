@@ -1,6 +1,8 @@
 package com.termux.x11;
 
+import android.app.Activity;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.os.Build;
 import android.preference.PreferenceManager;
 import android.support.v7.app.AppCompatActivity;
@@ -11,6 +13,8 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.Toast;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -34,6 +38,9 @@ public class MainActivity extends AppCompatActivity {
         LorieService.setMainActivity(this);
         LorieService.start(LorieService.ACTION_START_FROM_ACTIVITY);
 
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN|
+                WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
+
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
@@ -44,6 +51,23 @@ public class MainActivity extends AppCompatActivity {
             getWindow().
              getDecorView().
               setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
+    }
+
+    int orientation;
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+
+        if (newConfig.orientation != orientation && kbd != null && kbd.getVisibility() == View.VISIBLE) {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Activity.INPUT_METHOD_SERVICE);
+            View view = getCurrentFocus();
+            if (view == null) {
+                view = new View(this);
+            }
+            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+        }
+
+        orientation = newConfig.orientation;
     }
 
     public void onLorieServiceStart(LorieService instance) {

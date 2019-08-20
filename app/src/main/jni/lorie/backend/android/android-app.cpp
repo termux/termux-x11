@@ -26,6 +26,8 @@ public:
 	void get_keymap(int *fd, int *size) override;
 	void window_change_callback(EGLNativeWindowType win, uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height);
 	void layout_change_callback(char *layout);
+
+	void egl_after_init();
 	
 	LorieEGLHelper helper;
 
@@ -39,10 +41,18 @@ public:
 LorieBackendAndroid::LorieBackendAndroid()
     : self(&LorieCompositor::start, this) {}
 
+
+
+void LorieBackendAndroid::egl_after_init() {
+	renderer.init();
+}
+
 void LorieBackendAndroid::backend_init() {
 	if (!helper.init(EGL_DEFAULT_DISPLAY)) {
 	    LOGE("Failed to initialize EGL context");
 	}
+
+	helper.onInit = std::bind(std::mem_fn(&LorieBackendAndroid::egl_after_init), this);
 
 	if (xkb_context == nullptr) {
 		xkb_context = xkb_context_new((enum xkb_context_flags) 0);
@@ -185,13 +195,9 @@ JNI_DECLARE(LorieService, windowChanged)(JNIEnv *env, jobject __unused instance,
 	LorieBackendAndroid *b = fromLong(jcompositor);
 
 	EGLNativeWindowType win = ANativeWindow_fromSurface(env, jsurface);
-	if (win == nullptr) {
-		LOGE("Surface is invalid");
-		return;
-	}
-	
-	LOGV("JNI: window is changed: %p(%p) %dx%d (%dmm x %dmm)", win, jsurface, width, height, mmWidth, mmHeight);
 	b->queue.call(&LorieBackendAndroid::window_change_callback, b, win, width, height, mmWidth, mmHeight);
+
+    LOGV("JNI: window is changed: %p(%p) %dx%d (%dmm x %dmm)", win, jsurface, width, height, mmWidth, mmHeight);
 }
 
 extern "C" JNIEXPORT void JNICALL

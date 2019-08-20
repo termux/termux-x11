@@ -1,5 +1,6 @@
 #include <log.h>
 #include <lorie-egl-helper.hpp>
+#include <GLES2/gl2.h>
 
 static char* eglGetErrorText(int code) {
 		switch(eglGetError()) {
@@ -78,7 +79,7 @@ bool LorieEGLHelper::init(EGLNativeDisplayType display) {
 		return false;
 	}
 	
-	if (eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx) != EGL_TRUE) {
+	if (eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONFIG_KHR) != EGL_TRUE) {
 		LOGE("LorieEGLHelper::init : eglMakeCurrent failed: %s", eglGetErrorText(eglGetError()));
 		return false;
 	}
@@ -87,9 +88,10 @@ bool LorieEGLHelper::init(EGLNativeDisplayType display) {
 }
 
 bool LorieEGLHelper::setWindow(EGLNativeWindowType window) {
+    LOGV("Trying to use window %p", window);
 	if (sfc != EGL_NO_SURFACE) {
-		if (eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx) != EGL_TRUE) {
-			LOGE("LorieEGLHelper::setWindow : eglMakeCurrent failed: %s", eglGetErrorText(eglGetError()));
+		if (eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE) {
+			LOGE("LorieEGLHelper::setWindow : eglMakeCurrent (EGL_NO_SURFACE) failed: %s", eglGetErrorText(eglGetError()));
 			return false;
 		}
 		if (eglDestroySurface(dpy, sfc) != EGL_TRUE) {
@@ -97,20 +99,35 @@ bool LorieEGLHelper::setWindow(EGLNativeWindowType window) {
 			return false;
 		}
 	};
+	
+	sfc = EGL_NO_SURFACE;
 	win = window;
 
-	if (win == EGL_NO_WINDOW) return true;
+	if (win == EGL_NO_WINDOW) {
+		if (onUninit != nullptr) onUninit();
+        return true;
+    }
 	
 	sfc = eglCreateWindowSurface(dpy, cfg, win, NULL);
 	if (sfc == EGL_NO_SURFACE) {
 		LOGE("LorieEGLHelper::setWindow : eglCreateWindowSurface failed: %s", eglGetErrorText(eglGetError()));
+		if (onUninit != nullptr) onUninit();
 		return false;
 	}
 	
 	if (eglMakeCurrent(dpy, sfc, sfc, ctx) != EGL_TRUE) {
 		LOGE("LorieEGLHelper::setWindow : eglMakeCurrent failed: %s", eglGetErrorText(eglGetError()));
+		if (onUninit != nullptr) onUninit();
 		return false;
 	}
+
+	glClearColor(0.f, 0.f, 0.f, 0.f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	swap();
+
+	if (onInit != nullptr)
+	    onInit();
 	
 	return true;
 }

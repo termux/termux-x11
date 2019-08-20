@@ -20,14 +20,12 @@
         <service
             android:name=".LorieService"
             android:enabled="true"
-            android:exported="false"
-            android:persistent="true" />
+            android:exported="false"/>
         <service
             android:name=".LorieTestService"
             android:enabled="true"
             android:exported="true"
-            android:process="com.termux.x11.separated"
-            android:persistent="true" />
+            android:process="com.termux.x11.separated"/>
         <activity android:name=".MainActivity"
             android:theme="@style/NoActionBar"
             android:launchMode="singleInstance"

@@ -13,6 +13,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewTreeObserver;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 
@@ -24,11 +25,13 @@ public class AdditionalKeyboardView extends HorizontalScrollView implements View
     private final static int KEYCODE_BASE = 300;
     public final static int PREFERENCES_KEY = KEYCODE_BASE + 1;
     public final static int KEY_HEIGHT_DP = 35;
-    Context ctx;
-    View targetView = null;
-    View.OnKeyListener targetListener = null;
-    int density;
-    LinearLayout root;
+
+    private boolean softKbdVisible;
+    private Context ctx;
+    private View targetView = null;
+    private View.OnKeyListener targetListener = null;
+    private int density;
+    private LinearLayout root;
     public AdditionalKeyboardView(Context context) {
         super(context);
         init(context);
@@ -71,10 +74,11 @@ public class AdditionalKeyboardView extends HorizontalScrollView implements View
         int heightDiff = getRootView().getHeight() - (r.bottom - r.top);
         float dp = heightDiff/ mScreenDensity;
         int visibility = (dp > MAGIC_NUMBER)?View.VISIBLE:View.INVISIBLE;
+        softKbdVisible = (visibility == View.VISIBLE);
 
         if (getVisibility() == visibility) return;
 
-        if (visibility == View.VISIBLE)
+        if (softKbdVisible)
             setY(r.bottom - r.top - getHeight());
         setVisibility(visibility);
     }

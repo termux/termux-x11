@@ -44,8 +44,8 @@ void LoriePointer::request_set_cursor(uint32_t serial,
 void LoriePointer::send_enter() {
 	if (client == nullptr || (*client)->compositor.toplevel == nullptr) return;
 
-	wl_fixed_t x = wl_fixed_from_double ((*client)->compositor.toplevel->width/2);
-	wl_fixed_t y = wl_fixed_from_double ((*client)->compositor.toplevel->height/2);
+	wl_fixed_t x = wl_fixed_from_double ((*client)->compositor.toplevel->texture.width/2);
+	wl_fixed_t y = wl_fixed_from_double ((*client)->compositor.toplevel->texture.height/2);
 	wl_pointer_t::send_enter(next_serial(), *(*client)->compositor.toplevel, x, y);
 }
 

@@ -28,8 +28,8 @@ wrapper(keyboard_keymap_changed),
 #undef wrapper
 
 renderer(*this), 
-toplevel(toplevel_surface),
-cursor(cursor_surface),
+toplevel(renderer.toplevel_surface),
+cursor(renderer.cursor_surface),
 client_created_listener(*this) {}
 
 int proc(int fd, uint32_t mask, void *data) {
@@ -57,7 +57,6 @@ void LorieCompositor::start() {
 	wl_resource_t::global_create<LorieShell>(display, this);
 
 	backend_init();
-	renderer.init();
 	
 	wl_display_run(display);
 }
@@ -81,18 +80,11 @@ void LorieCompositor::real_terminate() {
 }
 
 void LorieCompositor::set_toplevel(LorieSurface *surface) {
-	LOGV("Setting surface %p as toplevel", surface);
-	toplevel_surface = surface;
-	output_redraw();
+	renderer.set_toplevel(surface);
 }
 
 void LorieCompositor::set_cursor(LorieSurface *surface, uint32_t hotspot_x, uint32_t hotspot_y) {
-	LOGV("Setting surface %p as cursor", surface);
-	cursor_surface = surface;
-	renderer.hotspot_x = hotspot_x;
-	renderer.hotspot_y = hotspot_y;
-
-	output_redraw();
+    renderer.set_cursor(surface, hotspot_x, hotspot_y);
 }
 
 void LorieCompositor::real_output_redraw() {

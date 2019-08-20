@@ -315,6 +315,7 @@ public class LorieService extends Service {
                     svc.pointerButton(TouchParser.BTN_RIGHT, (e.getAction() == KeyEvent.ACTION_DOWN) ? TouchParser.ACTION_DOWN : TouchParser.ACTION_UP);
                     rightPressed = (e.getAction() == KeyEvent.ACTION_DOWN);
                 } else if (e.getAction() == KeyEvent.ACTION_UP) {
+                    if (act.kbd!=null) act.kbd.requestFocus();
                     KeyboardUtils.toggleKeyboardVisibility(act);
                 }
                 return true;

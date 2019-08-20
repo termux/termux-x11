@@ -37,6 +37,9 @@ public:
 private:
 	LorieEGLHelper helper;
 	X11Window win;
+	
+	void onInit();
+	void onUninit();
 };
 
 void Backtrace();
@@ -127,9 +130,21 @@ static void proc(int fd, uint32_t mask, void *data) {
 	that->processEvents();
 }
 
+void LorieBackendX11::onInit() {
+	renderer.init();
+}
+
+void LorieBackendX11::onUninit() {
+	renderer.uninit();
+}
+
 void LorieBackendX11::backend_init() {
 	win.createWindow (WINDOW_WIDTH, WINDOW_HEIGHT);
 	helper.init(win.x_dpy);
+	
+	helper.onInit = std::bind(std::mem_fn(&LorieBackendX11::onInit), this);
+	helper.onUninit = std::bind(std::mem_fn(&LorieBackendX11::onUninit), this);
+	
 	helper.setWindow(win.window);
 	renderer.resize(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH/DPI*25.4, WINDOW_HEIGHT/DPI*25.4);
 	

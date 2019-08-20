@@ -77,9 +77,6 @@ private:
 
 	struct LorieClient* get_toplevel_client();
 	uint32_t next_serial();
-
-	LorieSurface* toplevel_surface = nullptr;
-	LorieSurface* cursor_surface = nullptr;
 	
 	struct {
 		uint32_t depressed = 0, latched = 0, locked = 0, group = 0;

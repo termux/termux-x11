@@ -74,6 +74,7 @@ public class LoriePreferences extends AppCompatActivity implements SharedPrefere
             addPreferencesFromResource(R.xml.preferences);
 
             String showImeEnabled = Settings.Secure.getString(getActivity().getContentResolver(), SHOW_IME_WITH_HARD_KEYBOARD);
+            if (showImeEnabled == null) showImeEnabled = "0";
             SharedPreferences.Editor p = getPreferenceManager().getSharedPreferences().edit();
             p.putBoolean("showIMEWhileExternalConnected", showImeEnabled.equals("1"));
             p.apply();

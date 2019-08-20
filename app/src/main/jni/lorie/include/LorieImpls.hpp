@@ -40,8 +40,7 @@ class LorieSurface: public wl_surface_t {
 public:
 	void on_destroy() override {};
 	void on_create() override {};
-	
-	uint32_t width = 0, height = 0;
+
 	uint32_t x = 0, y = 0;
 	LorieTexture texture;
 	struct wl_resource *buffer = NULL;

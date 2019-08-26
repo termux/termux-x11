@@ -15,7 +15,7 @@ public:
 	void run();
 	int get_fd();
 private:
-	int fds[2];
+	int fd;
 	pthread_mutex_t write_mutex;
 	pthread_mutex_t read_mutex;
 	std::queue<std::function<void()>> queue;

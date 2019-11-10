@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     package="com.termux.x11"
+    android:installLocation="internalOnly"
     android:sharedUserId="com.termux">
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

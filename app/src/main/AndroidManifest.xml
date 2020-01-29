@@ -42,7 +42,7 @@
             android:excludeFromRecents="true"
             android:name=".LoriePreferences" >
         </activity>
-
+	<meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true"/>
     </application>
 
 </manifest>

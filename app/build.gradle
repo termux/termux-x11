@@ -9,17 +9,33 @@ android {
         versionCode 1
         versionName "1.0"
     }
+
+    signingConfigs {
+        debug {
+            storeFile file('dev_keystore.jks')
+            keyAlias 'alias'
+            storePassword 'xrj45yWGLbsO7W0v'
+            keyPassword 'xrj45yWGLbsO7W0v'
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+
+        debug {
+            signingConfig signingConfigs.debug
+        }
     }
+
     externalNativeBuild {
         ndkBuild {
             path "src/main/jni/Android.mk"
         }
     }
+
     sourceSets {
         main {
             jniLibs.srcDirs 'src/main/jni/prebuilt'

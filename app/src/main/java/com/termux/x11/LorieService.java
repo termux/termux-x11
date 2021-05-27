@@ -30,6 +30,8 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Toast;
+import android.graphics.PixelFormat;
+
 
 @SuppressWarnings({"ConstantConditions", "SameParameterValue"})
 @SuppressLint({"ClickableViewAccessibility", "StaticFieldLeak"})
@@ -234,14 +236,14 @@ public class LorieService extends Service {
     @SuppressWarnings("SameParameterValue")
     private static class ServiceEventListener implements SurfaceHolder.Callback, View.OnTouchListener, View.OnKeyListener, View.OnHoverListener, View.OnGenericMotionListener, TouchParser.OnTouchParseListener {
         LorieService svc;
-
+        
         private void setAsListenerTo(SurfaceView view) {
             view.getHolder().addCallback(this);
             view.setOnTouchListener(this);
             view.setOnHoverListener(this);
             view.setOnGenericMotionListener(this);
             view.setOnKeyListener(this);
-            surfaceChanged(view.getHolder(), 0, view.getWidth(), view.getHeight());
+            surfaceChanged(view.getHolder(), PixelFormat.UNKNOWN, view.getWidth(), view.getHeight());
         }
 
         public void onPointerButton(int button, int state) {

@@ -17,7 +17,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
-        tools:ignore="GoogleAppIndexingWarning" >
+        tools:ignore="GoogleAppIndexingWarning"
+        android:resizeableActivity="true"
+        android:supportsPictureInPicture="false">
         <service
             android:name=".LorieService"
             android:enabled="true"

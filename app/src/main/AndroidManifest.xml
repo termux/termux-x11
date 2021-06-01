@@ -19,6 +19,7 @@
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning"
         android:resizeableActivity="true"
+        android:debuggable="true"
         android:supportsPictureInPicture="false">
         <service
             android:name=".LorieService"

@@ -44,7 +44,7 @@ public class LorieTestService extends Service {
         NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         String channelId = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? getNotificationChannel(notificationManager) : "";
         Notification notification = new NotificationCompat.Builder(this, channelId)
-                .setContentTitle("Termux:X11 Test service")
+                .setContentTitle("Termux:Wayland Test service")
                 .setSmallIcon(R.drawable.ic_x11_icon)
                 .setContentText("foreground service")
                 .setContentIntent(pendingIntent)

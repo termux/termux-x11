@@ -106,7 +106,7 @@ public class LorieService extends Service {
         NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         String channelId = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? getNotificationChannel(notificationManager) : "";
         Notification notification = new NotificationCompat.Builder(this, channelId)
-                .setContentTitle("Termux:X11")
+                .setContentTitle("Termux:Wayland")
                 .setSmallIcon(R.drawable.ic_x11_icon)
                 .setContentText("Pull down to show options")
                 .setContentIntent(pendingIntent)

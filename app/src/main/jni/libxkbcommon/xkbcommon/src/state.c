@@ -59,6 +59,8 @@
  *   - messages (very unlikely)
  */
 
+#include "config.h"
+
 #include "keymap.h"
 #include "keysym.h"
 #include "utf8.h"
@@ -117,26 +119,22 @@ struct xkb_state {
 };
 
 static const struct xkb_key_type_entry *
+get_entry_for_mods(const struct xkb_key_type *type, xkb_mod_mask_t mods)
+{
+    for (unsigned i = 0; i < type->num_entries; i++)
+        if (entry_is_active(&type->entries[i]) &&
+            type->entries[i].mods.mask == mods)
+            return &type->entries[i];
+    return NULL;
+}
+
+static const struct xkb_key_type_entry *
 get_entry_for_key_state(struct xkb_state *state, const struct xkb_key *key,
                         xkb_layout_index_t group)
 {
     const struct xkb_key_type *type = key->groups[group].type;
     xkb_mod_mask_t active_mods = state->components.mods & type->mods.mask;
-
-    for (unsigned i = 0; i < type->num_entries; i++) {
-        /*
-         * If the virtual modifiers are not bound to anything, we're
-         * supposed to skip the entry (xserver does this with cached
-         * entry->active field).
-         */
-        if (type->entries[i].mods.mods != 0 && type->entries[i].mods.mask == 0)
-            continue;
-
-        if (type->entries[i].mods.mask == active_mods)
-            return &type->entries[i];
-    }
-
-    return NULL;
+    return get_entry_for_mods(type, active_mods);
 }
 
 /**
@@ -215,21 +213,21 @@ xkb_state_key_get_layout(struct xkb_state *state, xkb_keycode_t kc)
                                  key->out_of_range_group_number);
 }
 
-static const union xkb_action fake = { .type = ACTION_TYPE_NONE };
-
 static const union xkb_action *
 xkb_key_get_action(struct xkb_state *state, const struct xkb_key *key)
 {
+    static const union xkb_action dummy = { .type = ACTION_TYPE_NONE };
+
     xkb_layout_index_t layout;
     xkb_level_index_t level;
 
     layout = xkb_state_key_get_layout(state, key->keycode);
     if (layout == XKB_LAYOUT_INVALID)
-        return &fake;
+        return &dummy;
 
     level = xkb_state_key_get_level(state, key->keycode, layout);
     if (level == XKB_LEVEL_INVALID)
-        return &fake;
+        return &dummy;
 
     return &key->groups[layout].levels[level].action;
 }
@@ -257,33 +255,20 @@ xkb_filter_new(struct xkb_state *state)
 
 /***====================================================================***/
 
-static bool
-xkb_filter_group_set_func(struct xkb_state *state,
-                          struct xkb_filter *filter,
-                          const struct xkb_key *key,
-                          enum xkb_key_direction direction)
-{
-    if (key != filter->key) {
-        filter->action.group.flags &= ~ACTION_LOCK_CLEAR;
-        return true;
-    }
-
-    if (direction == XKB_KEY_DOWN) {
-        filter->refcnt++;
-        return false;
-    }
-    else if (--filter->refcnt > 0) {
-        return false;
-    }
-
-    state->components.base_group = filter->priv;
-
-    if (filter->action.group.flags & ACTION_LOCK_CLEAR)
-        state->components.locked_group = 0;
-
-    filter->func = NULL;
-    return true;
-}
+enum xkb_filter_result {
+    /*
+     * The event is consumed by the filters.
+     *
+     * An event is always processed by all filters, but any filter can
+     * prevent it from being processed further by consuming it.
+     */
+    XKB_FILTER_CONSUME,
+    /*
+     * The event may continue to be processed as far as this filter is
+     * concerned.
+     */
+    XKB_FILTER_CONTINUE,
+};
 
 static void
 xkb_filter_group_set_new(struct xkb_state *state, struct xkb_filter *filter)
@@ -296,23 +281,31 @@ xkb_filter_group_set_new(struct xkb_state *state, struct xkb_filter *filter)
 }
 
 static bool
-xkb_filter_group_lock_func(struct xkb_state *state,
-                           struct xkb_filter *filter,
-                           const struct xkb_key *key,
-                           enum xkb_key_direction direction)
+xkb_filter_group_set_func(struct xkb_state *state,
+                          struct xkb_filter *filter,
+                          const struct xkb_key *key,
+                          enum xkb_key_direction direction)
 {
-    if (key != filter->key)
-        return true;
+    if (key != filter->key) {
+        filter->action.group.flags &= ~ACTION_LOCK_CLEAR;
+        return XKB_FILTER_CONTINUE;
+    }
 
     if (direction == XKB_KEY_DOWN) {
         filter->refcnt++;
-        return false;
+        return XKB_FILTER_CONSUME;
     }
-    if (--filter->refcnt > 0)
-        return false;
+    else if (--filter->refcnt > 0) {
+        return XKB_FILTER_CONSUME;
+    }
+
+    state->components.base_group = filter->priv;
+
+    if (filter->action.group.flags & ACTION_LOCK_CLEAR)
+        state->components.locked_group = 0;
 
     filter->func = NULL;
-    return true;
+    return XKB_FILTER_CONTINUE;
 }
 
 static void
@@ -325,30 +318,23 @@ xkb_filter_group_lock_new(struct xkb_state *state, struct xkb_filter *filter)
 }
 
 static bool
-xkb_filter_mod_set_func(struct xkb_state *state,
-                        struct xkb_filter *filter,
-                        const struct xkb_key *key,
-                        enum xkb_key_direction direction)
+xkb_filter_group_lock_func(struct xkb_state *state,
+                           struct xkb_filter *filter,
+                           const struct xkb_key *key,
+                           enum xkb_key_direction direction)
 {
-    if (key != filter->key) {
-        filter->action.mods.flags &= ~ACTION_LOCK_CLEAR;
-        return true;
-    }
+    if (key != filter->key)
+        return XKB_FILTER_CONTINUE;
 
     if (direction == XKB_KEY_DOWN) {
         filter->refcnt++;
-        return false;
+        return XKB_FILTER_CONSUME;
     }
-    else if (--filter->refcnt > 0) {
-        return false;
-    }
-
-    state->clear_mods = filter->action.mods.mods.mask;
-    if (filter->action.mods.flags & ACTION_LOCK_CLEAR)
-        state->components.locked_mods &= ~filter->action.mods.mods.mask;
+    if (--filter->refcnt > 0)
+        return XKB_FILTER_CONSUME;
 
     filter->func = NULL;
-    return true;
+    return XKB_FILTER_CONTINUE;
 }
 
 static void
@@ -358,27 +344,30 @@ xkb_filter_mod_set_new(struct xkb_state *state, struct xkb_filter *filter)
 }
 
 static bool
-xkb_filter_mod_lock_func(struct xkb_state *state,
-                         struct xkb_filter *filter,
-                         const struct xkb_key *key,
-                         enum xkb_key_direction direction)
+xkb_filter_mod_set_func(struct xkb_state *state,
+                        struct xkb_filter *filter,
+                        const struct xkb_key *key,
+                        enum xkb_key_direction direction)
 {
-    if (key != filter->key)
-        return true;
+    if (key != filter->key) {
+        filter->action.mods.flags &= ~ACTION_LOCK_CLEAR;
+        return XKB_FILTER_CONTINUE;
+    }
 
     if (direction == XKB_KEY_DOWN) {
         filter->refcnt++;
-        return false;
+        return XKB_FILTER_CONSUME;
     }
-    if (--filter->refcnt > 0)
-        return false;
+    else if (--filter->refcnt > 0) {
+        return XKB_FILTER_CONSUME;
+    }
 
-    state->clear_mods |= filter->action.mods.mods.mask;
-    if (!(filter->action.mods.flags & ACTION_LOCK_NO_UNLOCK))
-        state->components.locked_mods &= ~filter->priv;
+    state->clear_mods = filter->action.mods.mods.mask;
+    if (filter->action.mods.flags & ACTION_LOCK_CLEAR)
+        state->components.locked_mods &= ~filter->action.mods.mods.mask;
 
     filter->func = NULL;
-    return true;
+    return XKB_FILTER_CONTINUE;
 }
 
 static void
@@ -389,6 +378,30 @@ xkb_filter_mod_lock_new(struct xkb_state *state, struct xkb_filter *filter)
     state->set_mods |= filter->action.mods.mods.mask;
     if (!(filter->action.mods.flags & ACTION_LOCK_NO_LOCK))
         state->components.locked_mods |= filter->action.mods.mods.mask;
+}
+
+static bool
+xkb_filter_mod_lock_func(struct xkb_state *state,
+                         struct xkb_filter *filter,
+                         const struct xkb_key *key,
+                         enum xkb_key_direction direction)
+{
+    if (key != filter->key)
+        return XKB_FILTER_CONTINUE;
+
+    if (direction == XKB_KEY_DOWN) {
+        filter->refcnt++;
+        return XKB_FILTER_CONSUME;
+    }
+    if (--filter->refcnt > 0)
+        return XKB_FILTER_CONSUME;
+
+    state->clear_mods |= filter->action.mods.mods.mask;
+    if (!(filter->action.mods.flags & ACTION_LOCK_NO_UNLOCK))
+        state->components.locked_mods &= ~filter->priv;
+
+    filter->func = NULL;
+    return XKB_FILTER_CONTINUE;
 }
 
 enum xkb_key_latch_state {
@@ -412,6 +425,13 @@ xkb_action_breaks_latch(const union xkb_action *action)
     default:
         return false;
     }
+}
+
+static void
+xkb_filter_mod_latch_new(struct xkb_state *state, struct xkb_filter *filter)
+{
+    filter->priv = LATCH_KEY_DOWN;
+    state->set_mods = filter->action.mods.mods.mask;
 }
 
 static bool
@@ -445,14 +465,14 @@ xkb_filter_mod_latch_func(struct xkb_state *state,
             filter->key = key;
             state->components.latched_mods &= ~filter->action.mods.mods.mask;
             /* XXX beep beep! */
-            return false;
+            return XKB_FILTER_CONSUME;
         }
         else if (xkb_action_breaks_latch(action)) {
             /* XXX: This may be totally broken, we might need to break the
              *      latch in the next run after this press? */
             state->components.latched_mods &= ~filter->action.mods.mods.mask;
             filter->func = NULL;
-            return true;
+            return XKB_FILTER_CONTINUE;
         }
     }
     else if (direction == XKB_KEY_UP && key == filter->key) {
@@ -492,14 +512,7 @@ xkb_filter_mod_latch_func(struct xkb_state *state,
 
     filter->priv = latch;
 
-    return true;
-}
-
-static void
-xkb_filter_mod_latch_new(struct xkb_state *state, struct xkb_filter *filter)
-{
-    filter->priv = LATCH_KEY_DOWN;
-    state->set_mods = filter->action.mods.mods.mask;
+    return XKB_FILTER_CONTINUE;
 }
 
 static const struct {
@@ -531,17 +544,19 @@ xkb_filter_apply_all(struct xkb_state *state,
 {
     struct xkb_filter *filter;
     const union xkb_action *action;
-    bool send = true;
+    bool consumed;
 
     /* First run through all the currently active filters and see if any of
-     * them have claimed this event. */
+     * them have consumed this event. */
+    consumed = false;
     darray_foreach(filter, state->filters) {
         if (!filter->func)
             continue;
-        send = filter->func(state, filter, key, direction) && send;
-    }
 
-    if (!send || direction == XKB_KEY_UP)
+        if (filter->func(state, filter, key, direction) == XKB_FILTER_CONSUME)
+            consumed = true;
+    }
+    if (consumed || direction == XKB_KEY_UP)
         return;
 
     action = xkb_key_get_action(state, key);
@@ -560,9 +575,6 @@ xkb_filter_apply_all(struct xkb_state *state,
         return;
 
     filter = xkb_filter_new(state);
-    if (!filter)
-        return; /* WSGO */
-
     filter->key = key;
     filter->func = filter_action_funcs[action->type].func;
     filter->action = *action;
@@ -855,7 +867,7 @@ err:
 }
 
 /*
- * http://www.x.org/releases/current/doc/kbproto/xkbproto.html#Interpreting_the_Lock_Modifier
+ * https://www.x.org/releases/current/doc/kbproto/xkbproto.html#Interpreting_the_Lock_Modifier
  */
 static bool
 should_do_caps_transformation(struct xkb_state *state, xkb_keycode_t kc)
@@ -869,7 +881,7 @@ should_do_caps_transformation(struct xkb_state *state, xkb_keycode_t kc)
 }
 
 /*
- * http://www.x.org/releases/current/doc/kbproto/xkbproto.html#Interpreting_the_Control_Modifier
+ * https://www.x.org/releases/current/doc/kbproto/xkbproto.html#Interpreting_the_Control_Modifier
  */
 static bool
 should_do_ctrl_transformation(struct xkb_state *state, xkb_keycode_t kc)
@@ -1133,7 +1145,7 @@ xkb_state_mod_index_is_active(struct xkb_state *state,
  * Helper function for xkb_state_mod_indices_are_active and
  * xkb_state_mod_names_are_active.
  */
-static int
+static bool
 match_mod_masks(struct xkb_state *state,
                 enum xkb_state_component type,
                 enum xkb_state_match match,
@@ -1142,14 +1154,12 @@ match_mod_masks(struct xkb_state *state,
     xkb_mod_mask_t active = xkb_state_serialize_mods(state, type);
 
     if (!(match & XKB_STATE_MATCH_NON_EXCLUSIVE) && (active & ~wanted))
-        return 0;
+        return false;
 
     if (match & XKB_STATE_MATCH_ANY)
-        return !!(active & wanted);
-    else
-        return (active & wanted) == wanted;
+        return active & wanted;
 
-    return 0;
+    return (active & wanted) == wanted;
 }
 
 /**
@@ -1163,14 +1173,13 @@ xkb_state_mod_indices_are_active(struct xkb_state *state,
                                  ...)
 {
     va_list ap;
-    xkb_mod_index_t idx = 0;
     xkb_mod_mask_t wanted = 0;
     int ret = 0;
     xkb_mod_index_t num_mods = xkb_keymap_num_mods(state->keymap);
 
     va_start(ap, match);
     while (1) {
-        idx = va_arg(ap, xkb_mod_index_t);
+        xkb_mod_index_t idx = va_arg(ap, xkb_mod_index_t);
         if (idx == XKB_MOD_INVALID)
             break;
         if (idx >= num_mods) {
@@ -1214,12 +1223,12 @@ xkb_state_mod_names_are_active(struct xkb_state *state,
                                ...)
 {
     va_list ap;
-    xkb_mod_index_t idx = 0;
     xkb_mod_mask_t wanted = 0;
     int ret = 0;
 
     va_start(ap, match);
     while (1) {
+        xkb_mod_index_t idx;
         const char *str = va_arg(ap, const char *);
         if (str == NULL)
             break;
@@ -1307,13 +1316,20 @@ xkb_state_led_name_is_active(struct xkb_state *state, const char *name)
     return xkb_state_led_index_is_active(state, idx);
 }
 
+/**
+ * See:
+ * - XkbTranslateKeyCode(3), mod_rtrn return value, from libX11.
+ * - MyEnhancedXkbTranslateKeyCode(), a modification of the above, from GTK+.
+ */
 static xkb_mod_mask_t
-key_get_consumed(struct xkb_state *state, const struct xkb_key *key)
+key_get_consumed(struct xkb_state *state, const struct xkb_key *key,
+                 enum xkb_consumed_mode mode)
 {
     const struct xkb_key_type *type;
-    const struct xkb_key_type_entry *entry;
-    xkb_mod_mask_t preserve;
+    const struct xkb_key_type_entry *matching_entry;
+    xkb_mod_mask_t preserve = 0;
     xkb_layout_index_t group;
+    xkb_mod_mask_t consumed = 0;
 
     group = xkb_state_key_get_layout(state, key->keycode);
     if (group == XKB_LAYOUT_INVALID)
@@ -1321,47 +1337,64 @@ key_get_consumed(struct xkb_state *state, const struct xkb_key *key)
 
     type = key->groups[group].type;
 
-    entry = get_entry_for_key_state(state, key, group);
-    if (entry)
-        preserve = entry->preserve.mask;
-    else
-        preserve = 0;
+    matching_entry = get_entry_for_key_state(state, key, group);
+    if (matching_entry)
+        preserve = matching_entry->preserve.mask;
 
-    return type->mods.mask & ~preserve;
+    switch (mode) {
+    case XKB_CONSUMED_MODE_XKB:
+        consumed = type->mods.mask;
+        break;
+
+    case XKB_CONSUMED_MODE_GTK: {
+        const struct xkb_key_type_entry *no_mods_entry;
+        xkb_level_index_t no_mods_leveli;
+        const struct xkb_level *no_mods_level, *level;
+
+        no_mods_entry = get_entry_for_mods(type, 0);
+        no_mods_leveli = no_mods_entry ? no_mods_entry->level : 0;
+        no_mods_level = &key->groups[group].levels[no_mods_leveli];
+
+        for (unsigned i = 0; i < type->num_entries; i++) {
+            const struct xkb_key_type_entry *entry = &type->entries[i];
+            if (!entry_is_active(entry))
+                continue;
+
+            level = &key->groups[group].levels[entry->level];
+            if (XkbLevelsSameSyms(level, no_mods_level))
+                continue;
+
+            if (entry == matching_entry || one_bit_set(entry->mods.mask))
+                consumed |= entry->mods.mask & ~entry->preserve.mask;
+        }
+        break;
+    }
+    }
+
+    return consumed & ~preserve;
 }
 
-/**
- * Tests to see if a modifier is used up by our translation of a
- * keycode to keysyms, taking note of the current modifier state and
- * the appropriate key type's preserve information, if any. This allows
- * the user to mask out the modifier in later processing of the
- * modifiers, e.g. when implementing hot keys or accelerators.
- *
- * See also, for example:
- * - XkbTranslateKeyCode(3), mod_rtrn return value, from libX11.
- * - gdk_keymap_translate_keyboard_state, consumed_modifiers return value,
- *   from gtk+.
- */
 XKB_EXPORT int
-xkb_state_mod_index_is_consumed(struct xkb_state *state, xkb_keycode_t kc,
-                                xkb_mod_index_t idx)
+xkb_state_mod_index_is_consumed2(struct xkb_state *state, xkb_keycode_t kc,
+                                 xkb_mod_index_t idx,
+                                 enum xkb_consumed_mode mode)
 {
     const struct xkb_key *key = XkbKey(state->keymap, kc);
 
     if (!key || idx >= xkb_keymap_num_mods(state->keymap))
         return -1;
 
-    return !!((1u << idx) & key_get_consumed(state, key));
+    return !!((1u << idx) & key_get_consumed(state, key, mode));
 }
 
-/**
- * Calculates which modifiers should be consumed during key processing,
- * and returns the mask with all these modifiers removed.  e.g. if
- * given a state of Alt and Shift active for a two-level alphabetic
- * key containing plus and equal on the first and second level
- * respectively, will return a mask of only Alt, as Shift has been
- * consumed by the type handling.
- */
+XKB_EXPORT int
+xkb_state_mod_index_is_consumed(struct xkb_state *state, xkb_keycode_t kc,
+                                xkb_mod_index_t idx)
+{
+    return xkb_state_mod_index_is_consumed2(state, kc, idx,
+                                            XKB_CONSUMED_MODE_XKB);
+}
+
 XKB_EXPORT xkb_mod_mask_t
 xkb_state_mod_mask_remove_consumed(struct xkb_state *state, xkb_keycode_t kc,
                                    xkb_mod_mask_t mask)
@@ -1371,16 +1404,34 @@ xkb_state_mod_mask_remove_consumed(struct xkb_state *state, xkb_keycode_t kc,
     if (!key)
         return 0;
 
-    return mask & ~key_get_consumed(state, key);
+    return mask & ~key_get_consumed(state, key, XKB_CONSUMED_MODE_XKB);
+}
+
+XKB_EXPORT xkb_mod_mask_t
+xkb_state_key_get_consumed_mods2(struct xkb_state *state, xkb_keycode_t kc,
+                                 enum xkb_consumed_mode mode)
+{
+    const struct xkb_key *key;
+
+    switch (mode) {
+    case XKB_CONSUMED_MODE_XKB:
+    case XKB_CONSUMED_MODE_GTK:
+        break;
+    default:
+        log_err_func(state->keymap->ctx,
+                     "unrecognized consumed modifiers mode: %d\n", mode);
+        return 0;
+    }
+
+    key = XkbKey(state->keymap, kc);
+    if (!key)
+        return 0;
+
+    return key_get_consumed(state, key, mode);
 }
 
 XKB_EXPORT xkb_mod_mask_t
 xkb_state_key_get_consumed_mods(struct xkb_state *state, xkb_keycode_t kc)
 {
-    const struct xkb_key *key = XkbKey(state->keymap, kc);
-
-    if (!key)
-        return 0;
-
-    return key_get_consumed(state, key);
+    return xkb_state_key_get_consumed_mods2(state, kc, XKB_CONSUMED_MODE_XKB);
 }

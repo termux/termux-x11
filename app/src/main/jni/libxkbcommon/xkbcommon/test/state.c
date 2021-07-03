@@ -23,6 +23,8 @@
  * Author: Daniel Stone <daniel@fooishbar.org>
  */
 
+#include "config.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -445,6 +447,7 @@ test_consume(struct xkb_keymap *keymap)
 
     /* More complicated - CTRL+ALT */
     state = xkb_state_new(keymap);
+    assert(state);
 
     mask = xkb_state_key_get_consumed_mods(state, KEY_F1 + EVDEV_OFFSET);
     assert(mask == ((1U << shift) | (1U << alt) | (1U << ctrl) | (1U << mod5)));
@@ -458,7 +461,40 @@ test_consume(struct xkb_keymap *keymap)
     mask = xkb_state_key_get_consumed_mods(state, KEY_F1 + EVDEV_OFFSET);
     assert(mask == ((1U << shift) | (1U << alt) | (1U << ctrl) | (1U << mod5)));
 
+    xkb_state_unref(state);
+
+    /* Test XKB_CONSUMED_MODE_GTK, CTRL+ALT */
+    state = xkb_state_new(keymap);
     assert(state);
+
+    mask = xkb_state_key_get_consumed_mods2(state, KEY_F1 + EVDEV_OFFSET,
+                                            XKB_CONSUMED_MODE_GTK);
+    assert(mask == 0);
+
+    xkb_state_update_key(state, KEY_LEFTCTRL + EVDEV_OFFSET, XKB_KEY_DOWN);
+    mask = xkb_state_key_get_consumed_mods2(state, KEY_F1 + EVDEV_OFFSET,
+                                            XKB_CONSUMED_MODE_GTK);
+    assert(mask == 0);
+
+    xkb_state_update_key(state, KEY_LEFTALT + EVDEV_OFFSET, XKB_KEY_DOWN);
+    mask = xkb_state_key_get_consumed_mods2(state, KEY_F1 + EVDEV_OFFSET,
+                                            XKB_CONSUMED_MODE_GTK);
+    assert(mask == ((1U << alt) | (1U << ctrl)));
+
+    xkb_state_unref(state);
+
+    /* Test XKB_CONSUMED_MODE_GTK, Simple Shift */
+    state = xkb_state_new(keymap);
+    assert(state);
+
+    mask = xkb_state_key_get_consumed_mods2(state, KEY_A + EVDEV_OFFSET,
+                                            XKB_CONSUMED_MODE_GTK);
+    assert(mask == ((1U << shift) | (1U << caps)));
+
+    xkb_state_update_key(state, KEY_LEFTALT + EVDEV_OFFSET, XKB_KEY_DOWN);
+    mask = xkb_state_key_get_consumed_mods2(state, KEY_A + EVDEV_OFFSET,
+                                            XKB_CONSUMED_MODE_GTK);
+    assert(mask == ((1U << shift) | (1U << caps)));
 
     xkb_state_unref(state);
 }
@@ -478,7 +514,7 @@ test_range(struct xkb_keymap *keymap)
     xkb_keycode_t counter;
 
     assert(xkb_keymap_min_keycode(keymap) == 9);
-    assert(xkb_keymap_max_keycode(keymap) == 253);
+    assert(xkb_keymap_max_keycode(keymap) == 569);
 
     counter = xkb_keymap_min_keycode(keymap);
     xkb_keymap_key_for_each(keymap, key_iter, &counter);

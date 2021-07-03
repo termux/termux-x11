@@ -1,6 +1,6 @@
 // Common Latin alphabet layout
 
-default  partial
+default partial
 xkb_symbols "basic" {
 
     key <AE01>	{ [         1,     exclam,  onesuperior,   exclamdown ]	};
@@ -205,7 +205,7 @@ xkb_symbols "intl" {
     key <TLDE>	{ [     grave,  asciitilde, dead_grave,       dead_tilde ]	};
     key <AE01>	{ [         1,      exclam, exclamdown,       dead_acute ]	};
     key <AE02>	{ [         2,          at,  copyright,   dead_diaeresis ]	};
-    key <AE03>	{ [         3,  numbersign,      U2022, dead_doubleacute ]	}; // U+2022 is bullet (the name bullet doesn't work)
+    key <AE03>	{ [         3,  numbersign,      U2022, dead_doubleacute ]	}; // U+2022 is bullet (the name bullet does not work)
     key <AE04>	{ [         4,      dollar,    section,     dead_cedilla ]	};
     key <AE05>	{ [         5,     percent,   EuroSign,       dead_caron ]	};
     key <AE06>	{ [         6, asciicircum,       cent,  dead_circumflex ]	};

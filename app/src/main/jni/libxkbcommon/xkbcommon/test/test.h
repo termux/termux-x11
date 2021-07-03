@@ -81,10 +81,8 @@ test_compile_rules(struct xkb_context *context, const char *rules,
                    const char *model, const char *layout, const char *variant,
                    const char *options);
 
-void
-test_print_keycode_state(struct xkb_state *state,
-                         struct xkb_compose_state *compose_state,
-                         xkb_keycode_t keycode);
 
-void
-test_print_state_changes(enum xkb_state_component changed);
+#ifdef _MSC_VER
+#define setenv(varname, value, overwrite) _putenv_s((varname), (value))
+#define unsetenv(varname) _putenv_s(varname, "")
+#endif

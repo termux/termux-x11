@@ -1,4 +1,4 @@
-// Meta is mapped to second level of Alt keys.
+// Meta is mapped to second level of Alt.
 partial modifier_keys
 xkb_symbols "meta_alt" {
     key <LALT> { [ Alt_L, Meta_L ] };
@@ -8,7 +8,7 @@ xkb_symbols "meta_alt" {
 //  modifier_map Mod4 {};
 };
 
-// Alt is mapped to the Win keys (and the usual Alt keys).
+// Alt is mapped to the Super and the usual Alt.
 partial modifier_keys
 xkb_symbols "alt_win" {
     key <LWIN> { [ Alt_L ] };
@@ -16,7 +16,7 @@ xkb_symbols "alt_win" {
     modifier_map Mod1 { <LWIN>, <RWIN> };
 };
 
-// Ctrl is mapped to the Win keys (and the usual Ctrl keys).
+// Ctrl is mapped to the Super and the usual Ctrl keys.
 partial modifier_keys
 xkb_symbols "ctrl_win" {
     key <LWIN> { [ Control_L ] };
@@ -24,7 +24,7 @@ xkb_symbols "ctrl_win" {
     modifier_map Control { <LWIN>, <RWIN> };
 };
 
-// Ctrl is mapped to the Alt keys, Alt to the Win keys, and Win to the Ctrl keys.
+// Ctrl is mapped to the Alt, Alt to the Super, and Win to the Ctrl keys.
 partial modifier_keys
 xkb_symbols "ctrl_alt_win" {
     key <LALT> { [ Control_L, Control_L  ] };
@@ -39,7 +39,7 @@ xkb_symbols "ctrl_alt_win" {
     modifier_map Mod4 { <LCTL>, <RCTL> };
 };
 
-// Meta is mapped to the Win keys.
+// Meta is mapped to the Super.
 partial modifier_keys
 xkb_symbols "meta_win" {
     key <LALT> { [ Alt_L, Alt_L ] };
@@ -60,7 +60,7 @@ xkb_symbols "left_meta_win" {
     modifier_map Mod4 { <META>, Meta_L };
 };
 
-// Hyper is mapped to the Win keys.
+// Hyper is mapped to the Super.
 partial modifier_keys
 xkb_symbols "hyper_win" {
     key <LWIN> { [ Hyper_L ] };
@@ -74,6 +74,12 @@ xkb_symbols "menu" {
     key <MENU> { [ Menu ] };
 };
 
+// Menu is mapped to the right Win key.
+partial modifier_keys
+xkb_symbols "menu_win" {
+    key <MENU> { [ Super_R ] };
+};
+
 // Layout for Tux key caps with additional right Alt key
 partial modifier_keys
 xkb_symbols "alt_super_win" {
@@ -85,25 +91,32 @@ xkb_symbols "alt_super_win" {
     modifier_map Mod4 { Super_L, Super_R };
 };
 
-// Swap the Alt and Win keys.
+// Swap the Alt and Super.
 partial modifier_keys
 xkb_symbols "swap_alt_win" {
     include "altwin(swap_lalt_lwin)"
     include "altwin(swap_ralt_rwin)"
 };
 
-// Swap the left Alt and Win keys.
-hidden partial modifier_keys
+// Swap the left Alt and Super.
+partial modifier_keys
 xkb_symbols "swap_lalt_lwin" {
     key <LALT> { type[Group1] = "ONE_LEVEL",
                  symbols[Group1] = [ Super_L ] };
     key <LWIN> { [ Alt_L, Meta_L ] };
 };
 
-// Swap the right Alt and Win keys.
+// Swap the right Alt and Super.
 hidden partial modifier_keys
 xkb_symbols "swap_ralt_rwin" {
     key <RALT> { type[Group1] = "ONE_LEVEL",
                  symbols[Group1] = [ Super_R ] };
     key <RWIN> { [ Alt_R, Meta_R ] };
+};
+
+// Win is mapped to the PrtSc key (and the usual Win key).
+partial modifier_keys
+xkb_symbols "prtsc_rwin" {
+    replace key <PRSC> { [ Super_R, Super_R ] };
+    modifier_map Mod4 { <PRSC>, <RWIN> };
 };

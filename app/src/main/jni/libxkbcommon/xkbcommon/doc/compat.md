@@ -1,6 +1,6 @@
 # Compatibility
 
-Relative to the XKB 1.1 specification implemented in current X servers,
+Relative to the XKB 1.0 specification implemented in current X servers,
 xkbcommon has removed support for some parts of the specification which
 introduced unnecessary complications.  Many of these removals were in fact
 not implemented, or half-implemented at best, as well as being totally
@@ -42,8 +42,8 @@ Notable additions:
 - extended number of modifiers (planned)
 - extended number of groups (planned)
 - multiple keysyms per level
-  + this requires incompatible dataset changes, such that X11 would
-    not be able to parse these
+  + such levels are ignored by x11/xkbcomp.
+- key names (e.g. `<AE11>`) can be longer than 4 characters.
 
 ## Compose support
 
@@ -51,5 +51,6 @@ Relative to the standard implementation in libX11 (described in the
 Compose(5) man-page), some features are not supported:
 
 - the (! MODIFIER) syntax
+    + parsed correctly but ignored.
 - using modifier keysyms in Compose sequences
 - several interactions with Braille keysyms

@@ -1,3 +1,27 @@
+default  hidden partial keypad_keys
+xkb_symbols "x11" {
+
+    include "keypad(operators)"
+
+    key  <KP7> {	[  KP_Home,	KP_7	]	};
+    key  <KP8> {	[  KP_Up,	KP_8	]	};
+    key  <KP9> {	[  KP_Prior,	KP_9	]	};
+
+    key  <KP4> {	[  KP_Left,	KP_4	]	};
+    key  <KP5> {	[  KP_Begin,	KP_5	]	};
+    key  <KP6> {	[  KP_Right,	KP_6	]	};
+
+    key  <KP1> {	[  KP_End,	KP_1	]	};
+    key  <KP2> {	[  KP_Down,	KP_2	]	};
+    key  <KP3> {	[  KP_Next,	KP_3	]	};
+    key <KPEN> {	[	KP_Enter	]	};
+    key <KPEQ> {	[	KP_Equal	]	};
+
+    key  <KP0> {	[  KP_Insert,	KP_0	]	};
+    key <KPDL> {	[  KP_Delete,	KP_Decimal ]	};
+    key <KPPT> {	[  KP_Decimal,	KP_Decimal ]	};
+};
+
 hidden partial keypad_keys
 xkb_symbols "overlay" {
     include "keypad(overlay1)"
@@ -92,31 +116,6 @@ xkb_symbols "operators" {
         symbols[Group1]= [ KP_Add, KP_Add, KP_Add, KP_Add, XF86_Next_VMode ]
     };
 };
-
-default  hidden partial keypad_keys
-xkb_symbols "x11" {
-
-    include "keypad(operators)"
-
-    key  <KP7> {	[  KP_Home,	KP_7	]	};
-    key  <KP8> {	[  KP_Up,	KP_8	]	};
-    key  <KP9> {	[  KP_Prior,	KP_9	]	};
-
-    key  <KP4> {	[  KP_Left,	KP_4	]	};
-    key  <KP5> {	[  KP_Begin,	KP_5	]	};
-    key  <KP6> {	[  KP_Right,	KP_6	]	};
-
-    key  <KP1> {	[  KP_End,	KP_1	]	};
-    key  <KP2> {	[  KP_Down,	KP_2	]	};
-    key  <KP3> {	[  KP_Next,	KP_3	]	};
-    key <KPEN> {	[	KP_Enter	]	};
-    key <KPEQ> {	[	KP_Equal	]	};
-
-    key  <KP0> {	[  KP_Insert,	KP_0	]	};
-    key <KPDL> {	[  KP_Delete,	KP_Decimal ]	};
-    key <KPPT> {	[  KP_Decimal,	KP_Decimal ]	};
-};
-
 
 // Legacy PC keypad definition
 // Copyright © 2006-2007 Nicolas Mailhot <nicolas.mailhot @ laposte.net>
@@ -488,13 +487,13 @@ xkb_symbols "ossnumber_wang" {
 // the numpad you can inherit the cursors, but you'll have to define
 // the digits yourself. This module can be included in the rules to
 // define math operators; these are the variants used in computer
-// languages that are based on ASCII. NoSymbol doesn't mean that
+// languages that are based on ASCII. NoSymbol does not mean that
 // nothing is bound to the key but that no assignment is done here.
 // srvr_ctrl(stdkeypad) and keypad(x11) declare the operator keys to
 // be of type CTRL+ALT in order to assign server control events to
 // them, but it uses the second level which is overwritten if we have
 // more than one definition (shift state) for the key. Instead, here
-// the commands are put at the fourth level.
+// the commands are put at the 4th lever.
 partial keypad_keys
 xkb_symbols "ops" {
     key <KPDV> { [ NoSymbol,  slash,     NoSymbol,  XF86_Ungrab     ] };

@@ -1,4 +1,4 @@
-partial default xkb_types "default" {
+default partial xkb_types "default" {
     virtual_modifiers Alt;
 
     type "SHIFT+ALT" {

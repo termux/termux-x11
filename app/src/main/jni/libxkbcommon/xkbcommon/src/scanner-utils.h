@@ -49,9 +49,9 @@ struct scanner {
     size_t len;
     char buf[1024];
     size_t buf_pos;
-    unsigned line, column;
+    size_t line, column;
     /* The line/column of the start of the current token. */
-    unsigned token_line, token_column;
+    size_t token_line, token_column;
     const char *file_name;
     struct xkb_context *ctx;
     void *priv;
@@ -59,7 +59,7 @@ struct scanner {
 
 #define scanner_log(scanner, level, fmt, ...) \
     xkb_log((scanner)->ctx, (level), 0, \
-            "%s:%u:%u: " fmt "\n", \
+            "%s:%zu:%zu: " fmt "\n", \
              (scanner)->file_name, \
              (scanner)->token_line, (scanner)->token_column, ##__VA_ARGS__)
 

@@ -1,8 +1,9 @@
-/* A Bison parser, made by GNU Bison 3.0.2.  */
+/* A Bison parser, made by GNU Bison 3.7.6.  */
 
 /* Bison interface for Yacc-like parsers in C
 
-   Copyright (C) 1984, 1989-1990, 2000-2013 Free Software Foundation, Inc.
+   Copyright (C) 1984, 1989-1990, 2000-2015, 2018-2021 Free Software Foundation,
+   Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,7 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* As a special exception, you may create a larger work that contains
    part or all of the Bison parser skeleton and distribute that work
@@ -30,8 +31,12 @@
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
-#ifndef YY__XKBCOMMON_SRC_XKBCOMP_PARSER_H_INCLUDED
-# define YY__XKBCOMMON_SRC_XKBCOMP_PARSER_H_INCLUDED
+/* DO NOT RELY ON FEATURES THAT ARE NOT DOCUMENTED in the manual,
+   especially those whose name start with YY_ or yy_.  They are
+   private implementation details that can be changed or removed.  */
+
+#ifndef YY__XKBCOMMON_PARSER_H_INCLUDED
+# define YY__XKBCOMMON_PARSER_H_INCLUDED
 /* Debug traces.  */
 #ifndef YYDEBUG
 # define YYDEBUG 0
@@ -40,149 +45,87 @@
 extern int _xkbcommon_debug;
 #endif
 
-/* Token type.  */
+/* Token kinds.  */
 #ifndef YYTOKENTYPE
 # define YYTOKENTYPE
   enum yytokentype
   {
-    END_OF_FILE = 0,
-    ERROR_TOK = 255,
-    XKB_KEYMAP = 1,
-    XKB_KEYCODES = 2,
-    XKB_TYPES = 3,
-    XKB_SYMBOLS = 4,
-    XKB_COMPATMAP = 5,
-    XKB_GEOMETRY = 6,
-    XKB_SEMANTICS = 7,
-    XKB_LAYOUT = 8,
-    INCLUDE = 10,
-    OVERRIDE = 11,
-    AUGMENT = 12,
-    REPLACE = 13,
-    ALTERNATE = 14,
-    VIRTUAL_MODS = 20,
-    TYPE = 21,
-    INTERPRET = 22,
-    ACTION_TOK = 23,
-    KEY = 24,
-    ALIAS = 25,
-    GROUP = 26,
-    MODIFIER_MAP = 27,
-    INDICATOR = 28,
-    SHAPE = 29,
-    KEYS = 30,
-    ROW = 31,
-    SECTION = 32,
-    OVERLAY = 33,
-    TEXT = 34,
-    OUTLINE = 35,
-    SOLID = 36,
-    LOGO = 37,
-    VIRTUAL = 38,
-    EQUALS = 40,
-    PLUS = 41,
-    MINUS = 42,
-    DIVIDE = 43,
-    TIMES = 44,
-    OBRACE = 45,
-    CBRACE = 46,
-    OPAREN = 47,
-    CPAREN = 48,
-    OBRACKET = 49,
-    CBRACKET = 50,
-    DOT = 51,
-    COMMA = 52,
-    SEMI = 53,
-    EXCLAM = 54,
-    INVERT = 55,
-    STRING = 60,
-    INTEGER = 61,
-    FLOAT = 62,
-    IDENT = 63,
-    KEYNAME = 64,
-    PARTIAL = 70,
-    DEFAULT = 71,
-    HIDDEN = 72,
-    ALPHANUMERIC_KEYS = 73,
-    MODIFIER_KEYS = 74,
-    KEYPAD_KEYS = 75,
-    FUNCTION_KEYS = 76,
-    ALTERNATE_GROUP = 77
+    YYEMPTY = -2,
+    END_OF_FILE = 0,               /* END_OF_FILE  */
+    YYerror = 256,                 /* error  */
+    YYUNDEF = 257,                 /* "invalid token"  */
+    ERROR_TOK = 255,               /* ERROR_TOK  */
+    XKB_KEYMAP = 1,                /* XKB_KEYMAP  */
+    XKB_KEYCODES = 2,              /* XKB_KEYCODES  */
+    XKB_TYPES = 3,                 /* XKB_TYPES  */
+    XKB_SYMBOLS = 4,               /* XKB_SYMBOLS  */
+    XKB_COMPATMAP = 5,             /* XKB_COMPATMAP  */
+    XKB_GEOMETRY = 6,              /* XKB_GEOMETRY  */
+    XKB_SEMANTICS = 7,             /* XKB_SEMANTICS  */
+    XKB_LAYOUT = 8,                /* XKB_LAYOUT  */
+    INCLUDE = 10,                  /* INCLUDE  */
+    OVERRIDE = 11,                 /* OVERRIDE  */
+    AUGMENT = 12,                  /* AUGMENT  */
+    REPLACE = 13,                  /* REPLACE  */
+    ALTERNATE = 14,                /* ALTERNATE  */
+    VIRTUAL_MODS = 20,             /* VIRTUAL_MODS  */
+    TYPE = 21,                     /* TYPE  */
+    INTERPRET = 22,                /* INTERPRET  */
+    ACTION_TOK = 23,               /* ACTION_TOK  */
+    KEY = 24,                      /* KEY  */
+    ALIAS = 25,                    /* ALIAS  */
+    GROUP = 26,                    /* GROUP  */
+    MODIFIER_MAP = 27,             /* MODIFIER_MAP  */
+    INDICATOR = 28,                /* INDICATOR  */
+    SHAPE = 29,                    /* SHAPE  */
+    KEYS = 30,                     /* KEYS  */
+    ROW = 31,                      /* ROW  */
+    SECTION = 32,                  /* SECTION  */
+    OVERLAY = 33,                  /* OVERLAY  */
+    TEXT = 34,                     /* TEXT  */
+    OUTLINE = 35,                  /* OUTLINE  */
+    SOLID = 36,                    /* SOLID  */
+    LOGO = 37,                     /* LOGO  */
+    VIRTUAL = 38,                  /* VIRTUAL  */
+    EQUALS = 40,                   /* EQUALS  */
+    PLUS = 41,                     /* PLUS  */
+    MINUS = 42,                    /* MINUS  */
+    DIVIDE = 43,                   /* DIVIDE  */
+    TIMES = 44,                    /* TIMES  */
+    OBRACE = 45,                   /* OBRACE  */
+    CBRACE = 46,                   /* CBRACE  */
+    OPAREN = 47,                   /* OPAREN  */
+    CPAREN = 48,                   /* CPAREN  */
+    OBRACKET = 49,                 /* OBRACKET  */
+    CBRACKET = 50,                 /* CBRACKET  */
+    DOT = 51,                      /* DOT  */
+    COMMA = 52,                    /* COMMA  */
+    SEMI = 53,                     /* SEMI  */
+    EXCLAM = 54,                   /* EXCLAM  */
+    INVERT = 55,                   /* INVERT  */
+    STRING = 60,                   /* STRING  */
+    INTEGER = 61,                  /* INTEGER  */
+    FLOAT = 62,                    /* FLOAT  */
+    IDENT = 63,                    /* IDENT  */
+    KEYNAME = 64,                  /* KEYNAME  */
+    PARTIAL = 70,                  /* PARTIAL  */
+    DEFAULT = 71,                  /* DEFAULT  */
+    HIDDEN = 72,                   /* HIDDEN  */
+    ALPHANUMERIC_KEYS = 73,        /* ALPHANUMERIC_KEYS  */
+    MODIFIER_KEYS = 74,            /* MODIFIER_KEYS  */
+    KEYPAD_KEYS = 75,              /* KEYPAD_KEYS  */
+    FUNCTION_KEYS = 76,            /* FUNCTION_KEYS  */
+    ALTERNATE_GROUP = 77           /* ALTERNATE_GROUP  */
   };
+  typedef enum yytokentype yytoken_kind_t;
 #endif
-/* Tokens.  */
-#define END_OF_FILE 0
-#define ERROR_TOK 255
-#define XKB_KEYMAP 1
-#define XKB_KEYCODES 2
-#define XKB_TYPES 3
-#define XKB_SYMBOLS 4
-#define XKB_COMPATMAP 5
-#define XKB_GEOMETRY 6
-#define XKB_SEMANTICS 7
-#define XKB_LAYOUT 8
-#define INCLUDE 10
-#define OVERRIDE 11
-#define AUGMENT 12
-#define REPLACE 13
-#define ALTERNATE 14
-#define VIRTUAL_MODS 20
-#define TYPE 21
-#define INTERPRET 22
-#define ACTION_TOK 23
-#define KEY 24
-#define ALIAS 25
-#define GROUP 26
-#define MODIFIER_MAP 27
-#define INDICATOR 28
-#define SHAPE 29
-#define KEYS 30
-#define ROW 31
-#define SECTION 32
-#define OVERLAY 33
-#define TEXT 34
-#define OUTLINE 35
-#define SOLID 36
-#define LOGO 37
-#define VIRTUAL 38
-#define EQUALS 40
-#define PLUS 41
-#define MINUS 42
-#define DIVIDE 43
-#define TIMES 44
-#define OBRACE 45
-#define CBRACE 46
-#define OPAREN 47
-#define CPAREN 48
-#define OBRACKET 49
-#define CBRACKET 50
-#define DOT 51
-#define COMMA 52
-#define SEMI 53
-#define EXCLAM 54
-#define INVERT 55
-#define STRING 60
-#define INTEGER 61
-#define FLOAT 62
-#define IDENT 63
-#define KEYNAME 64
-#define PARTIAL 70
-#define DEFAULT 71
-#define HIDDEN 72
-#define ALPHANUMERIC_KEYS 73
-#define MODIFIER_KEYS 74
-#define KEYPAD_KEYS 75
-#define FUNCTION_KEYS 76
-#define ALTERNATE_GROUP 77
 
 /* Value type.  */
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-typedef union YYSTYPE YYSTYPE;
 union YYSTYPE
 {
-#line 162 "src/xkbcomp/parser.y" /* yacc.c:1909  */
+#line 164 "parser.y"
 
-        int              ival;
         int64_t          num;
         enum xkb_file_type file_type;
         char            *str;
@@ -191,9 +134,13 @@ union YYSTYPE
         enum xkb_map_flags mapFlags;
         xkb_keysym_t    keysym;
         ParseCommon     *any;
+        struct { ParseCommon *head; ParseCommon *last; } anyList;
         ExprDef         *expr;
+        struct { ExprDef *head; ExprDef *last; } exprList;
         VarDef          *var;
+        struct { VarDef *head; VarDef *last; } varList;
         VModDef         *vmod;
+        struct { VModDef *head; VModDef *last; } vmodList;
         InterpDef       *interp;
         KeyTypeDef      *keyType;
         SymbolsDef      *syms;
@@ -205,9 +152,12 @@ union YYSTYPE
         KeyAliasDef     *keyAlias;
         void            *geom;
         XkbFile         *file;
+        struct { XkbFile *head; XkbFile *last; } fileList;
 
-#line 210 "src/xkbcomp/parser.h" /* yacc.c:1909  */
+#line 158 "parser.h"
+
 };
+typedef union YYSTYPE YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define YYSTYPE_IS_DECLARED 1
 #endif
@@ -216,4 +166,4 @@ union YYSTYPE
 
 int _xkbcommon_parse (struct parser_param *param);
 
-#endif /* !YY__XKBCOMMON_SRC_XKBCOMP_PARSER_H_INCLUDED  */
+#endif /* !YY__XKBCOMMON_PARSER_H_INCLUDED  */

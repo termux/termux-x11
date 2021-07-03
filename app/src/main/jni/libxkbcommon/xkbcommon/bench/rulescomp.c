@@ -21,18 +21,22 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include <time.h>
 
 #include "../test/test.h"
+#include "bench.h"
 
-#define BENCHMARK_ITERATIONS 2500
+#define BENCHMARK_ITERATIONS 1000
 
 int
 main(int argc, char *argv[])
 {
     struct xkb_context *ctx;
     struct xkb_keymap *keymap;
-    struct timespec start, stop, elapsed;
+    struct bench bench;
+    char *elapsed;
     int i;
 
     ctx = test_get_context(0);
@@ -41,23 +45,18 @@ main(int argc, char *argv[])
     xkb_context_set_log_level(ctx, XKB_LOG_LEVEL_CRITICAL);
     xkb_context_set_log_verbosity(ctx, 0);
 
-    clock_gettime(CLOCK_MONOTONIC, &start);
+    bench_start(&bench);
     for (i = 0; i < BENCHMARK_ITERATIONS; i++) {
         keymap = test_compile_rules(ctx, "evdev", "evdev", "us", "", "");
         assert(keymap);
         xkb_keymap_unref(keymap);
     }
-    clock_gettime(CLOCK_MONOTONIC, &stop);
+    bench_stop(&bench);
 
-    elapsed.tv_sec = stop.tv_sec - start.tv_sec;
-    elapsed.tv_nsec = stop.tv_nsec - start.tv_nsec;
-    if (elapsed.tv_nsec < 0) {
-        elapsed.tv_nsec += 1000000000;
-        elapsed.tv_sec--;
-    }
-
-    fprintf(stderr, "compiled %d keymaps in %ld.%09lds\n",
-            BENCHMARK_ITERATIONS, elapsed.tv_sec, elapsed.tv_nsec);
+    elapsed = bench_elapsed_str(&bench);
+    fprintf(stderr, "compiled %d keymaps in %ss\n",
+            BENCHMARK_ITERATIONS, elapsed);
+    free(elapsed);
 
     xkb_context_unref(ctx);
     return 0;

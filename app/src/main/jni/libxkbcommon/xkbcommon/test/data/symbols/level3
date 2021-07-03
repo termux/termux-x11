@@ -3,7 +3,7 @@
 
 // The default behaviour:
 // the right Alt key (AltGr) chooses the third symbol engraved on a key.
-default  partial modifier_keys
+default partial modifier_keys
 xkb_symbols "ralt_switch" {
   key <RALT> {
     type[Group1]="ONE_LEVEL",
@@ -206,6 +206,24 @@ xkb_symbols "lsgt_switch_latch" {
   key <LSGT> {
     type[Group1]="THREE_LEVEL",
     symbols[Group1] = [ ISO_Level3_Shift, ISO_Level3_Shift, ISO_Level3_Latch ]
+  };
+  include "level3(modifier_mapping)"
+};
+
+// Number key 4 chooses third shift level when pressed in isolation.
+partial modifier_keys
+xkb_symbols "4_switch_isolated" {
+  override key <AE04> {
+    symbols[Group1] = [ ISO_Level3_Shift ]
+  };
+  include "level3(modifier_mapping)"
+};
+
+// Number key 9 chooses third shift level when pressed in isolation.
+partial modifier_keys
+xkb_symbols "9_switch_isolated" {
+  override key <AE09> {
+    symbols[Group1] = [ ISO_Level3_Shift ]
   };
   include "level3(modifier_mapping)"
 };

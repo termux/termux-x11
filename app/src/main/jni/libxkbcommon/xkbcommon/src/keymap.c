@@ -50,6 +50,8 @@
  *
  * ********************************************************/
 
+#include "config.h"
+
 #include "keymap.h"
 #include "text.h"
 
@@ -407,6 +409,66 @@ xkb_keymap_led_get_index(struct xkb_keymap *keymap, const char *name)
     return XKB_LED_INVALID;
 }
 
+XKB_EXPORT size_t
+xkb_keymap_key_get_mods_for_level(struct xkb_keymap *keymap,
+                                  xkb_keycode_t kc,
+                                  xkb_layout_index_t layout,
+                                  xkb_level_index_t level,
+                                  xkb_mod_mask_t *masks_out,
+                                  size_t masks_size)
+{
+    const struct xkb_key *key = XkbKey(keymap, kc);
+    if (!key)
+        return 0;
+
+    layout = XkbWrapGroupIntoRange(layout, key->num_groups,
+                                   key->out_of_range_group_action,
+                                   key->out_of_range_group_number);
+    if (layout == XKB_LAYOUT_INVALID)
+        return 0;
+
+    if (level >= XkbKeyNumLevels(key, layout))
+        return 0;
+
+    const struct xkb_key_type *type = key->groups[layout].type;
+
+    size_t count = 0;
+
+    /*
+     * If the active set of modifiers doesn't match any explicit entry of
+     * the key type, the resulting level is 0 (i.e. Level 1).
+     * So, if we are asked to find the modifiers for level==0, we can offer
+     * an ~infinite supply, which is not very workable.
+     * What we do instead, is special case the empty set of modifiers for
+     * this purpose. If the empty set isn't explicit mapped to a level, we
+     * take it to map to Level 1.
+     * This is almost always what we want. If applicable, given it priority
+     * over other ways to generate the level.
+     */
+    if (level == 0) {
+        bool empty_mapped = false;
+        for (unsigned i = 0; i < type->num_entries && count < masks_size; i++)
+            if (entry_is_active(&type->entries[i]) &&
+                type->entries[i].mods.mask == 0) {
+                empty_mapped = true;
+                break;
+            }
+        if (!empty_mapped && count < masks_size) {
+            masks_out[count++] = 0;
+        }
+    }
+
+    /* Now search explicit mappings. */
+    for (unsigned i = 0; i < type->num_entries && count < masks_size; i++) {
+        if (entry_is_active(&type->entries[i]) &&
+            type->entries[i].level == level) {
+            masks_out[count++] = type->entries[i].mods.mask;
+        }
+    }
+
+    return count;
+}
+
 /**
  * As below, but takes an explicit layout/level rather than state.
  */
@@ -468,6 +530,40 @@ xkb_keymap_key_for_each(struct xkb_keymap *keymap, xkb_keymap_key_iter_t iter,
 
     xkb_keys_foreach(key, keymap)
         iter(keymap, key->keycode, data);
+}
+
+XKB_EXPORT const char *
+xkb_keymap_key_get_name(struct xkb_keymap *keymap, xkb_keycode_t kc)
+{
+    const struct xkb_key *key = XkbKey(keymap, kc);
+
+    if (!key)
+        return NULL;
+
+    return xkb_atom_text(keymap->ctx, key->name);
+}
+
+XKB_EXPORT xkb_keycode_t
+xkb_keymap_key_by_name(struct xkb_keymap *keymap, const char *name)
+{
+    struct xkb_key *key;
+    xkb_atom_t atom;
+
+    atom = xkb_atom_lookup(keymap->ctx, name);
+    if (atom) {
+        xkb_atom_t ratom = XkbResolveKeyAlias(keymap, atom);
+        if (ratom)
+            atom = ratom;
+    }
+    if (!atom)
+        return XKB_KEYCODE_INVALID;
+
+    xkb_keys_foreach(key, keymap) {
+        if (key->name == atom)
+            return key->keycode;
+    }
+
+    return XKB_KEYCODE_INVALID;
 }
 
 /**

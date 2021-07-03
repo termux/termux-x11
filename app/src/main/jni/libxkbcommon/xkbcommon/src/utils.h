@@ -26,28 +26,56 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <strings.h>
+#if HAVE_UNISTD_H
+#include <unistd.h>
+#else
+/* Required on Windows where unistd.h doesn't exist */
+#define R_OK    4               /* Test for read permission.  */
+#define W_OK    2               /* Test for write permission.  */
+#define X_OK    1               /* Test for execute permission.  */
+#define F_OK    0               /* Test for existence.  */
+#endif
 
 #include "darray.h"
-
-/*
- * We sometimes malloc strings and then expose them as const char*'s. This
- * macro is used when we free these strings in order to avoid -Wcast-qual
- * errors.
- */
-#define UNCONSTIFY(const_ptr)  ((void *) (uintptr_t) (const_ptr))
 
 #define STATIC_ASSERT(expr, message) do { \
     switch (0) { case 0: case (expr): ; } \
 } while (0)
 
+#define ARRAY_SIZE(arr) ((sizeof(arr) / sizeof(*(arr))))
+
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+/* Round up @a so it's divisible by @b. */
+#define ROUNDUP(a, b) (((a) + (b) - 1) / (b) * (b))
+
+char
+to_lower(char c);
+
+int
+istrcmp(const char *a, const char *b);
+
+int
+istrncmp(const char *a, const char *b, size_t n);
+
 static inline bool
 streq(const char *s1, const char *s2)
 {
+    assert(s1 && s2);
     return strcmp(s1, s2) == 0;
+}
+
+static inline bool
+streq_null(const char *s1, const char *s2)
+{
+    if (s1 == NULL || s2 == NULL)
+        return s1 == s2;
+    return streq(s1, s2);
 }
 
 static inline bool
@@ -61,13 +89,13 @@ streq_not_null(const char *s1, const char *s2)
 static inline bool
 istreq(const char *s1, const char *s2)
 {
-    return strcasecmp(s1, s2) == 0;
+    return istrcmp(s1, s2) == 0;
 }
 
 static inline bool
 istreq_prefix(const char *s1, const char *s2)
 {
-    return strncasecmp(s1, s2, strlen(s1)) == 0;
+    return istrncmp(s1, s2, strlen(s1)) == 0;
 }
 
 static inline char *
@@ -108,18 +136,22 @@ memdup(const void *mem, size_t nmemb, size_t size)
         memcpy(p, mem, nmemb * size);
     return p;
 }
-
-static inline int
-min(int misc, int other)
+#ifndef ANDROID
+#if !(defined(HAVE_STRNDUP) && HAVE_STRNDUP)
+static inline char *
+strndup(const char *s, size_t n)
 {
-    return (misc < other) ? misc : other;
+    size_t slen = strlen(s);
+    size_t len = MIN(slen, n);
+    char *p = malloc(len + 1);
+    if (!p)
+        return NULL;
+    memcpy(p, s, len);
+    p[len] = '\0';
+    return p;
 }
-
-static inline int
-max(int misc, int other)
-{
-    return (misc > other) ? misc : other;
-}
+#endif
+#endif
 
 /* ctype.h is locale-dependent and has other oddities. */
 static inline bool
@@ -178,21 +210,31 @@ msb_pos(uint32_t mask)
     return pos;
 }
 
+static inline int
+one_bit_set(uint32_t x)
+{
+    return x && (x & (x - 1)) == 0;
+}
+
 bool
-map_file(FILE *file, const char **string_out, size_t *size_out);
+map_file(FILE *file, char **string_out, size_t *size_out);
 
 void
-unmap_file(const char *str, size_t size);
+unmap_file(char *string, size_t size);
 
-#define ARRAY_SIZE(arr) ((sizeof(arr) / sizeof(*(arr))))
+static inline bool
+check_eaccess(const char *path, int mode)
+{
+#if defined(HAVE_EACCESS)
+    if (eaccess(path, mode) != 0)
+        return false;
+#elif defined(HAVE_EUIDACCESS)
+    if (euidaccess(path, mode) != 0)
+        return false;
+#endif
 
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MIN3(a, b, c) MIN(MIN((a), (b)), (c))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define MAX3(a, b, c) MAX(MAX((a), (b)), (c))
-
-/* Round up @a so it's divisible by @b. */
-#define ROUNDUP(a, b) (((a) + (b) - 1) / (b) * (b))
+    return true;
+}
 
 #if defined(HAVE_SECURE_GETENV)
 # define secure_getenv secure_getenv
@@ -250,5 +292,59 @@ unmap_file(const char *str, size_t size);
 #else
 #define ATTR_PACKED
 #endif
+
+#if !(defined(HAVE_ASPRINTF) && HAVE_ASPRINTF)
+int asprintf(char **strp, const char *fmt, ...) ATTR_PRINTF(2, 3);
+# if !(defined(HAVE_VASPRINTF) && HAVE_VASPRINTF)
+#  include <stdarg.h>
+int vasprintf(char **strp, const char *fmt, va_list ap);
+# endif /* !HAVE_VASPRINTF */
+#endif /* !HAVE_ASPRINTF */
+
+static inline bool
+ATTR_PRINTF(3, 4)
+snprintf_safe(char *buf, size_t sz, const char *format, ...)
+{
+    va_list ap;
+    int rc;
+
+    va_start(ap, format);
+    rc = vsnprintf(buf, sz, format, ap);
+    va_end(ap);
+
+    return rc >= 0 && (size_t)rc < sz;
+}
+
+static inline char *
+ATTR_PRINTF(1, 0)
+vasprintf_safe(const char *fmt, va_list args)
+{
+    char *str;
+    int len;
+
+    len = vasprintf(&str, fmt, args);
+
+    if (len == -1)
+        return NULL;
+
+    return str;
+}
+
+/**
+ * A version of asprintf that returns the allocated string or NULL on error.
+ */
+static inline char *
+ATTR_PRINTF(1, 2)
+asprintf_safe(const char *fmt, ...)
+{
+    va_list args;
+    char *str;
+
+    va_start(args, fmt);
+    str = vasprintf_safe(fmt, args);
+    va_end(args);
+
+    return str;
+}
 
 #endif /* UTILS_H */

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2013 Ran Benita <ran234@gmail.com>
+ * Copyright © 2013,2021 Ran Benita <ran234@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -29,36 +29,43 @@
 #include "context.h"
 
 /*
- * The compose table data structure is a simple trie.  An example will
- * help.  Given these sequences:
+ * The compose table data structure is a ternary search tree.
  *
- *      <A> <B>        : "first"  dead_a
- *      <A> <C> <D>    : "second" dead_b
- *      <E> <F>        : "third"  dead_c
+ * Reference: https://www.drdobbs.com/database/ternary-search-trees/184410528
+ * Visualization: https://www.cs.usfca.edu/~galles/visualization/TST.html
  *
- * the trie would look like:
+ * Short example. Given these sequences:
  *
- * [root] ---> [<A>] -----------------> [<E>] -#
- *   |           |                        |
- *   #           v                        v
- *             [<B>] ---> [<C>] -#      [<F>] -#
- *               |          |             -
- *               #          v             #
- *                        [<D>] -#
- *                          |
- *                          #
+ *      <B> <C>        : "first"  dead_a
+ *      <B> <D> <E>    : "second" dead_b
+ *      <A> <F>        : "third"  dead_c
+ *
+ * the tree would look like:
+ *
+ *          -------- [<B>]---------
+ *          |          |          #
+ *          v          V
+ *     -- [<A>] --   [<C>] --------
+ *     #    |    #     |          |
+ *          v          #     -- [<D>] --
+ *     -- [<F>] --           #    |    #
+ *     #    |    #                v
+ *          #                -- [<E>] --
+ *                           #    |    #
+ *                                #
+ *
  * where:
- * - [root] is a special empty root node.
  * - [<X>] is a node for a sequence keysym <X>.
- * - right arrows are `next` pointers.
- * - down arrows are `successor` pointers.
+ * - right arrows are `hikid` pointers.
+ * - left arrows are `lokid` pointers.
+ * - down arrows are `eqkid` pointers.
  * - # is a nil pointer.
  *
  * The nodes are all kept in a contiguous array.  Pointers are represented
  * as integer offsets into this array.  A nil pointer is represented as 0
- * (which, helpfully, is the offset of the empty root node).
+ * (which, helpfully, is the offset of an empty dummy node).
  *
- * Nodes without a successor are leaf nodes.  Since a sequence cannot be a
+ * Nodes without an eqkid are leaf nodes.  Since a sequence cannot be a
  * prefix of another, these are exactly the nodes which terminate the
  * sequences (in a bijective manner).
  *
@@ -68,21 +75,35 @@
  * \0 is so offset 0 points to an empty string).
  */
 
+/* Fits in uint16_t, also a good idea to have some limit. */
+#define MAX_COMPOSE_NODES 65535
+
 struct compose_node {
     xkb_keysym_t keysym;
-    /* Offset into xkb_compose_table::nodes. */
-    unsigned int next:31;
-    bool is_leaf:1;
+
+    /* Offset into xkb_compose_table::nodes or 0. */
+    uint16_t lokid;
+    /* Offset into xkb_compose_table::nodes or 0. */
+    uint16_t hikid;
 
     union {
-        /* Offset into xkb_compose_table::nodes. */
-        uint32_t successor;
+        struct {
+            uint32_t _pad:31;
+            bool is_leaf:1;
+        };
+        struct {
+            uint32_t _pad:31;
+            bool is_leaf:1;
+            /* Offset into xkb_compose_table::nodes or 0. */
+            uint16_t eqkid;
+        } internal;
         struct {
             /* Offset into xkb_compose_table::utf8. */
-            uint32_t utf8;
+            uint32_t utf8:31;
+            bool is_leaf:1;
             xkb_keysym_t keysym;
         } leaf;
-    } u;
+    };
 };
 
 struct xkb_compose_table {

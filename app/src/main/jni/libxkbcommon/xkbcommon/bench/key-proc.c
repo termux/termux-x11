@@ -21,15 +21,18 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include <stdlib.h>
 #include <time.h>
 
 #include "../test/test.h"
+#include "bench.h"
 
 #define BENCHMARK_ITERATIONS 20000000
 
 static void
-bench(struct xkb_state *state)
+bench_key_proc(struct xkb_state *state)
 {
     int8_t keys[256] = { 0 };
     xkb_keycode_t keycode;
@@ -56,7 +59,8 @@ main(void)
     struct xkb_context *ctx;
     struct xkb_keymap *keymap;
     struct xkb_state *state;
-    struct timespec start, stop, elapsed;
+    struct bench bench;
+    char *elapsed;
 
     ctx = test_get_context(0);
     assert(ctx);
@@ -71,21 +75,16 @@ main(void)
     xkb_context_set_log_level(ctx, XKB_LOG_LEVEL_CRITICAL);
     xkb_context_set_log_verbosity(ctx, 0);
 
-    srand(time(NULL));
+    srand((unsigned) time(NULL));
 
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    bench(state);
-    clock_gettime(CLOCK_MONOTONIC, &stop);
+    bench_start(&bench);
+    bench_key_proc(state);
+    bench_stop(&bench);
 
-    elapsed.tv_sec = stop.tv_sec - start.tv_sec;
-    elapsed.tv_nsec = stop.tv_nsec - start.tv_nsec;
-    if (elapsed.tv_nsec < 0) {
-        elapsed.tv_nsec += 1000000000;
-        elapsed.tv_sec--;
-    }
-
-    fprintf(stderr, "ran %d iterations in %ld.%09lds\n",
-            BENCHMARK_ITERATIONS, elapsed.tv_sec, elapsed.tv_nsec);
+    elapsed = bench_elapsed_str(&bench);
+    fprintf(stderr, "ran %d iterations in %ss\n",
+            BENCHMARK_ITERATIONS, elapsed);
+    free(elapsed);
 
     xkb_state_unref(state);
     xkb_keymap_unref(keymap);

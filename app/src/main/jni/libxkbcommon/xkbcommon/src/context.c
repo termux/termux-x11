@@ -24,10 +24,20 @@
  * Author: Daniel Stone <daniel@fooishbar.org>
  */
 
+#include "config.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include <unistd.h>
+#ifdef _MSC_VER
+# include <direct.h>
+# include <io.h>
+# ifndef S_ISDIR
+#  define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+# endif
+#else
+# include <unistd.h>
+#endif
 
 #include "xkbcommon/xkbcommon.h"
 #include "utils.h"
@@ -40,7 +50,7 @@ XKB_EXPORT int
 xkb_context_include_path_append(struct xkb_context *ctx, const char *path)
 {
     struct stat stat_buf;
-    int err;
+    int err = ENOMEM;
     char *tmp;
 
     tmp = strdup(path);
@@ -48,25 +58,43 @@ xkb_context_include_path_append(struct xkb_context *ctx, const char *path)
         goto err;
 
     err = stat(path, &stat_buf);
-    if (err != 0)
+    if (err != 0) {
+        err = errno;
         goto err;
-    if (!S_ISDIR(stat_buf.st_mode))
+    }
+    if (!S_ISDIR(stat_buf.st_mode)) {
+        err = ENOTDIR;
         goto err;
+    }
 
-#if defined(HAVE_EACCESS)
-    if (eaccess(path, R_OK | X_OK) != 0)
+    if (!check_eaccess(path, R_OK | X_OK)) {
+        err = EACCES;
         goto err;
-#elif defined(HAVE_EUIDACCESS)
-    if (euidaccess(path, R_OK | X_OK) != 0)
-        goto err;
-#endif
+    }
 
     darray_append(ctx->includes, tmp);
+    log_dbg(ctx, "Include path added: %s\n", tmp);
+
     return 1;
 
 err:
     darray_append(ctx->failed_includes, tmp);
+    log_dbg(ctx, "Include path failed: %s (%s)\n", tmp, strerror(err));
     return 0;
+}
+
+const char *
+xkb_context_include_path_get_extra_path(struct xkb_context *ctx)
+{
+    const char *extra = secure_getenv("XKB_CONFIG_EXTRA_PATH");
+    return extra ? extra : DFLT_XKB_CONFIG_EXTRA_PATH;
+}
+
+const char *
+xkb_context_include_path_get_system_path(struct xkb_context *ctx)
+{
+    const char *root = secure_getenv("XKB_CONFIG_ROOT");
+    return root ? root : DFLT_XKB_CONFIG_ROOT;
 }
 
 /**
@@ -75,21 +103,40 @@ err:
 XKB_EXPORT int
 xkb_context_include_path_append_default(struct xkb_context *ctx)
 {
-    const char *home;
+    const char *home, *xdg, *root, *extra;
     char *user_path;
-    int err;
     int ret = 0;
 
-    ret |= xkb_context_include_path_append(ctx, DFLT_XKB_CONFIG_ROOT);
-
     home = secure_getenv("HOME");
-    if (!home)
-        return ret;
-    err = asprintf(&user_path, "%s/.xkb", home);
-    if (err <= 0)
-        return ret;
-    ret |= xkb_context_include_path_append(ctx, user_path);
-    free(user_path);
+
+    xdg = secure_getenv("XDG_CONFIG_HOME");
+    if (xdg != NULL) {
+        user_path = asprintf_safe("%s/xkb", xdg);
+        if (user_path) {
+            ret |= xkb_context_include_path_append(ctx, user_path);
+            free(user_path);
+        }
+    } else if (home != NULL) {
+        /* XDG_CONFIG_HOME fallback is $HOME/.config/ */
+        user_path = asprintf_safe("%s/.config/xkb", home);
+        if (user_path) {
+            ret |= xkb_context_include_path_append(ctx, user_path);
+            free(user_path);
+        }
+    }
+
+    if (home != NULL) {
+        user_path = asprintf_safe("%s/.xkb", home);
+        if (user_path) {
+            ret |= xkb_context_include_path_append(ctx, user_path);
+            free(user_path);
+        }
+    }
+
+    extra = xkb_context_include_path_get_extra_path(ctx);
+    ret |= xkb_context_include_path_append(ctx, extra);
+    root = xkb_context_include_path_get_system_path(ctx);
+    ret |= xkb_context_include_path_append(ctx, root);
 
     return ret;
 }
@@ -163,6 +210,7 @@ xkb_context_unref(struct xkb_context *ctx)
     if (!ctx || --ctx->refcnt > 0)
         return;
 
+    free(ctx->x11_atom_cache);
     xkb_context_include_path_clear(ctx);
     atom_table_free(ctx->atom_table);
     free(ctx);
@@ -275,6 +323,8 @@ xkb_context_new(enum xkb_context_flags flags)
         xkb_context_unref(ctx);
         return NULL;
     }
+
+    ctx->x11_atom_cache = NULL;
 
     return ctx;
 }

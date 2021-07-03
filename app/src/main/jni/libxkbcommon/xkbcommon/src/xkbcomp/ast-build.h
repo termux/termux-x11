@@ -27,14 +27,14 @@
 #ifndef XKBCOMP_AST_BUILD_H
 #define XKBCOMP_AST_BUILD_H
 
-ParseCommon *
-AppendStmt(ParseCommon *to, ParseCommon *append);
-
 ExprDef *
 ExprCreateString(xkb_atom_t str);
 
 ExprDef *
 ExprCreateInteger(int ival);
+
+ExprDef *
+ExprCreateFloat(void);
 
 ExprDef *
 ExprCreateBoolean(bool set);
@@ -60,6 +60,9 @@ ExprCreateArrayRef(xkb_atom_t element, xkb_atom_t field, ExprDef *entry);
 
 ExprDef *
 ExprCreateAction(xkb_atom_t name, ExprDef *args);
+
+ExprDef *
+ExprCreateActionList(ExprDef *actions);
 
 ExprDef *
 ExprCreateMultiKeysymList(ExprDef *list);

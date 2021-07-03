@@ -1,6 +1,8 @@
 #/bin/sh
+set -euo pipefail
 
 XKBCONFIGROOT='/usr/share/X11/xkb'
+XLOCALEDIR='/usr/share/X11/locale'
 
 if [ ! -d test/data ]; then
     echo "Run this from the top source dir"
@@ -66,4 +68,13 @@ for file in \
     rules/evdev \
 ; do
     cp "$XKBCONFIGROOT/$file" "test/data/$file"
+done
+
+for file in \
+    compose.dir \
+    locale.alias \
+    locale.dir \
+    en_US.UTF-8/Compose \
+; do
+    cp "$XLOCALEDIR/$file" "test/data/locale/$file"
 done

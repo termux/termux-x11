@@ -16,9 +16,11 @@ the library. We will employ a few use-cases to lead the examples:
 The snippets are not complete, and some support code is omitted. You
 can find complete and more complex examples in the source directory:
 
-1. test/interactive-evdev.c contains an interactive evdev client.
+1. tools/interactive-evdev.c contains an interactive evdev client.
 
-2. test/interactive-x11.c contains an interactive X11 client.
+2. tools/interactive-x11.c contains an interactive X11 client.
+
+3. tools/interactive-wayland.c contains an interactive Wayland client.
 
 Also, the library contains many more functions for examining and using
 the library context, the keymap and the keyboard state. See the
@@ -27,22 +29,21 @@ xkbcommon/ for more details.
 
 ## Code
 
-Before we can do anything interesting, we need a library context. So
-let's create one:
+Before we can do anything interesting, we need a library context:
 
 ~~~{.c}
     #include <xkbcommon/xkbcommon.h>
 
-    struct xkb_context ctx;
+    struct xkb_context *ctx;
 
     ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
     if (!ctx) <error>
 ~~~
 
-The xkb_context contains the keymap include paths, the log level and
+The `xkb_context` contains the keymap include paths, the log level and
 functions, and other general customizable administrativia.
 
-Next we need to create a keymap, xkb_keymap. This is an immutable object
+Next we need to create a keymap, `xkb_keymap`. This is an immutable object
 which contains all of the information about the keys, layouts, etc. There
 are different ways to do this.
 
@@ -50,8 +51,8 @@ If we are an evdev client, we have nothing to go by, so we need to ask
 the user for his/her keymap preferences (for example, an Icelandic
 keyboard with a Dvorak layout). The configuration format is commonly
 called RMLVO (Rules+Model+Layout+Variant+Options), the same format used
-by the X server. With it, we can fill a struct called xkb_rule_names;
-passing NULL chooses the system's default.
+by the X server. With it, we can fill a struct called `xkb_rule_names`;
+passing `NULL` chooses the system's default.
 
 ~~~{.c}
     struct xkb_keymap *keymap;
@@ -75,6 +76,7 @@ with a keymap. In this case, we can create the keymap object like this:
 ~~~{.c}
     /* From the wl_keyboard::keymap event. */
     const char *keymap_string = <...>;
+    struct xkb_keymap *keymap;
 
     keymap = xkb_keymap_new_from_string(ctx, keymap_string,
                                         XKB_KEYMAP_FORMAT_TEXT_V1,
@@ -101,7 +103,7 @@ we will use the core keyboard device:
 ~~~
 
 Now that we have the keymap, we are ready to handle the keyboard devices.
-For each device, we create an xkb_state, which remembers things like which
+For each device, we create an `xkb_state`, which remembers things like which
 keyboard modifiers and LEDs are active:
 
 ~~~{.c}
@@ -118,7 +120,7 @@ For X11/XCB clients, this is better:
     if (!state) <error>
 ~~~
 
-When we have an xkb_state for a device, we can start handling key events
+When we have an `xkb_state` for a device, we can start handling key events
 from it.  Given a keycode for a key, we can get its keysym:
 
 ~~~{.c}
@@ -165,7 +167,7 @@ We can also get a UTF-8 string representation for this key:
     xkb_state_key_get_utf8(state, keycode, buffer, size);
 ~~~
 
-Of course, we also need to keep the xkb_state up-to-date with the
+Of course, we also need to keep the `xkb_state` up-to-date with the
 keyboard device, if we want to get the correct keysyms in the future.
 
 If we are an evdev client, we must let the library know whether a key
@@ -183,7 +185,7 @@ is pressed or released at any given time:
 The `changed` return value tells us exactly which parts of the state
 have changed.
 
-If is is a key-repeat event, we can ask the keymap what to do with it:
+If it is a key-repeat event, we can ask the keymap what to do with it:
 
 ~~~{.c}
     if (<key repeat> && !xkb_keymap_key_repeats(keymap, keycode))
@@ -205,7 +207,7 @@ information usually comes in a form of some "state changed" event):
                                     event->locked_layout);
 ~~~
 
-Now that we have an always-up-to-date xkb_state, we can examine it.
+Now that we have an always-up-to-date `xkb_state`, we can examine it.
 For example, we can check whether the Control modifier is active, or
 whether the Num Lock LED is active:
 
@@ -218,8 +220,7 @@ whether the Num Lock LED is active:
         <The Num Lock LED is active>
 ~~~
 
-And that's it! When we're finished, we should free the objects we've
-created:
+And that's it! Eventually, we should free the objects we've created:
 
 ~~~{.c}
     xkb_state_unref(state);

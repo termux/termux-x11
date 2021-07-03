@@ -1,4 +1,4 @@
-default  partial modifier_keys
+default partial modifier_keys
 xkb_symbols "ctrl_alt_bksp" {
     key <BKSP> {
         type="CTRL+ALT",

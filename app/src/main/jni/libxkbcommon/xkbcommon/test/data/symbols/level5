@@ -31,6 +31,16 @@ xkb_symbols "ralt_switch" {
   include "level5(modifier_mapping)"
 };
 
+// The CapsLock key (while pressed) chooses the fifth shift level.
+partial modifier_keys
+xkb_symbols "caps_switch" {
+  key <CAPS> {
+    type[Group1]="ONE_LEVEL",
+    symbols[Group1] = [ ISO_Level5_Shift ]
+  };
+  include "level5(modifier_mapping)"
+};
+
 // Ensure a mapping to a real modifier for LevelFive.
 partial modifier_keys
 xkb_symbols "modifier_mapping" {

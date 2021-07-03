@@ -1,5 +1,5 @@
 /*
- * Copyright © 2013 Ran Benita <ran234@gmail.com>
+ * Copyright © 2013,2021 Ran Benita <ran234@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -21,6 +21,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include "utils.h"
 #include "table.h"
 #include "parser.h"
@@ -34,7 +36,7 @@ xkb_compose_table_new(struct xkb_context *ctx,
 {
     char *resolved_locale;
     struct xkb_compose_table *table;
-    struct compose_node root;
+    struct compose_node dummy;
 
     resolved_locale = resolve_locale(locale);
     if (!resolved_locale)
@@ -56,12 +58,11 @@ xkb_compose_table_new(struct xkb_context *ctx,
     darray_init(table->nodes);
     darray_init(table->utf8);
 
-    root.keysym = XKB_KEY_NoSymbol;
-    root.next = 0;
-    root.is_leaf = true;
-    root.u.leaf.utf8 = 0;
-    root.u.leaf.keysym = XKB_KEY_NoSymbol;
-    darray_append(table->nodes, root);
+    dummy.keysym = XKB_KEY_NoSymbol;
+    dummy.leaf.is_leaf = true;
+    dummy.leaf.utf8 = 0;
+    dummy.leaf.keysym = XKB_KEY_NoSymbol;
+    darray_append(table->nodes, dummy);
 
     darray_append(table->utf8, '\0');
 
@@ -159,8 +160,7 @@ xkb_compose_table_new_from_locale(struct xkb_context *ctx,
                                   enum xkb_compose_compile_flags flags)
 {
     struct xkb_compose_table *table;
-    char *path = NULL;
-    const char *cpath;
+    char *path;
     FILE *file;
     bool ok;
 
@@ -174,39 +174,48 @@ xkb_compose_table_new_from_locale(struct xkb_context *ctx,
     if (!table)
         return NULL;
 
-    cpath = get_xcomposefile_path();
-    if (cpath) {
-        file = fopen(cpath, "r");
-        if (file)
-            goto found_path;
-    }
-
-    cpath = path = get_home_xcompose_file_path();
+    path = get_xcomposefile_path();
     if (path) {
-        file = fopen(path, "r");
+        file = fopen(path, "rb");
         if (file)
             goto found_path;
     }
     free(path);
-    path = NULL;
 
-    cpath = path = get_locale_compose_file_path(table->locale);
+    path = get_xdg_xcompose_file_path();
     if (path) {
-        file = fopen(path, "r");
+        file = fopen(path, "rb");
         if (file)
             goto found_path;
     }
     free(path);
-    path = NULL;
 
-    log_err(ctx, "couldn't find a Compose file for locale \"%s\"\n", locale);
+    path = get_home_xcompose_file_path();
+    if (path) {
+        file = fopen(path, "rb");
+        if (file)
+            goto found_path;
+    }
+    free(path);
+
+    path = get_locale_compose_file_path(table->locale);
+    if (path) {
+        file = fopen(path, "rb");
+        if (file)
+            goto found_path;
+    }
+    free(path);
+
+    log_err(ctx, "couldn't find a Compose file for locale \"%s\" (mapped to \"%s\")\n",
+            locale, table->locale);
     xkb_compose_table_unref(table);
     return NULL;
 
 found_path:
-    ok = parse_file(table, file, cpath);
+    ok = parse_file(table, file, path);
     fclose(file);
     if (!ok) {
+        free(path);
         xkb_compose_table_unref(table);
         return NULL;
     }

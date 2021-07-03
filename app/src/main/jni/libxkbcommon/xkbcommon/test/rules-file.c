@@ -21,9 +21,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include "test.h"
-#include "xkbcomp-priv.h"
-#include "rules.h"
+#include "xkbcomp/xkbcomp-priv.h"
+#include "xkbcomp/rules.h"
 
 struct test_data {
     /* Rules file */

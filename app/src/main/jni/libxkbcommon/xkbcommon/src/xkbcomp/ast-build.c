@@ -51,23 +51,11 @@
  *         Ran Benita <ran234@gmail.com>
  */
 
+#include "config.h"
+
 #include "xkbcomp-priv.h"
 #include "ast-build.h"
 #include "include.h"
-
-ParseCommon *
-AppendStmt(ParseCommon *to, ParseCommon *append)
-{
-    ParseCommon *iter;
-
-    if (!to)
-        return append;
-
-    for (iter = to; iter->next; iter = iter->next);
-
-    iter->next = append;
-    return to;
-}
 
 static ExprDef *
 ExprCreate(enum expr_op_type op, enum expr_value_type type, size_t size)
@@ -84,15 +72,12 @@ ExprCreate(enum expr_op_type op, enum expr_value_type type, size_t size)
     return expr;
 }
 
-#define EXPR_CREATE(type_, name_, op_, value_type_) \
-    ExprDef *name_ = ExprCreate(op_, value_type_, sizeof(type_)); \
-    if (!name_) \
-        return NULL;
-
 ExprDef *
 ExprCreateString(xkb_atom_t str)
 {
-    EXPR_CREATE(ExprString, expr, EXPR_VALUE, EXPR_TYPE_STRING);
+    ExprDef *expr = ExprCreate(EXPR_VALUE, EXPR_TYPE_STRING, sizeof(ExprString));
+    if (!expr)
+        return NULL;
     expr->string.str = str;
     return expr;
 }
@@ -100,15 +85,28 @@ ExprCreateString(xkb_atom_t str)
 ExprDef *
 ExprCreateInteger(int ival)
 {
-    EXPR_CREATE(ExprInteger, expr, EXPR_VALUE, EXPR_TYPE_INT);
+    ExprDef *expr = ExprCreate(EXPR_VALUE, EXPR_TYPE_INT, sizeof(ExprInteger));
+    if (!expr)
+        return NULL;
     expr->integer.ival = ival;
+    return expr;
+}
+
+ExprDef *
+ExprCreateFloat(void)
+{
+    ExprDef *expr = ExprCreate(EXPR_VALUE, EXPR_TYPE_FLOAT, sizeof(ExprFloat));
+    if (!expr)
+        return NULL;
     return expr;
 }
 
 ExprDef *
 ExprCreateBoolean(bool set)
 {
-    EXPR_CREATE(ExprBoolean, expr, EXPR_VALUE, EXPR_TYPE_BOOLEAN);
+    ExprDef *expr = ExprCreate(EXPR_VALUE, EXPR_TYPE_BOOLEAN, sizeof(ExprBoolean));
+    if (!expr)
+        return NULL;
     expr->boolean.set = set;
     return expr;
 }
@@ -116,7 +114,9 @@ ExprCreateBoolean(bool set)
 ExprDef *
 ExprCreateKeyName(xkb_atom_t key_name)
 {
-    EXPR_CREATE(ExprKeyName, expr, EXPR_VALUE, EXPR_TYPE_KEYNAME);
+    ExprDef *expr = ExprCreate(EXPR_VALUE, EXPR_TYPE_KEYNAME, sizeof(ExprKeyName));
+    if (!expr)
+        return NULL;
     expr->key_name.key_name = key_name;
     return expr;
 }
@@ -124,7 +124,9 @@ ExprCreateKeyName(xkb_atom_t key_name)
 ExprDef *
 ExprCreateIdent(xkb_atom_t ident)
 {
-    EXPR_CREATE(ExprIdent, expr, EXPR_IDENT, EXPR_TYPE_UNKNOWN);
+    ExprDef *expr = ExprCreate(EXPR_IDENT, EXPR_TYPE_UNKNOWN, sizeof(ExprIdent));
+    if (!expr)
+        return NULL;
     expr->ident.ident = ident;
     return expr;
 }
@@ -133,7 +135,9 @@ ExprDef *
 ExprCreateUnary(enum expr_op_type op, enum expr_value_type type,
                 ExprDef *child)
 {
-    EXPR_CREATE(ExprUnary, expr, op, type);
+    ExprDef *expr = ExprCreate(op, type, sizeof(ExprUnary));
+    if (!expr)
+        return NULL;
     expr->unary.child = child;
     return expr;
 }
@@ -141,7 +145,9 @@ ExprCreateUnary(enum expr_op_type op, enum expr_value_type type,
 ExprDef *
 ExprCreateBinary(enum expr_op_type op, ExprDef *left, ExprDef *right)
 {
-    EXPR_CREATE(ExprBinary, expr, op, EXPR_TYPE_UNKNOWN);
+    ExprDef *expr = ExprCreate(op, EXPR_TYPE_UNKNOWN, sizeof(ExprBinary));
+    if (!expr)
+        return NULL;
 
     if (op == EXPR_ASSIGN || left->expr.value_type == EXPR_TYPE_UNKNOWN)
         expr->expr.value_type = right->expr.value_type;
@@ -157,7 +163,9 @@ ExprCreateBinary(enum expr_op_type op, ExprDef *left, ExprDef *right)
 ExprDef *
 ExprCreateFieldRef(xkb_atom_t element, xkb_atom_t field)
 {
-    EXPR_CREATE(ExprFieldRef, expr, EXPR_FIELD_REF, EXPR_TYPE_UNKNOWN);
+    ExprDef *expr = ExprCreate(EXPR_FIELD_REF, EXPR_TYPE_UNKNOWN, sizeof(ExprFieldRef));
+    if (!expr)
+        return NULL;
     expr->field_ref.element = element;
     expr->field_ref.field = field;
     return expr;
@@ -166,7 +174,9 @@ ExprCreateFieldRef(xkb_atom_t element, xkb_atom_t field)
 ExprDef *
 ExprCreateArrayRef(xkb_atom_t element, xkb_atom_t field, ExprDef *entry)
 {
-    EXPR_CREATE(ExprArrayRef, expr, EXPR_ARRAY_REF, EXPR_TYPE_UNKNOWN);
+    ExprDef *expr = ExprCreate(EXPR_ARRAY_REF, EXPR_TYPE_UNKNOWN, sizeof(ExprArrayRef));
+    if (!expr)
+        return NULL;
     expr->array_ref.element = element;
     expr->array_ref.field = field;
     expr->array_ref.entry = entry;
@@ -176,16 +186,30 @@ ExprCreateArrayRef(xkb_atom_t element, xkb_atom_t field, ExprDef *entry)
 ExprDef *
 ExprCreateAction(xkb_atom_t name, ExprDef *args)
 {
-    EXPR_CREATE(ExprAction, expr, EXPR_ACTION_DECL, EXPR_TYPE_UNKNOWN);
+    ExprDef *expr = ExprCreate(EXPR_ACTION_DECL, EXPR_TYPE_UNKNOWN, sizeof(ExprAction));
+    if (!expr)
+        return NULL;
     expr->action.name = name;
     expr->action.args = args;
     return expr;
 }
 
 ExprDef *
+ExprCreateActionList(ExprDef *actions)
+{
+    ExprDef *expr = ExprCreate(EXPR_ACTION_LIST, EXPR_TYPE_ACTIONS, sizeof(ExprActionList));
+    if (!expr)
+        return NULL;
+    expr->actions.actions = actions;
+    return expr;
+}
+
+ExprDef *
 ExprCreateKeysymList(xkb_keysym_t sym)
 {
-    EXPR_CREATE(ExprKeysymList, expr, EXPR_KEYSYM_LIST, EXPR_TYPE_SYMBOLS);
+    ExprDef *expr = ExprCreate(EXPR_KEYSYM_LIST, EXPR_TYPE_SYMBOLS, sizeof(ExprKeysymList));
+    if (!expr)
+        return NULL;
 
     darray_init(expr->keysym_list.syms);
     darray_init(expr->keysym_list.symsMapIndex);
@@ -226,16 +250,14 @@ ExprAppendKeysymList(ExprDef *expr, xkb_keysym_t sym)
 ExprDef *
 ExprAppendMultiKeysymList(ExprDef *expr, ExprDef *append)
 {
-    xkb_keysym_t *syms;
     unsigned nSyms = darray_size(expr->keysym_list.syms);
     unsigned numEntries = darray_size(append->keysym_list.syms);
 
     darray_append(expr->keysym_list.symsMapIndex, nSyms);
     darray_append(expr->keysym_list.symsNumEntries, numEntries);
-    darray_steal(append->keysym_list.syms, &syms, NULL);
-    darray_append_items(expr->keysym_list.syms, syms, numEntries);
+    darray_concat(expr->keysym_list.syms, append->keysym_list.syms);
 
-    FreeStmt((ParseCommon *) &append);
+    FreeStmt((ParseCommon *) append);
 
     return expr;
 }
@@ -440,15 +462,16 @@ IncludeStmt *
 IncludeCreate(struct xkb_context *ctx, char *str, enum merge_mode merge)
 {
     IncludeStmt *incl, *first;
-    char *file, *map, *stmt, *tmp, *extra_data;
+    char *stmt, *tmp;
     char nextop;
 
     incl = first = NULL;
-    file = map = NULL;
     tmp = str;
     stmt = strdup_safe(str);
     while (tmp && *tmp)
     {
+        char *file = NULL, *map = NULL, *extra_data = NULL;
+
         if (!ParseIncludeMap(&tmp, &file, &map, &nextop, &extra_data))
             goto err;
 
@@ -473,9 +496,9 @@ IncludeCreate(struct xkb_context *ctx, char *str, enum merge_mode merge)
         }
 
         if (!incl) {
-            log_wsgo(ctx,
-                     "Allocation failure in IncludeCreate; "
-                     "Using only part of the include\n");
+            free(file);
+            free(map);
+            free(extra_data);
             break;
         }
 
@@ -520,8 +543,7 @@ XkbFileCreate(enum xkb_file_type type, char *name, ParseCommon *defs,
 
     XkbEscapeMapName(name);
     file->file_type = type;
-    file->topName = strdup_safe(name);
-    file->name = name;
+    file->name = name ? name : strdup("(unnamed)");
     file->defs = defs;
     file->flags = flags;
 
@@ -539,7 +561,7 @@ XkbFileFromComponents(struct xkb_context *ctx,
     enum xkb_file_type type;
     IncludeStmt *include = NULL;
     XkbFile *file = NULL;
-    ParseCommon *defs = NULL;
+    ParseCommon *defs = NULL, *defsLast = NULL;
 
     for (type = FIRST_KEYMAP_FILE_TYPE; type <= LAST_KEYMAP_FILE_TYPE; type++) {
         include = IncludeCreate(ctx, components[type], MERGE_DEFAULT);
@@ -552,7 +574,10 @@ XkbFileFromComponents(struct xkb_context *ctx,
             goto err;
         }
 
-        defs = AppendStmt(defs, &file->common);
+        if (!defs)
+            defsLast = defs = &file->common;
+        else
+            defsLast = defsLast->next = &file->common;
     }
 
     file = XkbFileCreate(FILE_TYPE_KEYMAP, NULL, defs, 0);
@@ -573,7 +598,6 @@ FreeExpr(ExprDef *expr)
         return;
 
     switch (expr->expr.op) {
-    case EXPR_ACTION_LIST:
     case EXPR_NEGATE:
     case EXPR_UNARY_PLUS:
     case EXPR_NOT:
@@ -592,6 +616,10 @@ FreeExpr(ExprDef *expr)
 
     case EXPR_ACTION_DECL:
         FreeStmt((ParseCommon *) expr->action.args);
+        break;
+
+    case EXPR_ACTION_LIST:
+        FreeStmt((ParseCommon *) expr->actions.actions);
         break;
 
     case EXPR_ARRAY_REF:
@@ -711,7 +739,6 @@ FreeXkbFile(XkbFile *file)
         }
 
         free(file->name);
-        free(file->topName);
         free(file);
         file = next;
     }
@@ -730,7 +757,7 @@ static const char *xkb_file_type_strings[_FILE_TYPE_NUM_ENTRIES] = {
 const char *
 xkb_file_type_to_string(enum xkb_file_type type)
 {
-    if (type > _FILE_TYPE_NUM_ENTRIES)
+    if (type >= _FILE_TYPE_NUM_ENTRIES)
         return "unknown";
     return xkb_file_type_strings[type];
 }
@@ -791,8 +818,10 @@ static const char *expr_value_type_strings[_EXPR_TYPE_NUM_VALUES] = {
     [EXPR_TYPE_UNKNOWN] = "unknown",
     [EXPR_TYPE_BOOLEAN] = "boolean",
     [EXPR_TYPE_INT] = "int",
+    [EXPR_TYPE_FLOAT] = "float",
     [EXPR_TYPE_STRING] = "string",
     [EXPR_TYPE_ACTION] = "action",
+    [EXPR_TYPE_ACTIONS] = "actions",
     [EXPR_TYPE_KEYNAME] = "keyname",
     [EXPR_TYPE_SYMBOLS] = "symbols",
 };

@@ -21,10 +21,14 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include "test.h"
 #include "context.h"
 
+#ifdef __GNUC__
 #pragma GCC diagnostic ignored "-Wmissing-format-attribute"
+#endif
 
 static const char *
 log_level_to_string(enum xkb_log_level level)

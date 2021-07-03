@@ -1,4 +1,4 @@
-partial default xkb_types "pc" {
+default partial xkb_types "pc" {
     type "KEYPAD" {
 	modifiers = Shift+NumLock;
 	map[None] = Level1;

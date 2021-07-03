@@ -21,6 +21,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include "x11-priv.h"
 
 XKB_EXPORT int
@@ -122,96 +124,174 @@ xkb_x11_get_core_keyboard_device_id(xcb_connection_t *conn)
     return device_id;
 }
 
-bool
-get_atom_name(xcb_connection_t *conn, xcb_atom_t atom, char **out)
+struct x11_atom_cache {
+    /*
+     * Invalidate the cache based on the XCB connection.
+     * X11 atoms are actually not per connection or client, but per X server
+     * session. But better be safe just in case we survive an X server restart.
+     */
+    xcb_connection_t *conn;
+    struct {
+        xcb_atom_t from;
+        xkb_atom_t to;
+    } cache[256];
+    size_t len;
+};
+
+static struct x11_atom_cache *
+get_cache(struct xkb_context *ctx, xcb_connection_t *conn)
 {
-    xcb_get_atom_name_cookie_t cookie;
-    xcb_get_atom_name_reply_t *reply;
-    int length;
-    char *name;
-
-    if (atom == 0) {
-        *out = NULL;
-        return true;
+    if (!ctx->x11_atom_cache) {
+        ctx->x11_atom_cache = calloc(1, sizeof(struct x11_atom_cache));
     }
-
-    cookie = xcb_get_atom_name(conn, atom);
-    reply = xcb_get_atom_name_reply(conn, cookie, NULL);
-    if (!reply)
-        return false;
-
-    length = xcb_get_atom_name_name_length(reply);
-    name = xcb_get_atom_name_name(reply);
-
-    *out = strndup(name, length);
-    if (!*out) {
-        free(reply);
-        return false;
+    /* Can be NULL in case the malloc failed. */
+    struct x11_atom_cache *cache = ctx->x11_atom_cache;
+    if (cache && cache->conn != conn) {
+        cache->conn = conn;
+        cache->len = 0;
     }
-
-    free(reply);
-    return true;
+    return cache;
 }
 
-bool
-adopt_atoms(struct xkb_context *ctx, xcb_connection_t *conn,
-            const xcb_atom_t *from, xkb_atom_t *to, const size_t count)
+void
+x11_atom_interner_init(struct x11_atom_interner *interner,
+                       struct xkb_context *ctx, xcb_connection_t *conn)
 {
-    enum { SIZE = 128 };
-    xcb_get_atom_name_cookie_t cookies[SIZE];
-    const size_t num_batches = ROUNDUP(count, SIZE) / SIZE;
+    interner->had_error = false;
+    interner->ctx = ctx;
+    interner->conn = conn;
+    interner->num_pending = 0;
+    interner->num_copies = 0;
+    interner->num_escaped = 0;
+}
 
-    /* Send and collect the atoms in batches of reasonable SIZE. */
-    for (size_t batch = 0; batch < num_batches; batch++) {
-        const size_t start = batch * SIZE;
-        const size_t stop = min((batch + 1) * SIZE, count);
+void
+x11_atom_interner_adopt_atom(struct x11_atom_interner *interner,
+                             const xcb_atom_t atom, xkb_atom_t *out)
+{
+    *out = XKB_ATOM_NONE;
 
-        /* Send. */
-        for (size_t i = start; i < stop; i++)
-            if (from[i] != XCB_ATOM_NONE)
-                cookies[i % SIZE] = xcb_get_atom_name(conn, from[i]);
+    if (atom == XCB_ATOM_NONE)
+        return;
 
-        /* Collect. */
-        for (size_t i = start; i < stop; i++) {
-            xcb_get_atom_name_reply_t *reply;
+    /* Can be NULL in case the malloc failed. */
+    struct x11_atom_cache *cache = get_cache(interner->ctx, interner->conn);
 
-            if (from[i] == XCB_ATOM_NONE) {
-                to[i] = XKB_ATOM_NONE;
-                continue;
+retry:
+
+    /* Already in the cache? */
+    if (cache) {
+        for (size_t c = 0; c < cache->len; c++) {
+            if (cache->cache[c].from == atom) {
+                *out = cache->cache[c].to;
+                return;
             }
-
-            reply = xcb_get_atom_name_reply(conn, cookies[i % SIZE], NULL);
-            if (!reply)
-                goto err_discard;
-
-            to[i] = xkb_atom_intern(ctx,
-                                    xcb_get_atom_name_name(reply),
-                                    xcb_get_atom_name_name_length(reply));
-            free(reply);
-
-            if (to[i] == XKB_ATOM_NONE)
-                goto err_discard;
-
-            continue;
-
-            /*
-             * If we don't discard the uncollected replies, they just
-             * sit in the XCB queue waiting forever. Sad.
-             */
-err_discard:
-            for (size_t j = i + 1; j < stop; j++)
-                if (from[j] != XCB_ATOM_NONE)
-                    xcb_discard_reply(conn, cookies[j % SIZE].sequence);
-            return false;
         }
     }
 
-    return true;
+    /* Already pending? */
+    for (size_t i = 0; i < interner->num_pending; i++) {
+        if (interner->pending[i].from == atom) {
+            if (interner->num_copies == ARRAY_SIZE(interner->copies)) {
+                x11_atom_interner_round_trip(interner);
+                goto retry;
+            }
+
+            size_t idx = interner->num_copies++;
+            interner->copies[idx].from = atom;
+            interner->copies[idx].out = out;
+            return;
+        }
+    }
+
+    /* We have to send a GetAtomName request */
+    if (interner->num_pending == ARRAY_SIZE(interner->pending)) {
+        x11_atom_interner_round_trip(interner);
+        assert(interner->num_pending < ARRAY_SIZE(interner->pending));
+    }
+    size_t idx = interner->num_pending++;
+    interner->pending[idx].from = atom;
+    interner->pending[idx].out = out;
+    interner->pending[idx].cookie = xcb_get_atom_name(interner->conn, atom);
 }
 
-bool
-adopt_atom(struct xkb_context *ctx, xcb_connection_t *conn, xcb_atom_t atom,
-           xkb_atom_t *out)
+void x11_atom_interner_round_trip(struct x11_atom_interner *interner) {
+    struct xkb_context *ctx = interner->ctx;
+    xcb_connection_t *conn = interner->conn;
+
+    /* Can be NULL in case the malloc failed. */
+    struct x11_atom_cache *cache = get_cache(ctx, conn);
+
+    for (size_t i = 0; i < interner->num_pending; i++) {
+        xcb_get_atom_name_reply_t *reply;
+
+        reply = xcb_get_atom_name_reply(conn, interner->pending[i].cookie, NULL);
+        if (!reply) {
+            interner->had_error = true;
+            continue;
+        }
+        xcb_atom_t x11_atom = interner->pending[i].from;
+        xkb_atom_t atom = xkb_atom_intern(ctx,
+                                          xcb_get_atom_name_name(reply),
+                                          xcb_get_atom_name_name_length(reply));
+        free(reply);
+
+        if (cache && cache->len < ARRAY_SIZE(cache->cache)) {
+            size_t idx = cache->len++;
+            cache->cache[idx].from = x11_atom;
+            cache->cache[idx].to = atom;
+        }
+
+        *interner->pending[i].out = atom;
+
+        for (size_t j = 0; j < interner->num_copies; j++) {
+            if (interner->copies[j].from == x11_atom)
+                *interner->copies[j].out = atom;
+        }
+    }
+
+    for (size_t i = 0; i < interner->num_escaped; i++) {
+        xcb_get_atom_name_reply_t *reply;
+        int length;
+        char *name;
+        char **out = interner->escaped[i].out;
+
+        reply = xcb_get_atom_name_reply(conn, interner->escaped[i].cookie, NULL);
+        *interner->escaped[i].out = NULL;
+        if (!reply) {
+            interner->had_error = true;
+        } else {
+            length = xcb_get_atom_name_name_length(reply);
+            name = xcb_get_atom_name_name(reply);
+
+            *out = strndup(name, length);
+            free(reply);
+            if (*out == NULL) {
+                interner->had_error = true;
+            } else {
+                XkbEscapeMapName(*out);
+            }
+        }
+    }
+
+    interner->num_pending = 0;
+    interner->num_copies = 0;
+    interner->num_escaped = 0;
+}
+
+void
+x11_atom_interner_get_escaped_atom_name(struct x11_atom_interner *interner,
+                                        xcb_atom_t atom, char **out)
 {
-    return adopt_atoms(ctx, conn, &atom, out, 1);
+    if (atom == 0) {
+        *out = NULL;
+        return;
+    }
+    size_t idx = interner->num_escaped++;
+    /* There can only be a fixed number of calls to this function "in-flight",
+     * thus we assert this number. Increase the array size if this assert fails.
+     */
+    assert(idx < ARRAY_SIZE(interner->escaped));
+    interner->escaped[idx].out = out;
+    interner->escaped[idx].cookie = xcb_get_atom_name(interner->conn, atom);
 }

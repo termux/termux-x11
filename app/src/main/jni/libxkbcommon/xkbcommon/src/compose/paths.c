@@ -21,8 +21,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include "utils.h"
 #include "paths.h"
+#include "utils.h"
 
 enum resolve_name_direction {
     LEFT_TO_RIGHT,
@@ -52,8 +55,9 @@ resolve_name(const char *filename, enum resolve_name_direction direction,
     const char *xlocaledir;
     char path[512];
     FILE *file;
-    const char *string, *end;
+    char *string;
     size_t string_size;
+    const char *end;
     const char *s, *left, *right;
     char *match;
     size_t left_len, right_len, name_len;
@@ -64,7 +68,7 @@ resolve_name(const char *filename, enum resolve_name_direction direction,
     if (ret < 0 || (size_t) ret >= sizeof(path))
         return false;
 
-    file = fopen(path, "r");
+    file = fopen(path, "rb");
     if (!file)
         return false;
 
@@ -139,35 +143,44 @@ resolve_locale(const char *locale)
     return alias ? alias : strdup(locale);
 }
 
-const char *
+char *
 get_xcomposefile_path(void)
 {
-    return secure_getenv("XCOMPOSEFILE");
+    return strdup_safe(secure_getenv("XCOMPOSEFILE"));
+}
+
+char *
+get_xdg_xcompose_file_path(void)
+{
+    const char *xdg_config_home;
+    const char *home;
+
+    xdg_config_home = secure_getenv("XDG_CONFIG_HOME");
+    if (!xdg_config_home || xdg_config_home[0] != '/') {
+        home = secure_getenv("HOME");
+        if (!home)
+            return NULL;
+        return asprintf_safe("%s/.config/XCompose", home);
+    }
+
+    return asprintf_safe("%s/XCompose", xdg_config_home);
 }
 
 char *
 get_home_xcompose_file_path(void)
 {
-    int ret;
     const char *home;
-    char *path;
 
     home = secure_getenv("HOME");
     if (!home)
         return NULL;
 
-    ret = asprintf(&path, "%s/.XCompose", home);
-    if (ret <0)
-        return NULL;
-
-    return path;
+    return asprintf_safe("%s/.XCompose", home);
 }
 
 char *
 get_locale_compose_file_path(const char *locale)
 {
-    int ret;
-    const char *xlocaledir;
     char *resolved;
     char *path;
 
@@ -193,11 +206,9 @@ get_locale_compose_file_path(const char *locale)
         path = resolved;
     }
     else {
-        xlocaledir = get_xlocaledir_path();
-        ret = asprintf(&path, "%s/%s", xlocaledir, resolved);
+        const char *xlocaledir = get_xlocaledir_path();
+        path = asprintf_safe("%s/%s", xlocaledir, resolved);
         free(resolved);
-        if (ret < 0)
-            return NULL;
     }
 
     return path;

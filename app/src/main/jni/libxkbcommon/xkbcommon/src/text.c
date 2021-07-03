@@ -24,6 +24,8 @@
  *
  ********************************************************/
 
+#include "config.h"
+
 #include "keymap.h"
 #include "text.h"
 
@@ -204,6 +206,7 @@ const LookupEntry symInterpretMatchMaskNames[] = {
     { "AnyOf", MATCH_ANY },
     { "AllOf", MATCH_ALL },
     { "Exactly", MATCH_EXACTLY },
+    { NULL, 0 },
 };
 
 const char *
@@ -254,7 +257,7 @@ const char *
 ModMaskText(struct xkb_context *ctx, const struct xkb_mod_set *mods,
             xkb_mod_mask_t mask)
 {
-    char buf[1024];
+    char buf[1024] = {0};
     size_t pos = 0;
     xkb_mod_index_t i;
     const struct xkb_mod *mod;

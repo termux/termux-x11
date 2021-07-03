@@ -1,0 +1,69 @@
+option(
+    'xkb-config-root',
+    type: 'string',
+    description: 'The XKB config root [default=xkeyboard-config install path]',
+)
+option(
+    'xkb-config-extra-path',
+    type: 'string',
+    description: 'Extra lookup path for system-wide XKB data [default=$sysconfdir/xkb]',
+)
+option(
+    'x-locale-root',
+    type: 'string',
+    description: 'The X locale root [default=$datadir/X11/locale]',
+)
+option(
+    'default-rules',
+    type: 'string',
+    value: 'evdev',
+    description: 'Default XKB ruleset',
+)
+option(
+    'default-model',
+    type: 'string',
+    value: 'pc105',
+    description: 'Default XKB model',
+)
+option(
+    'default-layout',
+    type: 'string',
+    value: 'us',
+    description: 'Default XKB layout',
+)
+option(
+    'default-variant',
+    type: 'string',
+    value: '',
+    description: 'Default XKB variant',
+)
+option(
+    'default-options',
+    type: 'string',
+    value: '',
+    description: 'Default XKB options',
+)
+option(
+    'enable-x11',
+    type: 'boolean',
+    value: true,
+    description: 'Enable building the xkbcommon-x11 library',
+)
+option(
+    'enable-docs',
+    type: 'boolean',
+    value: true,
+    description: 'Enable building the documentation',
+)
+option(
+    'enable-wayland',
+    type: 'boolean',
+    value: true,
+    description: 'Enable support for Wayland utility programs',
+)
+option(
+    'enable-xkbregistry',
+    type: 'boolean',
+    value: true,
+    description: 'Enable building libxkbregistry',
+)

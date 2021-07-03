@@ -1,0 +1,8 @@
+#!/bin/sh
+# Run doxygen such that the working directory is the source root.
+# This is needed for various reasons (e.g. relative references in md files).
+# Do not use directly.
+DOXYGEN="$1"
+DOXYFILE="$2"
+ABS_TOP_SRCDIR="$3"
+cd "$ABS_TOP_SRCDIR" && exec "$DOXYGEN" "$DOXYFILE"

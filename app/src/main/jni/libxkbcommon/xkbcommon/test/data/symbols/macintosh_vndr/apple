@@ -2,7 +2,7 @@
 // Keyboard modification for Apple keyboards
 //
 
-partial default modifier_keys
+default partial modifier_keys
 xkb_symbols "extended" {
 
     key <KPEQ> { [ KP_Equal ] }; 
@@ -42,7 +42,7 @@ xkb_symbols "laptop" {
     // and use fn+Enter (Apple's code for Menu) for KP_Enter.
     replace key <KPEN> { [ ISO_Level3_Shift ] };
     modifier_map Mod5  { ISO_Level3_Shift };	
-    // Linux kernel bug with Menu on macs means this doesn't work yet
+    // Linux kernel bug with Menu on macs means this does not work yet
 //    replace key <MENU> { [ KP_Enter ] }; // should be keycode 117
 };
 

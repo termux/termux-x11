@@ -1,4 +1,4 @@
-partial default xkb_types "default" {
+default partial xkb_types "default" {
 
     // A key type which can be used to implement
     // an ISO9995-style level-three shift.

@@ -52,6 +52,8 @@ OR PERFORMANCE OF THIS SOFTWARE.
 
 ******************************************************************/
 
+#include "config.h"
+
 #include <errno.h>
 
 #include "utils.h"
@@ -64,45 +66,6 @@ OR PERFORMANCE OF THIS SOFTWARE.
 #define MAX_LHS_LEN 10
 #define MAX_INCLUDE_DEPTH 5
 
-#define KEYSYM_FROM_NAME_CACHE_SIZE 8
-
-/*
- * xkb_keysym_from_name() is fairly slow, because for internal reasons
- * it must use strcasecmp().
- * A small cache reduces about 20% from the compilation time of
- * en_US.UTF-8/Compose.
- */
-struct keysym_from_name_cache {
-    struct {
-        char name[64];
-        unsigned len;
-        xkb_keysym_t keysym;
-    } cache[KEYSYM_FROM_NAME_CACHE_SIZE];
-    unsigned next;
-};
-
-static xkb_keysym_t
-cached_keysym_from_name(struct keysym_from_name_cache *cache,
-                        const char *name, size_t len)
-{
-    xkb_keysym_t keysym;
-
-    if (len >= sizeof(cache->cache[0].name))
-        return XKB_KEY_NoSymbol;
-
-    for (unsigned i = 0; i < KEYSYM_FROM_NAME_CACHE_SIZE; i++)
-        if (cache->cache[i].len == len &&
-            memcmp(cache->cache[i].name, name, len) == 0)
-            return cache->cache[i].keysym;
-
-    keysym = xkb_keysym_from_name(name, XKB_KEYSYM_NO_FLAGS);
-    strcpy(cache->cache[cache->next].name, name);
-    cache->cache[cache->next].len = len;
-    cache->cache[cache->next].keysym = keysym;
-    cache->next = (cache->next + 1) % KEYSYM_FROM_NAME_CACHE_SIZE;
-    return keysym;
-}
-
 /*
  * Grammar adapted from libX11/modules/im/ximcp/imLcPrs.c.
  * See also the XCompose(5) manpage.
@@ -113,8 +76,9 @@ cached_keysym_from_name(struct keysym_from_name_cache *cache,
  * COMMENT       ::= "#" {<any character except null or newline>}
  * LHS           ::= EVENT { EVENT }
  * EVENT         ::= [MODIFIER_LIST] "<" keysym ">"
- * MODIFIER_LIST ::= ("!" {MODIFIER} ) | "None"
- * MODIFIER      ::= ["~"] modifier_name
+ * MODIFIER_LIST ::= (["!"] {MODIFIER} ) | "None"
+ * MODIFIER      ::= ["~"] MODIFIER_NAME
+ * MODIFIER_NAME ::= ("Ctrl"|"Lock"|"Caps"|"Shift"|"Alt"|"Meta")
  * RHS           ::= ( STRING | keysym | STRING keysym )
  * STRING        ::= '"' { CHAR } '"'
  * CHAR          ::= GRAPHIC_CHAR | ESCAPED_CHAR
@@ -182,7 +146,7 @@ skip_more_whitespace_and_comments:
 
     /* LHS Keysym. */
     if (chr(s, '<')) {
-        while (peek(s) != '>' && !eol(s))
+        while (peek(s) != '>' && !eol(s) && !eof(s))
             buf_append(s, next(s));
         if (!chr(s, '>')) {
             scanner_err(s, "unterminated keysym literal");
@@ -354,107 +318,122 @@ struct production {
     unsigned int len;
     xkb_keysym_t keysym;
     char string[256];
+    /* At least one of these is true. */
     bool has_keysym;
     bool has_string;
 
-    xkb_mod_mask_t mods;
+    /* The matching is as follows: (active_mods & modmask) == mods. */
     xkb_mod_mask_t modmask;
+    xkb_mod_mask_t mods;
 };
-
-static uint32_t
-add_node(struct xkb_compose_table *table, xkb_keysym_t keysym)
-{
-    struct compose_node new = {
-        .keysym = keysym,
-        .next = 0,
-        .is_leaf = true,
-    };
-    darray_append(table->nodes, new);
-    return darray_size(table->nodes) - 1;
-}
 
 static void
 add_production(struct xkb_compose_table *table, struct scanner *s,
                const struct production *production)
 {
-    unsigned lhs_pos;
-    uint32_t curr;
-    struct compose_node *node;
+    unsigned lhs_pos = 0;
+    uint16_t curr = darray_size(table->nodes) == 1 ? 0 : 1;
+    uint16_t *pptr = NULL;
+    struct compose_node *node = NULL;
 
-    curr = 0;
-    node = &darray_item(table->nodes, curr);
+    /* Warn before potentially going over the limit, discard silently after. */
+    if (darray_size(table->nodes) + production->len + MAX_LHS_LEN > MAX_COMPOSE_NODES)
+        scanner_warn(s, "too many sequences for one Compose file; will ignore further lines");
+    if (darray_size(table->nodes) + production->len >= MAX_COMPOSE_NODES)
+        return;
 
     /*
-     * Insert the sequence to the trie, creating new nodes as needed.
+     * Insert the sequence to the ternary search tree, creating new nodes as
+     * needed.
      *
-     * TODO: This can be sped up a bit by first trying the path that the
-     * previous production took, and only then doing the linear search
-     * through the trie levels.  This will work because sequences in the
-     * Compose files are often clustered by a common prefix; especially
-     * in the 1st and 2nd keysyms, which is where the largest variation
-     * (thus, longest search) is.
+     * TODO: We insert in the order given, this means some inputs can create
+     * long O(n) chains, which results in total O(n^2) parsing time. We should
+     * ensure the tree is reasonably balanced somehow.
      */
-    for (lhs_pos = 0; lhs_pos < production->len; lhs_pos++) {
-        while (production->lhs[lhs_pos] != node->keysym) {
-            if (node->next == 0) {
-                uint32_t next = add_node(table, production->lhs[lhs_pos]);
-                /* Refetch since add_node could have realloc()ed. */
-                node = &darray_item(table->nodes, curr);
-                node->next = next;
-            }
+    while (true) {
+        const xkb_keysym_t keysym = production->lhs[lhs_pos];
+        const bool last = lhs_pos + 1 == production->len;
 
-            curr = node->next;
-            node = &darray_item(table->nodes, curr);
+        if (curr == 0) {
+            /*
+             * Create a new node and update the parent pointer to it.
+             * Update the pointer first because the append invalidates it.
+             */
+            struct compose_node new = {
+                .keysym = keysym,
+                .lokid = 0,
+                .hikid = 0,
+                .internal = {
+                    .eqkid = 0,
+                    .is_leaf = false,
+                },
+            };
+            curr = darray_size(table->nodes);
+            if (pptr != NULL) {
+                *pptr = curr;
+                pptr = NULL;
+            }
+            darray_append(table->nodes, new);
         }
 
-        if (lhs_pos + 1 == production->len)
-            break;
-
-        if (node->is_leaf) {
-            if (node->u.leaf.utf8 != 0 ||
-                node->u.leaf.keysym != XKB_KEY_NoSymbol) {
-                scanner_warn(s, "a sequence already exists which is a prefix of this sequence; overriding");
-                node->u.leaf.utf8 = 0;
-                node->u.leaf.keysym = XKB_KEY_NoSymbol;
-            }
-
-            {
-                uint32_t successor = add_node(table, production->lhs[lhs_pos + 1]);
-                /* Refetch since add_node could have realloc()ed. */
-                node = &darray_item(table->nodes, curr);
-                node->is_leaf = false;
-                node->u.successor = successor;
-            }
-        }
-
-        curr = node->u.successor;
         node = &darray_item(table->nodes, curr);
-    }
 
-    if (!node->is_leaf) {
-        scanner_warn(s, "this compose sequence is a prefix of another; skipping line");
-        return;
-    }
-
-    if (node->u.leaf.utf8 != 0 || node->u.leaf.keysym != XKB_KEY_NoSymbol) {
-        if (streq(&darray_item(table->utf8, node->u.leaf.utf8),
-                  production->string) &&
-            node->u.leaf.keysym == production->keysym) {
-            scanner_warn(s, "this compose sequence is a duplicate of another; skipping line");
+        if (keysym < node->keysym) {
+            pptr = &node->lokid;
+            curr = node->lokid;
+        } else if (keysym > node->keysym) {
+            pptr = &node->hikid;
+            curr = node->hikid;
+        } else if (!last) {
+            if (node->is_leaf) {
+                scanner_warn(s, "a sequence already exists which is a prefix of this sequence; overriding");
+                node->internal.eqkid = node->lokid = node->hikid = 0;
+                node->internal.is_leaf = false;
+            }
+            lhs_pos++;
+            pptr = &node->internal.eqkid;
+            curr = node->internal.eqkid;
+        } else {
+            if (node->is_leaf) {
+                bool same_string =
+                    (node->leaf.utf8 == 0 && !production->has_string) ||
+                    (
+                        node->leaf.utf8 != 0 && production->has_string &&
+                        streq(&darray_item(table->utf8, node->leaf.utf8),
+                              production->string)
+                    );
+                bool same_keysym =
+                    (node->leaf.keysym == XKB_KEY_NoSymbol && !production->has_keysym) ||
+                    (
+                        node->leaf.keysym != XKB_KEY_NoSymbol && production->has_keysym &&
+                        node->leaf.keysym == production->keysym
+                    );
+                if (same_string && same_keysym) {
+                    scanner_warn(s, "this compose sequence is a duplicate of another; skipping line");
+                    return;
+                } else {
+                    scanner_warn(s, "this compose sequence already exists; overriding");
+                }
+            } else if (node->internal.eqkid != 0) {
+                scanner_warn(s, "this compose sequence is a prefix of another; skipping line");
+                return;
+            }
+            node->is_leaf = true;
+            if (production->has_string) {
+                node->leaf.utf8 = darray_size(table->utf8);
+                darray_append_items(table->utf8, production->string,
+                                    strlen(production->string) + 1);
+            }
+            if (production->has_keysym) {
+                node->leaf.keysym = production->keysym;
+            }
             return;
         }
-        scanner_warn(s, "this compose sequence already exists; overriding");
-    }
-
-    if (production->has_string) {
-        node->u.leaf.utf8 = darray_size(table->utf8);
-        darray_append_items(table->utf8, production->string,
-                            strlen(production->string) + 1);
-    }
-    if (production->has_keysym) {
-        node->u.leaf.keysym = production->keysym;
     }
 }
+
+/* Should match resolve_modifier(). */
+#define ALL_MODS_MASK ((1 << 0) | (1 << 1) | (1 << 2) | (1 << 3))
 
 static xkb_mod_index_t
 resolve_modifier(const char *name)
@@ -488,7 +467,7 @@ do_include(struct xkb_compose_table *table, struct scanner *s,
 {
     FILE *file;
     bool ok;
-    const char *string;
+    char *string;
     size_t size;
     struct scanner new_s;
 
@@ -498,7 +477,7 @@ do_include(struct xkb_compose_table *table, struct scanner *s,
         return false;
     }
 
-    file = fopen(path, "r");
+    file = fopen(path, "rb");
     if (!file) {
         scanner_err(s, "failed to open included Compose file \"%s\": %s",
                     path, strerror(errno));
@@ -531,7 +510,6 @@ parse(struct xkb_compose_table *table, struct scanner *s,
 {
     enum rules_token tok;
     union lvalue val;
-    struct keysym_from_name_cache *cache = s->priv;
     xkb_keysym_t keysym;
     struct production production;
     enum { MAX_ERRORS = 10 };
@@ -587,15 +565,16 @@ lhs_tok:
         }
         goto rhs;
     case TOK_IDENT:
-        if (!streq(val.string.str, "None")) {
-            scanner_err(s, "unrecognized identifier \"%s\"", val.string.str);
-            goto error;
+        if (streq(val.string.str, "None")) {
+            production.mods = 0;
+            production.modmask = ALL_MODS_MASK;
+            goto lhs_keysym;
         }
-        production.mods = 0;
-        /* XXX Should only include the mods in resolve_mods(). */
-        production.modmask = 0xff;
-        goto lhs_keysym;
+        goto lhs_mod_list_tok;
+    case TOK_TILDE:
+        goto lhs_mod_list_tok;
     case TOK_BANG:
+        production.modmask = ALL_MODS_MASK;
         goto lhs_mod_list;
     default:
         goto lhs_keysym_tok;
@@ -606,7 +585,7 @@ lhs_keysym:
 lhs_keysym_tok:
     switch (tok) {
     case TOK_LHS_KEYSYM:
-        keysym = cached_keysym_from_name(cache, val.string.str, val.string.len);
+        keysym = xkb_keysym_from_name(val.string.str, XKB_KEYSYM_NO_FLAGS);
         if (keysym == XKB_KEY_NoSymbol) {
             scanner_err(s, "unrecognized keysym \"%s\" on left-hand side",
                         val.string.str);
@@ -625,21 +604,22 @@ lhs_keysym_tok:
         goto unexpected;
     }
 
-lhs_mod_list: {
+lhs_mod_list:
+    tok = lex(s, &val);
+lhs_mod_list_tok: {
         bool tilde = false;
         xkb_mod_index_t mod;
 
-        tok = lex(s, &val);
+        if (tok != TOK_TILDE && tok != TOK_IDENT)
+            goto lhs_keysym_tok;
+
         if (tok == TOK_TILDE) {
             tilde = true;
             tok = lex(s, &val);
         }
 
-        if (tok != TOK_IDENT) {
-            if (tilde || production.modmask == 0)
-                goto unexpected;
-            goto lhs_keysym_tok;
-        }
+        if (tok != TOK_IDENT)
+            goto unexpected;
 
         mod = resolve_modifier(val.string.str);
         if (mod == XKB_MOD_INVALID) {
@@ -676,7 +656,7 @@ rhs:
         production.has_string = true;
         goto rhs;
     case TOK_IDENT:
-        keysym = cached_keysym_from_name(cache, val.string.str, val.string.len);
+        keysym = xkb_keysym_from_name(val.string.str, XKB_KEYSYM_NO_FLAGS);
         if (keysym == XKB_KEY_NoSymbol) {
             scanner_err(s, "unrecognized keysym \"%s\" on right-hand side",
                         val.string.str);
@@ -688,6 +668,7 @@ rhs:
         }
         production.keysym = keysym;
         production.has_keysym = true;
+        /* fallthrough */
     case TOK_END_OF_LINE:
         if (!production.has_string && !production.has_keysym) {
             scanner_warn(s, "right-hand side must have at least one of string or keysym; skipping line");
@@ -728,9 +709,7 @@ parse_string(struct xkb_compose_table *table, const char *string, size_t len,
              const char *file_name)
 {
     struct scanner s;
-    struct keysym_from_name_cache cache;
-    memset(&cache, 0, sizeof(cache));
-    scanner_init(&s, table->ctx, string, len, file_name, &cache);
+    scanner_init(&s, table->ctx, string, len, file_name, NULL);
     if (!parse(table, &s, 0))
         return false;
     /* Maybe the allocator can use the excess space. */
@@ -743,7 +722,7 @@ bool
 parse_file(struct xkb_compose_table *table, FILE *file, const char *file_name)
 {
     bool ok;
-    const char *string;
+    char *string;
     size_t size;
 
     ok = map_file(file, &string, &size);

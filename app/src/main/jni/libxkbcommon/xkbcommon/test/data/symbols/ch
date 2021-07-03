@@ -1,4 +1,4 @@
-default  partial alphanumeric_keys
+default partial alphanumeric_keys
 xkb_symbols "basic" {
 
     include "latin"
@@ -20,6 +20,7 @@ xkb_symbols "basic" {
 
     key <AD03> { [          e,          E,     EuroSign             ] };
     key <AD06> { [          z,          Z                           ] };
+    key <AD09> { [          o,          O,     oe,       OE         ] };
     key <AD11> { [ udiaeresis,     egrave,  bracketleft             ] };
     key <AD12> { [ dead_diaeresis, exclam, bracketright             ] };
 
@@ -68,7 +69,7 @@ partial alphanumeric_keys
 xkb_symbols "de_nodeadkeys" {
     // modify the basic Swiss German layout not to have any dead keys
     include "ch(basic)"
-    name[Group1]= "German (Switzerland, eliminate dead keys)";
+    name[Group1]= "German (Switzerland, no dead keys)";
     key <AE11> { [  apostrophe, question,        acute  ] };
     key <AE12> { [ asciicircum,    grave,   asciitilde  ] };
     key <AD12> { [   diaeresis,   exclam, bracketright  ] };
@@ -110,7 +111,7 @@ partial alphanumeric_keys
 xkb_symbols "fr_nodeadkeys" {
     // modify the basic Swiss French layout not to have any dead keys
     include "ch(fr)"
-    name[Group1]= "French (Switzerland, eliminate dead keys)";
+    name[Group1]= "French (Switzerland, no dead keys)";
     key <AE11> { [  apostrophe, question,        acute  ] };
     key <AE12> { [ asciicircum,    grave,   asciitilde  ] };
     key <AD12> { [   diaeresis,   exclam, bracketright  ] };
@@ -152,7 +153,7 @@ xkb_symbols "de_mac" {
     key <AD11> { [	udiaeresis,	egrave, 	section,	ydiaeresis		]	};
     key <AD12> { [	dead_diaeresis,	exclam, 	grave,		apostrophe		]	};
     key <AC01> { [ 	a,	A, 	aring,		Aring			]	};
-    key <AC02> { [ 	s,	S, 	ssharp, 	NoSymbol		]	};
+    key <AC02> { [ 	s,	S, 	ssharp, 	U1E9E			]	};
 					// ligature fl
     key <AC03> { [ 	d,	D, 	Greek_sigma,	NoSymbol		]	};
 			// partialderivative is not available here att

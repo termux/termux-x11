@@ -35,13 +35,13 @@ LOCAL_SRC_FILES := \
 	xkbcommon/src/utf8.c \
 	xkbcommon/src/utils.c
 LOCAL_CFLAGS := \
-	-std=c99 -Wall -Werror -Wno-unused-parameter -Wno-missing-field-initializers \
+	-std=c99 -Wall -Werror -Wno-unused-parameter -Wno-missing-field-initializers -Wimplicit-function-declaration \
 	-D_GNU_SOURCE \
 	-DXLOCALEDIR=\"/data/data/com.termux/files/usr/share/X11/locale\" \
 	-DDEFAULT_XKB_LAYOUT=\"us\" \
 	-DDEFAULT_XKB_MODEL=\"pc105\" \
 	-DDEFAULT_XKB_RULES=\"evdev\" \
 	-DDFLT_XKB_CONFIG_ROOT=\"/data/data/com.termux/files/usr/share/X11/xkb\"
-LOCAL_C_INCLUDES := $(LOCAL_PATH)/xkbcommon $(LOCAL_PATH)/xkbcommon/src
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/xkbcommon $(LOCAL_PATH)/xkbcommon/src $(LOCAL_PATH)/xkbcommon/include
 LOCAL_EXPORT_C_INCLUDES := $(LOCAL_PATH)/xkbcommon/
 include $(BUILD_SHARED_LIBRARY)

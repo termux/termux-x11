@@ -85,3 +85,27 @@ global:
 local:
 	*;
 };
+
+V_0.6.0 {
+global:
+	xkb_keymap_key_get_name;
+	xkb_keymap_key_by_name;
+} V_0.5.0;
+
+V_0.7.0 {
+global:
+	xkb_state_key_get_consumed_mods2;
+	xkb_state_mod_index_is_consumed2;
+} V_0.6.0;
+
+V_0.8.0 {
+global:
+	xkb_keysym_to_lower;
+	xkb_keysym_to_upper;
+} V_0.7.0;
+
+V_1.0.0 {
+global:
+	xkb_utf32_to_keysym;
+	xkb_keymap_key_get_mods_for_level;
+} V_0.8.0;

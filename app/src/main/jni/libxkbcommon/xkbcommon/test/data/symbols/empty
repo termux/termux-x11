@@ -1,4 +1,4 @@
-default  partial alphanumeric_keys modifier_keys
+default partial alphanumeric_keys modifier_keys
 xkb_symbols "basic" {
     name[Group1]= "Empty";
 };

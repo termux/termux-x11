@@ -45,6 +45,16 @@ xkb_symbols "rwin_switch" {
     };
 };
 
+// The right Menu key (while pressed) chooses the second keyboard group.
+// while Shift+Menu acts as Menu.
+partial modifier_keys
+xkb_symbols "menu_switch" {
+    key <MENU> {
+        symbols[Group1] = [ Mode_switch, Menu ],
+        virtualMods= AltGr
+    };
+};
+
 // The right Ctrl key (while pressed) chooses the second keyboard group.
 // (Needed mainly for the Canadian keyboard.)
 partial modifier_keys
@@ -89,8 +99,9 @@ xkb_symbols "shift_caps_switch" {
 partial modifier_keys
 xkb_symbols "win_space_toggle" {
   key <SPCE> {
-    type[Group1]="PC_SUPER_LEVEL2",
-    symbols[Group1]= [ space, ISO_Next_Group ]
+    type="PC_SUPER_LEVEL2",
+    symbols[Group1]= [ space, ISO_Next_Group ],
+    symbols[Group2]= [ space, ISO_Next_Group ]
   };
 };
 
@@ -322,18 +333,18 @@ partial modifier_keys
 xkb_symbols "ctrls_toggle" {
     virtual_modifiers LControl, RControl;
     key <LCTL> {
-        type[Group1]="PC_RCONTROL_LEVEL2",
+        type[Group1]="PC_CONTROL_LEVEL2",
         symbols[Group1] = [ NoSymbol, ISO_Prev_Group ],
         virtualMods= LControl
     };
     key <RCTL> {
-        type[Group1]="PC_LCONTROL_LEVEL2",
+        type[Group1]="PC_CONTROL_LEVEL2",
         symbols[Group1] = [ NoSymbol, ISO_Next_Group ],
         virtualMods= RControl
     };
 };
 
-// Pressing both Alt keys switches to the next or previous group
+// Pressing both Alt switches to the next or previous group
 // (depending on which Alt is pressed first).
 partial modifier_keys
 xkb_symbols "alts_toggle" {
@@ -446,3 +457,13 @@ xkb_symbols "lctrl_lwin_rctrl_menu" {
         symbols[Group1] = [ Menu, ISO_Last_Group ]
     };
 };
+
+// Control_L+Win_L toggles groups.
+partial modifier_keys
+xkb_symbols "lctrl_lwin_toggle" {
+    key <LWIN> {
+        type[ Group1 ]    = "PC_CONTROL_LEVEL2",
+        symbols[ Group1 ] = [ Super_L,    ISO_Next_Group ]
+    };
+};
+

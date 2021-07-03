@@ -24,10 +24,11 @@
  * Author: Daniel Stone <daniel@fooishbar.org>
  */
 
+#include "config.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include <unistd.h>
 
 #include "xkbcommon/xkbcommon.h"
 #include "utils.h"
@@ -52,19 +53,13 @@ xkb_context_failed_include_path_get(struct xkb_context *ctx,
 xkb_atom_t
 xkb_atom_lookup(struct xkb_context *ctx, const char *string)
 {
-    return atom_lookup(ctx->atom_table, string, strlen(string));
+    return atom_intern(ctx->atom_table, string, strlen(string), false);
 }
 
 xkb_atom_t
 xkb_atom_intern(struct xkb_context *ctx, const char *string, size_t len)
 {
-    return atom_intern(ctx->atom_table, string, len, false);
-}
-
-xkb_atom_t
-xkb_atom_steal(struct xkb_context *ctx, char *string)
-{
-    return atom_intern(ctx->atom_table, string, strlen(string), true);
+    return atom_intern(ctx->atom_table, string, len, true);
 }
 
 const char *
@@ -103,14 +98,6 @@ xkb_context_get_buffer(struct xkb_context *ctx, size_t size)
 
     return rtrn;
 }
-
-#ifndef DEFAULT_XKB_VARIANT
-#define DEFAULT_XKB_VARIANT NULL
-#endif
-
-#ifndef DEFAULT_XKB_OPTIONS
-#define DEFAULT_XKB_OPTIONS NULL
-#endif
 
 static const char *
 xkb_context_get_default_rules(struct xkb_context *ctx)

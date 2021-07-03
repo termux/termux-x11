@@ -1,9 +1,12 @@
 // This layout includes all Indian layouts, including:
-//     - Devanagari (Hindi, Marathi, Sanskrit)
+//     - Hindi
+//     - Marathi
+//     - Sanskrit
 //     - Bangla
 //     - Gujarati
 //     - Kannada
 //     - Malayalam
+//     - Ol Chiki
 //     - Oriya
 //     - Tamil
 //     - Telugu
@@ -21,11 +24,13 @@
 //     http://ekushey.org/projects/shadhinota/index.html
 // - Microsoft Windows XP SP2: Indic Language Standards - an Introduction:
 //     http://www.bhashaindia.com/MSProducts/XpSp2/Articles/IndicLanguageStandards.aspx
+// - Ol Chiki:
+//    http://www.unicode.org/L2/L2005/05243r-n2984-ol-chiki.pdf (fig. 9)
 
 // based on a keyboard map from an 'xkb/symbols/dev' file
 
 // Devangari is the default. Kill me if I am wrong:)
-default  partial alphanumeric_keys
+default partial alphanumeric_keys
 xkb_symbols "deva" {
 	// March 2004 -- David Holl <smyrph+dev_xkb@ece.wpi.edu>
 	name[Group1]="Indian";
@@ -245,20 +250,22 @@ xkb_symbols "ben" {
 
 xkb_symbols "ben_probhat" {
  name[Group1]= "Bangla (India, Probhat)";
+   key.type="FOUR_LEVEL";
+
    key <ESC>  { [ Escape ] };
 
 // numbers
    key <TLDE> { [ U200D, asciitilde   ] };
-   key <AE01> { [ U09E7, exclam       ] };
-   key <AE02> { [ U09E8, at           ] };
-   key <AE03> { [ U09E9, numbersign   ] };
-   key <AE04> { [ U09EA, U09F3    ] };
+   key <AE01> { [ U09E7, exclam, U09F4 ] };
+   key <AE02> { [ U09E8, at, U09F5 ] };
+   key <AE03> { [ U09E9, numbersign, U09F6 ] };
+   key <AE04> { [ U09EA, U09F3, U09F7, U09F2 ] };
    key <AE05> { [ U09EB, percent      ] };
    key <AE06> { [ U09EC, asciicircum  ] };
-   key <AE07> { [ U09ED, U099E    ] };
+   key <AE07> { [ U09ED, U099E, U09FA ] };
    key <AE08> { [ U09EE, U09CE    ] };
    key <AE09> { [ U09EF, parenleft    ] };
-   key <AE10> { [ U09E6, parenright   ] };
+   key <AE10> { [ U09E6, parenright, U09F8, U09F9 ] };
    key <AE11> { [ minus,     underscore   ] };
    key <AE12> { [ equal,     plus         ] };
    key <BKSP> { [ BackSpace               ] };
@@ -276,17 +283,17 @@ xkb_symbols "ben_probhat" {
    key <AD09> { [   U0993,  U0994  ] };
    key <AD10> { [   U09AA,  U09AB  ] };
    key <AD11> { [   U09C7,  U09C8  ] };
-   key <AD12> { [   U09CB,  U09CC  ] };
+   key <AD12> { [   U09CB,  U09CC, U09D7 ] };
    key <RTRN> { [   Return                 ] };
 
 // caps, a to ' 
 //   key <CAPS> { [   Caps_Lock              ] };
-   key <AC01> { [   U09BE,  U0985  ] };
-   key <AC02> { [   U09B8,  U09B7  ] };
-   key <AC03> { [   U09A1,  U09A2  ] };
+   key <AC01> { [   U09BE,  U0985, U098C, U09E0 ] };
+   key <AC02> { [   U09B8,  U09B7, U09E1, U09E3 ] };
+   key <AC03> { [   U09A1,  U09A2, U09C4, U09E2 ] };
    key <AC04> { [   U09A4,  U09A5  ] };
    key <AC05> { [   U0997,  U0998  ] };
-   key <AC06> { [   U09B9,  U0983  ] };
+   key <AC06> { [   U09B9,  U0983, U09BD ] };
    key <AC07> { [   U099C,  U099D  ] };
    key <AC08> { [   U0995,  U0996  ] };
    key <AC09> { [   U09B2,  U0982  ] };
@@ -303,7 +310,7 @@ xkb_symbols "ben_probhat" {
    key <AB06> { [   U09A8,  U09A3  ] };
    key <AB07> { [   U09AE,  U0999  ] };
    key <AB08> { [   comma,      U09C3  ] };
-   key <AB09> { [   U0964,  U0981  ] };
+   key <AB09> { [   U0964,  U0981, U09BC ] };
    key <AB10> { [   U09CD,  question   ] };
    key <BKSL> { [   U200C,  U0965  ] };
 
@@ -462,7 +469,7 @@ xkb_symbols "ben_inscript" {
 };
 
 xkb_symbols "ben_gitanjali" {
- name[Group1]= "Bangla (India, Uni Gitanjali)";
+ name[Group1]= "Bangla (India, Gitanjali)";
    key <ESC>   { [ Escape			] };
 
 // numbers
@@ -914,6 +921,75 @@ xkb_symbols "mal_lalitha" {
 
 
 partial alphanumeric_keys
+xkb_symbols "olck" {
+
+    // Layout for the Ol Chiki script.
+    // http://www.unicode.org/L2/L2005/05243r-n2984-ol-chiki.pdf (figure 9)
+
+    name[Group1]= "Ol Chiki";
+
+    key <TLDE> { [  grave, U1C7B		] };
+
+    key <AE01> { [  U1C51, exclam		] };
+    key <AE02> { [  U1C52, at			] };
+    key <AE03> { [  U1C53, numbersign		] };
+    key <AE04> { [  U1C54, dollar, U20B9	] };
+    key <AE05> { [  U1C55, percent		] };
+    key <AE06> { [  U1C56, asciicircum		] };
+    key <AE07> { [  U1C57, ampersand		] };
+    key <AE08> { [  U1C58, asterisk		] };
+    key <AE09> { [  U1C59, parenleft		] };
+    key <AE10> { [  U1C50, parenright		] };
+    key <AE11> { [  minus, U1C7C		] };
+    key <AE12> { [  equal, plus			] };
+
+    key <AD01> { [  U1C67			] };
+    key <AD02> { [  U1C63			] };
+    key <AD03> { [  U1C6E			] };
+    key <AD04> { [  U1C68			] };
+    key <AD05> { [  U1C74, U1C5B		] };
+    key <AD06> { [  U1C6D  			] };
+    key <AD07> { [  U1C69			] };
+    key <AD08> { [  U1C64			] };
+    key <AD09> { [  U1C5A, U1C73		] };
+    key <AD10> { [  U1C6F  			] };
+    key <AD11> { [  bracketleft, braceleft	] };
+    key <AD12> { [  bracketright, braceright 	] };
+    key <BKSL> { [  U1C7F, U1C7E		] };
+
+    key <AC01> { [  U1C5F  			] };
+    key <AC02> { [  U1C65			] };
+    key <AC03> { [  U1C70, U1C6B		] };
+    key <AC04> { [  U1C5D  			] };
+    key <AC05> { [  U1C5C			] };
+    key <AC06> { [  U1C66, U1C77		] };
+    key <AC07> { [  U1C61  			] };
+    key <AC08> { [  U1C60			] };
+    key <AC09> { [  U1C5E			] };
+    key <AC10> { [  semicolon, U1C7A		] };
+    key <AC11> { [  apostrophe, quotedbl	] };
+
+    key <AB01> { [  U1C72			] };
+    key <AB02> { [  U1C7D			] };
+    key <AB03> { [  U1C6A			] };
+    key <AB04> { [  U1C76			] };
+    key <AB05> { [  U1C75			] };
+    key <AB06> { [  U1C71, U1C78		] };
+    key <AB07> { [  U1C62, U1C6C		] };
+    key <AB08> { [  comma, less			] };
+    key <AB09> { [  U1C79, greater		] };
+    key <AB10> { [  slash, question		] };
+
+    key <RALT> {
+	symbols[Group1] = [ Mode_switch, Multi_key ],
+	virtualMods = AltGr
+    };
+
+    include "level3(ralt_switch)"
+};
+
+
+partial alphanumeric_keys
 xkb_symbols "ori" {
     // Inscript layout for Oriya  
     // Author: G Karunakar <karunakar@freedomink.org>
@@ -981,7 +1057,7 @@ xkb_symbols "ori" {
 // INSCRIPT
 partial alphanumeric_keys
 xkb_symbols "tam" {
-      name[Group1]= "Tamil";
+      name[Group1]= "Tamil (Inscript)";
 
       key <TLDE> { [      U0BCA, U0B92	]	};
 
@@ -1046,7 +1122,7 @@ xkb_symbols "tam" {
 };
 
 partial alphanumeric_keys
-xkb_symbols "tam_unicode" {
+xkb_symbols "tam_tamilnet" {
 
 // Description: A keymap based on the TamilNet'99 typewriter keyboard 
 // Encoding: Unicode (http://www.unicode.org)
@@ -1056,7 +1132,7 @@ xkb_symbols "tam_unicode" {
 // Date  : Fri Sep 4 11:32:00 CST 2009
 // Mapping:
 
-    name[Group1]= "Tamil (Unicode)";
+    name[Group1]= "Tamil (TamilNet '99)";
 
     // granthas
     key <TLDE> {  [ apostrophe, asciitilde ] };
@@ -1112,7 +1188,7 @@ xkb_symbols "tam_unicode" {
 };
 
 partial alphanumeric_keys
-xkb_symbols "tam_keyboard_with_numerals" {
+xkb_symbols "tam_tamilnet_with_tam_nums" {
 
 // Description: A keymap based on the TamilNet'99 typewriter keyboard 
 // Encoding: Unicode (http://www.unicode.org)
@@ -1121,7 +1197,7 @@ xkb_symbols "tam_keyboard_with_numerals" {
 // Date  : Fri Sep 4 11:33:00 CST 2009
 // Mapping:
 
-      name[Group1]= "Tamil (keyboard with numerals)";
+      name[Group1]= "Tamil (TamilNet '99 with Tamil numerals)";
 
       // Mainly numbers.
       key <TLDE> { [ apostrophe, asciitilde ] };
@@ -1177,7 +1253,7 @@ xkb_symbols "tam_keyboard_with_numerals" {
 };
 
 partial alphanumeric_keys
-xkb_symbols "tam_TSCII" {
+xkb_symbols "tam_tamilnet_TSCII" {
 
 // Description	: A Tamil typewrite-style keymap 
 //		  loosely based on TamilNet'99 reommendations 
@@ -1185,7 +1261,7 @@ xkb_symbols "tam_TSCII" {
 // Author	: Thuraiappah Vaseeharan <vasee@ieee.org>
 // Last Modified: Sat Jan  5 17:11:26 CST 2002
 
-    name[Group1]= "Tamil (TSCII typewriter)";
+    name[Group1]= "Tamil (TamilNet '99, TSCII encoding)";
 
     key <AE01> {  [ 0x10000b7, 0x10000a4 ] }; // aytham
     key <AE02> {  [ 0x1000082, 0x10000a5 ] }; // shri
@@ -1233,14 +1309,14 @@ xkb_symbols "tam_TSCII" {
 };
 
 partial alphanumeric_keys
-xkb_symbols "tam_TAB" {
+xkb_symbols "tam_tamilnet_TAB" {
 
 // Description: A keymap based on the TamilNet'99 typewriter keyboard 
 // Encoding: TAB (http://www.tamilnet99.org)
 // Author: Thuraiappah Vaseeharan <t_vasee@yahoo.com>
 // Date  : Sun Aug 12 02:23:00 CDT 2001
 
-    name[Group1]= "Tamil (TAB typewriter)";
+    name[Group1]= "Tamil (TamilNet '99, TAB encoding)";
 
     // numeral row
     key <AE01> {  [ 0x10000e7, 0x10000a7 ] } ;
@@ -1357,7 +1433,80 @@ xkb_symbols "tel" {
     include "level3(ralt_switch)"
 };
 
+//Name                  :       Sarala
+//Description           :       This is an adaptation of the Sarala keyboard (http://www.medhajananam.org/sarala/) developed 
+//                              by Krishna Dhullipalla. Because of the way keyboard shortcuts are laid out in KDE, the keyboard
+//                              modifiers had to be changed. The layout does not take any part of the original Sarala keyboard 
+//                              code however. It has been developed from scratch, so the experience may differ.
+//			        
+//                              There is a ibus-m17n version of Sarala layout developed by Satya Pothamsetti <potham@gmail.com> on 
+//                              http://www.medhajananam.org/.
+//Standard		:	Supports Unicode 9.0.	 
+//Help			:	This layout differs slightly from the layout on Medhajenanam. The layout has been depicted in the 
+//				pdf file attached to this post on Sarala google group.
+//				(https://groups.google.com/forum/#!topic/sarala-keyboard/-gsa90dUFcs).
+//
+//Layout Developed by   :       Krishna Dhullipalla <krishnadvr@yahoo.com> (http://www.medhajananam.org/)
+//Author                :       Venkat R Akkineni <venkatram.akkineni@india.com>
+//Date			:	Apr 28 2017
 partial alphanumeric_keys
+xkb_symbols "tel-sarala"
+{
+    name[Group1] = "Telugu (Sarala)";
+    key.type="FOUR_LEVEL";
+    // sequence 									  base, shift, alt, alt + shift
+    key <AB01> { [          U0C4A,          U0C12                                 ] }; // ొ ఒ
+    key <AB02> { [          U0C42,          U0C0A                                 ] }; // ూ ఊ
+    key <AB03> { [          U0C21,          U0C22                                 ] }; // డ ఢ
+    key <AB04> { [          U0C35,          U0C39                                 ] }; // వ హ
+    key <AB05> { [          U0C2C,          U0C2D                                 ] }; // బ భ
+    key <AB06> { [          U0C28,          U0C23                                 ] }; // న ణ
+    key <AB07> { [          U0C2E,          U0C01                                 ] }; // మ ఁ
+    key <AB08> { [         U002C,          U0C1E,      leftcaret 	    	  ] }; // , ఞ <
+    key <AB09> { [         U002E,          U0C19,     rightcaret              	  ] }; // . ఙ >
+    key <AB10> { [          U0C36,       question,      KP_Divide                 ] }; // శ ? /
+    key <AC01> { [          U0C2F,          U0C3D           			  ] }; // య ఽ
+    key <AC02> { [          U0C02,          U0C03                                 ] }; // ం ః
+    key <AC03> { [          U0C26,          U0C27                                 ] }; // ద ధ
+    key <AC04> { [          U0C4D,          U0C05                                 ] }; // ్ అ
+    key <AC05> { [          U0C17,          U0C18                                 ] }; // గ ఘ
+    key <AC06> { [          U0C1A,          U0C1B,          U0C58,          U0C59 ] }; // చ ఛ ౘ ౙ
+    key <AC07> { [          U0C3E,          U0C06                                 ] }; // ా ఆ
+    key <AC08> { [          U0C15,          U0C16,          U0C62,          U0C63 ] }; // క ఖ ౢ ౣ
+    key <AC09> { [          U0C32,          U0C33,          U0C0C,          U0C61 ] }; // ల ళ ఌ ౡ
+    key <AC10> { [          U0C1F,          U0C20,      semicolon,          colon ] }; // ట ఠ ; :
+    key <AC11> { [     quoteright,       quotedbl	    	    		  ] }; // ' " 
+    key <AD01> { [          U0C46,          U0C0E,          U0C44,          U0C34 ] }; // ె ఎ ౄ ఴ
+    key <AD02> { [          U0C38,          U0C37,          U0C44                 ] }; // స ష ౄ
+    key <AD03> { [          U0C47,          U0C0F,          U0C44                 ] }; // ే ఏ ౄ
+    key <AD04> { [          U0C30,          U0C31,          U0C44,          U0C60 ] }; // ర ఱ ౄ ౠ
+    key <AD05> { [          U0C24,          U0C25                                 ] }; // త థ
+    key <AD06> { [          U0C40,          U0C08                                 ] }; // ీ ఈ
+    key <AD07> { [          U0C41,          U0C09                                 ] }; // ు ఉ
+    key <AD08> { [          U0C3F,          U0C07                                 ] }; // ి ఇ
+    key <AD09> { [          U0C4B,          U0C13                                 ] }; // ో ఓ
+    key <AD10> { [          U0C2A,          U0C2B                                 ] }; // ప ఫ
+    key <AD11> { [          U0C1C,          U0C1D,    bracketleft,      braceleft ] }; // జ ఝ [ {
+    key <AD12> { [          U0C48,          U0C10,   bracketright,     braceright ] }; // ై ఐ ] }
+    key <AE01> { [           KP_1,         exclam,          U0C67,          U0C78 ] }; // 1 ! ౦ ౸
+    key <AE02> { [           KP_2,             at,          U0C68,          U0C79 ] }; // 2 @ ౨ ౹
+    key <AE03> { [           KP_3,     numbersign,          U0C69,          U0C7A ] }; // 3 # ౩ ౺
+    key <AE04> { [           KP_4,         dollar,          U0C6A,          U0C7B ] }; // 4 $ ౪ ౻
+    key <AE05> { [           KP_5,        percent,          U0C6B,          U0C7C ] }; // 5 % ౫ ౼
+    key <AE06> { [           KP_6,    asciicircum,          U0C6C,          U0C7D ] }; // 6 ^ ౬ ౽
+    key <AE07> { [           KP_7,      ampersand,          U0C6D,          U0C7E ] }; // 7 & ౭ ౾
+    key <AE08> { [           KP_8,    KP_Multiply,          U0C6E,          U0C7F ] }; // 8 * ౮ ౿
+    key <AE09> { [           KP_9,         U0028,           U0C6F,          U20B9 ] }; // 9 ( ౯ ₹
+    key <AE10> { [           KP_0,         U0029,           U0C66,          U0C55 ] }; // 0 ) ౦ ౕ
+    key <AE11> { [    KP_Subtract,       underbar,       NoSymbol,          U0C56 ] }; // - _  ౖ
+    key <AE12> { [       KP_Equal,         KP_Add                                 ] }; // = +
+    key <BKSL> { [          U0C4C,          U0C14,          U0964,          U0965 ] }; // ౌ ఔ । ॥
+    key <TLDE> { [          U0C43,          U0C0B,      quoteleft,     asciitilde ] }; // ృ ఋ ` ~
+    
+    include "level3(ralt_switch)" 
+};
+
+partial alphanumeric_keys 
 xkb_symbols "urd-phonetic" {
     include "pk(urd-phonetic)"
     name[Group1]= "Urdu (phonetic)";
@@ -1366,13 +1515,13 @@ xkb_symbols "urd-phonetic" {
 partial alphanumeric_keys
 xkb_symbols "urd-phonetic3" {
     include "pk(urd-crulp)"
-    name[Group1]= "Urdu (alternative phonetic)";
+    name[Group1]= "Urdu (alt. phonetic)";
 };
 
 partial alphanumeric_keys
 xkb_symbols "urd-winkeys" {
     include "pk(urd-nla)"
-    name[Group1]= "Urdu (WinKeys)";
+    name[Group1]= "Urdu (Windows)";
 };
 
 // based on a keyboard map from an 'xkb/symbols/gur' file
@@ -1654,7 +1803,7 @@ partial alphanumeric_keys
 xkb_symbols "eng" {
 
     include "us(basic)"
-    name[Group1]= "English (India, with rupee sign)";
+    name[Group1]= "English (India, with rupee)";
 
     include "rupeesign(4)"
     include "level3(ralt_switch)"
@@ -1672,7 +1821,7 @@ xkb_symbols "eng" {
 partial alphanumeric_keys
 xkb_symbols "mal_enhanced" {
 
-    name[Group1] = "Malayalam (enhanced Inscript, with rupee sign)";
+    name[Group1] = "Malayalam (enhanced Inscript, with rupee)";
 
    //From grave to backslash (\)
 
@@ -1765,7 +1914,7 @@ xkb_symbols "mal_enhanced" {
 //
 partial alphanumeric_keys
 xkb_symbols "hin-kagapa" {
-     name[Group1] = "Hindi (KaGaPa phonetic)";
+     name[Group1] = "Hindi (KaGaPa, phonetic)";
      key.type="FOUR_LEVEL";
 
     // Roman digits
@@ -1831,14 +1980,14 @@ xkb_symbols "hin-kagapa" {
 partial alphanumeric_keys
 xkb_symbols "san-kagapa" {
   include "in(hin-kagapa)"
-  name[Group1] = "Sanskrit (KaGaPa phonetic)";
+  name[Group1] = "Sanskrit (KaGaPa, phonetic)";
 };
 
 // Marathi uses Devanagari layout of Hindi
 partial alphanumeric_keys
 xkb_symbols "mar-kagapa" {
   include "in(hin-kagapa)"
-  name[Group1] = "Marathi (KaGaPa phonetic)";
+  name[Group1] = "Marathi (KaGaPa, phonetic)";
 };
 
 
@@ -1856,7 +2005,7 @@ xkb_symbols "mar-kagapa" {
 //
 partial alphanumeric_keys
 xkb_symbols "kan-kagapa" {
-    name[Group1] = "Kannada (KaGaPa phonetic)";
+    name[Group1] = "Kannada (KaGaPa, phonetic)";
     key.type="FOUR_LEVEL";
 
     // Roman digits
@@ -1933,7 +2082,7 @@ xkb_symbols "kan-kagapa" {
 //
 partial alphanumeric_keys
 xkb_symbols "tel-kagapa" {
-    name[Group1] = "Telugu (KaGaPa phonetic)";
+    name[Group1] = "Telugu (KaGaPa, phonetic)";
     key.type="FOUR_LEVEL";
 
     // Roman digits
@@ -2058,5 +2207,193 @@ xkb_symbols "eeyek" {
 
     key <BKSL> {	[ backslash,         bar	]	};
     
+    include "level3(ralt_switch)"
+};
+
+// This layout is developed by Niranjan Tambe in July 2019
+// for typing Indic languages in International Phonetic Alphabet (IPA).
+
+partial alphanumeric_keys modifier_keys
+xkb_symbols "iipa" {
+
+    name[Group1]= "Indic IPA (IIPA)";
+    key <AE01>	{ [	1,		exclam]	};
+    key <AE02>	{ [	2,		at]	};
+    key <AE03>	{ [	3,		numbersign]	};
+    key <AE04>	{ [	4,		U20B9]	};
+    key <AE05>	{ [	5,		percent]	};
+    key <AE06>	{ [	6,		asciicircum] };
+    key <AE07>	{ [	7,		ampersand]	};
+    key <AE08>	{ [	8,		asterisk]	};
+    key <AE09>	{ [	9,		parenleft]	};
+    key <AE10>	{ [	0,		parenright]	};
+    key <AE11>	{ [	minus,	underscore]	};
+    key <AE12>	{ [	equal,       plus]	};
+
+    key <AD01>	{ [	U02B0,		U02B1]	}; // [ʰ], [ʱ]
+    key <AD02>	{ [	U00E6,		q]	}; // [æ], [q] found in Urdu
+    key <AD03>	{ [	a,			U028B]	}; // [a], [ʋ]
+    key <AD04>	{ [	i,			U026A]	}; // [i] [ɪ]
+    key <AD05>	{ [	u,			U026F]	}; // [u] [ɯ] found in Tamil
+    key <AD06>	{ [	b,			Y]	}; // [b]
+    key <AD07>	{ [	h,			U014B]	}; // [h], [ŋ]
+    key <AD08>	{ [	g,			U0263]	}; // [g], [ɣ] found in Urdu
+    key <AD09>	{ [	d,			U00F0]	}; // [d], [ð] found in Malayalam
+    key <AD10>	{ [	U02A4,		U02A3]	}; // [ʤ], [ʣ] found in Marathi
+    key <AD11>	{ [	U0256,		U027D]	}; // [ɖ], [ɽ]
+    key <AD12>	{ [	bracketleft,	bracketright]	}; // "[", "]" needed for denoting phonetic symbols
+
+    key <AC01>	{ [	o,		U0254]	}; // [o], [ɔ] found in Bangla
+    key <AC02>	{ [	e,		U025B]	}; // [e], [ɛ]
+    key <AC03>	{ [	U0259,	U0361]	}; // [ə], [   ͡  ]
+    key <AC04>	{ [	i,		U026A]	}; // [i], [ɪ]
+    key <AC05>	{ [	u,		U026F]	}; // [u], [ɯ]
+    key <AC06>	{ [	p,		f]	}; // [p], [f]
+    key <AC07>	{ [	U027E,	r]	}; // [ɾ], [r]
+    key <AC08>	{ [	k,		x]	}; // [k], [x] found in Urdu
+    key <AC09>	{ [	t,		U03B8]	}; // [t], [θ]
+    key <AC10>	{ [	U02A7,	U02A6]	}; // [ʧ], [ʦ] found in Marathi
+    key <AC11>	{ [	U0288,	quotedbl]	}; // [ʈ]
+    key <TLDE>	{ [	grave, 	asciitilde]	};
+
+    key <BKSL>	{ [	backslash,	bar]	};
+    key <AB01>	{ [	U032A,		U0303]	}; // [ ̪], [ ̃] Dental mark, nasalisation mark
+    key <AB02>	{ [	U0306,		X]	}; // [  ̆] Short sound
+    key <AB03>	{ [	m,			U0273]	}; // [m], [ɳ]
+    key <AB04>	{ [	n,			v]	}; // [n], [v]
+    key <AB05>	{ [	w,			z] }; // [w], [z]
+    key <AB06>	{ [	l,			U026D]	}; // [l], [ɭ]
+    key <AB07>	{ [	s,			U0283]	}; // [s], [ʃ]
+    key <AB08>	{ [	comma,		U0282]	}; // [ʂ]
+    key <AB09>	{ [	period,		U02D0]	}; // [ː] Long sound
+    key <AB10>	{ [	j,			slash] }; // [j]
+
+};
+
+// This layout is developed by Niranjan Tambe in July 2019
+// for typing Marathi language with some necessary symbols.
+
+xkb_symbols "marathi" {
+	name[Group1]="मराठी इन्स्क्रिप्ट";
+	key <TLDE> { [ U0962, U090C,   grave, asciitilde  ] }; // Added  ॢ & ऌ
+	key <AE01> { [ U0967, exclam,       1, exclam      ] }; // Added exclamation mark
+	key <AE02> { [ U0968, U0945,       2, at          ] }; // Added ॅ
+	key <AE03> { [ U0969, U093D,  3, numbersign  ] }; // Added ऽ
+	key <AE04> { [ U096a, U20B9,      4		  ] }; // Added ₹
+	key <AE05> { [ U096b, percent,     5, percent     ] }; 
+	key <AE06> { [ U096c, asciicircum, 6, asciicircum ] }; 
+	key <AE07> { [ U096d, U0970,   7, ampersand   ] }; // Added ॰
+	key <AE08> { [ U096e, U0950,    8, asterisk    ] };
+	key <AE09> { [ U096f, parenleft,   9, parenleft   ] };
+	key <AE10> { [ U0966, parenright,  0, parenright  ] };
+	key <AE11> { [ minus, U0903, minus, underscore    ] };
+	key <AE12> { [ U0943, U090b, U0944, U0960 ] };
+
+	key <AD01> { [ U094c, U0914 ] };
+	key <AD02> { [ U0948, U0910 ] };
+	key <AD03> { [ U093e, U0906 ] };
+	key <AD04> { [ U0940, U0908, U0963, U0961 ] };
+	key <AD05> { [ U0942, U090a ] };
+	key <AD06> { [ U092c, U092d ] };
+	key <AD07> { [ U0939, U0919 ] };
+	key <AD08> { [ U0917, U0918, U095a ] };
+	key <AD09> { [ U0926, U0927 ] };
+	key <AD10> { [ U091c, U091d, U095b ] };
+	key <AD11> { [ U0921, U0922, U095c, U095d ] };
+	key <AD12> { [ U093c, U091e ] };
+	key <BKSL> { [ U0949, U0911, U005C, U007C ] };
+
+	key <AC01> { [ U094b, U0913 ] };
+	key <AC02> { [ U0947, U090f ] };
+	key <AC03> { [ U094d, U0905 ] };
+	key <AC04> { [ U093f, U0907, U0962, U090c ] };
+	key <AC05> { [ U0941, U0909 ] };
+	key <AC06> { [ U092a, U092b, NoSymbol, U095e ] };
+	key <AC07> { [ U0930, U0931 ] };
+	key <AC08> { [ U0915, U0916, U0958, U0959 ] };
+	key <AC09> { [ U0924, U0925 ] };
+	key <AC10> { [ U091a, U091b, U0952 ] };
+	key <AC11> { [ U091f, U0920, NoSymbol, U0951 ] };
+
+	key <AB01> { [ apostrophe, U0972, U0953 ] }; // Added apostrophe & ॲ
+	key <AB02> { [ U0902, U0901, NoSymbol, U0950 ] }; 
+	key <AB03> { [ U092e, U0923, U0954 ] };
+	key <AB04> { [ U0928, quotedbl ] }; // Added "
+	key <AB05> { [ U0935, UA8FB ] }; // Added headstroke
+	key <AB06> { [ U0932, U0933 ] };
+	key <AB07> { [ U0938, U0936 ] };
+	key <AB08> { [ comma, U0937, U0970 ] };
+	key <AB09> { [ period, U0964, U0965, U093d ] };
+	key <AB10> { [ U092f, question, slash, question ] };
+};
+
+// EXTRAS:
+
+//           Modi is an ancient Indian script that is used to write texts in Marathi, Hindi and Sanskrit.
+//           This keyboard layout is Based on Marathi KaGaPa phonetic layout. Just the characters which are not applicable in modi, are ommited.
+//
+//           Author : D.Abhi     <abhishekdeshpande128@gmail.com>
+//
+// 
+partial alphanumeric_keys
+xkb_symbols "modi-kagapa" {
+     name[Group1] = "Modi (KaGaPa phonetic)";
+     key.type="FOUR_LEVEL";
+
+ // Roman digits
+    key <TLDE>  { [   apostrophe,   asciitilde,   U201C           ] };  // U201C: left double quotation mark
+    key <AE01>  { [   1,            exclam,       U11651          ] };
+    key <AE02>  { [   2,            at,           U11652,  U20A8  ] };  // U20A8: generic rupee sign (Rs)
+    key <AE03>  { [   3,            numbersign,   U11653          ] };
+    key <AE04>  { [   4,            dollar,       U11654,  U20B9  ] };  // U20B9: new Indian rupee sign
+    key <AE05>  { [   5,            percent,      U11655          ] };
+    key <AE06>  { [   6,            asciicircum,  U11656,  U200C  ] };  // ZWNJ
+    key <AE07>  { [   7,            ampersand,    U11657,  U200D  ] };  // ZWJ
+    key <AE08>  { [   8,            asterisk,     U11658          ] };  
+    key <AE09>  { [   9,            parenleft,    U11659          ] };
+    key <AE10>  { [   0,            parenright,   U11650,  U11643 ] };  // U11643: Modi abbreviation sign
+    key <AE11>  { [   minus,        underscore                    ] };  
+    key <AE12>  { [   equal,        plus                          ] };
+    key <BKSL>  { [   U005C,        U007C,        U11641,  U11642 ] };  // backslash, pipe, Modi danda, Modi double danda
+
+    //Q Row
+    key <AD01>  { [   U11618,         U11619                      ] };  // Q: retroflex Modi letter Ta, Tha
+    key <AD02>  { [   U1161A,         U1161B                      ] };  // W: retroflex Modi letter Da, Dha 
+    key <AD03>  { [   U11639,         U1160A,    U1160B           ] };  // E: Modi vovel sign E, Modi letter E, letter ai
+    key <AD04>  { [   U11628,         U11635,    U11606           ] };  // R: Modi ra, Modi vowel sign vocalic R, vocalic letter R 
+    key <AD05>  { [   U1161D,         U1161E                      ] };  // T: dental Modi letter ta, tha
+    key <AD06>  { [   U11627,         U1163A                      ] };  // Y: Modi letter ya, Modi vowel sign ai
+    key <AD07>  { [   U11633,         U11634,    U11604,  U11605  ] };  // U: Modi vowel sign u, uu, Modi letter u, uu
+    key <AD08>  { [   U11631,         U11632,    U11602,  U11603  ] };  // I: Modi vowel sign i, ii, Modi letter i, ii
+    key <AD09>  { [   U1163B,         U1160C                      ] };  // O: Modi vowel sign o, Modi letter o
+    key <AD10>  { [   U11622,         U11623                      ] };  // P: Modi letter pa, pha 
+    key <AD11>  { [   bracketleft,   braceleft                    ] };
+    key <AD12>  { [   bracketright,  braceright                   ] };
+
+    //A Row
+    key <AC01>  { [   U11630,       U11601,     U11600           ] };  // A: Modi vowel sign aa, Modi letter aa, Modi letter a
+    key <AC02>  { [   U1162D,       U1162B                       ] };  // S: Modi letter sa, sha
+    key <AC03>  { [   U1161F,       U11620                       ] };  // D: dental Modi letter da, dha
+    key <AC04>  { [   U1163F,       U11636,     U11607           ] };  // F: Modi sign virama, Modi vowel sign vocalic RR, letter vocalic RR
+    key <AC05>  { [   U11610,       U11611                       ] };  // G: Modi letter ga, gha
+    key <AC06>  { [   U1162E,       U1163E                       ] };  // H: Modi letter ha, Modi visarga
+    key <AC07>  { [   U11615,       U11616                       ] };  // J: Modi letter ja, jha
+    key <AC08>  { [   U1160E,       U1160F                       ] };  // K: Modi letter ka, kha
+    key <AC09>  { [   U11629,       U1162F,     U11637,  U11608  ] };  // L: Modi letter la, lla, Modi vowel sign vocalic L, letter vocalic L
+    key <AC10>  { [   semicolon,    colon                        ] };
+    key <AC11>  { [   apostrophe,   quotedbl                     ] }; 
+                                                                       
+    //Z Row
+    key <AB01>  { [   U11617,    U11612                     ] };  // Z: Modi letter nya, nga
+    key <AB02>  { [   U1162C,    U11609,   U11638           ] };  // X: Modi letter ssa, Modi letter vocalic ll, Modi vowel sign vocalic ll 
+    key <AB03>  { [   U11613,    U11614                     ] };  // C: Modi letter ca, cha
+    key <AB04>  { [   U1162A,    U1163C,   U1160D           ] };  // V: Modi letter va, Modi vowel sign au, Modi letter au
+    key <AB05>  { [   U11624,    U11625                     ] };  // B: Modi letter ba, bha
+    key <AB06>  { [   U11621,    U1161C                     ] };  // N: Modi letter na, nna
+    key <AB07>  { [   U11626,    U1163D,   U093D,    U0950  ] };  // M: Modi ma, Modi anusvara, avagraha, Devanagari OM
+    key <AB08>  { [   comma,     U003C,    U11640,   U11644 ] };  // comma: comma, less than, Modi chandrabindu, Modi sign huva
+    key <AB09>  { [   period,    U003E                      ] };  // period: period, greater than, matra, candra o
+    key <AB10>  { [   slash,     question                   ] };
+
     include "level3(ralt_switch)"
 };

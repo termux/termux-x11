@@ -21,16 +21,18 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include <time.h>
 
 #include "test.h"
 #include "atom.h"
 
 #define INTERN_LITERAL(table, literal) \
-    atom_intern(table, literal, sizeof(literal) - 1, false)
+    atom_intern(table, literal, sizeof(literal) - 1, true)
 
 #define LOOKUP_LITERAL(table, literal) \
-    atom_lookup(table, literal, sizeof(literal) - 1)
+    atom_intern(table, literal, sizeof(literal) - 1, false)
 
 static void
 random_string(char **str_out, size_t *len_out)
@@ -75,16 +77,17 @@ test_random_strings(void)
     table = atom_table_new();
     assert(table);
 
-    srand(clock());
+    unsigned seed = (unsigned) clock();
+    srand(seed);
 
-    N = 1 + rand() % 1500;
+    N = 1 + rand() % 100000;
     arr = calloc(N, sizeof(*arr));
     assert(arr);
 
     for (int i = 0; i < N; i++) {
         random_string(&arr[i].string, &arr[i].len);
 
-        atom = atom_lookup(table, arr[i].string, arr[i].len);
+        atom = atom_intern(table, arr[i].string, arr[i].len, false);
         if (atom != XKB_ATOM_NONE) {
             string = atom_text(table, atom);
             assert(string);
@@ -92,10 +95,11 @@ test_random_strings(void)
             if (arr[i].len != strlen(string) ||
                 strncmp(string, arr[i].string, arr[i].len) != 0) {
                 fprintf(stderr, "got a collision, but strings don't match!\n");
-                fprintf(stderr, "existing length %lu, string %s\n",
+                fprintf(stderr, "existing length %zu, string %s\n",
                         strlen(string), string);
-                fprintf(stderr, "new length %lu, string %.*s\n",
+                fprintf(stderr, "new length %zu, string %.*s\n",
                         arr[i].len, (int) arr[i].len, arr[i].string);
+                fprintf(stderr, "seed: %u\n", seed);
                 assert(false);
             }
 
@@ -105,10 +109,11 @@ test_random_strings(void)
             continue;
         }
 
-        arr[i].atom = atom_intern(table, arr[i].string, arr[i].len, false);
+        arr[i].atom = atom_intern(table, arr[i].string, arr[i].len, true);
         if (arr[i].atom == XKB_ATOM_NONE) {
-            fprintf(stderr, "failed to intern! len: %lu, string: %.*s\n",
+            fprintf(stderr, "failed to intern! len: %zu, string: %.*s\n",
                     arr[i].len, (int) arr[i].len, arr[i].string);
+            fprintf(stderr, "seed: %u\n", seed);
             assert(false);
         }
     }
@@ -120,20 +125,21 @@ test_random_strings(void)
         if (arr[i].len != strlen(string) ||
             strncmp(string, arr[i].string, arr[i].len) != 0) {
             fprintf(stderr, "looked-up string doesn't match!\n");
-            fprintf(stderr, "found length %lu, string %s\n",
+            fprintf(stderr, "found length %zu, string %s\n",
                     strlen(string), string);
-            fprintf(stderr, "expected length %lu, string %.*s\n",
+            fprintf(stderr, "expected length %zu, string %.*s\n",
                     arr[i].len, (int) arr[i].len, arr[i].string);
 
             /* Since this is random, we need to dump the failing data,
              * so we might have some chance to reproduce. */
             fprintf(stderr, "START dump of arr, N=%d\n", N);
             for (int j = 0; j < N; j++) {
-                fprintf(stderr, "%u\t\t%lu\t\t%.*s\n", arr[i].atom,
+                fprintf(stderr, "%u\t\t%zu\t\t%.*s\n", arr[i].atom,
                         arr[i].len, (int) arr[i].len, arr[i].string);
             }
             fprintf(stderr, "END\n");
 
+            fprintf(stderr, "seed: %u\n", seed);
             assert(false);
         }
     }
@@ -154,14 +160,14 @@ main(void)
     assert(table);
 
     assert(atom_text(table, XKB_ATOM_NONE) == NULL);
-    assert(atom_lookup(table, NULL, 0) == XKB_ATOM_NONE);
+    assert(atom_intern(table, NULL, 0, false) == XKB_ATOM_NONE);
 
     atom1 = INTERN_LITERAL(table, "hello");
     assert(atom1 != XKB_ATOM_NONE);
     assert(atom1 == LOOKUP_LITERAL(table, "hello"));
     assert(streq(atom_text(table, atom1), "hello"));
 
-    atom2 = atom_intern(table, "hello", 3, false);
+    atom2 = atom_intern(table, "hello", 3, true);
     assert(atom2 != XKB_ATOM_NONE);
     assert(atom1 != atom2);
     assert(streq(atom_text(table, atom2), "hel"));
@@ -169,7 +175,7 @@ main(void)
     assert(LOOKUP_LITERAL(table, "hell") == XKB_ATOM_NONE);
     assert(LOOKUP_LITERAL(table, "hello") == atom1);
 
-    atom3 = atom_intern(table, "", 0, false);
+    atom3 = atom_intern(table, "", 0, true);
     assert(atom3 != XKB_ATOM_NONE);
     assert(LOOKUP_LITERAL(table, "") == atom3);
 

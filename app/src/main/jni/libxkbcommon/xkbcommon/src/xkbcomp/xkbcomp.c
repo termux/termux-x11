@@ -27,6 +27,8 @@
  *          Daniel Stone <daniel@fooishbar.org>
  */
 
+#include "config.h"
+
 #include "xkbcomp-priv.h"
 #include "rules.h"
 
@@ -106,7 +108,7 @@ text_v1_keymap_new_from_string(struct xkb_keymap *keymap,
     xkb_file = XkbParseString(keymap->ctx, string, len, "(input string)", NULL);
     if (!xkb_file) {
         log_err(keymap->ctx, "Failed to parse input xkb string\n");
-        return NULL;
+        return false;
     }
 
     ok = compile_keymap_file(keymap, xkb_file);

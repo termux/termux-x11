@@ -253,6 +253,7 @@ struct xkb_key_type {
     xkb_atom_t name;
     struct xkb_mods mods;
     xkb_level_index_t num_levels;
+    unsigned int num_level_names;
     xkb_atom_t *level_names;
     unsigned int num_entries;
     struct xkb_key_type_entry *entries;
@@ -324,7 +325,7 @@ struct xkb_group {
     bool explicit_type;
     /* Points to a type in keymap->types. */
     const struct xkb_key_type *type;
-    /* Use XkbKeyGroupWidth for the number of levels. */
+    /* Use XkbKeyNumLevels for the number of levels. */
     struct xkb_level *levels;
 };
 
@@ -437,6 +438,17 @@ XkbKeyNumLevels(const struct xkb_key *key, xkb_layout_index_t layout)
     return key->groups[layout].type->num_levels;
 }
 
+/*
+ * If the virtual modifiers are not bound to anything, the entry
+ * is not active and should be skipped. xserver does this with
+ * cached entry->active field.
+ */
+static inline bool
+entry_is_active(const struct xkb_key_type_entry *entry)
+{
+    return entry->mods.mods == 0 || entry->mods.mask != 0;
+}
+
 struct xkb_keymap *
 xkb_keymap_new(struct xkb_context *ctx,
                enum xkb_keymap_format format,
@@ -454,6 +466,9 @@ XkbEscapeMapName(char *name);
 xkb_mod_index_t
 XkbModNameToIndex(const struct xkb_mod_set *mods, xkb_atom_t name,
                   enum mod_type type);
+
+bool
+XkbLevelsSameSyms(const struct xkb_level *a, const struct xkb_level *b);
 
 xkb_layout_index_t
 XkbWrapGroupIntoRange(int32_t group,

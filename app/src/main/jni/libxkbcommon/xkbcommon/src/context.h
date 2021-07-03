@@ -45,6 +45,9 @@ struct xkb_context {
 
     struct atom_table *atom_table;
 
+    /* Used and allocated by xkbcommon-x11, free()d with the context. */
+    void *x11_atom_cache;
+
     /* Buffer for the *Text() functions. */
     char text_buffer[2048];
     size_t text_next;
@@ -58,6 +61,12 @@ xkb_context_num_failed_include_paths(struct xkb_context *ctx);
 const char *
 xkb_context_failed_include_path_get(struct xkb_context *ctx,
                                     unsigned int idx);
+
+const char *
+xkb_context_include_path_get_extra_path(struct xkb_context *ctx);
+
+const char *
+xkb_context_include_path_get_system_path(struct xkb_context *ctx);
 
 /*
  * Returns XKB_ATOM_NONE if @string was not previously interned,
@@ -101,14 +110,16 @@ xkb_context_sanitize_rule_names(struct xkb_context *ctx,
  * format is supplied without arguments. Not supplying it would still
  * result in an error, though.
  */
+
+
 #define log_dbg(ctx, ...) \
     xkb_log((ctx), XKB_LOG_LEVEL_DEBUG, 0, __VA_ARGS__)
 #define log_info(ctx, ...) \
     xkb_log((ctx), XKB_LOG_LEVEL_INFO, 0, __VA_ARGS__)
 #define log_warn(ctx, ...) \
-    xkb_log((ctx), XKB_LOG_LEVEL_WARNING, 0,  __VA_ARGS__)
+    xkb_log((ctx), XKB_LOG_LEVEL_WARNING, 0, __VA_ARGS__)
 #define log_err(ctx, ...) \
-    xkb_log((ctx), XKB_LOG_LEVEL_ERROR, 0,  __VA_ARGS__)
+    xkb_log((ctx), XKB_LOG_LEVEL_ERROR, 0, __VA_ARGS__)
 #define log_wsgo(ctx, ...) \
     xkb_log((ctx), XKB_LOG_LEVEL_CRITICAL, 0, __VA_ARGS__)
 #define log_vrb(ctx, vrb, ...) \

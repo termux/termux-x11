@@ -7,7 +7,7 @@
 // This implementation extends the standard with Yiddish digraphs
 // (a common extension) and Nun Hafukha (a fun character).
 
-default  partial alphanumeric_keys
+default partial alphanumeric_keys
 xkb_symbols "basic" {
     // uses the kbd layout in use in Israel.
 
@@ -205,7 +205,7 @@ xkb_symbols "biblical" {
 	key <AE02> { [ 2,     U0599, VoidSymbol, at ] };
 	key <AE03> { [ 3,     U0592, VoidSymbol, numbersign ] };
 	key <AE04> { [ 4,     U05AF, NewSheqelSign, dollar ] };
-	key <AE05> { [ 5,     VoidSymbol, U200D, percent ] };
+	key <AE05> { [ 5,     U05BA, U200D, percent ] };
 	key <AE06> { [ 6,     U05B9, U200C, asciicircum ] };
 	key <AE07> { [ 7,     U05BF, U034F, ampersand ] };
 	key <AE08> { [ 8,     U05C2, U200E, asterisk ] };

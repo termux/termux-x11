@@ -1,4 +1,4 @@
-default  partial
+default partial
 xkb_symbols "fr" {
     name[Group1] = "French (Canada)";
 
@@ -170,7 +170,7 @@ xkb_symbols "multi" {
 
     include "ca(fr)"
 
-    name[Group1] = "Canadian Multilingual (first part)";
+    name[Group1] = "Canadian (intl., 1st part)";
 
     key <TLDE>	{ [     slash,  backslash,           bar ]	};
     key <AE01>	{ [         1,     exclam ]	};
@@ -206,7 +206,7 @@ xkb_symbols "multi" {
 partial
 xkb_symbols "multi-2gr" {
 
-    name[Group1] = "Canadian Multilingual (second part)";
+    name[Group1] = "Canadian (intl., 2nd part)";
 
     key <TLDE>	{ [    NoSymbol,      hyphen ]	};
     key <AE01>	{ [   onesuperior,  exclamdown ]	};
@@ -327,7 +327,7 @@ xkb_symbols "ike" {
 partial
 xkb_symbols "multix" {
 
-    name[Group1] = "Canadian Multilingual";
+    name[Group1] = "Canadian (intl.)";
 
     key.type[group1]="EIGHT_LEVEL_SEMIALPHABETIC";
     key <TLDE>	{ [     slash,  backslash,            bar, NoSymbol,
@@ -467,6 +467,8 @@ partial alphanumeric_keys
 xkb_symbols "eng" {
     include "us(basic)"
     name[Group1] = "English (Canada)";
+
+    key <LSGT>  { [ backslash, bar, VoidSymbol, VoidSymbol ] };
 };
 
 // EXTRAS:

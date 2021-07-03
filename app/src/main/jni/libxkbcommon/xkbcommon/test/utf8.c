@@ -21,12 +21,16 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include <assert.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 
 #include "utf8.h"
+#include "utils.h"
 
 #define VALID(lit) assert(is_valid_utf8(lit, sizeof(lit)-1))
 #define INVALID(lit) assert(!is_valid_utf8(lit, sizeof(lit)-1))
@@ -36,7 +40,7 @@ test_is_valid_utf8(void)
 {
     /*
      * Mostly taken from:
-     * http://www.cl.cam.ac.uk/~mgk25/ucs/examples/UTF-8-test.txt
+     * https://www.cl.cam.ac.uk/~mgk25/ucs/examples/UTF-8-test.txt
      */
 
     VALID("ascii");
@@ -148,10 +152,34 @@ test_is_valid_utf8(void)
     /* INVALID("\xEF\xBF\xBF"); */
 }
 
+static void
+check_utf32_to_utf8(uint32_t unichar, int expected_length, const char *expected) {
+    char buffer[7];
+    int length;
+
+    length = utf32_to_utf8(unichar, buffer);
+
+    assert(length == expected_length);
+    assert(streq(buffer, expected));
+}
+
+static void
+test_utf32_to_utf8(void)
+{
+    check_utf32_to_utf8(0x0, 2, "");
+    check_utf32_to_utf8(0x40, 2, "\x40");
+    check_utf32_to_utf8(0xA1, 3, "\xc2\xa1");
+    check_utf32_to_utf8(0x2701, 4, "\xe2\x9c\x81");
+    check_utf32_to_utf8(0x1f004, 5, "\xf0\x9f\x80\x84");
+    check_utf32_to_utf8(0x110000, 0, "");
+    check_utf32_to_utf8(0xffffffff, 0, "");
+}
+
 int
 main(void)
 {
     test_is_valid_utf8();
+    test_utf32_to_utf8();
 
     return 0;
 }

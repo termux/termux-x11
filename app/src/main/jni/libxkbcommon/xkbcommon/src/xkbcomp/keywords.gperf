@@ -1,12 +1,11 @@
 %{
+#include "config.h"
+
 #include "xkbcomp-priv.h"
 #include "parser-priv.h"
 
-static unsigned int
-keyword_gperf_hash(const char *str, unsigned int len);
-
 static const struct keyword_tok *
-keyword_gperf_lookup(const char *str, unsigned int len);
+keyword_gperf_lookup (register const char *str, register size_t len);
 %}
 
 struct keyword_tok { int name; int tok; };
@@ -69,7 +68,7 @@ xkb_types,              XKB_TYPES
 %%
 
 int
-keyword_to_token(const char *string, unsigned int len)
+keyword_to_token(const char *string, size_t len)
 {
     const struct keyword_tok *kt = keyword_gperf_lookup(string, len);
     if (!kt)

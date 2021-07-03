@@ -24,6 +24,8 @@
  *
  ********************************************************/
 
+#include "config.h"
+
 #include "xkbcomp-priv.h"
 #include "text.h"
 #include "vmod.h"
@@ -174,8 +176,6 @@ static void
 MergeIncludedKeyTypes(KeyTypesInfo *into, KeyTypesInfo *from,
                       enum merge_mode merge)
 {
-    KeyTypeInfo *type;
-
     if (from->errorCount > 0) {
         into->errorCount += from->errorCount;
         return;
@@ -193,6 +193,7 @@ MergeIncludedKeyTypes(KeyTypesInfo *into, KeyTypesInfo *from,
         darray_init(from->types);
     }
     else {
+        KeyTypeInfo *type;
         darray_foreach(type, from->types) {
             type->merge = (merge == MERGE_DEFAULT ? type->merge : merge);
             if (!AddKeyType(into, type, false))
@@ -662,7 +663,7 @@ HandleKeyTypesFile(KeyTypesInfo *info, XkbFile *file, enum merge_mode merge)
 
         if (info->errorCount > 10) {
             log_err(info->ctx,
-                    "Abandoning keytypes file \"%s\"\n", file->topName);
+                    "Abandoning keytypes file \"%s\"\n", file->name);
             break;
         }
     }
@@ -694,6 +695,7 @@ CopyKeyTypesToKeymap(struct xkb_keymap *keymap, KeyTypesInfo *info)
         type->num_entries = 0;
         type->name = xkb_atom_intern_literal(keymap->ctx, "default");
         type->level_names = NULL;
+        type->num_level_names = 0;
     }
     else {
         for (unsigned i = 0; i < num_types; i++) {
@@ -702,10 +704,9 @@ CopyKeyTypesToKeymap(struct xkb_keymap *keymap, KeyTypesInfo *info)
 
             type->name = def->name;
             type->mods.mods = def->mods;
-            darray_steal(def->level_names,
-                         &type->level_names, &type->num_levels);
-            darray_steal(def->entries,
-                         &type->entries, &type->num_entries);
+            type->num_levels = def->num_levels;
+            darray_steal(def->level_names, &type->level_names, &type->num_level_names);
+            darray_steal(def->entries, &type->entries, &type->num_entries);
         }
     }
 

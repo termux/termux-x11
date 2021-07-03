@@ -47,6 +47,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include <stdlib.h>
 #include "xkbcommon/xkbcommon.h"
 #include "utils.h"
@@ -59,42 +61,25 @@ get_name(const struct name_keysym *entry)
     return keysym_names + entry->offset;
 }
 
-static int
-compare_by_keysym(const void *a, const void *b)
-{
-    const xkb_keysym_t *key = a;
-    const struct name_keysym *entry = b;
-    if (*key < entry->keysym)
-        return -1;
-    if (*key > entry->keysym)
-        return 1;
-    return 0;
-}
-
-static int
-compare_by_name(const void *a, const void *b)
-{
-    const char *key = a;
-    const struct name_keysym *entry = b;
-    return strcasecmp(key, get_name(entry));
-}
-
 XKB_EXPORT int
 xkb_keysym_get_name(xkb_keysym_t ks, char *buffer, size_t size)
 {
-    const struct name_keysym *entry;
-
     if ((ks & ((unsigned long) ~0x1fffffff)) != 0) {
         snprintf(buffer, size, "Invalid");
         return -1;
     }
 
-    entry = bsearch(&ks, keysym_to_name,
-                    ARRAY_SIZE(keysym_to_name),
-                    sizeof(*keysym_to_name),
-                    compare_by_keysym);
-    if (entry)
-        return snprintf(buffer, size, "%s", get_name(entry));
+    int32_t lo = 0, hi = ARRAY_SIZE(keysym_to_name) - 1;
+    while (hi >= lo) {
+        int32_t mid = (lo + hi) / 2;
+        if (ks > keysym_to_name[mid].keysym) {
+            lo = mid + 1;
+        } else if (ks < keysym_to_name[mid].keysym) {
+            hi = mid - 1;
+        } else {
+            return snprintf(buffer, size, "%s", get_name(&keysym_to_name[mid]));
+        }
+    }
 
     /* Unnamed Unicode codepoint. */
     if (ks >= 0x01000100 && ks <= 0x0110ffff) {
@@ -107,108 +92,135 @@ xkb_keysym_get_name(xkb_keysym_t ks, char *buffer, size_t size)
 }
 
 /*
- * Find the correct keysym if one case-insensitive match is given.
- *
- * The name_to_keysym table is sorted by strcasecmp(). So bsearch() may return
- * _any_ of all possible case-insensitive duplicates. This function searches the
- * returned entry @entry, all previous and all next entries that match by
- * case-insensitive comparison and returns the exact match to @name. If @icase
- * is true, then this returns the best case-insensitive match instead of a
- * correct match.
- * The "best" case-insensitive match is the lower-case keysym which we find with
- * the help of xkb_keysym_is_lower().
- * The only keysyms that only differ by letter-case are keysyms that are
- * available as lower-case and upper-case variant (like KEY_a and KEY_A). So
- * returning the first lower-case match is enough in this case.
+ * Parse the numeric part of a 0xXXXX and UXXXX keysym.
+ * Not using strtoul -- it's slower and accepts a bunch of stuff
+ * we don't want to allow, like signs, spaces, even locale stuff.
  */
-static const struct name_keysym *
-find_sym(const struct name_keysym *entry, const char *name, bool icase)
+static bool
+parse_keysym_hex(const char *s, uint32_t *out)
 {
-    const struct name_keysym *iter, *last;
-    size_t len = ARRAY_SIZE(name_to_keysym);
-
-    if (!entry)
-        return NULL;
-
-    if (!icase && strcmp(get_name(entry), name) == 0)
-        return entry;
-    if (icase && xkb_keysym_is_lower(entry->keysym))
-        return entry;
-
-    for (iter = entry - 1; iter >= name_to_keysym; --iter) {
-        if (!icase && strcmp(get_name(iter), name) == 0)
-            return iter;
-        if (strcasecmp(get_name(iter), get_name(entry)) != 0)
-            break;
-        if (icase && xkb_keysym_is_lower(iter->keysym))
-            return iter;
+    uint32_t result = 0;
+    int i;
+    for (i = 0; i < 8 && s[i] != '\0'; i++) {
+        result <<= 4;
+        if ('0' <= s[i] && s[i] <= '9')
+            result += s[i] - '0';
+        else if ('a' <= s[i] && s[i] <= 'f')
+            result += 10 + s[i] - 'a';
+        else if ('A' <= s[i] && s[i] <= 'F')
+            result += 10 + s[i] - 'A';
+        else
+            return false;
     }
-
-    last = name_to_keysym + len;
-    for (iter = entry + 1; iter < last; ++iter) {
-        if (!icase && strcmp(get_name(iter), name) == 0)
-            return iter;
-        if (strcasecmp(get_name(iter), get_name(entry)) != 0)
-            break;
-        if (icase && xkb_keysym_is_lower(iter->keysym))
-            return iter;
-    }
-
-    if (icase)
-        return entry;
-    return NULL;
+    *out = result;
+    return s[i] == '\0' && i > 0;
 }
 
 XKB_EXPORT xkb_keysym_t
-xkb_keysym_from_name(const char *s, enum xkb_keysym_flags flags)
+xkb_keysym_from_name(const char *name, enum xkb_keysym_flags flags)
 {
-    const struct name_keysym *entry;
+    const struct name_keysym *entry = NULL;
     char *tmp;
-    xkb_keysym_t val;
+    uint32_t val;
     bool icase = (flags & XKB_KEYSYM_CASE_INSENSITIVE);
 
     if (flags & ~XKB_KEYSYM_CASE_INSENSITIVE)
         return XKB_KEY_NoSymbol;
 
-    entry = bsearch(s, name_to_keysym,
-                    ARRAY_SIZE(name_to_keysym),
-                    sizeof(*name_to_keysym),
-                    compare_by_name);
-    entry = find_sym(entry, s, icase);
-    if (entry)
-        return entry->keysym;
+    /*
+     * We need to !icase case to be fast, for e.g. Compose file parsing.
+     * So do it in a fast path.
+     */
+    if (!icase) {
+        size_t pos = keysym_name_perfect_hash(name);
+        if (pos < ARRAY_SIZE(name_to_keysym)) {
+            const char *s = get_name(&name_to_keysym[pos]);
+            if (strcmp(name, s) == 0)
+                return name_to_keysym[pos].keysym;
+        }
+    }
+    /*
+    * Find the correct keysym for case-insensitive match.
+    *
+    * The name_to_keysym table is sorted by istrcmp(). So the binary
+    * search may return _any_ of all possible case-insensitive duplicates. This
+    * code searches the entry, all previous and all next entries that match by
+    * case-insensitive comparison and returns the "best" case-insensitive
+    * match.
+    *
+    * The "best" case-insensitive match is the lower-case keysym which we find
+    * with the help of xkb_keysym_is_lower(). The only keysyms that only differ
+    * by letter-case are keysyms that are available as lower-case and
+    * upper-case variant (like KEY_a and KEY_A). So returning the first
+    * lower-case match is enough in this case.
+    */
+    else {
+        int32_t lo = 0, hi = ARRAY_SIZE(name_to_keysym) - 1;
+        while (hi >= lo) {
+            int32_t mid = (lo + hi) / 2;
+            int cmp = istrcmp(name, get_name(&name_to_keysym[mid]));
+            if (cmp > 0) {
+                lo = mid + 1;
+            } else if (cmp < 0) {
+                hi = mid - 1;
+            } else {
+                entry = &name_to_keysym[mid];
+                break;
+            }
+        }
+        if (entry) {
+            const struct name_keysym *iter, *last;
 
-    if (*s == 'U' || (icase && *s == 'u')) {
-        val = strtoul(&s[1], &tmp, 16);
-        if (tmp && *tmp != '\0')
+            if (icase && xkb_keysym_is_lower(entry->keysym))
+                return entry->keysym;
+
+            for (iter = entry - 1; iter >= name_to_keysym; --iter) {
+                if (istrcmp(get_name(iter), get_name(entry)) != 0)
+                    break;
+                if (xkb_keysym_is_lower(iter->keysym))
+                    return iter->keysym;
+            }
+
+            last = name_to_keysym + ARRAY_SIZE(name_to_keysym);
+            for (iter = entry + 1; iter < last; ++iter) {
+                if (istrcmp(get_name(iter), get_name(entry)) != 0)
+                    break;
+                if (xkb_keysym_is_lower(iter->keysym))
+                    return iter->keysym;
+            }
+
+            return entry->keysym;
+        }
+    }
+
+    if (*name == 'U' || (icase && *name == 'u')) {
+        if (!parse_keysym_hex(&name[1], &val))
             return XKB_KEY_NoSymbol;
 
         if (val < 0x20 || (val > 0x7e && val < 0xa0))
             return XKB_KEY_NoSymbol;
         if (val < 0x100)
-            return val;
+            return (xkb_keysym_t) val;
         if (val > 0x10ffff)
             return XKB_KEY_NoSymbol;
-        return val | 0x01000000;
+        return (xkb_keysym_t) val | 0x01000000;
     }
-    else if (s[0] == '0' && (s[1] == 'x' || (icase && s[1] == 'X'))) {
-        val = strtoul(&s[2], &tmp, 16);
-        if (tmp && *tmp != '\0')
+    else if (name[0] == '0' && (name[1] == 'x' || (icase && name[1] == 'X'))) {
+        if (!parse_keysym_hex(&name[2], &val))
             return XKB_KEY_NoSymbol;
-
-        return val;
+        return (xkb_keysym_t) val;
     }
 
     /* Stupid inconsistency between the headers and XKeysymDB: the former has
      * no separating underscore, while some XF86* syms in the latter did.
      * As a last ditch effort, try without. */
-    if (strncmp(s, "XF86_", 5) == 0 ||
-        (icase && strncasecmp(s, "XF86_", 5) == 0)) {
+    if (strncmp(name, "XF86_", 5) == 0 ||
+        (icase && istrncmp(name, "XF86_", 5) == 0)) {
         xkb_keysym_t ret;
-        tmp = strdup(s);
+        tmp = strdup(name);
         if (!tmp)
             return XKB_KEY_NoSymbol;
-        memmove(&tmp[4], &tmp[5], strlen(s) - 5 + 1);
+        memmove(&tmp[4], &tmp[5], strlen(name) - 5 + 1);
         ret = xkb_keysym_from_name(tmp, flags);
         free(tmp);
         return ret;
@@ -264,7 +276,7 @@ xkb_keysym_is_upper(xkb_keysym_t ks)
     return (ks == upper ? true : false);
 }
 
-xkb_keysym_t
+XKB_EXPORT xkb_keysym_t
 xkb_keysym_to_lower(xkb_keysym_t ks)
 {
     xkb_keysym_t lower, upper;
@@ -274,7 +286,7 @@ xkb_keysym_to_lower(xkb_keysym_t ks)
     return lower;
 }
 
-xkb_keysym_t
+XKB_EXPORT xkb_keysym_t
 xkb_keysym_to_upper(xkb_keysym_t ks)
 {
     xkb_keysym_t lower, upper;
@@ -478,6 +490,8 @@ UCSConvertCase(uint32_t code, xkb_keysym_t *lower, xkb_keysym_t *upper)
             *upper = 0x0178;
         else if (code == 0x00b5)      /* micro sign */
             *upper = 0x039c;
+        else if (code == 0x00df)      /* ssharp */
+            *upper = 0x1e9e;
 	return;
     }
 
@@ -607,6 +621,8 @@ UCSConvertCase(uint32_t code, xkb_keysym_t *lower, xkb_keysym_t *upper)
         }
         else if (code == 0x1e9b)
             *upper = 0x1e60;
+        else if (code == 0x1e9e)
+            *lower = 0x00df; /* ssharp */
     }
 
     /* Greek Extended, U+1F00 to U+1FFF */

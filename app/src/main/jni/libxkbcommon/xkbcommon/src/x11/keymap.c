@@ -21,12 +21,14 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include "x11-priv.h"
 
 /*
  * References for the lonesome traveler:
  * Xkb protocol specification:
- *      http://www.x.org/releases/current/doc/kbproto/xkbproto.html
+ *      https://www.x.org/releases/current/doc/kbproto/xkbproto.html
  * The XCB xkb XML protocol file:
  *      /user/share/xcb/xkb.xml
  * The XCB xkb header file:
@@ -85,6 +87,33 @@
             goto fail;                                                  \
     }                                                                   \
 } while (0)
+
+static const xcb_xkb_map_part_t get_map_required_components =
+    (XCB_XKB_MAP_PART_KEY_TYPES |
+     XCB_XKB_MAP_PART_KEY_SYMS |
+     XCB_XKB_MAP_PART_MODIFIER_MAP |
+     XCB_XKB_MAP_PART_EXPLICIT_COMPONENTS |
+     XCB_XKB_MAP_PART_KEY_ACTIONS |
+     XCB_XKB_MAP_PART_VIRTUAL_MODS |
+     XCB_XKB_MAP_PART_VIRTUAL_MOD_MAP);
+
+static const xcb_xkb_name_detail_t get_names_wanted =
+    (XCB_XKB_NAME_DETAIL_KEYCODES |
+     XCB_XKB_NAME_DETAIL_SYMBOLS |
+     XCB_XKB_NAME_DETAIL_TYPES |
+     XCB_XKB_NAME_DETAIL_COMPAT |
+     XCB_XKB_NAME_DETAIL_KEY_TYPE_NAMES |
+     XCB_XKB_NAME_DETAIL_KT_LEVEL_NAMES |
+     XCB_XKB_NAME_DETAIL_INDICATOR_NAMES |
+     XCB_XKB_NAME_DETAIL_KEY_NAMES |
+     XCB_XKB_NAME_DETAIL_KEY_ALIASES |
+     XCB_XKB_NAME_DETAIL_VIRTUAL_MOD_NAMES |
+     XCB_XKB_NAME_DETAIL_GROUP_NAMES);
+static const xcb_xkb_name_detail_t get_names_required =
+    (XCB_XKB_NAME_DETAIL_KEY_TYPE_NAMES |
+     XCB_XKB_NAME_DETAIL_KT_LEVEL_NAMES |
+     XCB_XKB_NAME_DETAIL_KEY_NAMES |
+     XCB_XKB_NAME_DETAIL_VIRTUAL_MOD_NAMES);
 
 
 static xkb_mod_mask_t
@@ -218,8 +247,8 @@ translate_action(union xkb_action *action, const xcb_xkb_action_t *wire)
     case XCB_XKB_SA_TYPE_MOVE_PTR:
         action->type = ACTION_TYPE_PTR_MOVE;
 
-        action->ptr.x = (wire->moveptr.xLow | (wire->moveptr.xHigh << 8));
-        action->ptr.y = (wire->moveptr.yLow | (wire->moveptr.yHigh << 8));
+        action->ptr.x = (int16_t) (wire->moveptr.xLow | ((uint16_t) wire->moveptr.xHigh << 8));
+        action->ptr.y = (int16_t) (wire->moveptr.yLow | ((uint16_t) wire->moveptr.yHigh << 8));
 
         if (!(wire->moveptr.flags & XCB_XKB_SA_MOVE_PTR_FLAG_NO_ACCELERATION))
             action->ptr.flags |= ACTION_ACCEL;
@@ -443,18 +472,19 @@ get_sym_maps(struct xkb_keymap *keymap, xcb_connection_t *conn,
 
             FAIL_UNLESS((unsigned) syms_length == wire_sym_map->width * key->num_groups);
 
-            for (int j = 0; j < syms_length; j++) {
-                xcb_keysym_t wire_keysym = *syms_iter;
-                const xkb_layout_index_t group = j / wire_sym_map->width;
-                const xkb_level_index_t level = j % wire_sym_map->width;
+            for (xkb_layout_index_t group = 0; group < key->num_groups; group++) {
+                for (xkb_level_index_t level = 0; level < wire_sym_map->width; level++) {
+                    xcb_keysym_t wire_keysym = *syms_iter;
 
-                if (level < key->groups[group].type->num_levels &&
-                    wire_keysym != XKB_KEY_NoSymbol) {
-                    key->groups[group].levels[level].num_syms = 1;
-                    key->groups[group].levels[level].u.sym = wire_keysym;
+                    assert(key->groups[group].type != NULL);
+                    if (level < key->groups[group].type->num_levels &&
+                        wire_keysym != XKB_KEY_NoSymbol) {
+                        key->groups[group].levels[level].num_syms = 1;
+                        key->groups[group].levels[level].u.sym = wire_keysym;
+                    }
+
+                    syms_iter++;
                 }
-
-                syms_iter++;
             }
         }
 
@@ -489,21 +519,23 @@ get_actions(struct xkb_keymap *keymap, xcb_connection_t *conn,
         uint8_t wire_count = *acts_count_iter;
         struct xkb_key *key = &keymap->keys[reply->firstKeyAction + i];
 
+        FAIL_UNLESS((unsigned) syms_length == wire_sym_map->width * key->num_groups);
         FAIL_UNLESS(wire_count == 0 || wire_count == syms_length);
 
-        for (int j = 0; j < wire_count; j++) {
-            xcb_xkb_action_t *wire_action = acts_iter.data;
-            const xkb_layout_index_t group = j / wire_sym_map->width;
-            const xkb_level_index_t level = j % wire_sym_map->width;
+        if (wire_count != 0) {
+            for (xkb_layout_index_t group = 0; group < key->num_groups; group++) {
+                for (xkb_level_index_t level = 0; level < wire_sym_map->width; level++) {
+                    xcb_xkb_action_t *wire_action = acts_iter.data;
 
-            if (level < key->groups[group].type->num_levels) {
-                union xkb_action *action =
-                    &key->groups[group].levels[level].action;
+                    if (level < key->groups[group].type->num_levels) {
+                        union xkb_action *action = &key->groups[group].levels[level].action;
 
-                translate_action(action, wire_action);
+                        translate_action(action, wire_action);
+                    }
+
+                    xcb_xkb_action_next(&acts_iter);
+                }
             }
-
-            xcb_xkb_action_next(&acts_iter);
         }
 
         acts_count_iter++;
@@ -640,26 +672,15 @@ fail:
 }
 
 static bool
-get_map(struct xkb_keymap *keymap, xcb_connection_t *conn, uint16_t device_id)
+get_map(struct xkb_keymap *keymap, xcb_connection_t *conn,
+        xcb_xkb_get_map_cookie_t cookie)
 {
-    static const xcb_xkb_map_part_t required_components =
-        (XCB_XKB_MAP_PART_KEY_TYPES |
-         XCB_XKB_MAP_PART_KEY_SYMS |
-         XCB_XKB_MAP_PART_MODIFIER_MAP |
-         XCB_XKB_MAP_PART_EXPLICIT_COMPONENTS |
-         XCB_XKB_MAP_PART_KEY_ACTIONS |
-         XCB_XKB_MAP_PART_VIRTUAL_MODS |
-         XCB_XKB_MAP_PART_VIRTUAL_MOD_MAP);
-
-    xcb_xkb_get_map_cookie_t cookie =
-        xcb_xkb_get_map(conn, device_id, required_components,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     xcb_xkb_get_map_reply_t *reply = xcb_xkb_get_map_reply(conn, cookie, NULL);
     xcb_xkb_get_map_map_t map;
 
     FAIL_IF_BAD_REPLY(reply, "XkbGetMap");
 
-    if ((reply->present & required_components) != required_components)
+    if ((reply->present & get_map_required_components) != get_map_required_components)
         goto fail;
 
     xcb_xkb_get_map_map_unpack(xcb_xkb_get_map_map(reply),
@@ -744,10 +765,8 @@ get_indicators(struct xkb_keymap *keymap, xcb_connection_t *conn,
 
 static bool
 get_indicator_map(struct xkb_keymap *keymap, xcb_connection_t *conn,
-                  uint16_t device_id)
+                  xcb_xkb_get_indicator_map_cookie_t cookie)
 {
-    xcb_xkb_get_indicator_map_cookie_t cookie =
-        xcb_xkb_get_indicator_map(conn, device_id, ALL_INDICATORS_MASK);
     xcb_xkb_get_indicator_map_reply_t *reply =
         xcb_xkb_get_indicator_map_reply(conn, cookie, NULL);
 
@@ -826,10 +845,8 @@ fail:
 
 static bool
 get_compat_map(struct xkb_keymap *keymap, xcb_connection_t *conn,
-               uint16_t device_id)
+               xcb_xkb_get_compat_map_cookie_t cookie)
 {
-    xcb_xkb_get_compat_map_cookie_t cookie =
-        xcb_xkb_get_compat_map(conn, device_id, 0, true, 0, 0);
     xcb_xkb_get_compat_map_reply_t *reply =
         xcb_xkb_get_compat_map_reply(conn, cookie, NULL);
 
@@ -847,7 +864,7 @@ fail:
 }
 
 static bool
-get_type_names(struct xkb_keymap *keymap, xcb_connection_t *conn,
+get_type_names(struct xkb_keymap *keymap, struct x11_atom_interner *interner,
                xcb_xkb_get_names_reply_t *reply,
                xcb_xkb_get_names_value_list_t *list)
 {
@@ -875,14 +892,13 @@ get_type_names(struct xkb_keymap *keymap, xcb_connection_t *conn,
 
         ALLOC_OR_FAIL(type->level_names, type->num_levels);
 
-        if (!adopt_atom(keymap->ctx, conn, wire_type_name, &type->name))
-            goto fail;
+        x11_atom_interner_adopt_atom(interner, wire_type_name, &type->name);
+        for (size_t j = 0; j < wire_num_levels; j++) {
+            x11_atom_interner_adopt_atom(interner, kt_level_names_iter[j],
+                                         &type->level_names[j]);
+        }
 
-        if (!adopt_atoms(keymap->ctx, conn,
-                         kt_level_names_iter, type->level_names,
-                         wire_num_levels))
-            goto fail;
-
+        type->num_level_names = type->num_levels;
         kt_level_names_iter += wire_num_levels;
         key_type_names_iter++;
         n_levels_per_type_iter++;
@@ -895,7 +911,8 @@ fail:
 }
 
 static bool
-get_indicator_names(struct xkb_keymap *keymap, xcb_connection_t *conn,
+get_indicator_names(struct xkb_keymap *keymap,
+                    struct x11_atom_interner *interner,
                     xcb_xkb_get_names_reply_t *reply,
                     xcb_xkb_get_names_value_list_t *list)
 {
@@ -908,8 +925,7 @@ get_indicator_names(struct xkb_keymap *keymap, xcb_connection_t *conn,
             xcb_atom_t wire = *iter;
             struct xkb_led *led = &keymap->leds[i];
 
-            if (!adopt_atom(keymap->ctx, conn, wire, &led->name))
-                return false;
+            x11_atom_interner_adopt_atom(interner, wire, &led->name);
 
             iter++;
         }
@@ -922,7 +938,7 @@ fail:
 }
 
 static bool
-get_vmod_names(struct xkb_keymap *keymap, xcb_connection_t *conn,
+get_vmod_names(struct xkb_keymap *keymap, struct x11_atom_interner *interner,
                xcb_xkb_get_names_reply_t *reply,
                xcb_xkb_get_names_value_list_t *list)
 {
@@ -941,8 +957,7 @@ get_vmod_names(struct xkb_keymap *keymap, xcb_connection_t *conn,
             xcb_atom_t wire = *iter;
             struct xkb_mod *mod = &keymap->mods.mods[NUM_REAL_MODS + i];
 
-            if (!adopt_atom(keymap->ctx, conn, wire, &mod->name))
-                return false;
+            x11_atom_interner_adopt_atom(interner, wire, &mod->name);
 
             iter++;
         }
@@ -952,7 +967,7 @@ get_vmod_names(struct xkb_keymap *keymap, xcb_connection_t *conn,
 }
 
 static bool
-get_group_names(struct xkb_keymap *keymap, xcb_connection_t *conn,
+get_group_names(struct xkb_keymap *keymap, struct x11_atom_interner *interner,
                 xcb_xkb_get_names_reply_t *reply,
                 xcb_xkb_get_names_value_list_t *list)
 {
@@ -962,9 +977,10 @@ get_group_names(struct xkb_keymap *keymap, xcb_connection_t *conn,
     keymap->num_group_names = msb_pos(reply->groupNames);
     ALLOC_OR_FAIL(keymap->group_names, keymap->num_group_names);
 
-    if (!adopt_atoms(keymap->ctx, conn,
-                     iter, keymap->group_names, length))
-        goto fail;
+    for (int i = 0; i < length; i++) {
+        x11_atom_interner_adopt_atom(interner, iter[i],
+                                     &keymap->group_names[i]);
+    }
 
     return true;
 
@@ -1045,36 +1061,17 @@ fail:
 }
 
 static bool
-get_names(struct xkb_keymap *keymap, xcb_connection_t *conn,
-          uint16_t device_id)
+get_names(struct xkb_keymap *keymap, struct x11_atom_interner *interner,
+          xcb_xkb_get_names_cookie_t cookie)
 {
-    static const xcb_xkb_name_detail_t wanted =
-        (XCB_XKB_NAME_DETAIL_KEYCODES |
-         XCB_XKB_NAME_DETAIL_SYMBOLS |
-         XCB_XKB_NAME_DETAIL_TYPES |
-         XCB_XKB_NAME_DETAIL_COMPAT |
-         XCB_XKB_NAME_DETAIL_KEY_TYPE_NAMES |
-         XCB_XKB_NAME_DETAIL_KT_LEVEL_NAMES |
-         XCB_XKB_NAME_DETAIL_INDICATOR_NAMES |
-         XCB_XKB_NAME_DETAIL_KEY_NAMES |
-         XCB_XKB_NAME_DETAIL_KEY_ALIASES |
-         XCB_XKB_NAME_DETAIL_VIRTUAL_MOD_NAMES |
-         XCB_XKB_NAME_DETAIL_GROUP_NAMES);
-    static const xcb_xkb_name_detail_t required =
-        (XCB_XKB_NAME_DETAIL_KEY_TYPE_NAMES |
-         XCB_XKB_NAME_DETAIL_KT_LEVEL_NAMES |
-         XCB_XKB_NAME_DETAIL_KEY_NAMES |
-         XCB_XKB_NAME_DETAIL_VIRTUAL_MOD_NAMES);
-
-    xcb_xkb_get_names_cookie_t cookie =
-        xcb_xkb_get_names(conn, device_id, wanted);
+    xcb_connection_t *conn = interner->conn;
     xcb_xkb_get_names_reply_t *reply =
         xcb_xkb_get_names_reply(conn, cookie, NULL);
     xcb_xkb_get_names_value_list_t list;
 
     FAIL_IF_BAD_REPLY(reply, "XkbGetNames");
 
-    FAIL_UNLESS((reply->which & required) == required);
+    FAIL_UNLESS((reply->which & get_names_required) == get_names_required);
 
     xcb_xkb_get_names_value_list_unpack(xcb_xkb_get_names_value_list(reply),
                                         reply->nTypes,
@@ -1087,22 +1084,21 @@ get_names(struct xkb_keymap *keymap, xcb_connection_t *conn,
                                         reply->which,
                                         &list);
 
-    if (!get_atom_name(conn, list.keycodesName, &keymap->keycodes_section_name) ||
-        !get_atom_name(conn, list.symbolsName, &keymap->symbols_section_name) ||
-        !get_atom_name(conn, list.typesName, &keymap->types_section_name) ||
-        !get_atom_name(conn, list.compatName, &keymap->compat_section_name) ||
-        !get_type_names(keymap, conn, reply, &list) ||
-        !get_indicator_names(keymap, conn, reply, &list) ||
-        !get_vmod_names(keymap, conn, reply, &list) ||
-        !get_group_names(keymap, conn, reply, &list) ||
+    x11_atom_interner_get_escaped_atom_name(interner, list.keycodesName,
+                                            &keymap->keycodes_section_name);
+    x11_atom_interner_get_escaped_atom_name(interner, list.symbolsName,
+                                            &keymap->symbols_section_name);
+    x11_atom_interner_get_escaped_atom_name(interner, list.typesName,
+                                            &keymap->types_section_name);
+    x11_atom_interner_get_escaped_atom_name(interner, list.compatName,
+                                            &keymap->compat_section_name);
+    if (!get_type_names(keymap, interner, reply, &list) ||
+        !get_indicator_names(keymap, interner, reply, &list) ||
+        !get_vmod_names(keymap, interner, reply, &list) ||
+        !get_group_names(keymap, interner, reply, &list) ||
         !get_key_names(keymap, conn, reply, &list) ||
         !get_aliases(keymap, conn, reply, &list))
         goto fail;
-
-    XkbEscapeMapName(keymap->keycodes_section_name);
-    XkbEscapeMapName(keymap->symbols_section_name);
-    XkbEscapeMapName(keymap->types_section_name);
-    XkbEscapeMapName(keymap->compat_section_name);
 
     free(reply);
     return true;
@@ -1114,10 +1110,8 @@ fail:
 
 static bool
 get_controls(struct xkb_keymap *keymap, xcb_connection_t *conn,
-             uint16_t device_id)
+             xcb_xkb_get_controls_cookie_t cookie)
 {
-    xcb_xkb_get_controls_cookie_t cookie =
-        xcb_xkb_get_controls(conn, device_id);
     xcb_xkb_get_controls_reply_t *reply =
         xcb_xkb_get_controls_reply(conn, cookie, NULL);
 
@@ -1154,7 +1148,7 @@ xkb_x11_keymap_new_from_device(struct xkb_context *ctx,
         return NULL;
     }
 
-    if (device_id < 0 || device_id > 255) {
+    if (device_id < 0 || device_id > 127) {
         log_err_func(ctx, "illegal device ID: %d\n", device_id);
         return NULL;
     }
@@ -1163,11 +1157,31 @@ xkb_x11_keymap_new_from_device(struct xkb_context *ctx,
     if (!keymap)
         return NULL;
 
-    if (!get_map(keymap, conn, device_id) ||
-        !get_indicator_map(keymap, conn, device_id) ||
-        !get_compat_map(keymap, conn, device_id) ||
-        !get_names(keymap, conn, device_id) ||
-        !get_controls(keymap, conn, device_id)) {
+    struct x11_atom_interner interner;
+    x11_atom_interner_init(&interner, ctx, conn);
+
+    xcb_xkb_get_map_cookie_t get_map_cookie =
+        xcb_xkb_get_map(conn, device_id, get_map_required_components,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    xcb_xkb_get_indicator_map_cookie_t indicator_map_cookie =
+        xcb_xkb_get_indicator_map(conn, device_id, ALL_INDICATORS_MASK);
+    xcb_xkb_get_compat_map_cookie_t compat_map_cookie =
+        xcb_xkb_get_compat_map(conn, device_id, 0, true, 0, 0);
+    xcb_xkb_get_names_cookie_t get_names_cookie =
+        xcb_xkb_get_names(conn, device_id, get_names_wanted);
+    xcb_xkb_get_controls_cookie_t get_controls_cookie =
+        xcb_xkb_get_controls(conn, device_id);
+
+    bool had_error = false;
+    had_error |= !get_map(keymap, conn, get_map_cookie);
+    had_error |= !get_indicator_map(keymap, conn, indicator_map_cookie);
+    had_error |= !get_compat_map(keymap, conn, compat_map_cookie);
+    had_error |= !get_names(keymap, &interner, get_names_cookie);
+    had_error |= !get_controls(keymap, conn, get_controls_cookie);
+
+    x11_atom_interner_round_trip(&interner);
+    had_error |= interner.had_error;
+    if (had_error) {
         xkb_keymap_unref(keymap);
         return NULL;
     }

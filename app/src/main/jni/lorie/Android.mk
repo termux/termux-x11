@@ -21,7 +21,7 @@ LOCAL_SRC_FILES := \
 	backend/android/utils.c
 
 LOCAL_CFLAGS := -finstrument-functions
-LOCAL_C_INCLUDES := $(LOCAL_PATH)/include $(LOCAL_PATH)/scanner $(LOCAL_PATH)/../prebuilt/include
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/include $(LOCAL_PATH)/scanner $(LOCAL_PATH)/../prebuilt/include $(LOCAL_PATH)/../libxkbcommon/xkbcommon/include
 LOCAL_LDLIBS := -lEGL -lGLESv2 -llog -landroid
 LOCAL_LDFLAGS := -L$(LOCAL_PATH)/../prebuilt/$(TARGET_ARCH_ABI) -lwayland-server
 LOCAL_SHARED_LIBRARIES := xkbcommon

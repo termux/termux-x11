@@ -1,5 +1,5 @@
-/* ANSI-C code produced by gperf version 3.0.4 */
-/* Command-line: gperf  */
+/* ANSI-C code produced by gperf version 3.1 */
+/* Command-line: gperf src/xkbcomp/keywords.gperf  */
 /* Computed positions: -k'1-2,5' */
 
 #if !((' ' == 32) && ('!' == 33) && ('"' == 34) && ('#' == 35) \
@@ -26,18 +26,19 @@
       && ('w' == 119) && ('x' == 120) && ('y' == 121) && ('z' == 122) \
       && ('{' == 123) && ('|' == 124) && ('}' == 125) && ('~' == 126))
 /* The character set is not based on ISO-646.  */
-#error "gperf generated tables don't work with this execution character set. Please report a bug to <bug-gnu-gperf@gnu.org>."
+#error "gperf generated tables don't work with this execution character set. Please report a bug to <bug-gperf@gnu.org>."
 #endif
 
+#line 1 "src/xkbcomp/keywords.gperf"
+
+#include "config.h"
 
 #include "xkbcomp-priv.h"
 #include "parser-priv.h"
 
-static unsigned int
-keyword_gperf_hash(const char *str, unsigned int len);
-
 static const struct keyword_tok *
-keyword_gperf_lookup(const char *str, unsigned int len);
+keyword_gperf_lookup (register const char *str, register size_t len);
+#line 11 "src/xkbcomp/keywords.gperf"
 struct keyword_tok { int name; int tok; };
 #include <string.h>
 /* maximum key range = 70, duplicates = 0 */
@@ -91,7 +92,7 @@ inline
 #endif
 #endif
 static unsigned int
-keyword_gperf_hash (register const char *str, register unsigned int len)
+keyword_gperf_hash (register const char *str, register size_t len)
 {
   static const unsigned char asso_values[] =
     {
@@ -122,7 +123,7 @@ keyword_gperf_hash (register const char *str, register unsigned int len)
       73, 73, 73, 73, 73, 73, 73, 73, 73, 73,
       73, 73, 73, 73, 73, 73
     };
-  register int hval = len;
+  register unsigned int hval = len;
 
   switch (hval)
     {
@@ -238,14 +239,8 @@ static const struct stringpool_t stringpool_contents =
     "partial"
   };
 #define stringpool ((const char *) &stringpool_contents)
-#ifdef __GNUC__
-__inline
-#if defined __GNUC_STDC_INLINE__ || defined __GNUC_GNU_INLINE__
-__attribute__ ((__gnu_inline__))
-#endif
-#endif
 const struct keyword_tok *
-keyword_gperf_lookup (register const char *str, register unsigned int len)
+keyword_gperf_lookup (register const char *str, register size_t len)
 {
   enum
     {
@@ -259,70 +254,115 @@ keyword_gperf_lookup (register const char *str, register unsigned int len)
   static const struct keyword_tok wordlist[] =
     {
       {-1}, {-1}, {-1},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str3,                    KEY},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str4,                   KEYS},
+#line 37 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str3,                    KEY},
+#line 38 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str4,                   KEYS},
       {-1}, {-1},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str7,                AUGMENT},
+#line 28 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str7,                AUGMENT},
       {-1},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str9,                   TEXT},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str10,             XKB_KEYMAP},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str11,            KEYPAD_KEYS},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str12,           XKB_KEYCODES},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str13,           XKB_GEOMETRY},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str14,              XKB_TYPES},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str15,             XKB_COMPATMAP},
+#line 53 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str9,                   TEXT},
+#line 63 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str10,             XKB_KEYMAP},
+#line 36 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str11,            KEYPAD_KEYS},
+#line 62 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str12,           XKB_KEYCODES},
+#line 61 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str13,           XKB_GEOMETRY},
+#line 67 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str14,              XKB_TYPES},
+#line 60 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str15,             XKB_COMPATMAP},
       {-1},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str17,                REPLACE},
+#line 48 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str17,                REPLACE},
       {-1},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str19,         XKB_COMPATMAP},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str20,             XKB_LAYOUT},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str21,            XKB_SYMBOLS},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str22,      XKB_COMPATMAP},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str23,          XKB_SEMANTICS},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str24,                   TYPE},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str25,                  ALIAS},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str26,  XKB_COMPATMAP},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str27,      ALPHANUMERIC_KEYS},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str28,          FUNCTION_KEYS},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str29,              ALTERNATE},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str30,                  SHAPE},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str31,                 ACTION_TOK},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str32,                SECTION},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str33,                    ROW},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str34,                   LOGO},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str35,        ALTERNATE_GROUP},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str36,                 HIDDEN},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str37,                VIRTUAL},
+#line 59 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str19,         XKB_COMPATMAP},
+#line 64 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str20,             XKB_LAYOUT},
+#line 66 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str21,            XKB_SYMBOLS},
+#line 58 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str22,      XKB_COMPATMAP},
+#line 65 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str23,          XKB_SEMANTICS},
+#line 54 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str24,                   TYPE},
+#line 24 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str25,                  ALIAS},
+#line 57 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str26,  XKB_COMPATMAP},
+#line 25 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str27,      ALPHANUMERIC_KEYS},
+#line 30 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str28,          FUNCTION_KEYS},
+#line 27 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str29,              ALTERNATE},
+#line 51 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str30,                  SHAPE},
+#line 23 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str31,                 ACTION_TOK},
+#line 50 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str32,                SECTION},
+#line 49 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str33,                    ROW},
+#line 39 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str34,                   LOGO},
+#line 26 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str35,        ALTERNATE_GROUP},
+#line 32 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str36,                 HIDDEN},
+#line 56 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str37,                VIRTUAL},
       {-1}, {-1}, {-1}, {-1},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str42,                OUTLINE},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str43,                DEFAULT},
+#line 44 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str42,                OUTLINE},
+#line 29 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str43,                DEFAULT},
       {-1}, {-1},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str46,                 MODIFIER_MAP},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str47,      VIRTUAL_MODS},
+#line 43 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str46,                 MODIFIER_MAP},
+#line 55 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str47,      VIRTUAL_MODS},
       {-1}, {-1}, {-1}, {-1},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str52,                OVERLAY},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str53,               OVERRIDE},
+#line 45 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str52,                OVERLAY},
+#line 46 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str53,               OVERRIDE},
       {-1}, {-1}, {-1},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str57,                INCLUDE},
+#line 33 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str57,                INCLUDE},
       {-1}, {-1}, {-1}, {-1},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str62,           MODIFIER_MAP},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str63,          MODIFIER_KEYS},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str64,              INDICATOR},
+#line 41 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str62,           MODIFIER_MAP},
+#line 40 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str63,          MODIFIER_KEYS},
+#line 34 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str64,              INDICATOR},
       {-1},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str66,                  GROUP},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str67,                MODIFIER_MAP},
+#line 31 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str66,                  GROUP},
+#line 42 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str67,                MODIFIER_MAP},
       {-1},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str69,              INTERPRET},
+#line 35 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str69,              INTERPRET},
       {-1},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str71,                  SOLID},
-      {(int)(long)&((struct stringpool_t *)0)->stringpool_str72,                PARTIAL}
+#line 52 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str71,                  SOLID},
+#line 47 "src/xkbcomp/keywords.gperf"
+      {(int)(size_t)&((struct stringpool_t *)0)->stringpool_str72,                PARTIAL}
     };
 
   if (len <= MAX_WORD_LENGTH && len >= MIN_WORD_LENGTH)
     {
-      register int key = keyword_gperf_hash (str, len);
+      register unsigned int key = keyword_gperf_hash (str, len);
 
-      if (key <= MAX_HASH_VALUE && key >= 0)
+      if (key <= MAX_HASH_VALUE)
         {
           register int o = wordlist[key].name;
           if (o >= 0)
@@ -336,10 +376,11 @@ keyword_gperf_lookup (register const char *str, register unsigned int len)
     }
   return 0;
 }
+#line 68 "src/xkbcomp/keywords.gperf"
 
 
 int
-keyword_to_token(const char *string, unsigned int len)
+keyword_to_token(const char *string, size_t len)
 {
     const struct keyword_tok *kt = keyword_gperf_lookup(string, len);
     if (!kt)

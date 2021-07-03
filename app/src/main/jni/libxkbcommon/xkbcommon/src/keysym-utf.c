@@ -35,6 +35,8 @@
  *
  */
 
+#include "config.h"
+
 #include "xkbcommon/xkbcommon.h"
 #include "utils.h"
 #include "utf8.h"
@@ -521,7 +523,7 @@ static const struct codepair keysymtab[] = {
     { 0x0aa8, 0x200a }, /*                   hairspace   HAIR SPACE */
     { 0x0aa9, 0x2014 }, /*                      emdash — EM DASH */
     { 0x0aaa, 0x2013 }, /*                      endash – EN DASH */
-    /*  0x0aac                               signifblank ? ??? */
+    { 0x0aac, 0x2423 }, /*                 signifblank ␣ OPEN BOX */
     { 0x0aae, 0x2026 }, /*                    ellipsis … HORIZONTAL ELLIPSIS */
     { 0x0aaf, 0x2025 }, /*             doubbaselinedot ‥ TWO DOT LEADER */
     { 0x0ab0, 0x2153 }, /*                    onethird ⅓ VULGAR FRACTION ONE THIRD */
@@ -534,9 +536,9 @@ static const struct codepair keysymtab[] = {
     { 0x0ab7, 0x215a }, /*                  fivesixths ⅚ VULGAR FRACTION FIVE SIXTHS */
     { 0x0ab8, 0x2105 }, /*                      careof ℅ CARE OF */
     { 0x0abb, 0x2012 }, /*                     figdash ‒ FIGURE DASH */
-    { 0x0abc, 0x2329 }, /*            leftanglebracket 〈 LEFT-POINTING ANGLE BRACKET */
+    { 0x0abc, 0x27e8 }, /*            leftanglebracket ⟨ MATHEMATICAL LEFT ANGLE BRACKET */
     { 0x0abd, 0x002e }, /*                decimalpoint . FULL STOP */
-    { 0x0abe, 0x232a }, /*           rightanglebracket 〉 RIGHT-POINTING ANGLE BRACKET */
+    { 0x0abe, 0x27e9 }, /*           rightanglebracket ⟩ MATHEMATICAL RIGHT ANGLE BRACKET */
     /*  0x0abf                                  marker ? ??? */
     { 0x0ac3, 0x215b }, /*                   oneeighth ⅛ VULGAR FRACTION ONE EIGHTH */
     { 0x0ac4, 0x215c }, /*                threeeighths ⅜ VULGAR FRACTION THREE EIGHTHS */
@@ -554,6 +556,7 @@ static const struct codepair keysymtab[] = {
     { 0x0ad2, 0x201c }, /*         leftdoublequotemark “ LEFT DOUBLE QUOTATION MARK */
     { 0x0ad3, 0x201d }, /*        rightdoublequotemark ” RIGHT DOUBLE QUOTATION MARK */
     { 0x0ad4, 0x211e }, /*                prescription ℞ PRESCRIPTION TAKE */
+    { 0x0ad5, 0x2030 }, /*                    permille ‰ PER MILLE SIGN */
     { 0x0ad6, 0x2032 }, /*                     minutes ′ PRIME */
     { 0x0ad7, 0x2033 }, /*                     seconds ″ DOUBLE PRIME */
     { 0x0ad9, 0x271d }, /*                  latincross ✝ LATIN CROSS */
@@ -611,8 +614,8 @@ static const struct codepair keysymtab[] = {
     { 0x0bd6, 0x222a }, /*                    downshoe ∪ UNION */
     { 0x0bd8, 0x2283 }, /*                   rightshoe ⊃ SUPERSET OF */
     { 0x0bda, 0x2282 }, /*                    leftshoe ⊂ SUBSET OF */
-    { 0x0bdc, 0x22a2 }, /*                    lefttack ⊢ RIGHT TACK */
-    { 0x0bfc, 0x22a3 }, /*                   righttack ⊣ LEFT TACK */
+    { 0x0bdc, 0x22a3 }, /*                    lefttack ⊣ LEFT TACK */
+    { 0x0bfc, 0x22a2 }, /*                   righttack ⊢ RIGHT TACK */
     { 0x0cdf, 0x2017 }, /*        hebrew_doublelowline ‗ DOUBLE LOW LINE */
     { 0x0ce0, 0x05d0 }, /*                hebrew_aleph א HEBREW LETTER ALEF */
     { 0x0ce1, 0x05d1 }, /*                  hebrew_bet ב HEBREW LETTER BET */
@@ -807,7 +810,7 @@ static const struct codepair keysymtab[] = {
     { 0x0ef0, 0x3171 }, /*    Hangul_SunkyeongeumMieum ㅱ HANGUL LETTER KAPYEOUNMIEUM */
     { 0x0ef1, 0x3178 }, /*    Hangul_SunkyeongeumPieub ㅸ HANGUL LETTER KAPYEOUNPIEUP */
     { 0x0ef2, 0x317f }, /*              Hangul_PanSios ㅿ HANGUL LETTER PANSIOS */
-/*  0x0ef3                  Hangul_KkogjiDalrinIeung ? ??? */
+    { 0x0ef3, 0x3181 }, /*    Hangul_KkogjiDalrinIeung ㆁ HANGUL LETTER YESIEUNG */
     { 0x0ef4, 0x3184 }, /*   Hangul_SunkyeongeumPhieuf ㆄ HANGUL LETTER KAPYEOUNPHIEUPH */
     { 0x0ef5, 0x3186 }, /*          Hangul_YeorinHieuh ㆆ HANGUL LETTER YEORINHIEUH */
     { 0x0ef6, 0x318d }, /*                Hangul_AraeA ㆍ HANGUL LETTER ARAEA */
@@ -880,12 +883,47 @@ xkb_keysym_to_utf32(xkb_keysym_t keysym)
         keysym == XKB_KEY_KP_Enter || keysym == XKB_KEY_KP_Equal)
         return keysym & 0x7f;
 
-    /* also check for directly encoded 24-bit UCS characters */
-    if ((keysym & 0xff000000) == 0x01000000)
-        return keysym & 0x00ffffff;
+    /* also check for directly encoded Unicode codepoints */
+    /*
+     * In theory, this is supposed to start from 0x100100, such that the ASCII
+     * range, which is already covered by 0x00-0xff, can't be encoded in two
+     * ways. However, changing this after a couple of decades probably won't
+     * go well, so it stays as it is.
+     */
+    if (0x01000000 <= keysym && keysym <= 0x0110ffff)
+        return keysym - 0x01000000;
 
     /* search main table */
     return bin_search(keysymtab, ARRAY_SIZE(keysymtab) - 1, keysym);
+}
+
+XKB_EXPORT xkb_keysym_t
+xkb_utf32_to_keysym(uint32_t ucs)
+{
+    /* first check for Latin-1 characters (1:1 mapping) */
+    if ((ucs >= 0x0020 && ucs <= 0x007e) ||
+        (ucs >= 0x00a0 && ucs <= 0x00ff))
+        return ucs;
+
+    /* special keysyms */
+    if ((ucs >= (XKB_KEY_BackSpace & 0x7f) && ucs <= (XKB_KEY_Clear & 0x7f)) ||
+        ucs == (XKB_KEY_Return & 0x7f) || ucs == (XKB_KEY_Escape & 0x7f))
+        return ucs | 0xff00;
+    if (ucs == (XKB_KEY_Delete & 0x7f))
+        return XKB_KEY_Delete;
+
+    /* Unicode non-symbols and code points outside Unicode planes */
+    if ((ucs >= 0xfdd0 && ucs <= 0xfdef) ||
+        ucs > 0x10ffff || (ucs & 0xfffe) == 0xfffe)
+        return XKB_KEY_NoSymbol;
+
+    /* search main table */
+    for (size_t i = 0; i < ARRAY_SIZE(keysymtab); i++)
+        if (keysymtab[i].ucs == ucs)
+            return keysymtab[i].keysym;
+
+    /* Use direct encoding if everything else fails */
+    return ucs | 0x01000000;
 }
 
 /*

@@ -21,6 +21,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include "xkbcommon/xkbcommon-compose.h"
 
 #include "test.h"
@@ -177,8 +179,8 @@ test_seqs(struct xkb_context *ctx)
     char *path;
     FILE *file;
 
-    path = test_get_path("compose/en_US.UTF-8/Compose");
-    file = fopen(path, "r");
+    path = test_get_path("locale/en_US.UTF-8/Compose");
+    file = fopen(path, "rb");
     assert(file);
     free(path);
 
@@ -351,8 +353,8 @@ test_state(struct xkb_context *ctx)
     char *path;
     FILE *file;
 
-    path = test_get_path("compose/en_US.UTF-8/Compose");
-    file = fopen(path, "r");
+    path = test_get_path("locale/en_US.UTF-8/Compose");
+    file = fopen(path, "rb");
     assert(file);
     free(path);
 
@@ -408,13 +410,15 @@ test_XCOMPOSEFILE(struct xkb_context *ctx)
     struct xkb_compose_table *table;
     char *path;
 
-    path = test_get_path("compose/en_US.UTF-8/Compose");
+    path = test_get_path("locale/en_US.UTF-8/Compose");
     setenv("XCOMPOSEFILE", path, 1);
     free(path);
 
     table = xkb_compose_table_new_from_locale(ctx, "blabla",
                                               XKB_COMPOSE_COMPILE_NO_FLAGS);
     assert(table);
+
+    unsetenv("XCOMPOSEFILE");
 
     assert(test_compose_seq(table,
         XKB_KEY_dead_tilde,     XKB_COMPOSE_FEED_ACCEPTED,  XKB_COMPOSE_COMPOSING,  "",     XKB_KEY_NoSymbol,
@@ -423,6 +427,49 @@ test_XCOMPOSEFILE(struct xkb_context *ctx)
 
     xkb_compose_table_unref(table);
 }
+
+static void
+test_from_locale(struct xkb_context *ctx)
+{
+    struct xkb_compose_table *table;
+    char *path;
+
+    path = test_get_path("locale");
+    setenv("XLOCALEDIR", path, 1);
+    free(path);
+
+    /* Direct directory name match. */
+    table = xkb_compose_table_new_from_locale(ctx, "en_US.UTF-8",
+                                              XKB_COMPOSE_COMPILE_NO_FLAGS);
+    assert(table);
+    xkb_compose_table_unref(table);
+
+    /* Direct locale name match. */
+    table = xkb_compose_table_new_from_locale(ctx, "C.UTF-8",
+                                              XKB_COMPOSE_COMPILE_NO_FLAGS);
+    assert(table);
+    xkb_compose_table_unref(table);
+
+    /* Alias. */
+    table = xkb_compose_table_new_from_locale(ctx, "univ.utf8",
+                                              XKB_COMPOSE_COMPILE_NO_FLAGS);
+    assert(table);
+    xkb_compose_table_unref(table);
+
+    /* Special case - C. */
+    table = xkb_compose_table_new_from_locale(ctx, "C",
+                                              XKB_COMPOSE_COMPILE_NO_FLAGS);
+    assert(table);
+    xkb_compose_table_unref(table);
+
+    /* Bogus - not found. */
+    table = xkb_compose_table_new_from_locale(ctx, "blabla",
+                                              XKB_COMPOSE_COMPILE_NO_FLAGS);
+    assert(!table);
+
+    unsetenv("XLOCALEDIR");
+}
+
 
 static void
 test_modifier_syntax(struct xkb_context *ctx)
@@ -434,6 +481,16 @@ test_modifier_syntax(struct xkb_context *ctx)
 
     assert(test_compose_seq_buffer(ctx,
         "None <A>          : X \n"
+        "Shift <B>         : Y \n"
+        "Ctrl <C>          : Y \n"
+        "Alt <D>           : Y \n"
+        "Caps <E>          : Y \n"
+        "Lock <F>          : Y \n"
+        "Shift Ctrl <G>    : Y \n"
+        "~Shift <H>        : Y \n"
+        "~Shift Ctrl <I>   : Y \n"
+        "Shift ~Ctrl <J>   : Y \n"
+        "Shift ~Ctrl ~Alt <K> : Y \n"
         "! Shift <B>       : Y \n"
         "! Ctrl <C>        : Y \n"
         "! Alt <D>         : Y \n"
@@ -454,7 +511,7 @@ test_modifier_syntax(struct xkb_context *ctx)
         "! None <A>        : X \n"
         "! Foo <B>         : X \n"
         "None ! Shift <C>  : X \n"
-        "! <D>             : X \n"
+        "! ! <D>           : X \n"
         "! ~ <E>           : X \n"
         "! ! <F>           : X \n"
         "! Ctrl ! Ctrl <G> : X \n"
@@ -473,18 +530,16 @@ static void
 test_include(struct xkb_context *ctx)
 {
     char *path, *table_string;
-    int ret;
 
-    path = test_get_path("compose/en_US.UTF-8/Compose");
+    path = test_get_path("locale/en_US.UTF-8/Compose");
     assert(path);
 
     /* We don't have a mechanism to change the include paths like we
      * have for keymaps. So we must include the full path. */
-    ret = asprintf(&table_string,
-        "<dead_tilde> <space>   : \"foo\" X\n"
-        "include \"%s\"\n"
-        "<dead_tilde> <dead_tilde> : \"bar\" Y\n", path);
-    assert(ret >= 0);
+    table_string = asprintf_safe("<dead_tilde> <space>   : \"foo\" X\n"
+                                 "include \"%s\"\n"
+                                 "<dead_tilde> <dead_tilde> : \"bar\" Y\n", path);
+    assert(table_string);
 
     assert(test_compose_seq_buffer(ctx, table_string,
         /* No conflict. */
@@ -516,6 +571,7 @@ main(int argc, char *argv[])
     test_seqs(ctx);
     test_conflicting(ctx);
     test_XCOMPOSEFILE(ctx);
+    test_from_locale(ctx);
     test_state(ctx);
     test_modifier_syntax(ctx);
     test_include(ctx);

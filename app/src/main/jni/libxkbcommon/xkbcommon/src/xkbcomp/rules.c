@@ -47,10 +47,14 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include "xkbcomp-priv.h"
 #include "rules.h"
 #include "include.h"
 #include "scanner-utils.h"
+
+#define MAX_INCLUDE_DEPTH 5
 
 /* Scanner / Lexer */
 
@@ -67,6 +71,7 @@ enum rules_token {
     TOK_BANG,
     TOK_EQUALS,
     TOK_STAR,
+    TOK_INCLUDE,
     TOK_ERROR
 };
 
@@ -81,7 +86,7 @@ lex(struct scanner *s, union lvalue *val)
 {
 skip_more_whitespace_and_comments:
     /* Skip spaces. */
-    while (chr(s, ' ') || chr(s, '\t'));
+    while (chr(s, ' ') || chr(s, '\t') || chr(s, '\r'));
 
     /* Skip comments. */
     if (lit(s, "//")) {
@@ -96,6 +101,8 @@ skip_more_whitespace_and_comments:
 
     /* Escaped line continuation. */
     if (chr(s, '\\')) {
+        /* Optional \r. */
+        chr(s, '\r');
         if (!eol(s)) {
             scanner_err(s, "illegal new line escape; must appear at end of line");
             return TOK_ERROR;
@@ -130,6 +137,10 @@ skip_more_whitespace_and_comments:
         }
         return TOK_GROUP_NAME;
     }
+
+    /* Include statement. */
+    if (lit(s, "include"))
+        return TOK_INCLUDE;
 
     /* Identifier. */
     if (is_ident(peek(s))) {
@@ -243,7 +254,6 @@ struct matcher {
     /* Input.*/
     struct rule_names rmlvo;
     union lvalue val;
-    struct scanner scanner;
     darray(struct group) groups;
     /* Current mapping. */
     struct mapping mapping;
@@ -324,9 +334,6 @@ matcher_free(struct matcher *m)
     free(m);
 }
 
-#define matcher_err(matcher, fmt, ...) \
-    scanner_err(&(matcher)->scanner, fmt, ## __VA_ARGS__)
-
 static void
 matcher_group_start_new(struct matcher *m, struct sval name)
 {
@@ -335,10 +342,93 @@ matcher_group_start_new(struct matcher *m, struct sval name)
 }
 
 static void
-matcher_group_add_element(struct matcher *m, struct sval element)
+matcher_group_add_element(struct matcher *m, struct scanner *s,
+                          struct sval element)
 {
     darray_append(darray_item(m->groups, darray_size(m->groups) - 1).elements,
                   element);
+}
+
+static bool
+read_rules_file(struct xkb_context *ctx,
+                struct matcher *matcher,
+                unsigned include_depth,
+                FILE *file,
+                const char *path);
+
+static void
+matcher_include(struct matcher *m, struct scanner *parent_scanner,
+                unsigned include_depth,
+                struct sval inc)
+{
+    struct scanner s; /* parses the !include value */
+    FILE *file;
+
+    scanner_init(&s, m->ctx, inc.start, inc.len,
+                 parent_scanner->file_name, NULL);
+    s.token_line = parent_scanner->token_line;
+    s.token_column = parent_scanner->token_column;
+    s.buf_pos = 0;
+
+    if (include_depth >= MAX_INCLUDE_DEPTH) {
+        scanner_err(&s, "maximum include depth (%d) exceeded; maybe there is an include loop?",
+                    MAX_INCLUDE_DEPTH);
+        return;
+    }
+
+    while (!eof(&s) && !eol(&s)) {
+        if (chr(&s, '%')) {
+            if (chr(&s, '%')) {
+                buf_append(&s, '%');
+            }
+            else if (chr(&s, 'H')) {
+                const char *home = secure_getenv("HOME");
+                if (!home) {
+                    scanner_err(&s, "%%H was used in an include statement, but the HOME environment variable is not set");
+                    return;
+                }
+                if (!buf_appends(&s, home)) {
+                    scanner_err(&s, "include path after expanding %%H is too long");
+                    return;
+                }
+            }
+            else if (chr(&s, 'S')) {
+                const char *default_root = xkb_context_include_path_get_system_path(m->ctx);
+                if (!buf_appends(&s, default_root) || !buf_appends(&s, "/rules")) {
+                    scanner_err(&s, "include path after expanding %%S is too long");
+                    return;
+                }
+            }
+            else if (chr(&s, 'E')) {
+                const char *default_root = xkb_context_include_path_get_extra_path(m->ctx);
+                if (!buf_appends(&s, default_root) || !buf_appends(&s, "/rules")) {
+                    scanner_err(&s, "include path after expanding %%E is too long");
+                    return;
+                }
+            }
+            else {
+                scanner_err(&s, "unknown %% format (%c) in include statement", peek(&s));
+                return;
+            }
+        }
+        else {
+            buf_append(&s, next(&s));
+        }
+    }
+    if (!buf_append(&s, '\0')) {
+        scanner_err(&s, "include path is too long");
+        return;
+    }
+
+    file = fopen(s.buf, "rb");
+    if (file) {
+        bool ret = read_rules_file(m->ctx, m, include_depth + 1, file, s.buf);
+        if (!ret)
+            log_err(m->ctx, "No components returned from included XKB rules \"%s\"\n", s.buf);
+        fclose(file);
+    } else {
+        log_err(m->ctx, "Failed to open included XKB rules \"%s\"\n", s.buf);
+    }
 }
 
 static void
@@ -372,7 +462,8 @@ extract_layout_index(const char *s, size_t max_len, xkb_layout_index_t *out)
 }
 
 static void
-matcher_mapping_set_mlvo(struct matcher *m, struct sval ident)
+matcher_mapping_set_mlvo(struct matcher *m, struct scanner *s,
+                         struct sval ident)
 {
     enum rules_mlvo mlvo;
     struct sval mlvo_sval;
@@ -386,14 +477,14 @@ matcher_mapping_set_mlvo(struct matcher *m, struct sval ident)
 
     /* Not found. */
     if (mlvo >= _MLVO_NUM_ENTRIES) {
-        matcher_err(m, "invalid mapping: %.*s is not a valid value here; ignoring rule set",
+        scanner_err(s, "invalid mapping: %.*s is not a valid value here; ignoring rule set",
                     ident.len, ident.start);
         m->mapping.skip = true;
         return;
     }
 
     if (m->mapping.defined_mlvo_mask & (1u << mlvo)) {
-        matcher_err(m, "invalid mapping: %.*s appears twice on the same line; ignoring rule set",
+        scanner_err(s, "invalid mapping: %.*s appears twice on the same line; ignoring rule set",
                     mlvo_sval.len, mlvo_sval.start);
         m->mapping.skip = true;
         return;
@@ -405,7 +496,7 @@ matcher_mapping_set_mlvo(struct matcher *m, struct sval ident)
         int consumed = extract_layout_index(ident.start + mlvo_sval.len,
                                             ident.len - mlvo_sval.len, &idx);
         if ((int) (ident.len - mlvo_sval.len) != consumed) {
-            matcher_err(m, "invalid mapping: \"%.*s\" may only be followed by a valid group index; ignoring rule set",
+            scanner_err(s, "invalid mapping: \"%.*s\" may only be followed by a valid group index; ignoring rule set",
                         mlvo_sval.len, mlvo_sval.start);
             m->mapping.skip = true;
             return;
@@ -418,7 +509,7 @@ matcher_mapping_set_mlvo(struct matcher *m, struct sval ident)
             m->mapping.variant_idx = idx;
         }
         else {
-            matcher_err(m, "invalid mapping: \"%.*s\" cannot be followed by a group index; ignoring rule set",
+            scanner_err(s, "invalid mapping: \"%.*s\" cannot be followed by a group index; ignoring rule set",
                         mlvo_sval.len, mlvo_sval.start);
             m->mapping.skip = true;
             return;
@@ -431,7 +522,7 @@ matcher_mapping_set_mlvo(struct matcher *m, struct sval ident)
 }
 
 static void
-matcher_mapping_set_kccgst(struct matcher *m, struct sval ident)
+matcher_mapping_set_kccgst(struct matcher *m, struct scanner *s, struct sval ident)
 {
     enum rules_kccgst kccgst;
     struct sval kccgst_sval;
@@ -445,14 +536,14 @@ matcher_mapping_set_kccgst(struct matcher *m, struct sval ident)
 
     /* Not found. */
     if (kccgst >= _KCCGST_NUM_ENTRIES) {
-        matcher_err(m, "invalid mapping: %.*s is not a valid value here; ignoring rule set",
+        scanner_err(s, "invalid mapping: %.*s is not a valid value here; ignoring rule set",
                     ident.len, ident.start);
         m->mapping.skip = true;
         return;
     }
 
     if (m->mapping.defined_kccgst_mask & (1u << kccgst)) {
-        matcher_err(m, "invalid mapping: %.*s appears twice on the same line; ignoring rule set",
+        scanner_err(s, "invalid mapping: %.*s appears twice on the same line; ignoring rule set",
                     kccgst_sval.len, kccgst_sval.start);
         m->mapping.skip = true;
         return;
@@ -464,15 +555,15 @@ matcher_mapping_set_kccgst(struct matcher *m, struct sval ident)
 }
 
 static void
-matcher_mapping_verify(struct matcher *m)
+matcher_mapping_verify(struct matcher *m, struct scanner *s)
 {
     if (m->mapping.num_mlvo == 0) {
-        matcher_err(m, "invalid mapping: must have at least one value on the left hand side; ignoring rule set");
+        scanner_err(s, "invalid mapping: must have at least one value on the left hand side; ignoring rule set");
         goto skip;
     }
 
     if (m->mapping.num_kccgst == 0) {
-        matcher_err(m, "invalid mapping: must have at least one value on the right hand side; ignoring rule set");
+        scanner_err(s, "invalid mapping: must have at least one value on the right hand side; ignoring rule set");
         goto skip;
     }
 
@@ -519,11 +610,12 @@ matcher_rule_start_new(struct matcher *m)
 }
 
 static void
-matcher_rule_set_mlvo_common(struct matcher *m, struct sval ident,
+matcher_rule_set_mlvo_common(struct matcher *m, struct scanner *s,
+                             struct sval ident,
                              enum mlvo_match_type match_type)
 {
     if (m->rule.num_mlvo_values + 1 > m->mapping.num_mlvo) {
-        matcher_err(m, "invalid rule: has more values than the mapping line; ignoring rule");
+        scanner_err(s, "invalid rule: has more values than the mapping line; ignoring rule");
         m->rule.skip = true;
         return;
     }
@@ -533,29 +625,32 @@ matcher_rule_set_mlvo_common(struct matcher *m, struct sval ident,
 }
 
 static void
-matcher_rule_set_mlvo_wildcard(struct matcher *m)
+matcher_rule_set_mlvo_wildcard(struct matcher *m, struct scanner *s)
 {
     struct sval dummy = { NULL, 0 };
-    matcher_rule_set_mlvo_common(m, dummy, MLVO_MATCH_WILDCARD);
+    matcher_rule_set_mlvo_common(m, s, dummy, MLVO_MATCH_WILDCARD);
 }
 
 static void
-matcher_rule_set_mlvo_group(struct matcher *m, struct sval ident)
+matcher_rule_set_mlvo_group(struct matcher *m, struct scanner *s,
+                            struct sval ident)
 {
-    matcher_rule_set_mlvo_common(m, ident, MLVO_MATCH_GROUP);
+    matcher_rule_set_mlvo_common(m, s, ident, MLVO_MATCH_GROUP);
 }
 
 static void
-matcher_rule_set_mlvo(struct matcher *m, struct sval ident)
+matcher_rule_set_mlvo(struct matcher *m, struct scanner *s,
+                      struct sval ident)
 {
-    matcher_rule_set_mlvo_common(m, ident, MLVO_MATCH_NORMAL);
+    matcher_rule_set_mlvo_common(m, s, ident, MLVO_MATCH_NORMAL);
 }
 
 static void
-matcher_rule_set_kccgst(struct matcher *m, struct sval ident)
+matcher_rule_set_kccgst(struct matcher *m, struct scanner *s,
+                        struct sval ident)
 {
     if (m->rule.num_kccgst_values + 1 > m->mapping.num_kccgst) {
-        matcher_err(m, "invalid rule: has more values than the mapping line; ignoring rule");
+        scanner_err(s, "invalid rule: has more values than the mapping line; ignoring rule");
         m->rule.skip = true;
         return;
     }
@@ -619,10 +714,10 @@ match_value_and_mark(struct matcher *m, struct sval val,
  * and appends the result to @to.
  */
 static bool
-append_expanded_kccgst_value(struct matcher *m, darray_char *to,
-                             struct sval value)
+append_expanded_kccgst_value(struct matcher *m, struct scanner *s,
+                             darray_char *to, struct sval value)
 {
-    const char *s = value.start;
+    const char *str = value.start;
     darray_char expanded = darray_new();
     char ch;
     bool expanded_plus, to_plus;
@@ -638,9 +733,9 @@ append_expanded_kccgst_value(struct matcher *m, darray_char *to,
         struct matched_sval *expanded_value;
 
         /* Check if that's a start of an expansion. */
-        if (s[i] != '%') {
+        if (str[i] != '%') {
             /* Just a normal character. */
-            darray_appends_nullterminate(expanded, &s[i++], 1);
+            darray_appends_nullterminate(expanded, &str[i++], 1);
             continue;
         }
         if (++i >= value.len) goto error;
@@ -648,15 +743,15 @@ append_expanded_kccgst_value(struct matcher *m, darray_char *to,
         pfx = sfx = 0;
 
         /* Check for prefix. */
-        if (s[i] == '(' || s[i] == '+' || s[i] == '|' ||
-            s[i] == '_' || s[i] == '-') {
-            pfx = s[i];
-            if (s[i] == '(') sfx = ')';
+        if (str[i] == '(' || str[i] == '+' || str[i] == '|' ||
+            str[i] == '_' || str[i] == '-') {
+            pfx = str[i];
+            if (str[i] == '(') sfx = ')';
             if (++i >= value.len) goto error;
         }
 
         /* Mandatory model/layout/variant specifier. */
-        switch (s[i++]) {
+        switch (str[i++]) {
         case 'm': mlv = MLVO_MODEL; break;
         case 'l': mlv = MLVO_LAYOUT; break;
         case 'v': mlv = MLVO_VARIANT; break;
@@ -665,15 +760,15 @@ append_expanded_kccgst_value(struct matcher *m, darray_char *to,
 
         /* Check for index. */
         idx = XKB_LAYOUT_INVALID;
-        if (i < value.len && s[i] == '[') {
+        if (i < value.len && str[i] == '[') {
             int consumed;
 
             if (mlv != MLVO_LAYOUT && mlv != MLVO_VARIANT) {
-                matcher_err(m, "invalid index in %%-expansion; may only index layout or variant");
+                scanner_err(s, "invalid index in %%-expansion; may only index layout or variant");
                 goto error;
             }
 
-            consumed = extract_layout_index(s + i, value.len - i, &idx);
+            consumed = extract_layout_index(str + i, value.len - i, &idx);
             if (consumed == -1) goto error;
             i += consumed;
         }
@@ -681,7 +776,7 @@ append_expanded_kccgst_value(struct matcher *m, darray_char *to,
         /* Check for suffix, if there supposed to be one. */
         if (sfx != 0) {
             if (i >= value.len) goto error;
-            if (s[i++] != sfx) goto error;
+            if (str[i++] != sfx) goto error;
         }
 
         /* Get the expanded value. */
@@ -745,22 +840,22 @@ append_expanded_kccgst_value(struct matcher *m, darray_char *to,
 
 error:
     darray_free(expanded);
-    matcher_err(m, "invalid %%-expansion in value; not used");
+    scanner_err(s, "invalid %%-expansion in value; not used");
     return false;
 }
 
 static void
-matcher_rule_verify(struct matcher *m)
+matcher_rule_verify(struct matcher *m, struct scanner *s)
 {
     if (m->rule.num_mlvo_values != m->mapping.num_mlvo ||
         m->rule.num_kccgst_values != m->mapping.num_kccgst) {
-        matcher_err(m, "invalid rule: must have same number of values as mapping line; ignoring rule");
+        scanner_err(s, "invalid rule: must have same number of values as mapping line; ignoring rule");
         m->rule.skip = true;
     }
 }
 
 static void
-matcher_rule_apply_if_matches(struct matcher *m)
+matcher_rule_apply_if_matches(struct matcher *m, struct scanner *s)
 {
     for (unsigned i = 0; i < m->mapping.num_mlvo; i++) {
         enum rules_mlvo mlvo = m->mapping.mlvo_at_pos[i];
@@ -800,7 +895,7 @@ matcher_rule_apply_if_matches(struct matcher *m)
     for (unsigned i = 0; i < m->mapping.num_kccgst; i++) {
         enum rules_kccgst kccgst = m->mapping.kccgst_at_pos[i];
         struct sval value = m->rule.kccgst_value_at_pos[i];
-        append_expanded_kccgst_value(m, &m->kccgst[kccgst], value);
+        append_expanded_kccgst_value(m, s, &m->kccgst[kccgst], value);
     }
 
     /*
@@ -813,25 +908,24 @@ matcher_rule_apply_if_matches(struct matcher *m)
 }
 
 static enum rules_token
-gettok(struct matcher *m)
+gettok(struct matcher *m, struct scanner *s)
 {
-    return lex(&m->scanner, &m->val);
+    return lex(s, &m->val);
 }
 
 static bool
-matcher_match(struct matcher *m, const char *string, size_t len,
-              const char *file_name, struct xkb_component_names *out)
+matcher_match(struct matcher *m, struct scanner *s,
+              unsigned include_depth,
+              const char *string, size_t len,
+              const char *file_name)
 {
     enum rules_token tok;
-    struct matched_sval *mval;
 
     if (!m)
         return false;
 
-    scanner_init(&m->scanner, m->ctx, string, len, file_name, NULL);
-
 initial:
-    switch (tok = gettok(m)) {
+    switch (tok = gettok(m, s)) {
     case TOK_BANG:
         goto bang;
     case TOK_END_OF_LINE:
@@ -843,20 +937,22 @@ initial:
     }
 
 bang:
-    switch (tok = gettok(m)) {
+    switch (tok = gettok(m, s)) {
     case TOK_GROUP_NAME:
         matcher_group_start_new(m, m->val.string);
         goto group_name;
+    case TOK_INCLUDE:
+        goto include_statement;
     case TOK_IDENTIFIER:
         matcher_mapping_start_new(m);
-        matcher_mapping_set_mlvo(m, m->val.string);
+        matcher_mapping_set_mlvo(m, s, m->val.string);
         goto mapping_mlvo;
     default:
         goto unexpected;
     }
 
 group_name:
-    switch (tok = gettok(m)) {
+    switch (tok = gettok(m, s)) {
     case TOK_EQUALS:
         goto group_element;
     default:
@@ -864,9 +960,9 @@ group_name:
     }
 
 group_element:
-    switch (tok = gettok(m)) {
+    switch (tok = gettok(m, s)) {
     case TOK_IDENTIFIER:
-        matcher_group_add_element(m, m->val.string);
+        matcher_group_add_element(m, s, m->val.string);
         goto group_element;
     case TOK_END_OF_LINE:
         goto initial;
@@ -874,11 +970,20 @@ group_element:
         goto unexpected;
     }
 
+include_statement:
+    switch (tok = gettok(m, s)) {
+    case TOK_IDENTIFIER:
+        matcher_include(m, s, include_depth, m->val.string);
+        goto initial;
+    default:
+        goto unexpected;
+    }
+
 mapping_mlvo:
-    switch (tok = gettok(m)) {
+    switch (tok = gettok(m, s)) {
     case TOK_IDENTIFIER:
         if (!m->mapping.skip)
-            matcher_mapping_set_mlvo(m, m->val.string);
+            matcher_mapping_set_mlvo(m, s, m->val.string);
         goto mapping_mlvo;
     case TOK_EQUALS:
         goto mapping_kccgst;
@@ -887,21 +992,21 @@ mapping_mlvo:
     }
 
 mapping_kccgst:
-    switch (tok = gettok(m)) {
+    switch (tok = gettok(m, s)) {
     case TOK_IDENTIFIER:
         if (!m->mapping.skip)
-            matcher_mapping_set_kccgst(m, m->val.string);
+            matcher_mapping_set_kccgst(m, s, m->val.string);
         goto mapping_kccgst;
     case TOK_END_OF_LINE:
         if (!m->mapping.skip)
-            matcher_mapping_verify(m);
+            matcher_mapping_verify(m, s);
         goto rule_mlvo_first;
     default:
         goto unexpected;
     }
 
 rule_mlvo_first:
-    switch (tok = gettok(m)) {
+    switch (tok = gettok(m, s)) {
     case TOK_BANG:
         goto bang;
     case TOK_END_OF_LINE:
@@ -914,20 +1019,20 @@ rule_mlvo_first:
     }
 
 rule_mlvo:
-    tok = gettok(m);
+    tok = gettok(m, s);
 rule_mlvo_no_tok:
     switch (tok) {
     case TOK_IDENTIFIER:
         if (!m->rule.skip)
-            matcher_rule_set_mlvo(m, m->val.string);
+            matcher_rule_set_mlvo(m, s, m->val.string);
         goto rule_mlvo;
     case TOK_STAR:
         if (!m->rule.skip)
-            matcher_rule_set_mlvo_wildcard(m);
+            matcher_rule_set_mlvo_wildcard(m, s);
         goto rule_mlvo;
     case TOK_GROUP_NAME:
         if (!m->rule.skip)
-            matcher_rule_set_mlvo_group(m, m->val.string);
+            matcher_rule_set_mlvo_group(m, s, m->val.string);
         goto rule_mlvo;
     case TOK_EQUALS:
         goto rule_kccgst;
@@ -936,16 +1041,16 @@ rule_mlvo_no_tok:
     }
 
 rule_kccgst:
-    switch (tok = gettok(m)) {
+    switch (tok = gettok(m, s)) {
     case TOK_IDENTIFIER:
         if (!m->rule.skip)
-            matcher_rule_set_kccgst(m, m->val.string);
+            matcher_rule_set_kccgst(m, s, m->val.string);
         goto rule_kccgst;
     case TOK_END_OF_LINE:
         if (!m->rule.skip)
-            matcher_rule_verify(m);
+            matcher_rule_verify(m, s);
         if (!m->rule.skip)
-            matcher_rule_apply_if_matches(m);
+            matcher_rule_apply_if_matches(m, s);
         goto rule_mlvo_first;
     default:
         goto unexpected;
@@ -960,43 +1065,40 @@ unexpected:
     }
 
 finish:
-    if (darray_empty(m->kccgst[KCCGST_KEYCODES]) ||
-        darray_empty(m->kccgst[KCCGST_TYPES]) ||
-        darray_empty(m->kccgst[KCCGST_COMPAT]) ||
-        /* darray_empty(m->kccgst[KCCGST_GEOMETRY]) || */
-        darray_empty(m->kccgst[KCCGST_SYMBOLS]))
-        goto error;
-
-    darray_steal(m->kccgst[KCCGST_KEYCODES], &out->keycodes, NULL);
-    darray_steal(m->kccgst[KCCGST_TYPES], &out->types, NULL);
-    darray_steal(m->kccgst[KCCGST_COMPAT], &out->compat, NULL);
-    darray_steal(m->kccgst[KCCGST_SYMBOLS], &out->symbols, NULL);
-    darray_free(m->kccgst[KCCGST_GEOMETRY]);
-
-
-    mval = &m->rmlvo.model;
-    if (!mval->matched && mval->sval.len > 0)
-        log_err(m->ctx, "Unrecognized RMLVO model \"%.*s\" was ignored\n",
-                mval->sval.len, mval->sval.start);
-    darray_foreach(mval, m->rmlvo.layouts)
-        if (!mval->matched && mval->sval.len > 0)
-            log_err(m->ctx, "Unrecognized RMLVO layout \"%.*s\" was ignored\n",
-                    mval->sval.len, mval->sval.start);
-    darray_foreach(mval, m->rmlvo.variants)
-        if (!mval->matched && mval->sval.len > 0)
-            log_err(m->ctx, "Unrecognized RMLVO variant \"%.*s\" was ignored\n",
-                    mval->sval.len, mval->sval.start);
-    darray_foreach(mval, m->rmlvo.options)
-        if (!mval->matched && mval->sval.len > 0)
-            log_err(m->ctx, "Unrecognized RMLVO option \"%.*s\" was ignored\n",
-                    mval->sval.len, mval->sval.start);
-
     return true;
 
 state_error:
-    matcher_err(m, "unexpected token");
+    scanner_err(s, "unexpected token");
 error:
     return false;
+}
+
+static bool
+read_rules_file(struct xkb_context *ctx,
+                struct matcher *matcher,
+                unsigned include_depth,
+                FILE *file,
+                const char *path)
+{
+    bool ret = false;
+    char *string;
+    size_t size;
+    struct scanner scanner;
+
+    ret = map_file(file, &string, &size);
+    if (!ret) {
+        log_err(ctx, "Couldn't read rules file \"%s\": %s\n",
+                path, strerror(errno));
+        goto out;
+    }
+
+    scanner_init(&scanner, matcher->ctx, string, size, path, NULL);
+
+    ret = matcher_match(matcher, &scanner, include_depth, string, size, path);
+
+    unmap_file(string, size);
+out:
+    return ret;
 }
 
 bool
@@ -1006,32 +1108,56 @@ xkb_components_from_rules(struct xkb_context *ctx,
 {
     bool ret = false;
     FILE *file;
-    char *path;
-    const char *string;
-    size_t size;
-    struct matcher *matcher;
+    char *path = NULL;
+    struct matcher *matcher = NULL;
+    struct matched_sval *mval;
+    unsigned int offset = 0;
 
-    file = FindFileInXkbPath(ctx, rmlvo->rules, FILE_TYPE_RULES, &path);
+    file = FindFileInXkbPath(ctx, rmlvo->rules, FILE_TYPE_RULES, &path, &offset);
     if (!file)
         goto err_out;
 
-    ret = map_file(file, &string, &size);
-    if (!ret) {
-        log_err(ctx, "Couldn't read rules file \"%s\": %s\n",
-                path, strerror(errno));
-        goto err_file;
+    matcher = matcher_new(ctx, rmlvo);
+
+    ret = read_rules_file(ctx, matcher, 0, file, path);
+    if (!ret ||
+        darray_empty(matcher->kccgst[KCCGST_KEYCODES]) ||
+        darray_empty(matcher->kccgst[KCCGST_TYPES]) ||
+        darray_empty(matcher->kccgst[KCCGST_COMPAT]) ||
+        /* darray_empty(matcher->kccgst[KCCGST_GEOMETRY]) || */
+        darray_empty(matcher->kccgst[KCCGST_SYMBOLS])) {
+        log_err(ctx, "No components returned from XKB rules \"%s\"\n", path);
+        ret = false;
+        goto err_out;
     }
 
-    matcher = matcher_new(ctx, rmlvo);
-    ret = matcher_match(matcher, string, size, path, out);
-    if (!ret)
-        log_err(ctx, "No components returned from XKB rules \"%s\"\n", path);
-    matcher_free(matcher);
+    darray_steal(matcher->kccgst[KCCGST_KEYCODES], &out->keycodes, NULL);
+    darray_steal(matcher->kccgst[KCCGST_TYPES], &out->types, NULL);
+    darray_steal(matcher->kccgst[KCCGST_COMPAT], &out->compat, NULL);
+    darray_steal(matcher->kccgst[KCCGST_SYMBOLS], &out->symbols, NULL);
+    darray_free(matcher->kccgst[KCCGST_GEOMETRY]);
 
-    unmap_file(string, size);
-err_file:
-    free(path);
-    fclose(file);
+    mval = &matcher->rmlvo.model;
+    if (!mval->matched && mval->sval.len > 0)
+        log_err(matcher->ctx, "Unrecognized RMLVO model \"%.*s\" was ignored\n",
+                mval->sval.len, mval->sval.start);
+    darray_foreach(mval, matcher->rmlvo.layouts)
+        if (!mval->matched && mval->sval.len > 0)
+            log_err(matcher->ctx, "Unrecognized RMLVO layout \"%.*s\" was ignored\n",
+                    mval->sval.len, mval->sval.start);
+    darray_foreach(mval, matcher->rmlvo.variants)
+        if (!mval->matched && mval->sval.len > 0)
+            log_err(matcher->ctx, "Unrecognized RMLVO variant \"%.*s\" was ignored\n",
+                    mval->sval.len, mval->sval.start);
+    darray_foreach(mval, matcher->rmlvo.options)
+        if (!mval->matched && mval->sval.len > 0)
+            log_err(matcher->ctx, "Unrecognized RMLVO option \"%.*s\" was ignored\n",
+                    mval->sval.len, mval->sval.start);
+
 err_out:
+    if (file)
+        fclose(file);
+    matcher_free(matcher);
+    free(path);
     return ret;
 }

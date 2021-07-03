@@ -21,6 +21,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include "evdev-scancodes.h"
 #include "test.h"
 
@@ -318,7 +320,7 @@ main(void)
                         KEY_SPACE,       BOTH,  XKB_KEY_KP_0,              NEXT,
                         KEY_KP8,         BOTH,  XKB_KEY_KP_Up,             NEXT,
                         KEY_ESC,         BOTH,  XKB_KEY_Escape,            NEXT,
-                        KEY_RIGHTALT,    UP,    XKB_KEY_ISO_Level5_Shift,  NEXT,
+                        KEY_RIGHTALT,    UP,    XKB_KEY_ISO_Level5_Lock,   NEXT,
 
                         /* Level 6. */
                         KEY_RIGHTALT,    DOWN,  XKB_KEY_ISO_Level5_Shift,  NEXT,
@@ -330,7 +332,7 @@ main(void)
                         KEY_KP8,         BOTH,  XKB_KEY_KP_Up,             NEXT,
                         KEY_ESC,         BOTH,  XKB_KEY_Escape,            NEXT,
                         KEY_RIGHTSHIFT,  UP,    XKB_KEY_Caps_Lock,         NEXT,
-                        KEY_RIGHTALT,    UP,    XKB_KEY_ISO_Level5_Shift,  NEXT,
+                        KEY_RIGHTALT,    UP,    XKB_KEY_ISO_Level5_Lock,   NEXT,
 
                         /* Level 7. */
                         KEY_RIGHTALT,    DOWN,  XKB_KEY_ISO_Level5_Shift,  NEXT,
@@ -341,19 +343,22 @@ main(void)
                         KEY_KP8,         BOTH,  KS("U22C2"),               NEXT,
                         KEY_ESC,         BOTH,  XKB_KEY_Escape,            NEXT,
                         KEY_CAPSLOCK,    UP,    XKB_KEY_ISO_Level3_Shift,  NEXT,
-                        KEY_RIGHTALT,    UP,    XKB_KEY_ISO_Level5_Shift,  NEXT,
+                        KEY_RIGHTALT,    UP,    XKB_KEY_ISO_Level5_Lock,   NEXT,
 
                         /* Level 8. */
                         KEY_RIGHTALT,    DOWN,  XKB_KEY_ISO_Level5_Shift,  NEXT,
                         KEY_CAPSLOCK,    DOWN,  XKB_KEY_ISO_Level3_Shift,  NEXT,
                         KEY_RIGHTSHIFT,  DOWN,  XKB_KEY_Shift_R,           NEXT,
-                        /* This doesn't actually lock Level5. Not our fault. */
                         KEY_TAB,         BOTH,  XKB_KEY_ISO_Level5_Lock,   NEXT,
+                        KEY_V,           BOTH,  XKB_KEY_Greek_pi,          NEXT,
                         KEY_RIGHTSHIFT,  UP,    XKB_KEY_Caps_Lock,         NEXT,
+                        KEY_V,           BOTH,  XKB_KEY_asciitilde,        NEXT,
                         KEY_CAPSLOCK,    UP,    XKB_KEY_ISO_Level3_Shift,  NEXT,
-                        KEY_RIGHTALT,    UP,    XKB_KEY_ISO_Level5_Shift,  NEXT,
+                        KEY_V,           BOTH,  XKB_KEY_p,                 NEXT,
+                        KEY_RIGHTALT,    UP,    XKB_KEY_ISO_Level5_Lock,   NEXT,
+                        /* Locks Level 5. */
 
-                        KEY_V,           BOTH,  XKB_KEY_p,                 FINISH));
+                        KEY_V,           BOTH,  XKB_KEY_Return,            FINISH));
 
 
     xkb_keymap_unref(keymap);

@@ -281,6 +281,13 @@ default xkb_keycodes "evdev" {
 	<I251> = 251;	// #define KEY_BRIGHTNESS_CYCLE    243
 	<I252> = 252;	// #define KEY_BRIGHTNESS_ZERO     244
 	<I253> = 253;	// #define KEY_DISPLAY_OFF         245
+	<I254> = 254;	// #define KEY_WWAN                246
+	<I255> = 255;	// #define KEY_RFKILL              247
+
+	<I372> = 372;   // #define KEY_FAVORITES           364
+	<I382> = 382;   // #define KEY_KEYBOARD            374
+	<I569> = 569;   // #define KEY_ROTATE_LOCK_TOGGLE  561
+	<I380> = 380;   // #define KEY_FULL_SCREEN         372
 
 	// Fake keycodes for virtual keys
 	<LVL3> =   92;
@@ -306,9 +313,4 @@ default xkb_keycodes "evdev" {
 
 	// For Brazilian ABNT2
 	alias <KPPT> = <I129>;
-};
-
-// PC98
-xkb_keycodes "pc98" {
-    include "evdev(evdev)"
 };

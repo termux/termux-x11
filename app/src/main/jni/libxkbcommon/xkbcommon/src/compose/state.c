@@ -21,6 +21,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "config.h"
+
 #include "table.h"
 #include "utils.h"
 #include "keysym.h"
@@ -39,8 +41,8 @@ struct xkb_compose_state {
      * This is also sufficient for inferring the current status; see
      * xkb_compose_state_get_status().
      */
-    uint32_t prev_context;
-    uint32_t context;
+    uint16_t prev_context;
+    uint16_t context;
 };
 
 XKB_EXPORT struct xkb_compose_state *
@@ -89,7 +91,7 @@ xkb_compose_state_get_compose_table(struct xkb_compose_state *state)
 XKB_EXPORT enum xkb_compose_feed_result
 xkb_compose_state_feed(struct xkb_compose_state *state, xkb_keysym_t keysym)
 {
-    uint32_t context;
+    uint16_t context;
     const struct compose_node *node;
 
     /*
@@ -107,16 +109,19 @@ xkb_compose_state_feed(struct xkb_compose_state *state, xkb_keysym_t keysym)
 
     node = &darray_item(state->table->nodes, state->context);
 
-    context = (node->is_leaf ? 0 : node->u.successor);
-    node = &darray_item(state->table->nodes, context);
-
-    while (node->keysym != keysym && node->next != 0) {
-        context = node->next;
-        node = &darray_item(state->table->nodes, context);
-    }
-
-    if (node->keysym != keysym)
+    context = (node->is_leaf ? 1 : node->internal.eqkid);
+    if (context == 1 && darray_size(state->table->nodes) == 1)
         context = 0;
+
+    while (context != 0) {
+        node = &darray_item(state->table->nodes, context);
+        if (keysym < node->keysym)
+            context = node->lokid;
+        else if (keysym > node->keysym)
+            context = node->hikid;
+        else
+            break;
+    }
 
     state->prev_context = state->context;
     state->context = context;
@@ -162,11 +167,11 @@ xkb_compose_state_get_utf8(struct xkb_compose_state *state,
 
     /* If there's no string specified, but only a keysym, try to do the
      * most helpful thing. */
-    if (node->u.leaf.utf8 == 0 && node->u.leaf.keysym != XKB_KEY_NoSymbol) {
+    if (node->leaf.utf8 == 0 && node->leaf.keysym != XKB_KEY_NoSymbol) {
         char name[64];
         int ret;
 
-        ret = xkb_keysym_to_utf8(node->u.leaf.keysym, name, sizeof(name));
+        ret = xkb_keysym_to_utf8(node->leaf.keysym, name, sizeof(name));
         if (ret < 0 || ret == 0) {
             /* ret < 0 is impossible.
              * ret == 0 means the keysym has no string representation. */
@@ -177,7 +182,7 @@ xkb_compose_state_get_utf8(struct xkb_compose_state *state,
     }
 
     return snprintf(buffer, size, "%s",
-                    &darray_item(state->table->utf8, node->u.leaf.utf8));
+                    &darray_item(state->table->utf8, node->leaf.utf8));
 
 fail:
     if (size > 0)
@@ -192,5 +197,5 @@ xkb_compose_state_get_one_sym(struct xkb_compose_state *state)
         &darray_item(state->table->nodes, state->context);
     if (!node->is_leaf)
         return XKB_KEY_NoSymbol;
-    return node->u.leaf.keysym;
+    return node->leaf.keysym;
 }

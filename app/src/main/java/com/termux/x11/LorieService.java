@@ -183,7 +183,7 @@ public class LorieService extends Service {
 
         onPreferencesChanged();
 
-        return START_STICKY;
+        return START_REDELIVER_INTENT;
     }
 
 

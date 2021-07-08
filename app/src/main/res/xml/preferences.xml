@@ -22,6 +22,6 @@
         android:title="Reseed Screen While Soft Keybourd is open"
         android:defaultValue="false"
         android:key="Reseed"
-        android:summary="The screen size will be adjusted while Soft Keybourd is open" />
+        android:summary="The screen size will be adjusted while Soft Keybourd is open. Additional Keybaord is not supported by this option." />
 
 </PreferenceScreen>

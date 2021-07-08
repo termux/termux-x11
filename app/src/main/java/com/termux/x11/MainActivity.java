@@ -100,6 +100,11 @@ public class MainActivity extends AppCompatActivity {
             window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             decorView.setSystemUiVisibility(0);
         }
+
+	if (preferences.getBoolean("Reseed", true))
+	{
+	    window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+	}
     }
 
     @Override

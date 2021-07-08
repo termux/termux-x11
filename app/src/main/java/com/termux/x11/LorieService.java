@@ -236,7 +236,7 @@ public class LorieService extends Service {
     @SuppressWarnings("SameParameterValue")
     private static class ServiceEventListener implements SurfaceHolder.Callback, View.OnTouchListener, View.OnKeyListener, View.OnHoverListener, View.OnGenericMotionListener, TouchParser.OnTouchParseListener {
         LorieService svc;
-        
+
         private void setAsListenerTo(SurfaceView view) {
             view.getHolder().addCallback(this);
             view.setOnTouchListener(this);

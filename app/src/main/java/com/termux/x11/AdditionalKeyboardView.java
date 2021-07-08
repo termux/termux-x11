@@ -14,8 +14,9 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.HorizontalScrollView;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-
+import android.view.SurfaceView;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -63,6 +64,11 @@ public class AdditionalKeyboardView extends HorizontalScrollView implements View
                 setVisibility(View.GONE);
             return;
         }
+	if (preferences.getBoolean("Reseed", true)) {
+	    if (getVisibility() != View.GONE)
+		setVisibility(View.GONE);
+	    return;
+	}
 
         Rect r = new Rect();
         getWindowVisibleDisplayFrame(r);

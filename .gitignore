@@ -33,3 +33,6 @@ local.properties
 .swp
 ehthumbs.db
 Thumbs.db
+
+#files containing github tokens
+github.properties

@@ -28,7 +28,7 @@ curl --fail --location "${ANDROID_SDK_TOOLS_URL}" \
 unzip -d "${ANDROID_SDK_ROOT}" "${TMP:-/tmp}/sdk.zip" -qq
 
 # accept licenses
-yes | "${ANDROID_SDK_ROOT}"/commandline-tools/bin/sdkmanager --licenses \
+yes | "${ANDROID_SDK_ROOT}"/cmdline-tools/bin/sdkmanager --licenses \
 	--sdk_root="${ANDROID_SDK_ROOT}" 
 
 if [ "${?}" == "0" ]; then

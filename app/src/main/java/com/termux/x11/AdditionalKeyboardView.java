@@ -70,12 +70,6 @@ public class AdditionalKeyboardView extends HorizontalScrollView implements View
 	    return;
 	}
 
-	if (isInPictureInPictureMode()) {
-	    if (getVisibility() != View.GONE)
-                setVisibility(View.GONE);
-            return;
-	}
-
         Rect r = new Rect();
         getWindowVisibleDisplayFrame(r);
 

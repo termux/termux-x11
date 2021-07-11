@@ -20,7 +20,7 @@
         tools:ignore="GoogleAppIndexingWarning"
         android:resizeableActivity="true"
         android:debuggable="true"
-        android:supportsPictureInPicture="false">
+        android:supportsPictureInPicture="true">
         <service
             android:name=".LorieService"
             android:enabled="true"
@@ -39,6 +39,9 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+	     <intent-filter>
+        	<category android:name="android.intent.category.SECONDARY_HOME" />
+    	    </intent-filter>
         </activity>
         <activity
             android:theme="@style/Theme.AppCompat.DayNight"
@@ -46,6 +49,7 @@
             android:name=".LoriePreferences" >
         </activity>
 	<meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true"/>
+	<meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />
     </application>
 
 </manifest>

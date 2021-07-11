@@ -116,8 +116,22 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onUserLeaveHint () {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-	if (preferences.getBooolean("PIP", true)) {
+	if (preferences.getBoolean("PIP", true)) {
             enterPictureInPictureMode();
 	}
     }
+
+    @Override
+    public void onPictureInPictureModeChanged (boolean isInPictureInPictureMode, Configuration newConfig) {
+	if (isInPictureInPictureMode) {
+	    if (getVisibility() != View.GONE)
+                setVisibility(View.GONE);
+	    return;
+	} else {
+	    if (getVisibility() != View.VISIBLE)
+                setVisibility(View.VISIBLE);
+	    return;
+	}
+    }
+
 }

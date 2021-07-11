@@ -104,6 +104,9 @@ public class MainActivity extends AppCompatActivity {
 	if (preferences.getBoolean("Reseed", true))
 	{
 	    window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+	} else {
+	    window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN|
+                WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
 	}
     }
 

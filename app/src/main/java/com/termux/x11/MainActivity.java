@@ -113,4 +113,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onBackPressed() {}
 
+    @Override
+    public void onUserLeaveHint () {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+	if (preferences.getBooolean("PIP", true)) {
+            enterPictureInPictureMode();
+	}
+    }
 }

@@ -1,18 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
-    <CheckBoxPreference android:title="Show additional keyboard"
+    
+    <CheckBoxPreference 
+	android:title="Show additional keyboard"
         android:defaultValue="true"
         android:summary="Show keyboard with additional keys if soft keyboard is visible"
         android:key="showAdditionalKbd" />
-    <CheckBoxPreference android:title="Fullscreen mode"
+    
+    <CheckBoxPreference 
+	android:title="Fullscreen mode"
         android:defaultValue="false"
         android:key="fullscreen" />
+    
     <ListPreference
         android:title="Touchscreen input mode"
         android:key="touchMode"
         android:defaultValue="1"
         android:entries="@array/touchscreenInputModesEntries"
         android:entryValues="@array/touchscreenInputModesValues" />
+    
     <CheckBoxPreference
         android:title="Show IME with external keyboard"
         android:defaultValue="false"
@@ -23,5 +29,11 @@
         android:defaultValue="false"
         android:key="Reseed"
         android:summary="The screen size will be adjusted while Soft Keybourd is open. Additional Keybaord is not supported by this option." />
+
+    <CheckBoxPreference
+        android:title="PIP Mode"
+        android:defaultValue="true"
+        android:key="PIP"
+        android:summary="Show app in picture-in-picture mode when home button or recents button is pressed" />
 
 </PreferenceScreen>

@@ -18,9 +18,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning"
-        android:resizeableActivity="true"
-        android:debuggable="true"
-        android:supportsPictureInPicture="true">
+        android:debuggable="true">
         <service
             android:name=".LorieService"
             android:enabled="true"
@@ -33,7 +31,9 @@
         <activity android:name=".MainActivity"
             android:theme="@style/NoActionBar"
             android:launchMode="singleInstance"
-            android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density">
+            android:supportsPictureInPicture="true"
+            android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density"
+            android:resizeableActivity="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -46,7 +46,9 @@
         <activity
             android:theme="@style/Theme.AppCompat.DayNight"
             android:excludeFromRecents="true"
-            android:name=".LoriePreferences" >
+            android:name=".LoriePreferences" 
+            android:supportsPictureInPicture="false"
+            android:resizeableActivity="true">
         </activity>
 	<meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true"/>
 	<meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />

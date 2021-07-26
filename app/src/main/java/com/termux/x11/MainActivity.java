@@ -124,12 +124,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onPictureInPictureModeChanged (boolean isInPictureInPictureMode, Configuration newConfig) {
 	if (isInPictureInPictureMode) {
-	    if (getVisibility() != View.GONE)
-                setVisibility(View.GONE);
+	    if (kbd.getVisibility() != View.GONE)
+                kbd.setVisibility(View.GONE);
 	    return;
 	} else {
-	    if (getVisibility() != View.VISIBLE)
-                setVisibility(View.VISIBLE);
+	    if (kbd.getVisibility() != View.VISIBLE)
+                kbd.setVisibility(View.VISIBLE);
 	    return;
 	}
     }

@@ -19,7 +19,7 @@ import android.preference.PreferenceManager;
 import android.provider.Settings;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
-import androidx.appcompat.app.NotificationCompat;
+import androidx.core.app.NotificationCompat;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.InputDevice;

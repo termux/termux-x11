@@ -7,9 +7,9 @@ import android.preference.Preference;
 import android.preference.PreferenceFragment;
 import android.preference.PreferenceScreen;
 import android.provider.Settings;
-import android.support.v7.app.ActionBar;
-import android.support.v7.app.AlertDialog;
-import android.support.v7.app.AppCompatActivity;
+import androidx.app.ActionBar;
+import androidx.app.AlertDialog;
+import androidx.app.AppCompatActivity;
 import android.util.Log;
 import android.view.MenuItem;
 

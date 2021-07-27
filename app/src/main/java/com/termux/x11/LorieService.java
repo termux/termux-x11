@@ -1,6 +1,6 @@
 package com.termux.x11;
 
-import android.annotation.SuppressLint;
+import androidx.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -17,9 +17,9 @@ import android.os.IBinder;
 import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
-import android.support.annotation.NonNull;
-import android.support.annotation.RequiresApi;
-import android.support.v4.app.NotificationCompat;
+import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
+import androidx.app.NotificationCompat;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.InputDevice;

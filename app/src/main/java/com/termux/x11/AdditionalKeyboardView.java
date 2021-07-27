@@ -1,11 +1,11 @@
 package com.termux.x11;
 
-import android.annotation.SuppressLint;
+import androidx.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Rect;
 import android.preference.PreferenceManager;
-import android.support.v7.widget.AppCompatTextView;
+import androidx.widget.AppCompatTextView;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Gravity;

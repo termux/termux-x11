@@ -10,7 +10,7 @@ import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
 import androidx.annotation.RequiresApi;
-import androidx.appcompat.app.NotificationCompat;
+import androidx.core.app.NotificationCompat;
 
 public class LorieTestService extends Service {
     @Override

@@ -17,3 +17,8 @@ jobs:
     - name: Execute tests
       run: |
         ./gradlew test
+    - name: Android Integration Test
+      uses: ReactiveCircus/android-emulator-runner@v2.19.0
+      with:
+          api-level: 28
+          script: ./gradlew test

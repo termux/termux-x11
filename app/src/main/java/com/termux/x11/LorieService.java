@@ -371,25 +371,34 @@ public class LorieService extends Service {
     }
 
     private void windowChanged(Surface s, int w, int h, int pw, int ph) {windowChanged(compositor, s, w, h, pw, ph);}
+    private native void windowChanged(long compositor, Surface surface, int width, int height, int mmWidth, int mmHeight);
+    
     private void touchDown(int id, float x, float y) { touchDown(compositor, id, (int) x, (int) y); }
+    private native void touchDown(long compositor, int id, int x, int y);
+    
     private void touchMotion(int id, float x, float y) { touchMotion(compositor, id, (int) x, (int) y); }
+    private native void touchMotion(long compositor, int id, int x, int y);
+    
     private void touchUp(int id) { touchUp(compositor, id); }
+    private native void touchUp(long compositor, int id);
+    
     private void touchFrame() { touchFrame(compositor); }
+    private native void touchFrame(long compositor);
+    
     private void pointerMotion(float x, float y) { pointerMotion(compositor, (int) x, (int) y); }
+    private native void pointerMotion(long compositor, int x, int y);
+    
     private void pointerScroll(int axis, float value) { pointerScroll(compositor, axis, value); }
+    private native void pointerScroll(long compositor, int axis, float value);
+    
     private void pointerButton(int button, int type) { pointerButton(compositor, button, type); }
+    private native void pointerButton(long compositor, int button, int type);
+    
     private void keyboardKey(int key, int type, int shift, String characters) {keyboardKey(compositor, key, type, shift, characters);}
+    private native void keyboardKey(long compositor, int key, int type, int shift, String characters);
 
     private native long createLorieThread();
-    private native void windowChanged(long compositor, Surface surface, int width, int height, int mmWidth, int mmHeight);
-    private native void touchDown(long compositor, int id, int x, int y);
-    private native void touchMotion(long compositor, int id, int x, int y);
-    private native void touchUp(long compositor, int id);
-    private native void touchFrame(long compositor);
-    private native void pointerMotion(long compositor, int x, int y);
-    private native void pointerScroll(long compositor, int axis, float value);
-    private native void pointerButton(long compositor, int button, int type);
-    private native void keyboardKey(long compositor, int key, int type, int shift, String characters);
+    
     private native void terminate(long compositor);
 
     static {

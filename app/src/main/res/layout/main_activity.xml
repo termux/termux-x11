@@ -1,20 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" 
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:id="@+id/relative">
 
-    <SurfaceView
-        android:id="@+id/lorieView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+    <FrameLayout
+	android:layout_width="match_parent"
+	android:layout_height="fill_parent"
+	android:id="@+id/frame">
+
+    	<SurfaceView
+            android:id="@+id/lorieView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
+
+    </FrameLayout>
 
     <com.termux.x11.AdditionalKeyboardView
         android:id="@+id/additionalKbd"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content" 
+	android:layout_below="@+id/frame"
+	android:layout_alignBottom="@id/relative"/>
 
     <!-- Without this view AdditionalKeyboard view sometimes dissapear -->
     <View
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-</FrameLayout>
+        android:layout_height="match_parent"
+	android:layout_below="@+id/frame"
+	android:layout_alignBottom="@id/relative"/>
+
+</RelativeLayout>

@@ -25,10 +25,10 @@
         android:key="showIMEWhileExternalConnected"
         android:summary="Show software keyboard while hardware keyboard is connected" />
     <CheckBoxPreference
-        android:title="Reseed Screen While Soft Keybourd is open"
+        android:title="Reseed Screen While Soft Keyboard is open"
         android:defaultValue="false"
         android:key="Reseed"
-        android:summary="The screen size will be adjusted while Soft Keybourd is open. Additional Keybaord is not supported by this option." />
+        android:summary="The screen size will be adjusted while Soft Keyboard is open." />
 
     <CheckBoxPreference
         android:title="PIP Mode"

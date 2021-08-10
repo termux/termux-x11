@@ -4,30 +4,29 @@
     android:layout_height="match_parent"
     android:id="@+id/relative">
 
-    <FrameLayout
+    <LinearLayout
 	android:layout_width="match_parent"
-	android:layout_height="fill_parent"
-	android:id="@+id/frame">
+	android:layout_height="match_parent"
+	android:id="@+id/linear"
+	android:paddingBottom="35dp">
 
     	<SurfaceView
             android:id="@+id/lorieView"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
+            android:layout_height="match_parent"/>
 
-    </FrameLayout>
+    </LinearLayout>
 
     <com.termux.x11.AdditionalKeyboardView
         android:id="@+id/additionalKbd"
         android:layout_width="match_parent"
         android:layout_height="wrap_content" 
-	android:layout_below="@+id/frame"
-	android:layout_alignBottom="@id/relative"/>
+	android:layout_below="@+id/linear"/>
 
     <!-- Without this view AdditionalKeyboard view sometimes dissapear -->
     <View
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-	android:layout_below="@+id/frame"
-	android:layout_alignBottom="@id/relative"/>
+	android:layout_below="@+id/linear"/>
 
 </RelativeLayout>

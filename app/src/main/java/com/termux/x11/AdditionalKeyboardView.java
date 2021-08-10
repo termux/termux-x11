@@ -63,24 +63,14 @@ public class AdditionalKeyboardView extends HorizontalScrollView implements View
             if (getVisibility() != View.GONE)
                 setVisibility(View.GONE);
             return;
-        }
+        } else {
 
-        Rect r = new Rect();
-        getWindowVisibleDisplayFrame(r);
+            int visibility = View.VISIBLE;
+            softKbdVisible = (visibility == View.VISIBLE);
 
-        float mScreenDensity = getResources().getDisplayMetrics().density;
-        int MAGIC_NUMBER = 200;
-
-        int heightDiff = getRootView().getHeight() - (r.bottom - r.top);
-        float dp = heightDiff/ mScreenDensity;
-        int visibility = (dp > MAGIC_NUMBER)?View.VISIBLE:View.INVISIBLE;
-        softKbdVisible = (visibility == View.VISIBLE);
-
-        if (getVisibility() == visibility) return;
-
-        if (softKbdVisible)
-            setY(r.bottom - r.top - getHeight());
-        setVisibility(visibility);
+            if (!softKbdVisible)
+           	 setVisibility(visibility);
+	}
     }
 
     public void reload(int[] keys, View TargetView, View.OnKeyListener TargetListener) {

@@ -30,7 +30,7 @@ public class MainActivity extends AppCompatActivity {
     };
 
     AdditionalKeyboardView kbd;
-
+    FrameLayout frm;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -46,6 +46,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.main_activity);
 
         kbd = findViewById(R.id.additionalKbd);
+	frm = findViewById(R.id.frame);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
             getWindow().
@@ -126,10 +127,15 @@ public class MainActivity extends AppCompatActivity {
 	if (isInPictureInPictureMode) {
 	    if (kbd.getVisibility() != View.GONE)
                 kbd.setVisibility(View.GONE);
+		frm.setPadding(0,0,0,0);
 	    return;
 	} else {
 	    if (kbd.getVisibility() != View.VISIBLE)
                 kbd.setVisibility(View.VISIBLE);
+		int paddingDp = 35;
+		float density = context.getResources().getDisplayMetrics().density;
+		int paddingPixel = (int)(paddingDp * density);
+		frm.setPadding(0,0,0,paddingPixel);
 	    return;
 	}
     }

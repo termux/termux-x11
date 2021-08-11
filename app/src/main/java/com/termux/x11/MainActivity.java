@@ -15,6 +15,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Toast;
+import android.widget.FrameLayout;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -133,7 +134,7 @@ public class MainActivity extends AppCompatActivity {
 	    if (kbd.getVisibility() != View.VISIBLE)
                 kbd.setVisibility(View.VISIBLE);
 		int paddingDp = 35;
-		float density = context.getResources().getDisplayMetrics().density;
+		float density = this.getResources().getDisplayMetrics().density;
 		int paddingPixel = (int)(paddingDp * density);
 		frm.setPadding(0,0,0,paddingPixel);
 	    return;

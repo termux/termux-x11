@@ -24,6 +24,7 @@
         android:defaultValue="false"
         android:key="showIMEWhileExternalConnected"
         android:summary="Show software keyboard while hardware keyboard is connected" />
+
     <CheckBoxPreference
         android:title="Reseed Screen While Soft Keyboard is open"
         android:defaultValue="false"

@@ -179,31 +179,12 @@ static LorieBackendAndroid* fromLong(jlong v) {
     return u.b;
 }
 
-
-jstring spname(JNIEnv *env) {
-    return env->NewStringUTF("sharedstore");
-}
-
-
 extern "C" JNIEXPORT jlong JNICALL
-JNI_DECLARE(LorieService, createLorieThread)(JNIEnv *env, jobject __unused instance) {
+JNI_DECLARE(LorieService, createLorieThread)(JNIEnv *env, jobject __unused instance, jstring CustXdgpath) {
 
-	jclass spcls = env->FindClass("android/content/SharedPreferences");
-    	jclass contextcls = env->FindClass("android/content/Context");
-    	mainClass = env->NewGlobalRef(activity);
-    	jmethodID mid = env->GetMethodID(contextcls, "getSharedPreferences",
-                                     "(Ljava/lang/String;I)Landroid/content/SharedPreferences;");
+	const char *pathx = env->GetStringUTFChars(CustXdgpath, NULL);
 
-	jmethodID midstring = env->GetMethodID(spcls, "getSring",
-                                         "(Ljava/lang/String;Z)Z");
-
-	jobject jobjectshared = env->CallObjectMethod(mainClass, mid, spname(env), 0);
-	jstring xdgcustpath  = env->CallStringMethod(jobjectshared, mistring, objectname(env), "/data/data/com.termux/files/usr/tmp");
-
-	const char *pathxdg = env->GetStringUTFChars(xdgcustpath, 0);
-	env->ReleaseStringUTFChars(xdgcustpath, pathxdg);
-
-	setenv("XDG_RUNTIME_DIR", pathxdg, 1);
+	setenv("XDG_RUNTIME_DIR", pathx, 1);
 	return (jlong) new LorieBackendAndroid;
 }
 

@@ -36,4 +36,11 @@
         android:key="PIP"
         android:summary="Show app in picture-in-picture mode when home button or recents button is pressed" />
 
+    <EditTextPreference
+	android:title="Custom XDG_RUNTIME_DIR"
+	android:defaultValue="/data/data/com.termux/files/usr/tmp"
+	android:key="CustXDG"
+	android:summary="Set the XDG runtime directory for wayland sockets"
+	android:dialogMessage="Please be careful here as setting the wrong directory may make the app not run as expected" />
+
 </PreferenceScreen>

@@ -29,7 +29,7 @@ public:
 
 	void on_egl_init();
 	void on_egl_uninit();
-	
+
 	LorieEGLHelper helper;
 
 	struct xkb_context *xkb_context = nullptr;
@@ -67,11 +67,11 @@ void LorieBackendAndroid::backend_init() {
 			return;
 		}
 	}
-	
+
 	xkb_names.rules = strdup("evdev");
 	xkb_names.model = strdup("pc105");
 	xkb_names.layout = strdup("us");
-	
+
 	xkb_keymap = xkb_keymap_new_from_names(xkb_context, &xkb_names, (enum xkb_keymap_compile_flags) 0);
 	if (xkb_keymap == nullptr) {
 		LOGE("failed to compile global XKB keymap\n");
@@ -179,9 +179,31 @@ static LorieBackendAndroid* fromLong(jlong v) {
     return u.b;
 }
 
+
+jstring spname(JNIEnv *env) {
+    return env->NewStringUTF("sharedstore");
+}
+
+
 extern "C" JNIEXPORT jlong JNICALL
-JNI_DECLARE(LorieService, createLorieThread)(JNIEnv __unused *env, jobject __unused instance) {
-	setenv("XDG_RUNTIME_DIR", "/data/data/com.termux/files/usr/tmp", 1);
+JNI_DECLARE(LorieService, createLorieThread)(JNIEnv *env, jobject __unused instance) {
+
+	jclass spcls = env->FindClass("android/content/SharedPreferences");
+    	jclass contextcls = env->FindClass("android/content/Context");
+    	mainClass = env->NewGlobalRef(activity);
+    	jmethodID mid = env->GetMethodID(contextcls, "getSharedPreferences",
+                                     "(Ljava/lang/String;I)Landroid/content/SharedPreferences;");
+
+	jmethodID midstring = env->GetMethodID(spcls, "getSring",
+                                         "(Ljava/lang/String;Z)Z");
+
+	jobject jobjectshared = env->CallObjectMethod(mainClass, mid, spname(env), 0);
+	jstring xdgcustpath  = env->CallStringMethod(jobjectshared, mistring, objectname(env), "/data/data/com.termux/files/usr/tmp");
+
+	const char *pathxdg = env->GetStringUTFChars(xdgcustpath, 0);
+	env->ReleaseStringUTFChars(xdgcustpath, pathxdg);
+
+	setenv("XDG_RUNTIME_DIR", pathxdg, 1);
 	return (jlong) new LorieBackendAndroid;
 }
 

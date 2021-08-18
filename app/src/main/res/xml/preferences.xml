@@ -4,7 +4,7 @@
     <CheckBoxPreference 
 	android:title="Show additional keyboard"
         android:defaultValue="true"
-        android:summary="Show keyboard with additional keys if soft keyboard is visible"
+        android:summary="Show keyboard with additional keys."
         android:key="showAdditionalKbd" />
     
     <CheckBoxPreference 

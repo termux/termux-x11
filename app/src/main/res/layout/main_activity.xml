@@ -6,7 +6,6 @@
     <FrameLayout
     	android:layout_width="match_parent"
    	android:layout_height="match_parent"
-	android:paddingBottom="35dp"
 	android:id="@+id/frame">
 
     	<SurfaceView

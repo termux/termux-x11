@@ -53,7 +53,7 @@ public class MainActivity extends AppCompatActivity {
             getWindow().
              getDecorView().
               setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
-    }
+	}
 
     int orientation;
     @Override

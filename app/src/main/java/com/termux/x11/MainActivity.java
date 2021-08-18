@@ -125,6 +125,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onPictureInPictureModeChanged (boolean isInPictureInPictureMode, Configuration newConfig) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+
 	if (isInPictureInPictureMode) {
 	    if (kbd.getVisibility() != View.GONE)
                 kbd.setVisibility(View.GONE);
@@ -132,11 +134,13 @@ public class MainActivity extends AppCompatActivity {
 	    return;
 	} else {
 	    if (kbd.getVisibility() != View.VISIBLE)
-                kbd.setVisibility(View.VISIBLE);
-		int paddingDp = 35;
-		float density = this.getResources().getDisplayMetrics().density;
-		int paddingPixel = (int)(paddingDp * density);
-		frm.setPadding(0,0,0,paddingPixel);
+		if (preferences.getBoolean("showAdditionalKbd", true)) {
+                    kbd.setVisibility(View.VISIBLE);
+		    int paddingDp = 35;
+		    float density = this.getResources().getDisplayMetrics().density;
+		    int paddingPixel = (int)(paddingDp * density);
+		    frm.setPadding(0,0,0,paddingPixel);
+	    	}
 	    return;
 	}
     }

@@ -23,7 +23,7 @@ public:
 	operator struct wl_client*() { return client; }
 private:
 	struct wl_client *client = NULL;
-	
+
 	static void destroyed(struct wl_listener *listener, void *data);
 };
 
@@ -37,7 +37,7 @@ private:
 	data_t user_data = nullptr;
 	static void created_callback(struct wl_listener* listener, void *data) {
 		if (listener == nullptr || data == nullptr) return;
-		
+
 		new client_t(static_cast<struct wl_client*>(data), 
 					(static_cast<wl_client_created_listener_t*>(listener))->user_data);
 	}

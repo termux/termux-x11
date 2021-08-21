@@ -18,7 +18,7 @@ public:
 // compositor features
 	void start();
 	struct wl_event_source* add_fd_listener(int fd, uint32_t mask, wl_event_loop_fd_func_t func, void *data);
-	
+
 	void set_toplevel(LorieSurface *surface);
 	void set_cursor(LorieSurface *surface, uint32_t hotspot_x, uint32_t hotspot_y);
 
@@ -54,7 +54,7 @@ public:
 	wrapper(keyboard_keymap_changed);
 	#undef wrapper
 
-	
+
 	LorieRenderer renderer;
 	LorieSurface*& toplevel;
 	LorieSurface*& cursor;
@@ -69,26 +69,26 @@ public:
 
 //private:
 	struct wl_display *display = nullptr;
-	
-	
+
+
 	LorieMessageQueue queue;
 private:
 	wl_client_created_listener_t<LorieClient, LorieCompositor&> client_created_listener;
 
 	struct LorieClient* get_toplevel_client();
 	uint32_t next_serial();
-	
+
 	struct {
 		uint32_t depressed = 0, latched = 0, locked = 0, group = 0;
 	} key_modifiers;
 };
 
 class LorieClipboard {
-public: 
+public:
 	LorieClipboard(LorieDataSource &data_source);
 	LorieDataSource &data_source;
 	int read_fd;
-	
+
 	struct wl_array contents;
 	struct wl_array mime_types;
 	struct wl_listener selection_listener;

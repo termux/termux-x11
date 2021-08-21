@@ -35,7 +35,7 @@ client_created_listener(*this) {}
 int proc(int fd, uint32_t mask, void *data) {
 	LorieCompositor *b = static_cast<LorieCompositor*>(data);
 	if (b == nullptr) {LOGF("b == nullptr"); return 0;}
-	
+
 	b->queue.run();
 	return 0;
 };
@@ -49,7 +49,7 @@ void LorieCompositor::start() {
 	wl_event_loop_add_fd(wl_display_get_event_loop(display), queue.get_fd(), WL_EVENT_READABLE, &proc, this);
 	
 	wl_display_add_client_created_listener(display, &client_created_listener);
-	
+
 	wl_display_init_shm (display);
 	wl_resource_t::global_create<LorieCompositor_>(display, this);
 	wl_resource_t::global_create<LorieSeat>(display, this);
@@ -57,7 +57,7 @@ void LorieCompositor::start() {
 	wl_resource_t::global_create<LorieShell>(display, this);
 
 	backend_init();
-	
+
 	wl_display_run(display);
 }
 
@@ -66,10 +66,10 @@ struct wl_event_source* LorieCompositor::add_fd_listener(int fd, uint32_t mask, 
 	struct wl_event_loop* loop = nullptr;
 	if (display != nullptr)
 		loop = wl_display_get_event_loop(display);
-	
+
 	if (loop != nullptr)
 		return wl_event_loop_add_fd(loop, fd, mask, func, data);
-	
+
 	return nullptr;
 }
 
@@ -188,12 +188,12 @@ void LorieCompositor::real_keyboard_key_modifiers(uint8_t depressed, uint8_t lat
 		key_modifiers.latched == latched && 
 		key_modifiers.locked == locked &&
 		key_modifiers.group == group) return;
-	
+
 	key_modifiers.depressed = depressed;
 	key_modifiers.latched = latched;
 	key_modifiers.locked = locked;
 	key_modifiers.group = group;
-	
+
 	client->keyboard.send_modifiers (next_serial(), depressed, latched, locked, group);
 }
 

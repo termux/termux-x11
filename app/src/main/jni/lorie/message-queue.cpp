@@ -5,10 +5,10 @@
 #include <errno.h>
 #include <sys/eventfd.h>
 
-LorieMessageQueue::LorieMessageQueue() {	
+LorieMessageQueue::LorieMessageQueue() {
 	pthread_mutex_init(&write_mutex, nullptr);
 	pthread_mutex_init(&read_mutex, nullptr);
-	
+
 	fd = eventfd(0, EFD_CLOEXEC);
 	if (fd == -1) {
 		LOGE("Failed to create socketpair for message queue: %s", strerror(errno));

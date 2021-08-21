@@ -146,7 +146,7 @@ void LorieEGLHelper::swap() {
 				2,	// Request opengl ES2.0
 				EGL_NONE
 			};
-			
+
 			ctx = eglCreateContext(dpy, cfg, NULL, ctxattribs); 
 			if (ctx == EGL_NO_CONTEXT) {
 				LOGE("LorieEGLHelper::init : eglCreateContext failed: %s", eglGetErrorText(eglGetError()));
@@ -166,13 +166,13 @@ void LorieEGLHelper::uninit() {
 		return;
 	}
 	ctx = EGL_NO_CONTEXT;
-	
+
 	if (eglDestroySurface(dpy, sfc) != EGL_TRUE) {
 		LOGE("LorieEGLHelper::uninit : eglDestroySurface failed: %s", eglGetErrorText(eglGetError()));
 		return;
 	}
 	sfc = EGL_NO_SURFACE;
-	
+
 	if (eglTerminate(dpy) != EGL_TRUE) {
 		LOGE("LorieEGLHelper::uninit : eglTerminate failed: %s", eglGetErrorText(eglGetError()));
 		return;

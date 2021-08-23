@@ -28,7 +28,7 @@
 
     <CheckBoxPreference
         android:title="PIP Mode"
-        android:defaultValue="true"
+        android:defaultValue="false"
         android:key="PIP"
         android:summary="Show app in picture-in-picture mode when home button or recents button is pressed" />
 
@@ -37,6 +37,6 @@
 	android:defaultValue="/data/data/com.termux/files/usr/tmp"
 	android:key="CustXDG"
 	android:summary="Set the XDG runtime directory for wayland sockets"
-	android:dialogMessage="Please be careful here as setting the wrong directory may make the app not run as expected" />
+	android:dialogMessage="Changes to this preference will apply on app restart" />
 
 </PreferenceScreen>

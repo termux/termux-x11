@@ -7,11 +7,6 @@
         android:summary="Show keyboard with additional keys."
         android:key="showAdditionalKbd" />
     
-    <CheckBoxPreference 
-	android:title="Fullscreen mode"
-        android:defaultValue="false"
-        android:key="fullscreen" />
-    
     <ListPreference
         android:title="Touchscreen input mode"
         android:key="touchMode"

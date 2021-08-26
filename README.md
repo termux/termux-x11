@@ -10,6 +10,3 @@ License
 =======
 Released under the [GPLv3 license](https://www.gnu.org/licenses/gpl-3.0.html).
 
-Wiki
-====
-You can now get complete info on how to run GUI apps in Termux-Wayland [here](https://github.com/suhan-paradkar/termux-wayland/wiki/Launching-GUI-applications)

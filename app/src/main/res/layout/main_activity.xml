@@ -15,15 +15,13 @@
 
     </FrameLayout>
 
-    <com.termux.x11.AdditionalKeyboardView
-        android:id="@+id/additionalKbd"
+    <com.termux.shared.terminal.io.extrakeys.ExtraKeysView
+	xmlns:android="http://schemas.android.com/apk/res/android"
+        style="?android:attr/buttonBarStyle"
+        android:orientation="horizontal"
+	android:id="@+id/additionalKbd"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
 	android:layout_gravity="bottom|center" />
 
-    <!-- Without this view AdditionalKeyboard view sometimes dissapear -->
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" 
-	android:layout_gravity="bottom|center"/>
 </FrameLayout>

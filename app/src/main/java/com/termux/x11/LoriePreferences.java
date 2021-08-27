@@ -1,4 +1,4 @@
-package com.termux.x11;
+package com.termux.wayland;
 
 import android.content.SharedPreferences;
 import android.inputmethodservice.Keyboard;
@@ -105,7 +105,7 @@ public class LoriePreferences extends AppCompatActivity implements SharedPrefere
                                 .setTitle("Permission denied")
                                 .setMessage("Android requires WRITE_SECURE_SETTINGS permission to change this setting.\n" +
                                             "Please, launch this command using ADB:\n" +
-                                            "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS")
+                                            "adb shell pm grant com.termux.wayland android.permission.WRITE_SECURE_SETTINGS")
                                 .setNegativeButton("OK", null)
                                 .create()
                                 .show();

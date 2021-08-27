@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.termux.x11"
+    package="com.termux.wayland"
     android:installLocation="internalOnly"
     android:sharedUserId="com.termux">
 
@@ -27,7 +27,7 @@
             android:name=".LorieTestService"
             android:enabled="true"
             android:exported="true"
-            android:process="com.termux.x11.separated"/>
+            android:process="com.termux.wayland.separated"/>
         <activity android:name=".MainActivity"
             android:theme="@style/NoActionBar"
             android:launchMode="singleInstance"

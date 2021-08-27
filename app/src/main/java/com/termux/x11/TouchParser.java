@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.termux.x11;
+package com.termux.wayland;
 
 import android.annotation.SuppressLint;
 import android.content.Context;

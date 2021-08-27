@@ -1,4 +1,4 @@
-package com.termux.x11;
+package com.termux.wayland;
 
 import android.app.Notification;
 import android.app.NotificationChannel;

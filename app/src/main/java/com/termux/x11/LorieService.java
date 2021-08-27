@@ -1,4 +1,4 @@
-package com.termux.x11;
+package com.termux.wayland;
 
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
@@ -37,10 +37,10 @@ import android.graphics.PixelFormat;
 @SuppressLint({"ClickableViewAccessibility", "StaticFieldLeak"})
 public class LorieService extends Service {
 
-    static final String ACTION_STOP_SERVICE = "com.termux.x11.service_stop";
-    static final String ACTION_START_FROM_ACTIVITY = "com.termux.x11.start_from_activity";
-    static final String ACTION_START_PREFERENCES_ACTIVITY = "com.termux.x11.start_preferences_activity";
-    static final String ACTION_PREFERENCES_CHAGED = "com.termux.x11.preferences_changed";
+    static final String ACTION_STOP_SERVICE = "com.termux.wayland.service_stop";
+    static final String ACTION_START_FROM_ACTIVITY = "com.termux.wayland.start_from_activity";
+    static final String ACTION_START_PREFERENCES_ACTIVITY = "com.termux.wayland.start_preferences_activity";
+    static final String ACTION_PREFERENCES_CHAGED = "com.termux.wayland.preferences_changed";
 
     private static LorieService instance = null;
     //private

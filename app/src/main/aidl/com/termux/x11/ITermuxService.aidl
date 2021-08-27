@@ -1,5 +1,5 @@
 // ITermuxService.aidl
-package com.termux.x11;
+package com.termux.wayland;
 
 import android.view.Surface;
 

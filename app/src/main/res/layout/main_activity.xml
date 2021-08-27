@@ -15,7 +15,7 @@
 
     </FrameLayout>
 
-    <com.termux.x11.AdditionalKeyboardView
+    <com.termux.wayland.AdditionalKeyboardView
         android:id="@+id/additionalKbd"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

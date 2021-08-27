@@ -166,7 +166,7 @@ void LorieBackendAndroid::layout_change_callback(char *layout) {
 #define JNI_DECLARE_INNER(package, classname, methodname ) \
      Java_ ## package ## _ ## classname  ## _ ## methodname
 #define JNI_DECLARE(classname, methodname) \
-     JNI_DECLARE_INNER(com.termux.wayland, classname, methodname)
+     JNI_DECLARE_INNER(com_termux_wayland, classname, methodname)
 
 #define WL_POINTER_MOTION 2
 

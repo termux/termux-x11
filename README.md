@@ -1,12 +1,42 @@
-Termux:Wayland
--------------
+# Termux:Wayland
+
 [![Join the chat at https://gitter.im/termux/termux](https://badges.gitter.im/termux/termux.svg)](https://gitter.im/termux/termux)
 
 A [Termux](https://termux.com) add-on app providing Android frontend for Xwayland.
 
 When developing (or packaging), note that this app needs to be signed with the same key as the main Termux app in order to have the permission to execute scripts.
 
-License
-=======
-Released under the [GPLv3 license](https://www.gnu.org/licenses/gpl-3.0.html).
+## About
+Termux:Wayland (previously known as Termux:X11) uses [Wayland](https://wayland.freedesktop.org/) display protocol. a modern replacement and the predecessor of the [X.org](https://www.x.org/wiki) server
 
+## How does it work?
+the Termux:Wayland app writes files through `$PREFIX/tmp` in Termux directory by default and creates wayland sockets through that directory, this takes advantage of `sharedUserId` AndroidManifest attribute
+
+the wayland sockets is the way for the graphical applications to communicate with. Termux X11 applications do not have wayland support yet, this kind of setup may not be straightforward and therefore additional packages should be installed in order for X11 applications to be run in Termux:Wayland
+
+## Setup Instructions
+for this one. you must enable the `x11-repo` repository can be done by executing `pkg install x11-repo` command
+
+for X applications to work, you must install `Xwayland` packages. you can do that by doing
+```
+pkg install xwayland
+```
+
+## Running Graphical Applications
+to work with GUI applications, start Termux:Wayland first. a toast message saying `Service was Created` indicates that it should be ready to use
+
+then you can start your desired graphical application by doing:
+```
+~ $ export XDG_RUNTIME_DIR=${TMPDIR}
+~ $ Xwayland :1 >/dev/null &
+~ $ env DISPLAY=:1 xfce4-session
+```
+You may replace `xfce4-session` if you use other than Xfce
+
+If you're done using Termux:Wayland just simply exit it through it's notification drawer by expanding the Termux:Wayland notification then "Exit"
+
+## Font or scaling is too big!
+Some apps may have issues with wayland regarding DPI. please see https://wiki.archlinux.org/title/HiDPI on how to override application-specific DPI or scaling
+
+# License
+Released under the [GPLv3 license](https://www.gnu.org/licenses/gpl-3.0.html).

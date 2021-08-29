@@ -38,9 +38,9 @@ If you're done using Termux:Wayland just simply exit it through it's notificatio
 ## Font or scaling is too big!
 Some apps may have issues with wayland regarding DPI. please see https://wiki.archlinux.org/title/HiDPI on how to override application-specific DPI or scaling.
 
-You can fix this in your window manager settings (in the case of xfce4 and lxqt it's settings> appearance). Look for the DPI value, if it is disabled enable it and adjust its value until the fonts are the appropriate size.
+You can fix this in your window manager settings (in the case of xfce4 and lxqt via Applications Menu > Settings > Appearance). Look for the DPI value, if it is disabled enable it and adjust its value until the fonts are the appropriate size.
 
-![image](https://github.com/Yisus7u7/Yisus7u7.github.io/raw/main/fotos/Screenshot_20210828-142809.png) 
+![image](./img/dpi-scale.png) 
 
 # License
 Released under the [GPLv3 license](https://www.gnu.org/licenses/gpl-3.0.html).

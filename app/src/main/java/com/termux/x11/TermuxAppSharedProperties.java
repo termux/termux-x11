@@ -22,9 +22,11 @@ public class TermuxAppSharedProperties extends TermuxSharedProperties {
     private ExtraKeysInfo mExtraKeysInfo;
 
     private static final String LOG_TAG = "TermuxAppSharedProperties";
+    public static final String TERMUX_X11_APP_NAME = "Termux:X11";
 
     public TermuxAppSharedProperties(@NonNull Context context) {
-        super(context);
+        super(context, TERMUX_X11_APP_NAME, TermuxPropertyConstants.getTermuxPropertiesFile(),
+		TermuxPropertyConstants.TERMUX_PROPERTIES_LIST, new SharedPropertiesParserClient());
     }
 
     /**
@@ -83,7 +85,8 @@ public class TermuxAppSharedProperties extends TermuxSharedProperties {
      * Load the {@link TermuxPropertyConstants#KEY_TERMINAL_TRANSCRIPT_ROWS} value from termux properties file on disk.
      */
     public static int getTerminalTranscriptRows(Context context) {
-        return  (int) TermuxSharedProperties.getInternalPropertyValue(context, TermuxPropertyConstants.KEY_TERMINAL_TRANSCRIPT_ROWS);
+        return  (int) TermuxSharedProperties.getInternalPropertyValue(context, TermuxPropertyConstants.getTermuxPropertiesFile(),
+		TermuxPropertyConstants.KEY_TERMINAL_TRANSCRIPT_ROWS, new SharedPropertiesParserClient());
     }
 
 }

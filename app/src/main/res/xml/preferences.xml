@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
-    
+
     <CheckBoxPreference 
 	android:title="Show additional keyboard"
         android:defaultValue="true"
-        android:summary="Show keyboard with additional keys."
-        android:key="showAdditionalKbd" />
-    
+        android:summary="Show keyboard with additional keys. Will apply on app restart"
+        android:key="Toolbar" />
+
     <ListPreference
         android:title="Touchscreen input mode"
         android:key="touchMode"

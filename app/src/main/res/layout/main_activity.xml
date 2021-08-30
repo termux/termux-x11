@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" 
     android:layout_height="match_parent">
 
     <FrameLayout
     	android:layout_width="match_parent"
    	android:layout_height="match_parent"
-	android:id="@+id/frame">
+	android:id="@+id/frame"
+	android:layout_above="@+id/terminal_toolbar_view_pager">
 
     	<SurfaceView
             android:id="@+id/lorieView"
@@ -15,13 +16,12 @@
 
     </FrameLayout>
 
-    <com.termux.shared.terminal.io.extrakeys.ExtraKeysView
-	xmlns:android="http://schemas.android.com/apk/res/android"
-        style="?android:attr/buttonBarStyle"
-        android:orientation="horizontal"
-	android:id="@+id/additionalKbd"
+    <androidx.viewpager.widget.ViewPager
+        android:id="@+id/terminal_toolbar_view_pager"
+        android:visibility="visible"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-	android:layout_gravity="bottom|center" />
+        android:layout_height="37.5dp"
+        android:background="@android:drawable/screen_background_dark_transparent"
+        android:layout_alignParentBottom="true" />
 
-</FrameLayout>
+</RelativeLayout>

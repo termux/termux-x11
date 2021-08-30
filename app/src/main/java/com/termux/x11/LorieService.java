@@ -220,7 +220,6 @@ public class LorieService extends Service {
         }
 
         onPreferencesChanged();
-
         return START_REDELIVER_INTENT;
     }
 
@@ -399,7 +398,7 @@ public class LorieService extends Service {
                     svc.pointerButton(TouchParser.BTN_RIGHT, (e.getAction() == KeyEvent.ACTION_DOWN) ? TouchParser.ACTION_DOWN : TouchParser.ACTION_UP);
                     rightPressed = (e.getAction() == KeyEvent.ACTION_DOWN);
                 } else if (e.getAction() == KeyEvent.ACTION_UP) {
-                    if (act.kbd!=null) act.kbd.requestFocus();
+                    if (act.getTerminalToolbarViewPager()!=null) act.getTerminalToolbarViewPager().requestFocus();
                     KeyboardUtils.toggleKeyboardVisibility(act);
                 }
                 return true;
@@ -505,28 +504,28 @@ public class LorieService extends Service {
 
     private void windowChanged(Surface s, int w, int h, int pw, int ph) {windowChanged(compositor, s, w, h, pw, ph);}
     private native void windowChanged(long compositor, Surface surface, int width, int height, int mmWidth, int mmHeight);
-    
+
     private void touchDown(int id, float x, float y) { touchDown(compositor, id, (int) x, (int) y); }
     private native void touchDown(long compositor, int id, int x, int y);
-    
+
     private void touchMotion(int id, float x, float y) { touchMotion(compositor, id, (int) x, (int) y); }
     private native void touchMotion(long compositor, int id, int x, int y);
-    
+
     private void touchUp(int id) { touchUp(compositor, id); }
     private native void touchUp(long compositor, int id);
-    
+
     private void touchFrame() { touchFrame(compositor); }
     private native void touchFrame(long compositor);
-    
+
     private void pointerMotion(float x, float y) { pointerMotion(compositor, (int) x, (int) y); }
     private native void pointerMotion(long compositor, int x, int y);
-    
+
     private void pointerScroll(int axis, float value) { pointerScroll(compositor, axis, value); }
     private native void pointerScroll(long compositor, int axis, float value);
-    
+
     private void pointerButton(int button, int type) { pointerButton(compositor, button, type); }
     private native void pointerButton(long compositor, int button, int type);
-    
+
     private void keyboardKey(int key, int type, int shift, String characters) {keyboardKey(compositor, key, type, shift, characters);}
     private native void keyboardKey(long compositor, int key, int type, int shift, String characters);
 
@@ -534,7 +533,6 @@ public class LorieService extends Service {
     private native void passWaylandFD(long compositor, int fd);
 
     private native long createLorieThread();
-    
     private native void terminate(long compositor);
 
     public static native void startLogcatForFd(int fd);

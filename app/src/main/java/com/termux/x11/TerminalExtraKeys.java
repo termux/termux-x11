@@ -15,6 +15,7 @@ import android.view.KeyEvent;
 import android.view.KeyCharacterMap;
 import android.text.TextUtils;
 import android.app.ActivityManager;
+import android.app.Activity;
 
 import java.lang.Character;
 
@@ -58,7 +59,7 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
                 } else if (SpecialButton.FN.getKey().equals(key)) {
                     fnDown = true;
                 } else {
-                    onTerminalExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, fnDown);
+                    onLorieExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, fnDown);
                     ctrlDown = false;
 		    altDown = false;
 		    shiftDown = false;
@@ -71,18 +72,32 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
     }
 
     protected void onTerminalExtraKeyButtonClick(View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean fnDown) {
-	SurfaceView lorieView = act.findViewById(R.id.lorieView);
         if (PRIMARY_KEY_CODES_FOR_STRINGS.containsKey(key)) {
             Integer keyCode = PRIMARY_KEY_CODES_FOR_STRINGS.get(key);
             if (keyCode == null) return;
             int metaState = 0;
-            if (ctrlDown) metaState |= KeyEvent.META_CTRL_ON | KeyEvent.META_CTRL_LEFT_ON;
-            if (altDown) metaState |= KeyEvent.META_ALT_ON | KeyEvent.META_ALT_LEFT_ON;
-            if (shiftDown) metaState |= KeyEvent.META_SHIFT_ON | KeyEvent.META_SHIFT_LEFT_ON;
-            if (fnDown) metaState |= KeyEvent.META_FUNCTION_ON;
+	    int metaAltState = 0;
 
-            KeyEvent keyEvent = new KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, metaState);
-	    mEventListener.onKey(lorieView, keyCode, keyEvent);
+            if (ctrlDown) {
+		metaState |= KeyEvent.META_CTRL_ON | KeyEvent.META_CTRL_LEFT_ON;
+	    }
+
+            if (altDown) {
+		metaState |= KeyEvent.META_ALT_ON | KeyEvent.META_ALT_LEFT_ON;
+	    }
+
+            if (shiftDown) {
+		metaState |= KeyEvent.META_SHIFT_ON | KeyEvent.META_SHIFT_LEFT_ON;
+	    }
+
+            if (fnDown) {
+		metaState |= KeyEvent.META_FUNCTION_ON;
+	    }
+	    onControlCharused(act.getlorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_DOWN, keyCode, 0, metaState), ctrlDown, fnDown, shiftDown, altDown);
+
+	    if (!ctrlDown | !altDown) {
+	    	onControlCharused(act.getlorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, metaState), ctrlDown, fnDown, shiftDown, altDown);
+	    }
 
         } else {
             // not a control char
@@ -93,7 +108,7 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
                     if (events != null) {
                         for (KeyEvent event : events) {
 			    Integer keyCode = event.getKeyCode();
-			    mEventListener.onKey(lorieView, keyCode, event);
+			    mEventListener.onKey(act.getlorieView(), keyCode, new KeyEvent(KeyEvent.ACTION_UP, keyCode));
 			}
 		    }
             });
@@ -106,12 +121,11 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
     }
 
     public void paste(CharSequence input) {
-	SurfaceView lorieView = act.findViewById(R.id.lorieView);
 	KeyEvent[] events = mVirtualKeyboardKeyCharacterMap.getEvents(input.toString().toCharArray());
         if (events != null) {
             for (KeyEvent event : events) {
 		Integer keyCode = event.getKeyCode();
-		mEventListener.onKey(lorieView, keyCode, event);
+		mEventListener.onKey(act.getlorieView(), keyCode, event);
 	    }
 	}
     }
@@ -120,16 +134,15 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
     public void onLorieExtraKeyButtonClick(View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean fnDown) {
         if ("KEYBOARD".equals(key)) {
 
-	    if (act.kbd!=null) {
-	        act.kbd.requestFocus();
+	    if (act.getTerminalToolbarViewPager()!=null) {
+	        act.getTerminalToolbarViewPager().requestFocus();
                 KeyboardUtils.toggleKeyboardVisibility(act);
 	    }
 
 	} else if ("DRAWER".equals(key)) {
-	     Intent preferencesIntent = new Intent(act, LoriePreferences.class);
-             preferencesIntent.setAction(ACTION_START_PREFERENCES_ACTIVITY);
-
-             PendingIntent pendingPreferencesIntent = PendingIntent.getActivity(act, 0, preferencesIntent, 0);
+	    Intent preferencesIntent = new Intent(act, LoriePreferences.class);
+            preferencesIntent.setAction(ACTION_START_PREFERENCES_ACTIVITY);
+	    act.startActivity(preferencesIntent);
 
         } else if ("PASTE".equals(key)) {
 
@@ -146,4 +159,25 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
         }
     }
 
+    public void onControlCharused(View mview, int keyCode, KeyEvent e, boolean cd, boolean fnd, boolean sd, boolean altd) {
+
+        mEventListener.onKey(mview, keyCode, e);
+	if (cd = true) {
+	    readExtraKeysSpecialButton(SpecialButton.CTRL);
+	}
+	if (fnd = true) {
+	    readExtraKeysSpecialButton(SpecialButton.FN);
+	}
+	if (sd = true) {
+	    readExtraKeysSpecialButton(SpecialButton.SHIFT);
+	}
+	if (altd = true) {
+	    readExtraKeysSpecialButton(SpecialButton.ALT);
+	}
+    }
+
+    public void readExtraKeysSpecialButton(SpecialButton specialButton) {
+        Boolean state = act.getExtraKeysView().readSpecialButton(specialButton, true);
+	
+    }
 }

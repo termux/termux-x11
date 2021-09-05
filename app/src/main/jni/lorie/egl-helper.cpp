@@ -35,19 +35,19 @@ void checkEGLError(int line) {
 
 bool LorieEGLHelper::init(EGLNativeDisplayType display) {
 	EGLint majorVersion, minorVersion;
-	
+
 	LOGV("Initializing EGL");
 	dpy = eglGetDisplay(display); checkEGLError();
 	if (dpy == EGL_NO_DISPLAY) {
 		LOGE("LorieEGLHelper::init : eglGetDisplay failed: %s", eglGetErrorText(eglGetError()));
 		return false;
 	}
-	
+
 	if (eglInitialize(dpy, &majorVersion, &minorVersion) != EGL_TRUE) {
 		LOGE("LorieEGLHelper::init : eglInitialize failed: %s", eglGetErrorText(eglGetError()));
 		return false;
 	}
-	
+
 	const EGLint configAttribs[] = {
 		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
 		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
@@ -66,24 +66,24 @@ bool LorieEGLHelper::init(EGLNativeDisplayType display) {
 	}
 
 	eglBindAPI(EGL_OPENGL_ES_API);
-	
+
 	const EGLint ctxattribs[] = {
 		EGL_CONTEXT_CLIENT_VERSION,
 		2,	// Request opengl ES2.0
 		EGL_NONE
 	};
-	
-	ctx = eglCreateContext(dpy, cfg, NULL, ctxattribs); 
+
+	ctx = eglCreateContext(dpy, cfg, NULL, ctxattribs);
 	if (ctx == EGL_NO_CONTEXT) {
 		LOGE("LorieEGLHelper::init : eglCreateContext failed: %s", eglGetErrorText(eglGetError()));
 		return false;
 	}
-	
+
 	if (eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONFIG_KHR) != EGL_TRUE) {
 		LOGE("LorieEGLHelper::init : eglMakeCurrent failed: %s", eglGetErrorText(eglGetError()));
 		return false;
 	}
-	
+
 	return true;
 }
 
@@ -99,7 +99,7 @@ bool LorieEGLHelper::setWindow(EGLNativeWindowType window) {
 			return false;
 		}
 	};
-	
+
 	sfc = EGL_NO_SURFACE;
 	win = window;
 
@@ -107,14 +107,14 @@ bool LorieEGLHelper::setWindow(EGLNativeWindowType window) {
 		if (onUninit != nullptr) onUninit();
         return true;
     }
-	
+
 	sfc = eglCreateWindowSurface(dpy, cfg, win, NULL);
 	if (sfc == EGL_NO_SURFACE) {
 		LOGE("LorieEGLHelper::setWindow : eglCreateWindowSurface failed: %s", eglGetErrorText(eglGetError()));
 		if (onUninit != nullptr) onUninit();
 		return false;
 	}
-	
+
 	if (eglMakeCurrent(dpy, sfc, sfc, ctx) != EGL_TRUE) {
 		LOGE("LorieEGLHelper::setWindow : eglMakeCurrent failed: %s", eglGetErrorText(eglGetError()));
 		if (onUninit != nullptr) onUninit();
@@ -128,7 +128,7 @@ bool LorieEGLHelper::setWindow(EGLNativeWindowType window) {
 
 	if (onInit != nullptr)
 	    onInit();
-	
+
 	return true;
 }
 
@@ -165,17 +165,26 @@ void LorieEGLHelper::uninit() {
 		LOGE("LorieEGLHelper::uninit : eglDestroyContext failed: %s", eglGetErrorText(eglGetError()));
 		return;
 	}
-	ctx = EGL_NO_CONTEXT;
+
+	if (ctx != NULL) {
+		ctx = EGL_NO_CONTEXT;
+	}
 
 	if (eglDestroySurface(dpy, sfc) != EGL_TRUE) {
 		LOGE("LorieEGLHelper::uninit : eglDestroySurface failed: %s", eglGetErrorText(eglGetError()));
 		return;
 	}
+
+	if (sfc != NULL) {
 	sfc = EGL_NO_SURFACE;
+	}
 
 	if (eglTerminate(dpy) != EGL_TRUE) {
 		LOGE("LorieEGLHelper::uninit : eglTerminate failed: %s", eglGetErrorText(eglGetError()));
 		return;
 	}
+
+	if (dpy != NULL) {
 	dpy = EGL_NO_DISPLAY;
+	}
 }

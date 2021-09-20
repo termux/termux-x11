@@ -93,10 +93,10 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
             if (fnDown) {
 		metaState |= KeyEvent.META_FUNCTION_ON;
 	    }
-	    onControlCharused(act.getlorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_DOWN, keyCode, 0, metaState), ctrlDown, fnDown, shiftDown, altDown);
+	    mEventListener.onKey(act.getlorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_DOWN, keyCode, 0, metaState));
 
 	    if (!ctrlDown | !altDown) {
-	    	onControlCharused(act.getlorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, metaState), ctrlDown, fnDown, shiftDown, altDown);
+	    	mEventListener.onKey(act.getlorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, metaState));
 	    }
 
         } else {
@@ -157,27 +157,5 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
         } else {
             onTerminalExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, fnDown);
         }
-    }
-
-    public void onControlCharused(View mview, int keyCode, KeyEvent e, boolean cd, boolean fnd, boolean sd, boolean altd) {
-
-        mEventListener.onKey(mview, keyCode, e);
-	if (cd = true) {
-	    readExtraKeysSpecialButton(SpecialButton.CTRL);
-	}
-	if (fnd = true) {
-	    readExtraKeysSpecialButton(SpecialButton.FN);
-	}
-	if (sd = true) {
-	    readExtraKeysSpecialButton(SpecialButton.SHIFT);
-	}
-	if (altd = true) {
-	    readExtraKeysSpecialButton(SpecialButton.ALT);
-	}
-    }
-
-    public void readExtraKeysSpecialButton(SpecialButton specialButton) {
-        Boolean state = act.getExtraKeysView().readSpecialButton(specialButton, true);
-	
     }
 }

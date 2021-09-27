@@ -7,6 +7,11 @@
         android:summary="Show keyboard with additional keys. Will apply on app restart"
         android:key="Toolbar" />
 
+    <CheckBoxPreference 
+	android:title="Fullscreen mode"
+        android:defaultValue="false"
+        android:key="fullscreen" />
+
     <ListPreference
         android:title="Touchscreen input mode"
         android:key="touchMode"

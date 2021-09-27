@@ -157,6 +157,22 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         Window window = getWindow();
 
+        if (hasFocus && preferences.getBoolean("fullscreen", false))
+        {
+            window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            decorView.setSystemUiVisibility(
+                   View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                 | View.SYSTEM_UI_FLAG_FULLSCREEN
+                 | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            decorView.setSystemUiVisibility(0);
+        }
+
 	if (preferences.getBoolean("Reseed", true))
 	{
 	    window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);

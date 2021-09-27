@@ -23,8 +23,6 @@ import android.view.inputmethod.InputMethodManager;
 
 import android.view.ViewGroup;
 import android.view.LayoutInflater;
-import android.view.ViewTreeObserver;
-import android.graphics.Rect;
 
 import android.widget.Toast;
 import android.widget.FrameLayout;
@@ -34,6 +32,7 @@ import com.termux.shared.terminal.io.extrakeys.ExtraKeysView;
 import com.termux.x11.TermuxAppSharedProperties;
 import com.termux.x11.TerminalExtraKeys;
 import com.termux.x11.TerminalToolbarViewPager;
+import com.termux.x11.Fullscreenworkaround;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -158,6 +157,7 @@ public class MainActivity extends AppCompatActivity {
         super.onWindowFocusChanged(hasFocus);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         Window window = getWindow();
+	View decorView = window.getDecorView();
 
         if (hasFocus && preferences.getBoolean("fullscreen", false))
         {
@@ -181,8 +181,8 @@ public class MainActivity extends AppCompatActivity {
 	    {
 	    	window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 	    } else {
-	// Taken from Stackoverflow answer https://stackoverflow.com/questions/7417123/android-how-to-adjust-layout-in-full-screen-mode-when-softkeyboard-is-visible/7509285#
-		AndroidBug5497Workaround.assistActivity(this);
+		// Taken from Stackoverflow answer https://stackoverflow.com/questions/7417123/android-how-to-adjust-layout-in-full-screen-mode-when-softkeyboard-is-visible/7509285#
+		Fullscreenworkaround.assistActivity(this);
 	    }
 	} else {
 	    window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN|
@@ -216,53 +216,4 @@ public class MainActivity extends AppCompatActivity {
 	}
     }
 
-}
-
-
-private class AndroidBug5497Workaround {
-
-    // For more information, see https://issuetracker.google.com/issues/36911528
-    // To use this class, simply invoke assistActivity() on an Activity that already has its content view set.
-
-    public static void assistActivity (Activity activity) {
-        new AndroidBug5497Workaround(activity);
-    }
-
-    private View mChildOfContent;
-    private int usableHeightPrevious;
-    private FrameLayout.LayoutParams frameLayoutParams;
-
-    private AndroidBug5497Workaround(Activity activity) {
-        FrameLayout content = (FrameLayout) activity.findViewById(android.R.id.content);
-        mChildOfContent = content.getChildAt(0);
-        mChildOfContent.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-            public void onGlobalLayout() {
-                possiblyResizeChildOfContent();
-            }
-        });
-        frameLayoutParams = (FrameLayout.LayoutParams) mChildOfContent.getLayoutParams();
-    }
-
-    private void possiblyResizeChildOfContent() {
-        int usableHeightNow = computeUsableHeight();
-        if (usableHeightNow != usableHeightPrevious) {
-            int usableHeightSansKeyboard = mChildOfContent.getRootView().getHeight();
-            int heightDifference = usableHeightSansKeyboard - usableHeightNow;
-            if (heightDifference > (usableHeightSansKeyboard/4)) {
-                // keyboard probably just became visible
-                frameLayoutParams.height = usableHeightSansKeyboard - heightDifference;
-            } else {
-                // keyboard probably just became hidden
-                frameLayoutParams.height = usableHeightSansKeyboard;
-            }
-            mChildOfContent.requestLayout();
-            usableHeightPrevious = usableHeightNow;
-        }
-    }
-
-    private int computeUsableHeight() {
-        Rect r = new Rect();
-        mChildOfContent.getWindowVisibleDisplayFrame(r);
-        return (r.bottom - r.top);
-    }
 }

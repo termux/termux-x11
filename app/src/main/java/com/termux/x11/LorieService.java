@@ -2,6 +2,7 @@ package com.termux.x11;
 
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
+import android.app.AlertDialog;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -10,15 +11,22 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.PixelFormat;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -30,13 +38,21 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Toast;
-import android.graphics.PixelFormat;
 
 
-@SuppressWarnings({"ConstantConditions", "SameParameterValue"})
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+
+@SuppressWarnings({"ConstantConditions", "SameParameterValue", "SdCardPath"})
 @SuppressLint({"ClickableViewAccessibility", "StaticFieldLeak"})
 public class LorieService extends Service {
-
+    static final String LAUNCHED_BY_COMPATION = "com.termux.x11.launched_by_companion";
     static final String ACTION_STOP_SERVICE = "com.termux.x11.service_stop";
     static final String ACTION_START_FROM_ACTIVITY = "com.termux.x11.start_from_activity";
     static final String ACTION_START_PREFERENCES_ACTIVITY = "com.termux.x11.start_preferences_activity";
@@ -46,7 +62,7 @@ public class LorieService extends Service {
     //private
     //static
     long compositor;
-    private static ServiceEventListener listener = new ServiceEventListener();
+    private static final ServiceEventListener listener = new ServiceEventListener();
     private static MainActivity act;
 
     private TouchParser mTP;
@@ -70,14 +86,33 @@ public class LorieService extends Service {
         }
     }
 
-    @SuppressLint("BatteryLife")
+    @SuppressLint({"BatteryLife", "ObsoleteSdkInt"})
     @Override
     public void onCreate() {
-        if (isServiceRunningInForeground(this, LorieService.class)) return;
-	SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
-        String Xdgpath = preferences.getString("CustXDG", "/data/data/com.termux/files/usr/tmp/");
-        compositor = createLorieThread(Xdgpath);
+        if (isServiceRunningInForeground(this, LorieService.class)) return;
+
+        String datadir = getApplicationInfo().dataDir;
+        String[] dirs = {
+                datadir + "/files/locale",
+                datadir + "/files/xkb",
+        };
+
+        for (String dir : dirs) {
+            if (!(new File(dir)).exists()) {
+                Log.e("LorieService", dir + " does not exist. Unpacking");
+                try {
+                    InputStream zipStream = getAssets().open("X11.zip");
+                    File targetDirectory = new File(datadir + "/files/");
+                    unzip(zipStream, targetDirectory);
+                    break;
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        compositor = createLorieThread();
 
         if (compositor == 0) {
             Log.e("LorieService", "compositor thread was not created");
@@ -187,6 +222,49 @@ public class LorieService extends Service {
         onPreferencesChanged();
 
         return START_REDELIVER_INTENT;
+    }
+
+    private static void sendRunCommandInternal(Context ctx) {
+        Intent intent = new Intent();
+        intent.setClassName("com.termux", "com.termux.app.RunCommandService");
+        intent.setAction("com.termux.RUN_COMMAND");
+        intent.putExtra("com.termux.RUN_COMMAND_PATH",
+                "/data/data/com.termux/files/usr/libexec/termux-x11/termux-startx11");
+        intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
+        Log.d("LorieService", "sendRunCommand: " + intent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            ctx.startForegroundService(intent);
+        } else {
+            ctx.startService(intent);
+        }
+    }
+
+    public static void sendRunCommand(AppCompatActivity act) {
+        final String ERROR_MESSAGE =
+                "It is impossible to start without " +
+                "com.termux.permission.RUN_COMMAND permission. " +
+                "Sorry.";
+        if (act.checkSelfPermission("com.termux.permission.RUN_COMMAND") == PackageManager.PERMISSION_GRANTED) {
+            LorieService.sendRunCommandInternal(act);
+        } else {
+            Log.d("MainActivity", "We have no permission to sendRunCommand(). Requesting it.");
+            ActivityResultLauncher<String> requestPermissionLauncher =
+                    act.registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                        if (isGranted) {
+                            sendRunCommandInternal(act);
+                        } else {
+                            new AlertDialog.Builder(act)
+                                .setTitle("Insufficient permission")
+                                .setMessage(ERROR_MESSAGE)
+                                .setPositiveButton(android.R.string.yes,
+                                        (dialog, which) -> act.finish())
+                                .setIcon(android.R.drawable.ic_dialog_alert)
+                                .show();
+
+                        }
+                    });
+            requestPermissionLauncher.launch("com.termux.permission.RUN_COMMAND");
+        }
     }
 
 
@@ -373,6 +451,58 @@ public class LorieService extends Service {
         }
     }
 
+    static final Handler handler = new Handler();
+    private abstract static class Task implements Runnable {
+        public Task() {
+            handler.post(this);
+        }
+        @Override
+        public void run() {
+            LorieService svc = getInstance();
+            if (svc == null || svc.compositor == 0 || act == null) {
+                handler.postDelayed(this, 100);
+                return;
+            }
+
+            run(svc);
+        }
+        public abstract void run(LorieService svc);
+    }
+
+    public static void adoptWaylandFd(int fd) {
+        new Task() {
+            @Override
+            public void run(LorieService svc) {
+                svc.passWaylandFD(fd);
+            }
+        };
+    }
+
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    public static void unzip(InputStream zipStream, File targetDirectory) throws IOException {
+        try (ZipInputStream zis = new ZipInputStream(zipStream)) {
+            ZipEntry ze;
+            int count;
+            byte[] buffer = new byte[8192];
+            while ((ze = zis.getNextEntry()) != null) {
+                File file = new File(targetDirectory, ze.getName());
+                File dir = ze.isDirectory() ? file : file.getParentFile();
+                if (!dir.isDirectory() && !dir.mkdirs())
+                    throw new FileNotFoundException("Failed to ensure directory: " +
+                            dir.getAbsolutePath());
+                if (ze.isDirectory())
+                    continue;
+                try (FileOutputStream fout = new FileOutputStream(file)) {
+                    while ((count = zis.read(buffer)) != -1)
+                        fout.write(buffer, 0, count);
+                }
+                long time = ze.getTime();
+                if (time > 0)
+                    file.setLastModified(time);
+            }
+        }
+    }
+
     private void windowChanged(Surface s, int w, int h, int pw, int ph) {windowChanged(compositor, s, w, h, pw, ph);}
     private native void windowChanged(long compositor, Surface surface, int width, int height, int mmWidth, int mmHeight);
     
@@ -400,9 +530,14 @@ public class LorieService extends Service {
     private void keyboardKey(int key, int type, int shift, String characters) {keyboardKey(compositor, key, type, shift, characters);}
     private native void keyboardKey(long compositor, int key, int type, int shift, String characters);
 
-    private native long createLorieThread(String CustXdgpath);
+    private void passWaylandFD(int fd) {passWaylandFD(compositor, fd);}
+    private native void passWaylandFD(long compositor, int fd);
+
+    private native long createLorieThread();
     
     private native void terminate(long compositor);
+
+    public static native void startLogcatForFd(int fd);
 
     static {
         System.loadLibrary("lorie");

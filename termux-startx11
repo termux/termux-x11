@@ -1,0 +1,24 @@
+#!/data/data/com.termux/files/usr/bin/bash
+DISPLAYNO=0
+
+socket_is_open() {
+	local SOCKET=$PREFIX/tmp/.X11-unix/X$DISPLAYNO
+	local NULL=/dev/null
+	socat -u OPEN:$NULL UNIX-CONNECT:$SOCKET > $NULL 2>&1
+	return $?
+}
+
+/data/data/com.termux/files/usr/bin/termux-x11 :$DISPLAYNO &
+
+{
+	#kill this script if termux-x11 is not up after 10 seconds
+	sleep 10
+	kill $$
+} &
+
+until socket_is_open; do
+	sleep 0.1
+done
+
+export DISPLAY=:$DISPLAYNO
+exec x-session-manager

@@ -11,6 +11,10 @@
 #include <lorie-egl-helper.hpp>
 #include <android/native_window_jni.h>
 #include <xkbcommon/xkbcommon.h>
+#include <sys/socket.h>
+#include <dirent.h>
+
+#define unused __attribute__((__unused__))
 
 #define DEFAULT_WIDTH 480
 #define DEFAULT_HEIGHT 800
@@ -26,6 +30,7 @@ public:
 	void get_keymap(int *fd, int *size) override;
 	void window_change_callback(EGLNativeWindowType win, uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height);
 	void layout_change_callback(char *layout);
+	void passfd(int fd);
 
 	void on_egl_init();
 	void on_egl_uninit();
@@ -160,6 +165,10 @@ void LorieBackendAndroid::layout_change_callback(char *layout) {
 
 	keyboard_keymap_changed();
 }
+void LorieBackendAndroid::passfd(int fd) {
+    listen(fd, 128);
+	wl_display_add_socket_fd(display, fd);
+}
 
 ///////////////////////////////////////////////////////////
 
@@ -180,16 +189,25 @@ static LorieBackendAndroid* fromLong(jlong v) {
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-JNI_DECLARE(LorieService, createLorieThread)(JNIEnv *env, jobject __unused instance, jstring CustXdgpath) {
-
-	const char *pathx = env->GetStringUTFChars(CustXdgpath, NULL);
-
-	setenv("XDG_RUNTIME_DIR", pathx, 1);
+JNI_DECLARE(LorieService, createLorieThread)(unused JNIEnv *env, unused jobject instance) {
 	return (jlong) new LorieBackendAndroid;
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, terminate)(JNIEnv __unused *env, jobject __unused instance,  jlong jcompositor) {
+JNI_DECLARE(LorieService, passWaylandFD)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint fd) {
+	if (jcompositor == 0) return;
+	LorieBackendAndroid *b = fromLong(jcompositor);
+	char path[256] = {0};
+	char realpath[256] = {0};
+	sprintf(path, "/proc/self/fd/%d", fd);
+	readlink(path, realpath, sizeof(realpath));
+    LOGI("JNI: got fd %d (%s)", fd, realpath);
+
+	b->passfd(fd);
+}
+
+extern "C" JNIEXPORT void JNICALL
+JNI_DECLARE(LorieService, terminate)(unused JNIEnv *env, unused jobject instance,  jlong jcompositor) {
 	if (jcompositor == 0) return;
     	LorieBackendAndroid *b = fromLong(jcompositor);
 	LOGI("JNI: requested termination");
@@ -198,7 +216,7 @@ JNI_DECLARE(LorieService, terminate)(JNIEnv __unused *env, jobject __unused inst
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, windowChanged)(JNIEnv *env, jobject __unused instance, jlong jcompositor, jobject jsurface, jint width, jint height, jint mmWidth, jint mmHeight) {
+JNI_DECLARE(LorieService, windowChanged)(JNIEnv *env, unused jobject instance, jlong jcompositor, jobject jsurface, jint width, jint height, jint mmWidth, jint mmHeight) {
 	if (jcompositor == 0) return;
 	LorieBackendAndroid *b = fromLong(jcompositor);
 
@@ -209,7 +227,7 @@ JNI_DECLARE(LorieService, windowChanged)(JNIEnv *env, jobject __unused instance,
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, touchDown)(JNIEnv __unused *env, jobject __unused instance, jlong jcompositor, jint id, jint x, jint y) {
+JNI_DECLARE(LorieService, touchDown)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint id, jint x, jint y) {
     if (jcompositor == 0) return;
     LorieBackendAndroid *b = fromLong(jcompositor);
 	LOGV("JNI: touch down");
@@ -218,7 +236,7 @@ JNI_DECLARE(LorieService, touchDown)(JNIEnv __unused *env, jobject __unused inst
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, touchMotion)(JNIEnv __unused *env, jobject __unused instance, jlong jcompositor, jint id, jint x, jint y) {
+JNI_DECLARE(LorieService, touchMotion)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint id, jint x, jint y) {
     if (jcompositor == 0) return;
     LorieBackendAndroid *b = fromLong(jcompositor);
 	LOGV("JNI: touch motion");
@@ -227,7 +245,7 @@ JNI_DECLARE(LorieService, touchMotion)(JNIEnv __unused *env, jobject __unused in
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, touchUp)(JNIEnv __unused *env, jobject __unused instance, jlong jcompositor, jint id) {
+JNI_DECLARE(LorieService, touchUp)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint id) {
     if (jcompositor == 0) return;
     LorieBackendAndroid *b = fromLong(jcompositor);
 	LOGV("JNI: touch up");
@@ -236,7 +254,7 @@ JNI_DECLARE(LorieService, touchUp)(JNIEnv __unused *env, jobject __unused instan
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, touchFrame)(JNIEnv __unused *env, jobject __unused instance, jlong jcompositor) {
+JNI_DECLARE(LorieService, touchFrame)(unused JNIEnv *env, unused jobject instance, jlong jcompositor) {
     if (jcompositor == 0) return;
     LorieBackendAndroid *b = fromLong(jcompositor);
 	LOGV("JNI: touch frame");
@@ -245,7 +263,7 @@ JNI_DECLARE(LorieService, touchFrame)(JNIEnv __unused *env, jobject __unused ins
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, pointerMotion)(JNIEnv __unused *env, jobject __unused instance, jlong jcompositor, jint x, jint y) {
+JNI_DECLARE(LorieService, pointerMotion)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint x, jint y) {
     if (jcompositor == 0) return;
     LorieBackendAndroid *b = fromLong(jcompositor);
 
@@ -254,7 +272,7 @@ JNI_DECLARE(LorieService, pointerMotion)(JNIEnv __unused *env, jobject __unused 
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, pointerScroll)(JNIEnv __unused *env, jobject __unused instance, jlong jcompositor, jint axis, jfloat value) {
+JNI_DECLARE(LorieService, pointerScroll)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint axis, jfloat value) {
     if (jcompositor == 0) return;
     LorieBackendAndroid *b = fromLong(jcompositor);
 
@@ -263,7 +281,7 @@ JNI_DECLARE(LorieService, pointerScroll)(JNIEnv __unused *env, jobject __unused 
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, pointerButton)(JNIEnv __unused *env, jobject __unused instance, jlong jcompositor, jint button, jint type) {
+JNI_DECLARE(LorieService, pointerButton)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint button, jint type) {
     if (jcompositor == 0) return;
     LorieBackendAndroid *b = fromLong(jcompositor);
 
@@ -275,7 +293,7 @@ extern "C" void get_character_data(char** layout, int *shift, int *ec, char *ch)
 extern "C" void android_keycode_get_eventcode(int kc, int *ec, int *shift);
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, jobject __unused instance,
+JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, unused jobject instance,
                                            jlong jcompositor, jint type,
                                            jint key_code, jint jshift,
                                            jstring characters_) {
@@ -324,4 +342,67 @@ JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, jobject __unused instance,
         b->keyboard_key(42, WL_KEYBOARD_KEY_STATE_RELEASED); // Send KEY_LEFTSHIFT
 
     if (characters_ != NULL) env->ReleaseStringUTFChars(characters_, characters);
+}
+
+static bool sameUid(int pid) {
+	char path[32] = {0};
+	struct stat s = {0};
+	sprintf(path, "/proc/%d", pid);
+	stat(path, &s);
+	return s.st_uid == getuid();
+}
+
+static void killAllLogcats() {
+	DIR* proc;
+	struct dirent* dir_elem;
+	char path[64] = {0}, link[64] = {0};
+	pid_t pid, self = getpid();
+	if ((proc = opendir("/proc")) == NULL) {
+		LOGE("opendir: %s", strerror(errno));
+		return;
+	}
+
+	while((dir_elem = readdir(proc)) != NULL) {
+		if (!(pid = (pid_t) atoi (dir_elem->d_name)) || pid == self || !sameUid(pid))
+			continue;
+
+		memset(path, 0, sizeof(path));
+		memset(link, 0, sizeof(link));
+		sprintf(path, "/proc/%d/exe", pid);
+		if (readlink(path, link, sizeof(link)) < 0) {
+			LOGE("readlink %s: %s", path, strerror(errno));
+			continue;
+		}
+		if (strstr(link, "/logcat") != NULL) {
+			if (kill(pid, SIGKILL) < 0) {
+				LOGE("kill %d (%s): %s", pid, link, strerror);
+			}
+		}
+	}
+}
+
+void fork(std::function<void()> f) {
+	switch(fork()) {
+		case -1: LOGE("fork: %s", strerror(errno)); return;
+		case 0: f(); return;
+		default: return;
+	}
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_termux_x11_LorieService_startLogcatForFd(unused JNIEnv *env, unused jobject thiz, jint fd) {
+	killAllLogcats();
+
+	LOGI("Starting logcat with output to given fd");
+	fork([]() {
+		execl("/system/bin/logcat", "logcat", "-c", NULL);
+		LOGE("exec logcat: %s", strerror(errno));
+	});
+
+	fork([fd]() {
+		dup2(fd, 1);
+		dup2(fd, 2);
+		execl("/system/bin/logcat", "logcat", NULL);
+		LOGE("exec logcat: %s", strerror(errno));
+	});
 }

@@ -1,0 +1,61 @@
+#!/bin/bash
+set -e
+cd "$(dirname "$0")"
+
+PACKAGE_PATH=app/build/outputs/apk/debug/termux-x11.deb
+
+INTERMEDIATES=starter/build/intermediates
+NDKBUILD_DIR=starter/build/intermediates/ndkBuild/debug/obj/local
+DATA_DIR=$INTERMEDIATES/data
+CONTROL_DIR=$INTERMEDIATES/control
+PACKAGE_DIR=$INTERMEDIATES/package
+PREFIX=$DATA_DIR/data/data/com.termux/files/usr
+
+rm -rf $PACKAGE_PATH $DATA_DIR $CONTROL_DIR $PACKAGE_DIR
+
+mkdir -p $PREFIX/bin/
+mkdir -p $PREFIX/libexec/termux-x11
+
+cp termux-x11 $PREFIX/bin/
+cp termux-startx11 $PREFIX/libexec/termux-x11
+cp starter/build/outputs/apk/debug/starter-debug.apk \
+	$PREFIX/libexec/termux-x11/starter.apk
+for arch in armeabi-v7a arm64-v8a x86 x86_64; do
+	mkdir -p $PREFIX/libexec/termux-x11/$arch/
+	cp $NDKBUILD_DIR/$arch/libstarter.so \
+		$PREFIX/libexec/termux-x11/$arch/
+done
+
+mkdir -p $CONTROL_DIR
+cat <<EOF > $CONTROL_DIR/control
+Package: termux-x11
+Architecture: all
+Maintainer: Twaik Yont @twaik
+Version: 1.02.06
+Homepage: https://github.com/termux/termux-x11
+Depends: Xwayland
+Description: Companion package for termux-x11 app
+EOF
+
+cat <<EOF > $CONTROL_DIR/postinst
+#!/data/data/com.termux/files/usr/bin/bash
+[ -z "\$PREFIX" ] && PREFIX=/data/data/com.termux/files/usr
+ABI=
+case \`uname -m\` in
+  arm) ABI=armeabi-v7a;;
+  aarch64) ABI=arm64-v8a;;
+  i686) ABI=x86;;
+  x86_64) ABI=x86_64;;
+esac
+mv \$PREFIX/libexec/termux-x11/\$ABI/libstarter.so \$PREFIX/libexec/termux-x11/
+EOF
+
+mkdir -p $PACKAGE_DIR
+echo 2.0 > $PACKAGE_DIR/debian-binary
+tar -cJf $PACKAGE_DIR/data.tar.xz -C $DATA_DIR .
+tar -czf $PACKAGE_DIR/control.tar.gz -C $CONTROL_DIR .
+
+ar -rsc $PACKAGE_PATH \
+	$PACKAGE_DIR/debian-binary \
+	$PACKAGE_DIR/control.tar.gz \
+	$PACKAGE_DIR/data.tar.xz

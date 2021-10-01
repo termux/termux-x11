@@ -1,10 +1,13 @@
 package com.termux.x11;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.preference.PreferenceManager;
+
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.KeyEvent;
@@ -14,7 +17,6 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.Toast;
 import android.widget.FrameLayout;
 
 public class MainActivity extends AppCompatActivity {
@@ -53,11 +55,16 @@ public class MainActivity extends AppCompatActivity {
             getWindow().
              getDecorView().
               setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
-	}
+
+        Intent i = getIntent();
+        if (i != null && i.getStringExtra(LorieService.LAUNCHED_BY_COMPATION) == null) {
+            LorieService.sendRunCommand(this);
+        }
+    }
 
     int orientation;
     @Override
-    public void onConfigurationChanged(Configuration newConfig) {
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
 
         if (newConfig.orientation != orientation && kbd != null && kbd.getVisibility() == View.VISIBLE) {
@@ -85,7 +92,6 @@ public class MainActivity extends AppCompatActivity {
         super.onWindowFocusChanged(hasFocus);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         Window window = getWindow();
-        View decorView = window.getDecorView();
 
 	if (preferences.getBoolean("Reseed", true))
 	{

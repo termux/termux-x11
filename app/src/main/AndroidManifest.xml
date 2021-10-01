@@ -3,8 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.termux.x11"
     android:installLocation="internalOnly"
-    android:sharedUserId="com.termux">
+    >
 
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
@@ -18,16 +19,11 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning"
-        android:debuggable="true">
+        >
         <service
             android:name=".LorieService"
             android:enabled="true"
             android:exported="false"/>
-        <service
-            android:name=".LorieTestService"
-            android:enabled="true"
-            android:exported="true"
-            android:process="com.termux.x11.separated"/>
         <activity android:name=".MainActivity"
             android:theme="@style/NoActionBar"
             android:launchMode="singleInstance"
@@ -50,8 +46,13 @@
             android:supportsPictureInPicture="false"
             android:resizeableActivity="true">
         </activity>
+        <activity android:name=".TermuxX11StarterReceiver"
+            android:excludeFromRecents="true"
+            android:exported="true" />
 	<meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true"/>
 	<meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />
     </application>
-
+    <queries>
+        <package android:name="com.termux" />
+    </queries>
 </manifest>

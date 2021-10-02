@@ -33,7 +33,7 @@ Architecture: all
 Maintainer: Twaik Yont @twaik
 Version: 1.02.06
 Homepage: https://github.com/termux/termux-x11
-Depends: Xwayland
+Depends: xwayland
 Description: Companion package for termux-x11 app
 EOF
 

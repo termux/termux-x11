@@ -36,3 +36,6 @@ Thumbs.db
 
 #files containing github tokens
 github.properties
+
+*.cxx
+app/.cxx/*

@@ -1,1 +1,3 @@
+include ':starter'
+include ':common'
 include ':app'

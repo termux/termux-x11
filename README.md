@@ -43,7 +43,7 @@ You can fix this in your window manager settings (in the case of xfce4 and lxqt 
 ![image](./img/dpi-scale.png) 
 
 ## Using with 3rd party apps
-It is posssible to use Termux:X11 with 3rd party apps.
+It is possible to use Termux:X11 with 3rd party apps.
 You should start Termux:X11's activity with providing some additional data.
 ```
 import android.os.ParcelFileDescriptor;

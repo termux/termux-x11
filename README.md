@@ -1,7 +1,7 @@
 
 # Termux:X11
 
-[![Join the chat at https://gitter.im/termux/termux](https://badges.gitter.im/termux/termux.svg)](https://gitter.im/termux/termux) [![Join the Termux discord server](https://img.shields.io/discord/591914197219016707.svg?label=&logo=discord&logoColor=ffffff&color=5865F2)](https://discord.gg/HXpF69X)
+[![Nightly build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml/badge.svg?branch=master)](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml) [![Join the chat at https://gitter.im/termux/termux](https://badges.gitter.im/termux/termux.svg)](https://gitter.im/termux/termux) [![Join the Termux discord server](https://img.shields.io/discord/591914197219016707.svg?label=&logo=discord&logoColor=ffffff&color=5865F2)](https://discord.gg/HXpF69X)
 
 A [Termux](https://termux.com) add-on app providing Android frontend for Xwayland.
 
@@ -15,12 +15,13 @@ The Termux:X11 app's companion package executable creates socket through `$XDG_R
 The wayland sockets is the way for the graphical applications to communicate with. Termux X11 applications do not have wayland support yet, this kind of setup may not be straightforward and therefore additional packages should be installed in order for X11 applications to be run in Termux:X11
 
 ## Setup Instructions
-For this one. you must enable the `x11-repo` repository can be done by executing `pkg install x11-repo` command
+For this one you must enable the `x11-repo` repository can be done by executing `pkg install x11-repo` command
 
 For X applications to work, you must install Termux-x11 companion package. You can do that by doing
 ```
 pkg install termux-x11
 ```
+Or by downloading an artifact from [last successful build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml) and installing `*.apk` and `*.deb` files.
 
 ## Running Graphical Applications
 to work with GUI applications, start Termux:X11 first. a toast message saying `Service was Created` indicates that it should be ready to use
@@ -39,12 +40,19 @@ If you're done using Termux:X11 just simply exit it through it's notification dr
 Some apps may have issues with wayland regarding DPI. please see https://wiki.archlinux.org/title/HiDPI on how to override application-specific DPI or scaling.
 
 You can fix this in your window manager settings (in the case of xfce4 and lxqt via Applications Menu > Settings > Appearance). Look for the DPI value, if it is disabled enable it and adjust its value until the fonts are the appropriate size.
+<details>
+<summary> Screenshot </summary>
 
 ![image](./img/dpi-scale.png) 
+</details>
 
 ## Using with 3rd party apps
 It is possible to use Termux:X11 with 3rd party apps.
 You should start Termux:X11's activity with providing some additional data.
+
+<details>
+<summary> Code fragment </summary>
+
 ```
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
@@ -104,6 +112,7 @@ class Service extends ITermuxX11Internal.Stub {
     }
 }
 ```
+</details>
 
 # License
 Released under the [GPLv3 license](https://www.gnu.org/licenses/gpl-3.0.html).

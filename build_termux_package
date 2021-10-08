@@ -37,19 +37,6 @@ Depends: xwayland
 Description: Companion package for termux-x11 app
 EOF
 
-cat <<EOF > $CONTROL_DIR/postinst
-#!/data/data/com.termux/files/usr/bin/bash
-[ -z "\$PREFIX" ] && PREFIX=/data/data/com.termux/files/usr
-ABI=
-case \`dpkg --print-architecture\` in
-  arm) ABI=armeabi-v7a;;
-  aarch64) ABI=arm64-v8a;;
-  i686) ABI=x86;;
-  x86_64) ABI=x86_64;;
-esac
-mv \$PREFIX/libexec/termux-x11/\$ABI/libstarter.so \$PREFIX/libexec/termux-x11/
-EOF
-
 mkdir -p $PACKAGE_DIR
 echo 2.0 > $PACKAGE_DIR/debian-binary
 tar -cJf $PACKAGE_DIR/data.tar.xz -C $DATA_DIR .

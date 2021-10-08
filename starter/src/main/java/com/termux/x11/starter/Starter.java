@@ -22,6 +22,7 @@ import android.annotation.SuppressLint;
 import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -295,13 +296,23 @@ public class Starter {
         Looper.prepare();
         handler = new Handler();
 
+        boolean loaded = false;
         @SuppressLint("SdCardPath")
-        final String libPath = "/data/data/com.termux/files/usr/libexec/termux-x11/libstarter.so";
-        final File libFile = new File(libPath);
-        if (libFile.exists()) {
-            Runtime.getRuntime().load(libPath);
-        } else {
-            System.err.println(libPath + " does not exist. Please, check termux-x11 package installation.");
+        final String DistDir = "/data/data/com.termux/files/usr/libexec/termux-x11";
+        for (int i = 0; i < Build.SUPPORTED_ABIS.length; i++) {
+            @SuppressLint("SdCardPath")
+            final String libPath = DistDir + "/" + Build.SUPPORTED_ABIS[i] + "/libstarter.so";
+            File libFile = new File(libPath);
+            if (libFile.exists()) {
+                Runtime.getRuntime().load(libPath);
+                loaded = true;
+                break;
+            } else System.err.println(libPath + "not found");
+        }
+
+        if (!loaded) {
+            System.err.println("Can not find some core libraries.");
+            System.err.println("Please, check termux-x11 package installation.");
             System.exit(1);
         }
     }

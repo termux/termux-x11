@@ -10,23 +10,6 @@
 #define LOGV(fmt ...)
 
 LorieCompositor::LorieCompositor() :
-#define wrapper(name) \
-	name(&LorieCompositor::real_ ## name, this, queue)
-wrapper(terminate),
-wrapper(output_redraw),
-wrapper(output_resize),
-wrapper(touch_down),
-wrapper(touch_motion),
-wrapper(touch_up),
-wrapper(touch_frame),
-wrapper(pointer_motion),
-wrapper(pointer_scroll),
-wrapper(pointer_button),
-wrapper(keyboard_key),
-wrapper(keyboard_key_modifiers), 
-wrapper(keyboard_keymap_changed),
-#undef wrapper
-
 renderer(*this), 
 toplevel(renderer.toplevel_surface),
 cursor(renderer.cursor_surface),
@@ -61,6 +44,10 @@ void LorieCompositor::start() {
 	wl_display_run(display);
 }
 
+void LorieCompositor::post(std::function<void()> f) {
+    queue.write(f);
+}
+
 struct wl_event_source* LorieCompositor::add_fd_listener(int fd, uint32_t mask, wl_event_loop_fd_func_t func, void *data) {
 	LOGV("Adding fd %d to event loop", fd);
 	struct wl_event_loop* loop = nullptr;
@@ -73,7 +60,7 @@ struct wl_event_source* LorieCompositor::add_fd_listener(int fd, uint32_t mask, 
 	return nullptr;
 }
 
-void LorieCompositor::real_terminate() {
+void LorieCompositor::terminate() {
 	LOGV("Terminating compositor");
 	if (display != nullptr)
 		wl_display_terminate(display);
@@ -87,19 +74,21 @@ void LorieCompositor::set_cursor(LorieSurface *surface, uint32_t hotspot_x, uint
     renderer.set_cursor(surface, hotspot_x, hotspot_y);
 }
 
-void LorieCompositor::real_output_redraw() {
+void LorieCompositor::output_redraw() {
 	LOGV("Requested redraw");
 	renderer.requestRedraw();
 }
 
-void LorieCompositor::real_output_resize(uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height) {
+void LorieCompositor::output_resize(uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height) {
 	// Xwayland segfaults without that line
 	if (width == 0 || height == 0 || physical_width == 0 || physical_height == 0) return;
 	renderer.resize(width, height, physical_width, physical_height);
-	output_redraw();
+	post([this]() {
+		output_redraw();
+	});
 }
 
-void LorieCompositor::real_touch_down(uint32_t id, uint32_t x, uint32_t y) {
+void LorieCompositor::touch_down(uint32_t id, uint32_t x, uint32_t y) {
 	LorieClient *client = get_toplevel_client();
 	if (toplevel == nullptr || client == nullptr) return;
 
@@ -110,7 +99,7 @@ void LorieCompositor::real_touch_down(uint32_t id, uint32_t x, uint32_t y) {
 	renderer.setCursorVisibility(false);
 }
 
-void LorieCompositor::real_touch_motion(uint32_t id, uint32_t x, uint32_t y) {
+void LorieCompositor::touch_motion(uint32_t id, uint32_t x, uint32_t y) {
 	LorieClient *client = get_toplevel_client();
 	if (toplevel == nullptr || client == nullptr) return;
 
@@ -121,7 +110,7 @@ void LorieCompositor::real_touch_motion(uint32_t id, uint32_t x, uint32_t y) {
 	renderer.setCursorVisibility(false);
 }
 
-void LorieCompositor::real_touch_up(uint32_t id) {
+void LorieCompositor::touch_up(uint32_t id) {
 	LorieClient *client = get_toplevel_client();
 	if (toplevel == nullptr || client == nullptr) return;
 
@@ -129,7 +118,7 @@ void LorieCompositor::real_touch_up(uint32_t id) {
 	renderer.setCursorVisibility(false);
 }
 
-void LorieCompositor::real_touch_frame() {
+void LorieCompositor::touch_frame() {
 	LorieClient *client = get_toplevel_client();
 	if (toplevel == nullptr || client == nullptr) return;
 
@@ -137,7 +126,7 @@ void LorieCompositor::real_touch_frame() {
 	renderer.setCursorVisibility(false);
 }
 
-void LorieCompositor::real_pointer_motion(uint32_t x, uint32_t y) {
+void LorieCompositor::pointer_motion(uint32_t x, uint32_t y) {
 	LorieClient *client = get_toplevel_client();
 	if (client == nullptr) return;
 
@@ -151,7 +140,7 @@ void LorieCompositor::real_pointer_motion(uint32_t x, uint32_t y) {
 	renderer.cursorMove(x, y);
 }
 
-void LorieCompositor::real_pointer_scroll(uint32_t axis, float value) {
+void LorieCompositor::pointer_scroll(uint32_t axis, float value) {
     LorieClient *client = get_toplevel_client();
     if (client == nullptr) return;
 
@@ -163,7 +152,7 @@ void LorieCompositor::real_pointer_scroll(uint32_t axis, float value) {
 	renderer.setCursorVisibility(true);
 }
 
-void LorieCompositor::real_pointer_button(uint32_t button, uint32_t state) {
+void LorieCompositor::pointer_button(uint32_t button, uint32_t state) {
 	LorieClient *client = get_toplevel_client();
 	if (client == nullptr) return;
 
@@ -173,14 +162,14 @@ void LorieCompositor::real_pointer_button(uint32_t button, uint32_t state) {
 	renderer.setCursorVisibility(true);
 }
 
-void LorieCompositor::real_keyboard_key(uint32_t key, uint32_t state) {
+void LorieCompositor::keyboard_key(uint32_t key, uint32_t state) {
 	LorieClient *client = get_toplevel_client();
 	if (client == nullptr) return;
 
 	client->keyboard.send_key (next_serial(), LorieUtils::timestamp(), key, state);
 }
 
-void LorieCompositor::real_keyboard_key_modifiers(uint8_t depressed, uint8_t latched, uint8_t locked, uint8_t group) {
+void LorieCompositor::keyboard_key_modifiers(uint8_t depressed, uint8_t latched, uint8_t locked, uint8_t group) {
 	LorieClient *client = get_toplevel_client();
 	if (client == nullptr) return;
 
@@ -197,7 +186,7 @@ void LorieCompositor::real_keyboard_key_modifiers(uint8_t depressed, uint8_t lat
 	client->keyboard.send_modifiers (next_serial(), depressed, latched, locked, group);
 }
 
-void LorieCompositor::real_keyboard_keymap_changed() {
+void LorieCompositor::keyboard_keymap_changed() {
 	LorieClient *client = get_toplevel_client();
 	if (client == nullptr) return;
 

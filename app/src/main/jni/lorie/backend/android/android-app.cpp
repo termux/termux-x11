@@ -14,6 +14,7 @@
 #include <sys/socket.h>
 #include <dirent.h>
 
+#pragma ide diagnostic ignored "hicpp-signed-bitwise"
 #define unused __attribute__((__unused__))
 
 #define DEFAULT_WIDTH 480
@@ -29,11 +30,12 @@ public:
 	void get_default_proportions(int32_t* width, int32_t* height) override;
 	void get_keymap(int *fd, int *size) override;
 	void window_change_callback(EGLNativeWindowType win, uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height);
-	void layout_change_callback(char *layout);
+	void layout_change_callback(const char *layout);
 	void passfd(int fd);
 
 	void on_egl_init();
-	void on_egl_uninit();
+
+	void unused on_egl_uninit();
 
 	LorieEGLHelper helper;
 
@@ -47,13 +49,11 @@ public:
 LorieBackendAndroid::LorieBackendAndroid()
     : self(&LorieCompositor::start, this) {}
 
-
-
 void LorieBackendAndroid::on_egl_init() {
 	renderer.init();
 }
 
-void LorieBackendAndroid::on_egl_uninit() {
+void unused LorieBackendAndroid::on_egl_uninit() {
 	renderer.uninit();
 }
 
@@ -62,8 +62,8 @@ void LorieBackendAndroid::backend_init() {
 	    LOGE("Failed to initialize EGL context");
 	}
 
-	helper.onInit = std::bind(std::mem_fn(&LorieBackendAndroid::on_egl_init), this);
-	//helper.onUninit = std::bind(std::mem_fn(&LorieBackendAndroid::on_egl_uninit), this);
+	helper.onInit = [this](){ on_egl_init(); };
+	//helper.onUninit = [this](){ on_egl_uninit(); };
 
 	if (xkb_context == nullptr) {
 		xkb_context = xkb_context_new((enum xkb_context_flags) 0);
@@ -145,15 +145,17 @@ void LorieBackendAndroid::get_keymap(int *fd, int *size) {
 void LorieBackendAndroid::window_change_callback(EGLNativeWindowType win, uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height) {
 	LOGE("WindowChangeCallback");
 	helper.setWindow(win);
-	output_resize(width, height, physical_width, physical_height);
+	post([this, width, height, physical_width, physical_height]() {
+        output_resize(width, height, physical_width, physical_height);
+        });
 }
 
-void LorieBackendAndroid::layout_change_callback(char *layout) {
+void LorieBackendAndroid::layout_change_callback(const char *layout) {
 	xkb_keymap_unref(xkb_keymap);
 	xkb_names.layout = layout;
 
 	xkb_keymap = xkb_keymap_new_from_names(xkb_context, &xkb_names, (xkb_keymap_compile_flags)0);
-	if (xkb_keymap == NULL) {
+	if (xkb_keymap == nullptr) {
 		LOGE("failed to compile global XKB keymap\n");
 		LOGE("  tried rules %s, model %s, layout %s, variant %s, "
 				"options %s\n",
@@ -163,11 +165,13 @@ void LorieBackendAndroid::layout_change_callback(char *layout) {
 		return;
 	}
 
-	keyboard_keymap_changed();
+	post([this]() {
+        keyboard_keymap_changed();
+    });
 }
 void LorieBackendAndroid::passfd(int fd) {
     listen(fd, 128);
-	wl_display_add_socket_fd(display, fd);
+    wl_display_add_socket_fd(display, fd);
 }
 
 ///////////////////////////////////////////////////////////
@@ -190,28 +194,30 @@ static LorieBackendAndroid* fromLong(jlong v) {
 
 extern "C" JNIEXPORT jlong JNICALL
 JNI_DECLARE(LorieService, createLorieThread)(unused JNIEnv *env, unused jobject instance) {
-	return (jlong) new LorieBackendAndroid;
+    return (jlong) new LorieBackendAndroid;
 }
 
 extern "C" JNIEXPORT void JNICALL
 JNI_DECLARE(LorieService, passWaylandFD)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint fd) {
-	if (jcompositor == 0) return;
-	LorieBackendAndroid *b = fromLong(jcompositor);
-	char path[256] = {0};
-	char realpath[256] = {0};
-	sprintf(path, "/proc/self/fd/%d", fd);
-	readlink(path, realpath, sizeof(realpath));
+    if (jcompositor == 0) return;
+    LorieBackendAndroid *b = fromLong(jcompositor);
+    char path[256] = {0};
+    char realpath[256] = {0};
+    sprintf(path, "/proc/self/fd/%d", fd);
+    readlink(path, realpath, sizeof(realpath));
     LOGI("JNI: got fd %d (%s)", fd, realpath);
 
-	b->passfd(fd);
+    b->passfd(fd);
 }
 
 extern "C" JNIEXPORT void JNICALL
 JNI_DECLARE(LorieService, terminate)(unused JNIEnv *env, unused jobject instance,  jlong jcompositor) {
-	if (jcompositor == 0) return;
-    	LorieBackendAndroid *b = fromLong(jcompositor);
-	LOGI("JNI: requested termination");
-    b->terminate();
+    if (jcompositor == 0) return;
+        LorieBackendAndroid *b = fromLong(jcompositor);
+    LOGI("JNI: requested termination");
+    b->post([b](){
+        b->terminate();
+    });
     b->self.join();
 }
 
@@ -221,7 +227,9 @@ JNI_DECLARE(LorieService, windowChanged)(JNIEnv *env, unused jobject instance, j
 	LorieBackendAndroid *b = fromLong(jcompositor);
 
 	EGLNativeWindowType win = ANativeWindow_fromSurface(env, jsurface);
-	b->queue.call(&LorieBackendAndroid::window_change_callback, b, win, width, height, mmWidth, mmHeight);
+	b->post([b, win, width, height, mmWidth, mmHeight](){
+        b->window_change_callback(win, width, height, mmWidth, mmHeight);
+	});
 
     LOGV("JNI: window is changed: %p(%p) %dx%d (%dmm x %dmm)", win, jsurface, width, height, mmWidth, mmHeight);
 }
@@ -232,7 +240,9 @@ JNI_DECLARE(LorieService, touchDown)(unused JNIEnv *env, unused jobject instance
     LorieBackendAndroid *b = fromLong(jcompositor);
 	LOGV("JNI: touch down");
 
-    b->touch_down(static_cast<uint32_t>(id), static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+    b->post([b, id, x, y]() {
+        b->touch_down(static_cast<uint32_t>(id), static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+    });
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -241,7 +251,10 @@ JNI_DECLARE(LorieService, touchMotion)(unused JNIEnv *env, unused jobject instan
     LorieBackendAndroid *b = fromLong(jcompositor);
 	LOGV("JNI: touch motion");
 
-    b->touch_motion(static_cast<uint32_t>(id), static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+    b->post([b, id, x, y]() {
+        b->touch_motion(static_cast<uint32_t>(id), static_cast<uint32_t>(x),
+                             static_cast<uint32_t>(y));
+    });
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -250,7 +263,9 @@ JNI_DECLARE(LorieService, touchUp)(unused JNIEnv *env, unused jobject instance, 
     LorieBackendAndroid *b = fromLong(jcompositor);
 	LOGV("JNI: touch up");
 
-    b->touch_up(static_cast<uint32_t>(id));
+    b->post([b, id]() {
+        b->touch_up(static_cast<uint32_t>(id));
+    });
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -259,7 +274,9 @@ JNI_DECLARE(LorieService, touchFrame)(unused JNIEnv *env, unused jobject instanc
     LorieBackendAndroid *b = fromLong(jcompositor);
 	LOGV("JNI: touch frame");
 
-    b->touch_frame();
+    b->post([b]() {
+        b->touch_frame();
+    });
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -268,7 +285,9 @@ JNI_DECLARE(LorieService, pointerMotion)(unused JNIEnv *env, unused jobject inst
     LorieBackendAndroid *b = fromLong(jcompositor);
 
     LOGV("JNI: pointer motion %dx%d", x, y);
-    b->pointer_motion(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+    b->post([b, x, y](){
+        b->pointer_motion(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+    });
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -277,7 +296,9 @@ JNI_DECLARE(LorieService, pointerScroll)(unused JNIEnv *env, unused jobject inst
     LorieBackendAndroid *b = fromLong(jcompositor);
 
     LOGV("JNI: pointer scroll %d  %f", axis, value);
-    b->pointer_scroll(static_cast<uint32_t>(axis), value);
+    b->post([b, axis, value]() {
+        b->pointer_scroll(static_cast<uint32_t>(axis), value);
+    });
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -286,7 +307,9 @@ JNI_DECLARE(LorieService, pointerButton)(unused JNIEnv *env, unused jobject inst
     LorieBackendAndroid *b = fromLong(jcompositor);
 
     LOGV("JNI: pointer button %d type %d", button, type);
-    b->pointer_button(static_cast<uint32_t>(button), static_cast<uint32_t>(type));
+    b->post([b, button, type]() {
+        b->pointer_button(static_cast<uint32_t>(button), static_cast<uint32_t>(type));
+    });
 }
 
 extern "C" void get_character_data(char** layout, int *shift, int *ec, char *ch);
@@ -300,23 +323,29 @@ JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, unused jobject instance,
 	if (jcompositor == 0) return;
     LorieBackendAndroid *b = fromLong(jcompositor);
 
-    char *characters = NULL;
+    char *characters = nullptr;
 
 	int event_code = 0;
     int shift = jshift;
-	if (characters_ != NULL) characters = (char*) env->GetStringUTFChars(characters_, 0);
+	if (characters_ != nullptr) characters = (char*) env->GetStringUTFChars(characters_, nullptr);
     if (key_code && !characters) {
 		android_keycode_get_eventcode(key_code, &event_code, &shift);
 		LOGE("kc: %d ec: %d", key_code, event_code);
-		if (strcmp(b->xkb_names.layout, "us") && event_code != 0) {
-			b->queue.call(&LorieBackendAndroid::layout_change_callback, b, (char*)"us");
-		}
+		if (strcmp(b->xkb_names.layout, "us") != 0) {
+            if (event_code != 0) {
+                b->post([b](){
+                    b->layout_change_callback((char *) "us");
+                });
+            }
+        }
     }
     if (!key_code && characters) {
-        char *layout = NULL;
+        char *layout = nullptr;
         get_character_data(&layout, &shift, &event_code, characters);
         if (layout && b->xkb_names.layout != layout) {
-			b->queue.call(&LorieBackendAndroid::layout_change_callback, b, layout);
+            b->post([b, layout](){
+                b->layout_change_callback(layout);
+            });
         }
     }
 	LOGE("Keyboard input: keyCode: %d; eventCode: %d; characters: %s; shift: %d, type: %d", key_code, event_code, characters, shift, type);
@@ -330,18 +359,26 @@ JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, unused jobject instance,
 	//}
 
     if (shift || jshift)
-        b->keyboard_key(42, WL_KEYBOARD_KEY_STATE_PRESSED); // Send KEY_LEFTSHIFT
+        b->post([b]() {
+            b->keyboard_key(42, WL_KEYBOARD_KEY_STATE_PRESSED); // Send KEY_LEFTSHIFT
+        });
 
     // For some reason Android do not send ACTION_DOWN for non-English characters
     if (characters)
-        b->keyboard_key(static_cast<uint32_t>(event_code), WL_KEYBOARD_KEY_STATE_PRESSED);
+        b->post([b, event_code]() {
+            b->keyboard_key(static_cast<uint32_t>(event_code), WL_KEYBOARD_KEY_STATE_PRESSED);
+        });
 
-	b->keyboard_key(static_cast<uint32_t>(event_code), static_cast<uint32_t>(type));
+    b->post([b, event_code, type]() {
+        b->keyboard_key(static_cast<uint32_t>(event_code), static_cast<uint32_t>(type));
+    });
 
     if (shift || jshift)
-        b->keyboard_key(42, WL_KEYBOARD_KEY_STATE_RELEASED); // Send KEY_LEFTSHIFT
+        b->post([b]() {
+            b->keyboard_key(42, WL_KEYBOARD_KEY_STATE_RELEASED); // Send KEY_LEFTSHIFT
+        });
 
-    if (characters_ != NULL) env->ReleaseStringUTFChars(characters_, characters);
+    if (characters_ != nullptr) env->ReleaseStringUTFChars(characters_, characters);
 }
 
 static bool sameUid(int pid) {
@@ -357,12 +394,12 @@ static void killAllLogcats() {
 	struct dirent* dir_elem;
 	char path[64] = {0}, link[64] = {0};
 	pid_t pid, self = getpid();
-	if ((proc = opendir("/proc")) == NULL) {
+	if ((proc = opendir("/proc")) == nullptr) {
 		LOGE("opendir: %s", strerror(errno));
 		return;
 	}
 
-	while((dir_elem = readdir(proc)) != NULL) {
+	while((dir_elem = readdir(proc)) != nullptr) {
 		if (!(pid = (pid_t) atoi (dir_elem->d_name)) || pid == self || !sameUid(pid))
 			continue;
 
@@ -373,7 +410,7 @@ static void killAllLogcats() {
 			LOGE("readlink %s: %s", path, strerror(errno));
 			continue;
 		}
-		if (strstr(link, "/logcat") != NULL) {
+		if (strstr(link, "/logcat") != nullptr) {
 			if (kill(pid, SIGKILL) < 0) {
 				LOGE("kill %d (%s): %s", pid, link, strerror);
 			}
@@ -390,19 +427,19 @@ void fork(std::function<void()> f) {
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieService_startLogcatForFd(unused JNIEnv *env, unused jobject thiz, jint fd) {
+Java_com_termux_x11_LorieService_startLogcatForFd(unused JNIEnv *env, unused jclass clazz, jint fd) {
 	killAllLogcats();
 
 	LOGI("Starting logcat with output to given fd");
 	fork([]() {
-		execl("/system/bin/logcat", "logcat", "-c", NULL);
+		execl("/system/bin/logcat", "logcat", "-c", nullptr);
 		LOGE("exec logcat: %s", strerror(errno));
 	});
 
 	fork([fd]() {
 		dup2(fd, 1);
 		dup2(fd, 2);
-		execl("/system/bin/logcat", "logcat", NULL);
+		execl("/system/bin/logcat", "logcat", nullptr);
 		LOGE("exec logcat: %s", strerror(errno));
 	});
 }

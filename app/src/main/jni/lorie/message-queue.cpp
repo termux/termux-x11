@@ -1,13 +1,13 @@
 #include <lorie-compositor.hpp>
 #include <unistd.h>
 #include <fcntl.h>
-#include <string.h>
-#include <errno.h>
+#include <cstring>
+#include <cerrno>
 #include <sys/eventfd.h>
+#include <mutex>
 
 LorieMessageQueue::LorieMessageQueue() {
-	pthread_mutex_init(&write_mutex, nullptr);
-	pthread_mutex_init(&read_mutex, nullptr);
+	std::unique_lock<std::mutex> lock(mutex);
 
 	fd = eventfd(0, EFD_CLOEXEC);
 	if (fd == -1) {
@@ -18,21 +18,23 @@ LorieMessageQueue::LorieMessageQueue() {
 
 void LorieMessageQueue::write(std::function<void()> func) {
 	static uint64_t i = 1;
-	pthread_mutex_lock(&write_mutex);
+	std::unique_lock<std::mutex> lock(mutex);
 	queue.push(func);
-	pthread_mutex_unlock(&write_mutex);
 	::write(fd, &i, sizeof(uint64_t));
 }
 
 void LorieMessageQueue::run() {
 	static uint64_t i = 0;
+	std::unique_lock<std::mutex> lock(mutex);
+	std::function<void()> fn;
 	::read(fd, &i, sizeof(uint64_t));
 	while(!queue.empty()){
-		queue.front()();
-
-		pthread_mutex_lock(&read_mutex);
+		fn = queue.front();
 		queue.pop();
-		pthread_mutex_unlock(&read_mutex);
+
+		lock.unlock();
+		fn();
+		lock.lock();
 	}
 }
 

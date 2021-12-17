@@ -416,7 +416,7 @@ public class LorieService extends Service {
 
             if (e.getAction() == KeyEvent.ACTION_DOWN) action = TouchParser.ACTION_DOWN;
             if (e.getAction() == KeyEvent.ACTION_UP) action = TouchParser.ACTION_UP;
-            svc.keyboardKey(action, keyCode, e.isShiftPressed() ? 1 : 0, e.getCharacters());
+            svc.keyboardKey(action, keyCode, e.isShiftPressed() ? 1 : 0, e.isCtrlPressed() ? 1 : 0, e.isAltPressed() ? 1 : 0, e.getCharacters());
             return true;
         }
 
@@ -526,8 +526,8 @@ public class LorieService extends Service {
     private void pointerButton(int button, int type) { pointerButton(compositor, button, type); }
     private native void pointerButton(long compositor, int button, int type);
 
-    private void keyboardKey(int key, int type, int shift, String characters) {keyboardKey(compositor, key, type, shift, characters);}
-    private native void keyboardKey(long compositor, int key, int type, int shift, String characters);
+    private void keyboardKey(int key, int type, int shift, int ctrl, int alt, String characters) {keyboardKey(compositor, key, type, shift, ctrl, alt, characters);}
+    private native void keyboardKey(long compositor, int key, int type, int shift, int ctrl, int alt, String characters);
 
     private void passWaylandFD(int fd) {passWaylandFD(compositor, fd);}
     private native void passWaylandFD(long compositor, int fd);

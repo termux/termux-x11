@@ -388,17 +388,17 @@ JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, unused jobject instance,
 
     if (alt || jalt)
         b->post([b]() {
-            b->keyboard_key(18, WL_KEYBOARD_KEY_STATE_RELEASED); // Send KEY_LEFTSHIFT
+            b->keyboard_key(18, WL_KEYBOARD_KEY_STATE_RELEASED);
         });
 
     if (ctrl || jctrl)
         b->post([b]() {
-            b->keyboard_key(17, WL_KEYBOARD_KEY_STATE_RELEASED); // Send KEY_LEFTSHIFT
+            b->keyboard_key(17, WL_KEYBOARD_KEY_STATE_RELEASED);
         });
 
     if (shift || jshift)
         b->post([b]() {
-            b->keyboard_key(42, WL_KEYBOARD_KEY_STATE_RELEASED); // Send KEY_LEFTSHIFT
+            b->keyboard_key(42, WL_KEYBOARD_KEY_STATE_RELEASED);
         });
 
     if (characters_ != nullptr) env->ReleaseStringUTFChars(characters_, characters);

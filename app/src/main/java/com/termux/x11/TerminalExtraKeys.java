@@ -59,12 +59,12 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
                 } else if (SpecialButton.FN.getKey().equals(key)) {
                     fnDown = true;
                 } else {
-                    onLorieExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, fnDown);
                     ctrlDown = false;
 		    altDown = false;
 		    shiftDown = false;
 		    fnDown = false;
                 }
+                onLorieExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, fnDown);
             }
         } else {
             onLorieExtraKeyButtonClick(view, buttonInfo.getKey(), false, false, false, false);
@@ -80,10 +80,12 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
 
             if (ctrlDown) {
 		metaState |= KeyEvent.META_CTRL_ON | KeyEvent.META_CTRL_LEFT_ON;
+		metaAltState |= KeyEvent.KEYCODE_CTRL_LEFT | KeyEvent.KEYCODE_CTRL_RIGHT;
 	    }
 
             if (altDown) {
 		metaState |= KeyEvent.META_ALT_ON | KeyEvent.META_ALT_LEFT_ON;
+		metaAltState |= KeyEvent.KEYCODE_ALT_LEFT | KeyEvent.KEYCODE_ALT_RIGHT;
 	    }
 
             if (shiftDown) {
@@ -94,8 +96,16 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
 		metaState |= KeyEvent.META_FUNCTION_ON;
 	    }
 
+	    if (metaAltState != 0) {
+		mEventListener.onKey(act.getlorieView(), keyCode, new KeyEvent(metaAltState, keyCode));
+	    }
+
 	    mEventListener.onKey(act.getlorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_DOWN, keyCode, 0, metaState));
 	    mEventListener.onKey(act.getlorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, metaState));
+
+	    if (metaAltState != 0) {
+		mEventListener.onKey(act.getlorieView(), keyCode, new KeyEvent(metaAltState, keyCode));
+	    }
 
         } else {
             // not a control char

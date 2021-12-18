@@ -318,7 +318,7 @@ extern "C" void android_keycode_get_eventcode(int kc, int *ec, int *shift);
 extern "C" JNIEXPORT void JNICALL
 JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, unused jobject instance,
                                            jlong jcompositor, jint type,
-                                           jint key_code, jint jshift, jint jctrl, jint jalt,
+                                           jint key_code, jint jshift,
                                            jstring characters_) {
 	if (jcompositor == 0) return;
     LorieBackendAndroid *b = fromLong(jcompositor);
@@ -327,9 +327,6 @@ JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, unused jobject instance,
 
 	int event_code = 0;
     int shift = jshift;
-    int ctrl = jctrl;
-    int alt = jalt;
-
 	if (characters_ != nullptr) characters = (char*) env->GetStringUTFChars(characters_, nullptr);
     if (key_code && !characters) {
 		android_keycode_get_eventcode(key_code, &event_code, &shift);
@@ -366,16 +363,6 @@ JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, unused jobject instance,
             b->keyboard_key(42, WL_KEYBOARD_KEY_STATE_PRESSED); // Send KEY_LEFTSHIFT
         });
 
-    if (ctrl || jctrl)
-        b->post([b]() {
-            b->keyboard_key(17, WL_KEYBOARD_KEY_STATE_PRESSED);
-        });
-
-    if (alt || jalt)
-        b->post([b]() {
-            b->keyboard_key(18, WL_KEYBOARD_KEY_STATE_PRESSED);
-        });
-
     // For some reason Android do not send ACTION_DOWN for non-English characters
     if (characters)
         b->post([b, event_code]() {
@@ -385,16 +372,6 @@ JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, unused jobject instance,
     b->post([b, event_code, type]() {
         b->keyboard_key(static_cast<uint32_t>(event_code), static_cast<uint32_t>(type));
     });
-
-    if (alt || jalt)
-        b->post([b]() {
-            b->keyboard_key(18, WL_KEYBOARD_KEY_STATE_RELEASED);
-        });
-
-    if (ctrl || jctrl)
-        b->post([b]() {
-            b->keyboard_key(17, WL_KEYBOARD_KEY_STATE_RELEASED);
-        });
 
     if (shift || jshift)
         b->post([b]() {

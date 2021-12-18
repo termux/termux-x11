@@ -99,9 +99,11 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
 	    if (metaAltState != 0) {
 		mEventListener.onKey(act.getlorieView(), keyCode, new KeyEvent(metaAltState, keyCode));
 	    }
-
 	    mEventListener.onKey(act.getlorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_DOWN, keyCode, 0, metaState));
-	    mEventListener.onKey(act.getlorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, metaState));
+
+	    if (!ctrlDown | !altDown) {
+	    	mEventListener.onKey(act.getlorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, metaState));
+	    }
 
 	    if (metaAltState != 0) {
 		mEventListener.onKey(act.getlorieView(), keyCode, new KeyEvent(metaAltState, keyCode));

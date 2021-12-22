@@ -44,6 +44,23 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
     static final String ACTION_START_PREFERENCES_ACTIVITY = "com.termux.x11.start_preferences_activity";
 
     @Override
+    public void onAnyExtraKeyButtonClick(View view, @NonNull ExtraKeyButton buttonInfo, Button button) {
+        if (isSpecialButton(buttonInfo)) {
+            if (mLongPressCount > 0) return;
+            SpecialButtonState state = mSpecialButtons.get(SpecialButton.valueOf(buttonInfo.getKey()));
+            if (state == null) return;
+            super.onExtraKeyButtonClick(view, buttonInfo, button);
+
+            // Toggle active state and disable lock state if new state is not active
+            state.setIsActive(!state.isActive);
+            if (!state.isActive)
+                state.setIsLocked(false);
+        } else {
+            super.onExtraKeyButtonClick(view, buttonInfo, button);
+        }
+    }
+
+    @Override
     public void onExtraKeyButtonClick(View view, ExtraKeyButton buttonInfo, Button button) {
         if (buttonInfo.isMacro()) {
             String[] keys = buttonInfo.getKey().split(" ");

@@ -32,12 +32,14 @@ public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
 
     private final View.OnKeyListener mEventListener;
     private final MainActivity act;
+    private final ExtraKeysView mExtraKeysView;
 
     private int metaAltState = 0;
 
-    public TerminalExtraKeys(@NonNull View.OnKeyListener eventlistener, MainActivity mact) {
+    public TerminalExtraKeys(@NonNull View.OnKeyListener eventlistener, MainActivity mact, ExtraKeysView extrakeysview) {
         mEventListener = eventlistener;
 	act = mact;
+	mExtraKeysView = extrakeysview;
     }
 
     private final KeyCharacterMap mVirtualKeyboardKeyCharacterMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD);

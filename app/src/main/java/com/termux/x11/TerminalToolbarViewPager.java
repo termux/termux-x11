@@ -47,7 +47,7 @@ public class TerminalToolbarViewPager {
                 layout = inflater.inflate(R.layout.view_terminal_toolbar_extra_keys, collection, false);
                 ExtraKeysView extraKeysView = (ExtraKeysView) layout;
                 extraKeysView.reload(act.getProperties().getExtraKeysInfo());
-		extraKeysView.setExtraKeysViewClient(new TerminalExtraKeys(mEventListener, act));
+		extraKeysView.setExtraKeysViewClient(new TerminalExtraKeys(mEventListener, act, extraKeysView));
 		act.setExtraKeysView(extraKeysView);
             } else {
                 layout = inflater.inflate(R.layout.view_terminal_toolbar_text_input, collection, false);

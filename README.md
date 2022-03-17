@@ -29,7 +29,7 @@ to work with GUI applications, start Termux:X11 first. a toast message saying `S
 then you can start your desired graphical application by doing:
 ```
 ~ $ export XDG_RUNTIME_DIR=${TMPDIR}
-~ $ termux-x11 :1 >/dev/null &
+~ $ termux-x11 :1 &
 ~ $ env DISPLAY=:1 xfce4-session
 ```
 You may replace `xfce4-session` if you use other than Xfce

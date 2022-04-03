@@ -40,6 +40,9 @@ public class MainActivity extends AppCompatActivity {
 
         LorieService.setMainActivity(this);
         LorieService.start(LorieService.ACTION_START_FROM_ACTIVITY);
+	    
+	# Required to enable fullscreen
+	getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN|
                 WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);

@@ -12,7 +12,7 @@ import androidx.annotation.NonNull;
 import androidx.viewpager.widget.PagerAdapter;
 import androidx.viewpager.widget.ViewPager;
 
-import com.termux.shared.terminal.io.extrakeys.ExtraKeysView;
+import com.termux.shared.termux.extrakeys.ExtraKeysView;
 import com.termux.x11.TerminalExtraKeys;
 
 public class TerminalToolbarViewPager {

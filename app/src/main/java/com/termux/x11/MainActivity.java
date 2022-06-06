@@ -27,7 +27,7 @@ import android.view.LayoutInflater;
 import android.widget.Toast;
 import android.widget.FrameLayout;
 
-import com.termux.shared.terminal.io.extrakeys.ExtraKeysView;
+import com.termux.shared.termux.extrakeys.ExtraKeysView;
 
 import com.termux.x11.TermuxAppSharedProperties;
 import com.termux.x11.TerminalExtraKeys;

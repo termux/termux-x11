@@ -22,11 +22,11 @@ import java.lang.Character;
 import androidx.annotation.NonNull;
 import androidx.drawerlayout.widget.DrawerLayout;
 
-import com.termux.shared.terminal.io.extrakeys.ExtraKeyButton;
-import com.termux.shared.terminal.io.extrakeys.ExtraKeysView;
-import com.termux.shared.terminal.io.extrakeys.SpecialButton;
+import com.termux.shared.termux.extrakeys.ExtraKeyButton;
+import com.termux.shared.termux.extrakeys.ExtraKeysView;
+import com.termux.shared.termux.extrakeys.SpecialButton;
 
-import static com.termux.shared.terminal.io.extrakeys.ExtraKeysConstants.PRIMARY_KEY_CODES_FOR_STRINGS;
+import static com.termux.shared.termux.extrakeys.ExtraKeysConstants.PRIMARY_KEY_CODES_FOR_STRINGS;
 
 public class TerminalExtraKeys implements ExtraKeysView.IExtraKeysView {
 

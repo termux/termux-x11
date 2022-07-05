@@ -19,6 +19,8 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.FrameLayout;
 
+import com.termux.x11.utils.PermissionUtils;
+
 public class MainActivity extends AppCompatActivity {
 
     private static int[] keys = {
@@ -108,9 +110,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onUserLeaveHint () {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-	if (preferences.getBoolean("PIP", true)) {
+        if (preferences.getBoolean("PIP", true) && PermissionUtils.hasPipPermission(this)) {
             enterPictureInPictureMode();
-	}
+        }
     }
 
     @Override

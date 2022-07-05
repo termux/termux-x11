@@ -59,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
               setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
 
         Intent i = getIntent();
-        if (i != null && i.getStringExtra(LorieService.LAUNCHED_BY_COMPATION) == null) {
+        if (i != null && i.getBooleanExtra(LorieService.LAUNCHED_BY_COMPATION, false)) {
             LorieService.sendRunCommand(this);
         }
     }

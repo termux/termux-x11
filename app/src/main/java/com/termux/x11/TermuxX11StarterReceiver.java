@@ -23,7 +23,7 @@ public class TermuxX11StarterReceiver extends Activity {
             handleIntent(intent);
 
         Intent main = new Intent(this, MainActivity.class);
-        main.putExtra(LorieService.LAUNCHED_BY_COMPATION, 1);
+        main.putExtra(LorieService.LAUNCHED_BY_COMPATION, true);
         main.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         startActivity(main);
 

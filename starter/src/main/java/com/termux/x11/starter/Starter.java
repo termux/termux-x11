@@ -301,10 +301,10 @@ public class Starter {
         final String DistDir = "/data/data/com.termux/files/usr/libexec/termux-x11";
         for (int i = 0; i < Build.SUPPORTED_ABIS.length; i++) {
             @SuppressLint("SdCardPath")
-            final String libPath = DistDir + "/" + Build.SUPPORTED_ABIS[i] + "/libstarter.so";
+            final String libPath = DistDir + "/" + Build.SUPPORTED_ABIS[i] + "/libx11-starter.so";
             File libFile = new File(libPath);
             if (libFile.exists()) {
-                Runtime.getRuntime().load(libPath);
+                System.load(libPath);
                 loaded = true;
                 break;
             } else System.err.println(libPath + "not found");

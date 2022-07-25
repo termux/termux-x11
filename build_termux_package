@@ -5,7 +5,6 @@ cd "$(dirname "$0")"
 PACKAGE_PATH=app/build/outputs/apk/debug/termux-x11.deb
 
 INTERMEDIATES=starter/build/intermediates
-NDKBUILD_DIR=starter/build/intermediates/ndkBuild/debug/obj/local
 DATA_DIR=$INTERMEDIATES/data
 CONTROL_DIR=$INTERMEDIATES/control
 PACKAGE_DIR=$INTERMEDIATES/package
@@ -20,11 +19,6 @@ cp termux-x11 $PREFIX/bin/
 cp termux-startx11 $PREFIX/libexec/termux-x11
 cp starter/build/outputs/apk/debug/starter-debug.apk \
 	$PREFIX/libexec/termux-x11/starter.apk
-for arch in armeabi-v7a arm64-v8a x86 x86_64; do
-	mkdir -p $PREFIX/libexec/termux-x11/$arch/
-	cp $NDKBUILD_DIR/$arch/libx11-starter.so \
-		$PREFIX/libexec/termux-x11/$arch/
-done
 
 mkdir -p $CONTROL_DIR
 cat <<EOF > $CONTROL_DIR/control

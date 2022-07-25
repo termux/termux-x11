@@ -3,17 +3,16 @@ apply plugin: 'com.android.application'
 android {
     compileSdkVersion 30
     defaultConfig {
-        applicationId "com.termux.termuxam"
-        minSdkVersion 21
+        applicationId "com.termux.shell_loader"
+        minSdkVersion 24
         // Note: targetSdkVersion affects only tests,
         //       normally, even though this is packaged as apk,
         //       it's not loaded as apk so targetSdkVersion is ignored.
         //       targetSdkVersion this must be < 28 because this application accesses hidden apis
-        //noinspection OldTargetApi
-        targetSdkVersion 27
+        //noinspection ExpiredTargetSdkVersion,OldTargetApi
+        targetSdkVersion 28
         versionCode 1
         versionName "0.1"
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
 
     externalNativeBuild {
@@ -29,6 +28,15 @@ android {
         }
     }
 
+    packagingOptions {
+        jniLibs {
+            // This will allow us to use shared libraries inside *.apk, without unpacking
+            // @agnostic-apollo is the best
+            // https://github.com/termux/termux-x11/commit/6cdfb75c4451eef63f114a93baef5ba73b7cfd8c#commitcomment-77856313
+            useLegacyPackaging false
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -37,8 +45,6 @@ android {
 }
 
 dependencies {
-    implementation project(path: ':common')
-    //implementation fileTree(dir: 'libs', include: ['*.jar'])
-    //testImplementation 'junit:junit:4.12'
-    androidTestImplementation 'com.android.support.test:runner:1.0.2'
+    implementation project(':common')
+    compileOnly project(':starter:stub')
 }

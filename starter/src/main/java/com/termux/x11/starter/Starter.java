@@ -1,25 +1,6 @@
-/*
-**
-** Copyright 2007, The Android Open Source Project
-**
-** Licensed under the Apache License, Version 2.0 (the "License");
-** you may not use this file except in compliance with the License.
-** You may obtain a copy of the License at
-**
-**     http://www.apache.org/licenses/LICENSE-2.0
-**
-** Unless required by applicable law or agreed to in writing, software
-** distributed under the License is distributed on an "AS IS" BASIS,
-** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-** See the License for the specific language governing permissions and
-** limitations under the License.
-*/
-
-
 package com.termux.x11.starter;
 
 import android.annotation.SuppressLint;
-import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.os.Build;
@@ -30,9 +11,7 @@ import android.os.Looper;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
-import android.util.AndroidException;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Objects;
@@ -44,7 +23,8 @@ import com.termux.x11.common.ITermuxX11Internal;
 public class Starter {
     @SuppressLint("SdCardPath")
     private final String XwaylandPath = "/data/data/com.termux/files/usr/bin/Xwayland";
-    private final String TermuxX11ComponentName = "com.termux.x11/.TermuxX11StarterReceiver";
+    private final ComponentName TermuxX11Component =
+            ComponentName.unflattenFromString("com.termux.x11/.TermuxX11StarterReceiver");
     private String[] args;
     private Service svc;
     private ParcelFileDescriptor logFD;
@@ -78,6 +58,7 @@ public class Starter {
             System.err.println("Looks like Termux lacks \"Draw Over Apps\" permission.");
             System.err.println("You can grant Termux the \"Draw Over Apps\" permission from its App Info activity:");
             System.err.println("\tAndroid Settings -> Apps -> Termux -> Advanced -> Draw over other apps.");
+            exit(1);
     };
 
     public void onRun(String[] args) throws Throwable {
@@ -150,86 +131,37 @@ public class Starter {
 
         Intent intent = new Intent();
         intent.putExtra("com.termux.x11.starter", bundle);
-        ComponentName cn = ComponentName.unflattenFromString(TermuxX11ComponentName);
-        if (cn == null)
-            throw new IllegalArgumentException("Bad component name: " + TermuxX11ComponentName);
-
-        intent.setComponent(cn);
+        intent.setComponent(TermuxX11Component);
 
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|
                 Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        IActivityManager mAm;
-        try {
-            mAm = new IActivityManager();
-        } catch (Throwable e) {
-            e.printStackTrace();
-            throw new AndroidException("Can't connect to activity manager; is the system running?");
-        }
 
-        int res;
-        res = mAm.startActivityAsUser(intent,null, 0, null, 0);
+        int res = Compat.startActivity(intent);
 
         PrintStream out = System.err;
         boolean launched = false;
         out.println("res = " + res);
         switch (res) {
             case ActivityManager.START_SUCCESS:
-                launched = true;
-                break;
             case ActivityManager.START_SWITCHES_CANCELED:
-                launched = true;
-                out.println(
-                        "Warning: Activity not started because the "
-                                + " current activity is being kept for the user.");
-                break;
             case ActivityManager.START_DELIVERED_TO_TOP:
-                launched = true;
-                out.println(
-                        "Warning: Activity not started, intent has "
-                                + "been delivered to currently running "
-                                + "top-most instance.");
-                break;
-            case ActivityManager.START_RETURN_INTENT_TO_CALLER:
-                launched = true;
-                out.println(
-                        "Warning: Activity not started because intent "
-                                + "should be handled by the caller");
-                break;
             case ActivityManager.START_TASK_TO_FRONT:
                 launched = true;
-                out.println(
-                        "Warning: Activity not started, its current "
-                                + "task has been brought to the front");
                 break;
             case ActivityManager.START_INTENT_NOT_RESOLVED:
                 out.println(
                         "Error: Activity not started, unable to "
-                                + "resolve " + intent.toString());
+                                + "resolve " + intent);
                 break;
             case ActivityManager.START_CLASS_NOT_FOUND:
                 out.println("Error: Activity class " +
                         Objects.requireNonNull(intent.getComponent()).toShortString()
                         + " does not exist.");
                 break;
-            case ActivityManager.START_FORWARD_AND_REQUEST_CONFLICT:
-                out.println(
-                        "Error: Activity not started, you requested to "
-                                + "both forward and receive its result");
-                break;
             case ActivityManager.START_PERMISSION_DENIED:
                 out.println(
                         "Error: Activity not started, you do not "
                                 + "have permission to access it.");
-                break;
-            case ActivityManager.START_NOT_VOICE_COMPATIBLE:
-                out.println(
-                        "Error: Activity not started, voice control not allowed for: "
-                                + intent);
-                break;
-            case ActivityManager.START_NOT_CURRENT_USER_ACTIVITY:
-                out.println(
-                        "Error: Not allowed to start background user activity"
-                                + " that shouldn't be displayed for all users.");
                 break;
             default:
                 out.println(
@@ -238,7 +170,6 @@ public class Starter {
         }
 
         System.err.println("Activity is" + (launched?"":" not") + " started");
-        PendingIntent p;
 
         return launched;
     }
@@ -292,29 +223,15 @@ public class Starter {
     private native int openLogFD();
     @SuppressWarnings("FieldMayBeFinal")
     private static Handler handler;
+
     static {
-        Looper.prepare();
+        Looper.prepareMainLooper();
         handler = new Handler();
 
-        boolean loaded = false;
-        @SuppressLint("SdCardPath")
-        final String DistDir = "/data/data/com.termux/files/usr/libexec/termux-x11";
-        for (int i = 0; i < Build.SUPPORTED_ABIS.length; i++) {
-            @SuppressLint("SdCardPath")
-            final String libPath = DistDir + "/" + Build.SUPPORTED_ABIS[i] + "/libx11-starter.so";
-            File libFile = new File(libPath);
-            if (libFile.exists()) {
-                System.load(libPath);
-                loaded = true;
-                break;
-            } else System.err.println(libPath + "not found");
-        }
-
-        if (!loaded) {
-            System.err.println("Can not find some core libraries.");
-            System.err.println("Please, check termux-x11 package installation.");
-            System.exit(1);
-        }
+        String libPath = System.getenv("CLASSPATH") +
+                "!/lib/" + Build.SUPPORTED_ABIS[0] +
+                "/libx11-starter.so";
+        System.err.println("Loading shared library: " + libPath);
+        System.load(libPath);
     }
-
 }

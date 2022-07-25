@@ -5,9 +5,9 @@ android {
     defaultConfig {
         applicationId "com.termux.x11"
         minSdkVersion 24
-        //noinspection OldTargetApi
+        //noinspection ExpiredTargetSdkVersion,OldTargetApi
         targetSdkVersion 28
-        versionCode 9
+        versionCode 10
         versionName "1.02.06"
     }
 

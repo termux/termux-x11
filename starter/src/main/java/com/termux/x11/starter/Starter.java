@@ -62,6 +62,7 @@ public class Starter {
     };
 
     public void onRun(String[] args) throws Throwable {
+        Starter.this.args = args;
         checkXdgRuntimeDir();
         prepareLogFD();
 
@@ -69,7 +70,6 @@ public class Starter {
           System.err.println("termux-x11 is already running");
           startXwayland();
         } else {
-            Starter.this.args = args;
             svc = new Service();
             handler.postDelayed(failedToStartActivity, 2000);
             boolean launched = startActivity(svc);
@@ -176,7 +176,7 @@ public class Starter {
 
     private void startXwayland(String[] args) throws IOException {
         System.err.println("Starting Xwayland");
-        ExecHelper.exec(XwaylandPath, args);
+        exec(XwaylandPath, args);
     }
 
     class Service extends ITermuxX11Internal.Stub {
@@ -221,6 +221,7 @@ public class Starter {
     private native int createWaylandSocket();
     private native boolean checkWaylandSocket();
     private native int openLogFD();
+    private static native void exec(String path, String[] argv);
     @SuppressWarnings("FieldMayBeFinal")
     private static Handler handler;
 

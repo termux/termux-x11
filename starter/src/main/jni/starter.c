@@ -155,4 +155,27 @@ Java_com_termux_x11_starter_Starter_openLogFD(unused JNIEnv *env, unused jobject
             return sv[1];
     }
 }
+
+JNIEXPORT void JNICALL
+Java_com_termux_x11_starter_Starter_exec(JNIEnv *env, jclass clazz, jstring jpath, jobjectArray jargv) {
+    // execv's argv array is a bit incompatible with Java's String[], so we do some converting here...
+    int argc = (*env)->GetArrayLength(env, jargv) + 2; // Leading executable path and terminating NULL
+    char *argv[argc];
+    memset(argv, 0, sizeof(char*) * argc);
+
+    for(int i=0; i<argc-1; i++)
+    {
+        jstring js = i ? (*env)->GetObjectArrayElement(env, jargv, i - 1) : jpath;
+        const char *pjc = (*env)->GetStringUTFChars(env, js, false);
+        argv[i] = calloc(strlen(pjc)+1, sizeof(char)); //Extra char for the terminating NULL
+        strcpy((char *) argv[i], pjc);
+        (*env)->ReleaseStringUTFChars(env, js, pjc);
+    }
+    argv[argc] = NULL; // Terminating NULL
+
+    execv(argv[0], argv);
+    perror("execv");
+    exit(1);
+}
+
 #pragma clang diagnostic pop

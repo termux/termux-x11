@@ -1,6 +1,7 @@
 package com.termux.x11.starter;
 
 import android.annotation.SuppressLint;
+import android.app.AppOpsManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.os.Build;
@@ -55,9 +56,6 @@ public class Starter {
     Runnable failedToStartActivity = () -> {
             System.err.println("Android reported activity started but we did not get any respond");
             System.err.println("Looks like we failed to start activity.");
-            System.err.println("Looks like Termux lacks \"Draw Over Apps\" permission.");
-            System.err.println("You can grant Termux the \"Draw Over Apps\" permission from its App Info activity:");
-            System.err.println("\tAndroid Settings -> Apps -> Termux -> Advanced -> Draw over other apps.");
             exit(1);
     };
 
@@ -65,6 +63,13 @@ public class Starter {
         Starter.this.args = args;
         checkXdgRuntimeDir();
         prepareLogFD();
+        if (!Compat.havePermission(AppOpsManager.OPSTR_SYSTEM_ALERT_WINDOW)) {
+            System.err.println("Looks like " + Compat.callingPackage +
+                        " lacks \"Draw Over Apps\" permission.");
+            System.err.println("You can grant " + Compat.callingPackage +
+                        " the \"Draw Over Apps\" permission from its App Info activity:");
+            System.err.println("\tAndroid Settings -> Apps -> Termux -> Advanced -> Draw over other apps.");
+        }
 
         if (checkWaylandSocket()) {
           System.err.println("termux-x11 is already running");

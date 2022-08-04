@@ -17,11 +17,7 @@ The wayland sockets is the way for the graphical applications to communicate wit
 ## Setup Instructions
 For this one you must enable the `x11-repo` repository can be done by executing `pkg install x11-repo` command
 
-For X applications to work, you must install Termux-x11 companion package. You can do that by doing
-```
-pkg install termux-x11
-```
-Or by downloading an artifact from [last successful build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml) and installing `*.apk` and `*.deb` files.
+For X applications to work, you must install Termux-x11 companion package. You can do that by downloading an artifact from [last successful build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml) and installing `*.apk` and `*.deb` files.
 
 ## Running Graphical Applications
 to work with GUI applications, start Termux:X11 first. a toast message saying `Service was Created` indicates that it should be ready to use

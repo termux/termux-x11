@@ -22,9 +22,12 @@ public class Compat {
     static final String callingPackage = "com.termux";
     static int startActivity(Intent i) {
         try {
-            if (Build.VERSION.SDK_INT >= 29) {
+            if (Build.VERSION.SDK_INT >= 30) {
                 IActivityTaskManager taskManager = ActivityTaskManager.getService();
                 return taskManager.startActivity(null, callingPackage, null, i, null, null, null, -1, 0, null, null);
+            } else if (Build.VERSION.SDK_INT == 29) {
+                IActivityTaskManager taskManager = ActivityTaskManager.getService();
+                return taskManager.startActivity(null, callingPackage, i, null, null, null, -1, 0, null, null);
             } else {
                 IActivityManager activityManager;
                 IBinder binder = ServiceManager.getService("activity");

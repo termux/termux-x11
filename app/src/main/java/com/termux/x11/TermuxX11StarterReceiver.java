@@ -1,18 +1,22 @@
 package com.termux.x11;
 
 import android.app.Activity;
+import android.app.ActivityOptions;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
+import android.provider.Settings;
 import android.util.Log;
+import android.view.Display;
 import android.widget.Toast;
 
-import com.termux.x11.common.ITermuxX11Internal;
+import androidx.annotation.Nullable;
+import androidx.core.hardware.display.DisplayManagerCompat;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
+import com.termux.x11.common.ITermuxX11Internal;
 
 public class TermuxX11StarterReceiver extends Activity {
     @Override
@@ -22,12 +26,69 @@ public class TermuxX11StarterReceiver extends Activity {
         if (intent != null)
             handleIntent(intent);
 
-        Intent main = new Intent(this, MainActivity.class);
-        main.putExtra(LorieService.LAUNCHED_BY_COMPATION, true);
-        main.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        startActivity(main);
+        Intent launchIntent = new Intent(this, MainActivity.class);
+        launchIntent.putExtra(LorieService.LAUNCHED_BY_COMPATION, true);
+        launchIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
+        Bundle bundle = createLaunchParams(launchIntent);
+        startActivity(launchIntent, bundle);
         finish();
+    }
+
+    /**
+     * Creates bundle for launching on external display (if supported) and
+     * adds any necessary intent flags.
+     * @param launchIntent
+     * @return Bundle
+     */
+    private Bundle createLaunchParams(Intent launchIntent) {
+        Display externalDisplay = findExternalDisplay();
+
+        /*
+        Multi-display support was added back in Oreo, but proper keyboard / mouse input mapping to display wasn't. So we would only
+        be able to view, but not interact with anything on external display. So instead, also checking to see if Android 10 desktop
+        mode is enabled, which does have proper keyboard + mouse support on external displays.
+         */
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !hasEnabledAndroidDesktopModeSetting() || externalDisplay == null) {
+            return Bundle.EMPTY;
+        }
+        ActivityOptions options = ActivityOptions
+                .makeBasic()
+                .setLaunchDisplayId(externalDisplay.getDisplayId());
+
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT | Intent.FLAG_ACTIVITY_NEW_TASK);
+        launchIntent.putExtra(MainActivity.REQUEST_LAUNCH_EXTERNAL_DISPLAY, true);
+        return options.toBundle();
+    }
+
+    /**
+     * Finds first display that is not our built-in.
+     * @return - External display if found, otherwise null.
+     */
+    @Nullable
+    private Display findExternalDisplay() {
+        DisplayManagerCompat displayManager = DisplayManagerCompat.getInstance(this);
+        for (Display display : displayManager.getDisplays()) {
+            // id 0 is built-in screen
+            if (display.getDisplayId() != 0) {
+                return display;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Checks to see if experimental Android Desktop mode developer setting is enabled,
+     * which was introduced in Android 10.
+     * @return true if enabled, false otherwise
+     */
+    private boolean hasEnabledAndroidDesktopModeSetting() {
+        try {
+            int value = Settings.Global.getInt(getContentResolver(), "force_desktop_mode_on_external_displays");
+            return value == 1;
+        } catch (Settings.SettingNotFoundException e) {
+            return false;
+        }
     }
 
     private void log(String s) {

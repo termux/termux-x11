@@ -18,4 +18,11 @@
         <item name="android:fitsSystemWindows">true</item>
     </style>
 
+    <!-- For use w/ external displays to be able to use entire display surface area -->
+    <style name="FullScreen.ExternalDisplay" parent="@style/Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
 </resources>

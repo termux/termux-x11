@@ -21,7 +21,7 @@ jobs:
       run: |
         ./build_termux_package
     - name: Store generated APK file
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: termux-x11
         path: ./app/build/outputs/apk/debug

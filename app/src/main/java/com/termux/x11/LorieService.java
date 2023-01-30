@@ -12,6 +12,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.AssetFileDescriptor;
 import android.content.res.Configuration;
 import android.graphics.PixelFormat;
 import android.net.Uri;
@@ -92,27 +93,24 @@ public class LorieService extends Service {
 
         if (isServiceRunningInForeground(this, LorieService.class)) return;
 
-        String datadir = getApplicationInfo().dataDir;
-        String[] dirs = {
-                datadir + "/files/locale",
-                datadir + "/files/xkb",
-        };
-
-        for (String dir : dirs) {
-            if (!(new File(dir)).exists()) {
-                Log.e("LorieService", dir + " does not exist. Unpacking");
-                try {
-                    InputStream zipStream = getAssets().open("X11.zip");
-                    File targetDirectory = new File(datadir + "/files/");
-                    unzip(zipStream, targetDirectory);
-                    break;
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-
         compositor = createLorieThread();
+
+        File outDir = new File(getApplicationInfo().dataDir, "files");
+        File out = new File(outDir, "en_us.xkbmap");
+
+        //noinspection ResultOfMethodCallIgnored
+        outDir.mkdirs();
+        try(InputStream fin = getAssets().open("en_us.xkbmap")) {
+            byte[] buffer = new byte[8192];
+            int count;
+            try (FileOutputStream fout = new FileOutputStream(out)) {
+                while ((count = fin.read(buffer)) != -1)
+                    fout.write(buffer, 0, count);
+                fout.flush();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         if (compositor == 0) {
             Log.e("LorieService", "compositor thread was not created");
@@ -476,31 +474,6 @@ public class LorieService extends Service {
                 svc.passWaylandFD(fd);
             }
         };
-    }
-
-    @SuppressWarnings("ResultOfMethodCallIgnored")
-    public static void unzip(InputStream zipStream, File targetDirectory) throws IOException {
-        try (ZipInputStream zis = new ZipInputStream(zipStream)) {
-            ZipEntry ze;
-            int count;
-            byte[] buffer = new byte[8192];
-            while ((ze = zis.getNextEntry()) != null) {
-                File file = new File(targetDirectory, ze.getName());
-                File dir = ze.isDirectory() ? file : file.getParentFile();
-                if (!dir.isDirectory() && !dir.mkdirs())
-                    throw new FileNotFoundException("Failed to ensure directory: " +
-                            dir.getAbsolutePath());
-                if (ze.isDirectory())
-                    continue;
-                try (FileOutputStream fout = new FileOutputStream(file)) {
-                    while ((count = zis.read(buffer)) != -1)
-                        fout.write(buffer, 0, count);
-                }
-                long time = ze.getTime();
-                if (time > 0)
-                    file.setLastModified(time);
-            }
-        }
     }
 
     private void windowChanged(Surface s, int w, int h, int pw, int ph) {windowChanged(compositor, s, w, h, pw, ph);}

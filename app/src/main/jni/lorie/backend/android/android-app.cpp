@@ -10,7 +10,6 @@
 
 #include <lorie-egl-helper.hpp>
 #include <android/native_window_jni.h>
-#include <xkbcommon/xkbcommon.h>
 #include <sys/socket.h>
 #include <dirent.h>
 
@@ -39,15 +38,13 @@ public:
 
 	LorieEGLHelper helper;
 
-	struct xkb_context *xkb_context = nullptr;
-	struct xkb_rule_names xkb_names = {0};
-	struct xkb_keymap *xkb_keymap = nullptr;
-
+	int keymap_fd = -1;
     std::thread self;
 };
 
 LorieBackendAndroid::LorieBackendAndroid()
-    : self(&LorieCompositor::start, this) {}
+    : self(&LorieCompositor::start, this) {
+}
 
 void LorieBackendAndroid::on_egl_init() {
 	renderer.init();
@@ -63,30 +60,7 @@ void LorieBackendAndroid::backend_init() {
 	}
 
 	helper.onInit = [this](){ on_egl_init(); };
-	//helper.onUninit = [this](){ on_egl_uninit(); };
 
-	if (xkb_context == nullptr) {
-		xkb_context = xkb_context_new((enum xkb_context_flags) 0);
-		if (xkb_context == nullptr) {
-			LOGE("failed to create XKB context\n");
-			return;
-		}
-	}
-
-	xkb_names.rules = strdup("evdev");
-	xkb_names.model = strdup("pc105");
-	xkb_names.layout = strdup("us");
-
-	xkb_keymap = xkb_keymap_new_from_names(xkb_context, &xkb_names, (enum xkb_keymap_compile_flags) 0);
-	if (xkb_keymap == nullptr) {
-		LOGE("failed to compile global XKB keymap\n");
-		LOGE("  tried rules %s, model %s, layout %s, variant %s, "
-			"options %s\n",
-			xkb_names.rules, xkb_names.model,
-			xkb_names.layout, xkb_names.variant,
-			xkb_names.options);
-		return;
-	}
 }
 
 uint32_t LorieBackendAndroid::input_capabilities() {
@@ -132,14 +106,14 @@ err:
 }
 
 void LorieBackendAndroid::get_keymap(int *fd, int *size) {
-	LOGI("Locale: %s", xkb_names.layout);
-	char *string = xkb_keymap_get_as_string (xkb_keymap, XKB_KEYMAP_FORMAT_TEXT_V1);
-	*size = static_cast<int>(strlen (string) + 1);
-	*fd = os_create_anonymous_file(static_cast<size_t>(*size));
-	char *map = (char*) mmap (nullptr, static_cast<size_t>(*size), PROT_READ | PROT_WRITE, MAP_SHARED, *fd, 0);
-	strcpy (map, string);
-	munmap (map, static_cast<size_t>(*size));
-	free (string);
+    if (keymap_fd != -1)
+        close(keymap_fd);
+
+    keymap_fd = open("/data/data/com.termux.x11/files/en_us.xkbmap", O_RDONLY);
+	struct stat s = {};
+	fstat(keymap_fd, &s);
+	*size = s.st_size;
+	*fd = keymap_fd;
 }
 
 void LorieBackendAndroid::window_change_callback(EGLNativeWindowType win, uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height) {
@@ -151,20 +125,6 @@ void LorieBackendAndroid::window_change_callback(EGLNativeWindowType win, uint32
 }
 
 void LorieBackendAndroid::layout_change_callback(const char *layout) {
-	xkb_keymap_unref(xkb_keymap);
-	xkb_names.layout = layout;
-
-	xkb_keymap = xkb_keymap_new_from_names(xkb_context, &xkb_names, (xkb_keymap_compile_flags)0);
-	if (xkb_keymap == nullptr) {
-		LOGE("failed to compile global XKB keymap\n");
-		LOGE("  tried rules %s, model %s, layout %s, variant %s, "
-				"options %s\n",
-				xkb_names.rules, xkb_names.model,
-				xkb_names.layout, xkb_names.variant,
-				xkb_names.options);
-		return;
-	}
-
 	post([this]() {
         keyboard_keymap_changed();
     });
@@ -184,12 +144,7 @@ void LorieBackendAndroid::passfd(int fd) {
 #define WL_POINTER_MOTION 2
 
 static LorieBackendAndroid* fromLong(jlong v) {
-    union {
-        jlong l;
-        LorieBackendAndroid* b;
-    } u = {0};
-    u.l = v;
-    return u.b;
+    return reinterpret_cast<LorieBackendAndroid*>(v);
 }
 
 extern "C" JNIEXPORT jlong JNICALL
@@ -204,7 +159,7 @@ JNI_DECLARE(LorieService, passWaylandFD)(unused JNIEnv *env, unused jobject inst
     char path[256] = {0};
     char realpath[256] = {0};
     sprintf(path, "/proc/self/fd/%d", fd);
-    readlink(path, realpath, sizeof(realpath));
+    readlink(path, realpath, sizeof(realpath)); // NOLINT(bugprone-unused-return-value)
     LOGI("JNI: got fd %d (%s)", fd, realpath);
 
     b->passfd(fd);
@@ -331,32 +286,12 @@ JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, unused jobject instance,
     if (key_code && !characters) {
 		android_keycode_get_eventcode(key_code, &event_code, &shift);
 		LOGE("kc: %d ec: %d", key_code, event_code);
-		if (strcmp(b->xkb_names.layout, "us") != 0) {
-            if (event_code != 0) {
-                b->post([b](){
-                    b->layout_change_callback((char *) "us");
-                });
-            }
-        }
     }
     if (!key_code && characters) {
         char *layout = nullptr;
         get_character_data(&layout, &shift, &event_code, characters);
-        if (layout && b->xkb_names.layout != layout) {
-            b->post([b, layout](){
-                b->layout_change_callback(layout);
-            });
-        }
     }
 	LOGE("Keyboard input: keyCode: %d; eventCode: %d; characters: %s; shift: %d, type: %d", key_code, event_code, characters, shift, type);
-	//if (!event_code) {
-	    //lorie_clipboard_set_event(backend, characters);
-        //lorie_key_event(backend, (uint8_t) WL_KEYBOARD_KEY_STATE_PRESSED, (uint16_t) 42); // Send KEY_LEFTSHIFT
-        //lorie_key_event(backend, (uint8_t) WL_KEYBOARD_KEY_STATE_PRESSED, (uint16_t) 110); // Send KEY_INSERT
-        //lorie_key_event(backend, (uint8_t) WL_KEYBOARD_KEY_STATE_RELEASED, (uint16_t) 110); // Send KEY_INSERT
-        //lorie_key_event(backend, (uint8_t) WL_KEYBOARD_KEY_STATE_RELEASED, (uint16_t) 42); // Send KEY_LEFTSHIFT
-        //lorie_clipboard_set_event(backend, NULL);
-	//}
 
     if (shift || jshift)
         b->post([b]() {
@@ -400,7 +335,7 @@ static void killAllLogcats() {
 	}
 
 	while((dir_elem = readdir(proc)) != nullptr) {
-		if (!(pid = (pid_t) atoi (dir_elem->d_name)) || pid == self || !sameUid(pid))
+		if (!(pid = (pid_t) atoi (dir_elem->d_name)) || pid == self || !sameUid(pid)) // NOLINT(cert-err34-c)
 			continue;
 
 		memset(path, 0, sizeof(path));
@@ -418,7 +353,7 @@ static void killAllLogcats() {
 	}
 }
 
-void fork(std::function<void()> f) {
+void fork(const std::function<void()>& f) {
 	switch(fork()) {
 		case -1: LOGE("fork: %s", strerror(errno)); return;
 		case 0: f(); return;

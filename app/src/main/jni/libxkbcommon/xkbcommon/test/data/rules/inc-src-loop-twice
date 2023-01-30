@@ -1,4 +1,0 @@
-! model         = keycodes
-  my_model      = my_keycodes
-
-! include %S/inc-dst-loop-twice

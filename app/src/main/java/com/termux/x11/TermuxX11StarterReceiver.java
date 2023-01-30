@@ -68,13 +68,16 @@ public class TermuxX11StarterReceiver extends Activity {
     @Nullable
     private Display findExternalDisplay() {
         DisplayManagerCompat displayManager = DisplayManagerCompat.getInstance(this);
+        Display fallbackDisplay = null;
         for (Display display : displayManager.getDisplays()) {
             // id 0 is built-in screen
+            fallbackDisplay = display;
             if (display.getDisplayId() != 0) {
                 return display;
             }
         }
-        return null;
+        //fallback to
+        return fallbackDisplay;
     }
 
     /**

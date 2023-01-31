@@ -13,7 +13,6 @@
 #include <sys/socket.h>
 #include <dirent.h>
 #include <android/log.h>
-#include "log.h"
 
 #pragma ide diagnostic ignored "hicpp-signed-bitwise"
 #define unused __attribute__((__unused__))

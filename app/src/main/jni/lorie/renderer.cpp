@@ -1,5 +1,4 @@
-#include <lorie-compositor.hpp>
-#include <lorie-renderer.hpp>
+#include <lorie_compositor.hpp>
 #include <GLES2/gl2ext.h>
 
 #include <sys/types.h>

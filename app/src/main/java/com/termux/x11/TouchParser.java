@@ -134,7 +134,6 @@ public class TouchParser {
                 case TAP:
                     // If the user's finger is still down, do not count it as a tap
                     if (!mStillDown) {
-                        Log.e("tp", "tap");
                         mListener.onPointerButton(BTN_LEFT, ACTION_DOWN);
                         mListener.onPointerButton(BTN_LEFT, ACTION_UP);
                     } else {
@@ -360,24 +359,20 @@ public class TouchParser {
                 }
 
                 if (mIsDoubleTapping) {
-                    Log.e("1", "1");
                     mListener.onPointerButton(BTN_LEFT, ACTION_DOWN);
                     mListener.onPointerButton(BTN_LEFT, ACTION_UP);
                     mListener.onPointerButton(BTN_LEFT, ACTION_DOWN);
                     mListener.onPointerButton(BTN_LEFT, ACTION_UP);
                     handled = true;
                 } else if (mInLongPress) {
-                    Log.e("2", "2");
                     mHandler.removeMessages(TAP);
                     mInLongPress = false;
                     mListener.onPointerButton(BTN_LEFT, ACTION_UP);
                 } else if (mAlwaysInTapRegion) {
-                    Log.e("3", "3");
                     //if (mDeferConfirmSingleTap) {
                         //handled = mListener.onSingleTapConfirmed(ev);
                     //}
                 } else if (mHandler.hasMessages(RIGHT_TAP)) {
-                    //Log.e("touch", "right tap confirmed");
                     mListener.onPointerButton(BTN_RIGHT, ACTION_DOWN);
                     mListener.onPointerButton(BTN_RIGHT, ACTION_UP);
                 }
@@ -435,7 +430,6 @@ public class TouchParser {
     private void startDrag() {
         if (mWasInDrag) return;
         if (!mInDrag) {
-            Log.e("drag", "start");
             mListener.onPointerButton(BTN_LEFT, ACTION_DOWN);
             mInDrag = true;
         }
@@ -443,7 +437,6 @@ public class TouchParser {
 
     private void stopDrag() {
         if (mInDrag) {
-            Log.e("drag", "stop");
             mListener.onPointerButton(BTN_LEFT, ACTION_UP);
             mInDrag = false;
         }
@@ -499,7 +492,6 @@ public class TouchParser {
         mHandler.removeMessages(TAP);
         mDeferConfirmSingleTap = false;
         mInLongPress = true;
-        Log.e("tp", "long press");
         mListener.onPointerButton(BTN_LEFT, ACTION_DOWN);
     }
 

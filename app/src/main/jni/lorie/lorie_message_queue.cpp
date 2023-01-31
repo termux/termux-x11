@@ -1,13 +1,12 @@
-#include <lorie-compositor.hpp>
+#include <lorie_compositor.hpp>
 #include <unistd.h>
 #include <fcntl.h>
 #include <cstring>
 #include <cerrno>
 #include <sys/eventfd.h>
 #include <mutex>
-#include "log.h"
 
-LorieMessageQueue::LorieMessageQueue() {
+lorie_message_queue::lorie_message_queue() {
 	std::unique_lock<std::mutex> lock(mutex);
 
 	fd = eventfd(0, EFD_CLOEXEC);
@@ -17,14 +16,14 @@ LorieMessageQueue::LorieMessageQueue() {
 	}
 }
 
-void LorieMessageQueue::write(std::function<void()> func) {
+void lorie_message_queue::write(std::function<void()> func) {
 	static uint64_t i = 1;
 	std::unique_lock<std::mutex> lock(mutex);
 	queue.push(func);
 	::write(fd, &i, sizeof(uint64_t));
 }
 
-void LorieMessageQueue::run() {
+void lorie_message_queue::run() {
 	static uint64_t i = 0;
 	std::unique_lock<std::mutex> lock(mutex);
 	std::function<void()> fn;
@@ -39,6 +38,6 @@ void LorieMessageQueue::run() {
 	}
 }
 
-int LorieMessageQueue::get_fd() {
+int lorie_message_queue::get_fd() {
 	return fd;
 }

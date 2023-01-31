@@ -3,9 +3,9 @@
 #include <queue>
 #include <mutex>
 
-class LorieMessageQueue {
+class lorie_message_queue {
 public:
-	LorieMessageQueue();
+	lorie_message_queue();
 	void write(std::function<void()> func);
 
 	void run();

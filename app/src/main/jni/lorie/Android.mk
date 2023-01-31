@@ -5,13 +5,12 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := lorie
 LOCAL_SRC_FILES := \
 	compositor.cpp \
-	egl-helper.cpp \
-	message-queue.cpp \
+	lorie_egl_helper.cpp \
+	lorie_message_queue.cpp \
 	renderer.cpp \
 	utils/log.cpp \
-	scanner/wayland.cpp \
 	\
-	backend/android/android-app.cpp \
+	backend/android/android_app.cpp \
 	backend/android/utils.c \
 	lorie_wayland_server.cpp \
 	$(wildcard $(WAYLAND_GENERATED)/*.cpp)

@@ -1,7 +1,5 @@
-#include <lorie-compositor.hpp>
+#include <lorie_compositor.hpp>
 #include <unistd.h>
-
-#include <LorieImpls.hpp>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-parameter"

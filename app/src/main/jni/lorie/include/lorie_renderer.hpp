@@ -1,6 +1,4 @@
 #pragma once
-#include <lorie_wayland_server.hpp>
-#include <wayland-server-protocol.hpp>
 #include <GLES2/gl2.h>
 #include <limits.h>
 

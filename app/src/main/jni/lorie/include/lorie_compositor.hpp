@@ -1,16 +1,10 @@
 #pragma once
 #include <lorie_wayland_server.hpp>
 #include <wayland-server-protocol.hpp>
-#include <lorie-renderer.hpp>
+#include <lorie_renderer.hpp>
 #include <lorie_message_queue.hpp>
+#include "log.h"
 
-class LorieRenderer;
-class LorieBackend;
-class LorieSurface;
-class LorieOutput;
-class LorieSeat;
-
-class LorieCompositor;
 class LorieCompositor {
 public:
 	LorieCompositor();

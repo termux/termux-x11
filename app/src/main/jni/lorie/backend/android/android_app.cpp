@@ -17,20 +17,14 @@
 #pragma ide diagnostic ignored "hicpp-signed-bitwise"
 #define unused __attribute__((__unused__))
 
-#define DEFAULT_WIDTH 480
-#define DEFAULT_HEIGHT 800
-
 class LorieBackendAndroid : public LorieCompositor {
 public:
 	LorieBackendAndroid();
 
 	void backend_init() override;
-	uint32_t input_capabilities() override;
 	void swap_buffers() override;
-	void get_default_proportions(int32_t* width, int32_t* height) override;
 	void get_keymap(int *fd, int *size) override;
 	void window_change_callback(EGLNativeWindowType win, uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height);
-	void layout_change_callback(const char *layout);
 	void passfd(int fd);
 
 	void on_egl_init();
@@ -64,46 +58,8 @@ void LorieBackendAndroid::backend_init() {
 
 }
 
-uint32_t LorieBackendAndroid::input_capabilities() {
-	return	WL_SEAT_CAPABILITY_TOUCH |
-			WL_SEAT_CAPABILITY_POINTER |
-			WL_SEAT_CAPABILITY_KEYBOARD;
-}
-
 void LorieBackendAndroid::swap_buffers () {
 	helper.swap();
-}
-
-void LorieBackendAndroid::get_default_proportions(int32_t* width, int32_t* height) {
-	if (width) *width = DEFAULT_WIDTH;
-	if (height) *height = DEFAULT_HEIGHT;
-}
-
-static int
-os_create_anonymous_file(size_t size) {
-	int fd, ret;
-    long flags;
-
-	fd = open("/dev/ashmem", O_RDWR | O_CLOEXEC);
-	if (fd < 0)
-		return fd;
-
-	ret = ioctl(fd, ASHMEM_SET_SIZE, size);
-	if (ret < 0)
-		goto err;
-
-    flags = fcntl(fd, F_GETFD);
-    if (flags == -1)
-        goto err;
-
-    if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC) == -1)
-        goto err;
-
-	return fd;
-
-err:
-	close(fd);
-	return ret;
 }
 
 void LorieBackendAndroid::get_keymap(int *fd, int *size) {
@@ -120,16 +76,11 @@ void LorieBackendAndroid::get_keymap(int *fd, int *size) {
 void LorieBackendAndroid::window_change_callback(EGLNativeWindowType win, uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height) {
 	LOGE("WindowChangeCallback");
 	helper.setWindow(win);
-	post([this, width, height, physical_width, physical_height]() {
+	post([=, this]() {
         output_resize(width, height, physical_width, physical_height);
-        });
+	});
 }
 
-void LorieBackendAndroid::layout_change_callback(const char *layout) {
-	post([this]() {
-        keyboard_keymap_changed();
-    });
-}
 void LorieBackendAndroid::passfd(int fd) {
     listen(fd, 128);
     wl_display_add_socket_fd(display, fd);

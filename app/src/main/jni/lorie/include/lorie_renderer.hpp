@@ -9,7 +9,7 @@ private:
 	bool damaged = false;
 public:
 	LorieTexture();
-	uint32_t width{}, height{};
+	int width{}, height{};
 	void *data{};
 	void set_data(LorieRenderer* renderer, uint32_t width, uint32_t height, void *data);
 	void damage(int32_t x, int32_t y, int32_t width, int32_t height);
@@ -39,9 +39,9 @@ public:
 	
 	bool cursorVisible = false;
 	
-	uint32_t hotspot_x, hotspot_y;
+	uint32_t hotspot_x{}, hotspot_y{};
 	
-	void resize(uint32_t w, uint32_t h, uint32_t pw, uint32_t ph); 
+	void resize(int w, int h, uint32_t pw, uint32_t ph);
 	void cursorMove(uint32_t x, uint32_t y);
 	void setCursorVisibility(bool visibility);
 	~LorieRenderer();

@@ -20,10 +20,10 @@ cursor(renderer.cursor_surface) {
 		client->user_data() = new client_data;
         client->on_destroy = [=] {
             if (toplevel && toplevel->client() == client)
-                set_toplevel(nullptr);
+                renderer.set_toplevel(nullptr);
 
             if (cursor && cursor->client() == client)
-                set_cursor(nullptr, 0, 0);
+                renderer.set_cursor(nullptr, 0, 0);
 
             LOGI("Client destroyed");
         };
@@ -36,7 +36,6 @@ cursor(renderer.cursor_surface) {
         };
         compositor->on_create_surface = [=](surface_t* surface) {
             auto data = new surface_data;
-            data->surface = surface;
             surface->user_data() = data;
             surface->on_attach = [=](buffer_t* b, int32_t, int32_t) {
                 data->buffer = b;
@@ -61,7 +60,7 @@ cursor(renderer.cursor_surface) {
         };
     };
     global_seat.on_bind = [=, this](client_t* client, seat_t* seat) {
-        seat->capabilities (seat_capability(input_capabilities()));
+        seat->capabilities (seat_capability::touch | seat_capability::keyboard | seat_capability::pointer);
         seat->name("default");
 
         auto data = any_cast<client_data*>(client->user_data());
@@ -73,7 +72,7 @@ cursor(renderer.cursor_surface) {
                 pointer->enter(next_serial(), toplevel, 0, 0);
 
             pointer->on_set_cursor = [=](uint32_t, wayland::surface_t* sfc, int32_t x, int32_t y) {
-                set_cursor(sfc, (uint32_t) x, (uint32_t) y);
+                renderer.set_cursor(sfc, (uint32_t) x, (uint32_t) y);
             };
             pointer->on_release = [=] {
                 pointer->destroy();
@@ -124,7 +123,7 @@ cursor(renderer.cursor_surface) {
 
         shell->on_get_shell_surface = [=] (shell_surface_t* shell, surface_t* sfc) {
             shell->on_set_toplevel = [=] () {
-                set_toplevel(sfc);
+                renderer.set_toplevel(sfc);
                 if (data->pointer)
                     data->pointer->enter(next_serial(),sfc, 0, 0);
 
@@ -181,25 +180,12 @@ void LorieCompositor::terminate() {
 		wl_display_terminate(display);
 }
 
-void LorieCompositor::set_toplevel(surface_t* surface) {
-	renderer.set_toplevel(surface);
-}
-
-void LorieCompositor::set_cursor(surface_t* surface, uint32_t hotspot_x, uint32_t hotspot_y) {
-    renderer.set_cursor(surface, hotspot_x, hotspot_y);
-}
-
-void LorieCompositor::output_redraw() {
-	LOGV("Requested redraw");
-	renderer.requestRedraw();
-}
-
-void LorieCompositor::output_resize(uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height) {
+void LorieCompositor::output_resize(int width, int height, uint32_t physical_width, uint32_t physical_height) {
 	// Xwayland segfaults without that line
 	if (width == 0 || height == 0 || physical_width == 0 || physical_height == 0) return;
 	renderer.resize(width, height, physical_width, physical_height);
 	post([this]() {
-		output_redraw();
+		renderer.requestRedraw();
 	});
 }
 
@@ -294,42 +280,6 @@ void LorieCompositor::keyboard_key(uint32_t key, uint32_t state) {
 	auto data = any_cast<client_data*>(toplevel->client()->user_data());
 
 	data->kbd->key (next_serial(), resource_t::timestamp(), key, keyboard_key_state(state));
-}
-
-void LorieCompositor::keyboard_key_modifiers(uint8_t depressed, uint8_t latched, uint8_t locked, uint8_t group) {
-	if (!toplevel)
-		return;
-
-	auto data = any_cast<client_data*>(toplevel->client()->user_data());
-
-	if (key_modifiers.depressed == depressed && 
-		key_modifiers.latched == latched && 
-		key_modifiers.locked == locked &&
-		key_modifiers.group == group) return;
-
-	key_modifiers.depressed = depressed;
-	key_modifiers.latched = latched;
-	key_modifiers.locked = locked;
-	key_modifiers.group = group;
-
-	data->kbd->modifiers(next_serial(), depressed, latched, locked, group);
-}
-
-void LorieCompositor::keyboard_keymap_changed() {
-	if (!toplevel)
-		return;
-
-	auto data = any_cast<client_data*>(toplevel->client()->user_data());
-
-	int fd = -1, size = -1;
-	get_keymap(&fd, &size);
-	if (fd == -1 || size == -1) {
-		LOGE("Error while getting keymap from backend");
-		return;
-	}
-
-	data->kbd->keymap(keyboard_keymap_format::xkb_v1, fd, size);
-	close (fd);
 }
 
 uint32_t LorieCompositor::next_serial() const {

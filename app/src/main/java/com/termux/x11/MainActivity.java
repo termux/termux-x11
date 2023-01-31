@@ -41,7 +41,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        if (didRequestLaunchExternalDisplay()) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        if (didRequestLaunchExternalDisplay() || preferences.getBoolean("fullscreen", true)) {
             setFullScreenForExternalDisplay();
         }
 
@@ -72,7 +73,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void setTheme(int resId) {
         // for some reason, calling setTheme() in onCreate() wasn't working.
-        super.setTheme(didRequestLaunchExternalDisplay() ?
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        super.setTheme(didRequestLaunchExternalDisplay() || preferences.getBoolean("fullscreen", true) ?
                 R.style.FullScreen_ExternalDisplay : R.style.NoActionBar);
     }
 

@@ -882,8 +882,10 @@ abstract class WaylandScannerExtension {
             def script = getProject().file("wayland-scaner.gradle")
             def source = new File(outFolder, protocol.name.replace('_', '-') + "-server-protocol.cpp")
             def header = new File(outFolder, protocol.name.replace('_', '-') + "-server-protocol.hpp")
-            if ((source.exists() && (source.lastModified() < script.lastModified() || source.lastModified() < src.lastModified())) ||
-                (header.exists() && (header.lastModified() < script.lastModified() || header.lastModified() < src.lastModified())))
+            protocol.sourceOut = source
+            protocol.headerOut = header
+            if ((!source.exists() || (source.lastModified() < script.lastModified() || source.lastModified() < src.lastModified())) ||
+                (!header.exists() || (header.lastModified() < script.lastModified() || header.lastModified() < src.lastModified())))
             protocols.add(protocol)
         } else throw new Exception(src.absolutePath + "is not xml file")
     }
@@ -898,15 +900,13 @@ abstract class WaylandScannerTask extends DefaultTask {
     @TaskAction
     def execute() {
         extension.get().protocols.each { protocol ->
-            protocol.outFolder.mkdirs()
+            println "Generating protocol " + protocol.name
+            protocol.sourceOut.getParentFile().mkdirs()
 
-            def source = new File(protocol.outFolder, protocol.name.replace('_', '-') + "-server-protocol.cpp")
-            def header = new File(protocol.outFolder, protocol.name.replace('_', '-') + "-server-protocol.hpp")
-
-            source.text = ''
-            source << protocol.print_source()
-            header.text = ''
-            header << protocol.print_header()
+            protocol.sourceOut.text = ''
+            protocol.sourceOut << protocol.print_source()
+            protocol.headerOut.text = ''
+            protocol.headerOut << protocol.print_header()
         }
     }
 }

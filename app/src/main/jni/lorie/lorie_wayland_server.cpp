@@ -120,7 +120,7 @@ static inline client_t* client_get(wl_resource* c) {
 resource_t::resource_t(wl_resource *r):
 wl_listener{{}, &resource_destroyed},
 m_client(client_get(r)), display(wl_client_get_display(*m_client)),
-resource(r), version(1) {
+resource(r), version(wl_resource_get_version(r)) {
     wl_resource_add_destroy_listener(resource, this);
 }
 

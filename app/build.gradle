@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 apply from: 'wayland-scanner.gradle'
 
-def waylandOut = project.buildDir.absolutePath + "/generated/wayland"
+def waylandOut = project.buildDir.absolutePath + "/wayland"
 
 android {
     compileSdkVersion 30
@@ -18,6 +18,12 @@ android {
         targetSdkVersion 28
         versionCode 10
         versionName "1.02.06"
+
+        externalNativeBuild {
+            ndkBuild {
+                arguments "WAYLAND_GENERATED=${waylandOut}"
+            }
+        }
     }
 
     signingConfigs {

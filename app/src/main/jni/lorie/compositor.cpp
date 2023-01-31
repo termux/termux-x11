@@ -1,5 +1,6 @@
 #include <lorie-compositor.hpp>
 #include <lorie-client.hpp>
+#include <unistd.h>
 
 #include <LorieImpls.hpp>
 
@@ -9,11 +10,64 @@
 #undef LOGV
 #define LOGV(fmt ...)
 
+using namespace wayland;
+
 LorieCompositor::LorieCompositor() :
-renderer(*this), 
+display(dpy),
+global_seat(dpy),
+renderer(*this),
 toplevel(renderer.toplevel_surface),
 cursor(renderer.cursor_surface),
-client_created_listener(*this) {}
+client_created_listener(*this) {
+    global_seat.on_bind = [=, this](client_t* cl, seat_t* seat) {
+        seat->capabilities (seat_capability(input_capabilities()));
+        seat->name("default");
+
+        LorieClient* client = LorieClient::get(*cl);
+
+        seat->on_get_pointer = [=](pointer_t* pointer) {
+            LOGV("Client requested seat pointer");
+            client->pointer = pointer;
+            auto surface = toplevel ? reinterpret_cast<wayland::surface_t*>(wayland::resource_t::get(toplevel->resource)) : nullptr;
+            pointer->enter(next_serial(), surface, 0, 0);
+            pointer->on_set_cursor = [=](uint32_t, wayland::surface_t* sfc, int32_t x, int32_t y) {
+                auto surface = sfc?LorieSurface::from_wl_resource<LorieSurface>(sfc->c_ptr()):nullptr;
+                set_cursor(surface, (uint32_t) x, (uint32_t) y);
+            };
+            pointer->on_release = [=] {
+                pointer->destroy();
+            };
+        };
+        seat->on_get_keyboard = [=](keyboard_t* kbd) {
+        LOGV("Client requested seat keyboard");
+            client->kbd = kbd;
+            auto surface = toplevel ? reinterpret_cast<wayland::surface_t*>(wayland::resource_t::get(toplevel->resource)) : nullptr;
+            int fd = -1, size = -1;
+            get_keymap(&fd, &size);
+            if (fd == -1 || size == -1) {
+                LOGE("Error while getting keymap from backend");
+                return;
+            }
+
+            kbd->keymap(wayland::keyboard_keymap_format::xkb_v1, fd, size);
+            close (fd);
+
+            wl_array keys{};
+            wl_array_init(&keys);
+            kbd->enter(next_serial(), surface, &keys);
+
+            kbd->on_release = [=] {
+                kbd->destroy();
+            };
+        };
+        seat->on_get_touch = [=](touch_t* touch) {
+            client->touch = touch;
+            touch->on_release = [=] {
+                touch->destroy();
+            };
+        };
+    };
+}
 
 int proc(int fd, uint32_t mask, void *data) {
 	LorieCompositor *b = static_cast<LorieCompositor*>(data);
@@ -26,16 +80,15 @@ int proc(int fd, uint32_t mask, void *data) {
 void LorieCompositor::start() {
 	LogInit();
 	LOGV("Starting compositor");
-	display = wl_display_create();
+	//display = wl_display_create();
 	wl_display_add_socket_auto(display);
-	
+
 	wl_event_loop_add_fd(wl_display_get_event_loop(display), queue.get_fd(), WL_EVENT_READABLE, &proc, this);
-	
+
 	wl_display_add_client_created_listener(display, &client_created_listener);
 
 	wl_display_init_shm (display);
 	wl_resource_t::global_create<LorieCompositor_>(display, this);
-	wl_resource_t::global_create<LorieSeat>(display, this);
 	wl_resource_t::global_create<LorieOutput>(display, this);
 	wl_resource_t::global_create<LorieShell>(display, this);
 
@@ -92,10 +145,7 @@ void LorieCompositor::touch_down(uint32_t id, uint32_t x, uint32_t y) {
 	LorieClient *client = get_toplevel_client();
 	if (toplevel == nullptr || client == nullptr) return;
 
-	wl_fixed_t surface_x = wl_fixed_from_int (x);
-	wl_fixed_t surface_y = wl_fixed_from_int (y);
-
-	client->touch.send_down(next_serial(), LorieUtils::timestamp(), toplevel->resource, id, surface_x, surface_y);
+	client->touch->down(next_serial(), LorieUtils::timestamp(), reinterpret_cast<surface_t*>(resource_t::get(toplevel->resource)), id, x, y);
 	renderer.setCursorVisibility(false);
 }
 
@@ -103,10 +153,7 @@ void LorieCompositor::touch_motion(uint32_t id, uint32_t x, uint32_t y) {
 	LorieClient *client = get_toplevel_client();
 	if (toplevel == nullptr || client == nullptr) return;
 
-	wl_fixed_t surface_x = wl_fixed_from_int (x);
-	wl_fixed_t surface_y = wl_fixed_from_int (y);
-
-	client->touch.send_motion(LorieUtils::timestamp(), id, surface_x, surface_y);
+	client->touch->motion(LorieUtils::timestamp(), id, x, y);
 	renderer.setCursorVisibility(false);
 }
 
@@ -114,7 +161,7 @@ void LorieCompositor::touch_up(uint32_t id) {
 	LorieClient *client = get_toplevel_client();
 	if (toplevel == nullptr || client == nullptr) return;
 
-	client->touch.send_up(next_serial(), LorieUtils::timestamp(), id);
+	client->touch->up(next_serial(), LorieUtils::timestamp(), id);
 	renderer.setCursorVisibility(false);
 }
 
@@ -122,7 +169,7 @@ void LorieCompositor::touch_frame() {
 	LorieClient *client = get_toplevel_client();
 	if (toplevel == nullptr || client == nullptr) return;
 
-	client->touch.send_frame();
+	client->touch->frame();
 	renderer.setCursorVisibility(false);
 }
 
@@ -130,11 +177,8 @@ void LorieCompositor::pointer_motion(uint32_t x, uint32_t y) {
 	LorieClient *client = get_toplevel_client();
 	if (client == nullptr) return;
 
-	wl_fixed_t surface_x = wl_fixed_from_int (x);
-	wl_fixed_t surface_y = wl_fixed_from_int (y);
-
-	client->pointer.send_motion(LorieUtils::timestamp(), surface_x, surface_y);
-	client->pointer.send_frame();
+	client->pointer->motion(LorieUtils::timestamp(), x, y);
+	client->pointer->frame();
 
 	renderer.setCursorVisibility(true);
 	renderer.cursorMove(x, y);
@@ -144,11 +188,9 @@ void LorieCompositor::pointer_scroll(uint32_t axis, float value) {
     LorieClient *client = get_toplevel_client();
     if (client == nullptr) return;
 
-    wl_fixed_t scroll = wl_fixed_from_double (value);
-
-    client->pointer.send_axis_discrete(axis, (scroll>=0)?1:-1);
-    client->pointer.send_axis(LorieUtils::timestamp(), axis, scroll);
-    client->pointer.send_frame();
+    client->pointer->axis_discrete(pointer_axis(axis), (value >= 0) ? 1 : -1);
+    client->pointer->axis(LorieUtils::timestamp(), pointer_axis(axis), value);
+    client->pointer->frame();
 	renderer.setCursorVisibility(true);
 }
 
@@ -157,8 +199,8 @@ void LorieCompositor::pointer_button(uint32_t button, uint32_t state) {
 	if (client == nullptr) return;
 
 	LOGI("pointer button: %d %d", button, state);
-	client->pointer.send_button (next_serial(), LorieUtils::timestamp(), button, state);
-	client->pointer.send_frame();
+	client->pointer->button(next_serial(), LorieUtils::timestamp(), button, pointer_button_state(state));
+	client->pointer->frame();
 	renderer.setCursorVisibility(true);
 }
 
@@ -166,7 +208,7 @@ void LorieCompositor::keyboard_key(uint32_t key, uint32_t state) {
 	LorieClient *client = get_toplevel_client();
 	if (client == nullptr) return;
 
-	client->keyboard.send_key (next_serial(), LorieUtils::timestamp(), key, state);
+	client->kbd->key (next_serial(), LorieUtils::timestamp(), key, keyboard_key_state(state));
 }
 
 void LorieCompositor::keyboard_key_modifiers(uint8_t depressed, uint8_t latched, uint8_t locked, uint8_t group) {
@@ -183,14 +225,22 @@ void LorieCompositor::keyboard_key_modifiers(uint8_t depressed, uint8_t latched,
 	key_modifiers.locked = locked;
 	key_modifiers.group = group;
 
-	client->keyboard.send_modifiers (next_serial(), depressed, latched, locked, group);
+	client->kbd->modifiers(next_serial(), depressed, latched, locked, group);
 }
 
 void LorieCompositor::keyboard_keymap_changed() {
 	LorieClient *client = get_toplevel_client();
 	if (client == nullptr) return;
 
-	client->keyboard.keymap_changed();
+	int fd = -1, size = -1;
+	get_keymap(&fd, &size);
+	if (fd == -1 || size == -1) {
+		LOGE("Error while getting keymap from backend");
+		return;
+	}
+
+	client->kbd->keymap(keyboard_keymap_format::xkb_v1, fd, size);
+	close (fd);
 }
 
 LorieClient* LorieCompositor::get_toplevel_client() {

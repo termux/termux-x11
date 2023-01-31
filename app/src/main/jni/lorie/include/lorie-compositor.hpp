@@ -52,6 +52,8 @@ public:
 	virtual ~LorieCompositor() {};
 
 //private:
+	wayland::display_t dpy;
+	wayland::global_seat_t global_seat;
 	struct wl_display *display = nullptr;
 
 

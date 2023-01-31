@@ -1,5 +1,7 @@
 #pragma once
 
+#include <lorie_wayland_server.hpp>
+#include <wayland-server-protocol.hpp>
 #include <wayland.hpp>
 #include "log.h"
 
@@ -39,7 +41,9 @@ public:
 class LorieSurface: public wl_surface_t {
 public:
 	void on_destroy() override {};
-	void on_create() override {};
+	void on_create() override {
+		new wayland::resource_t(resource);
+	};
 
 	uint32_t x = 0, y = 0;
 	LorieTexture texture;

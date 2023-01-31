@@ -104,6 +104,7 @@ namespace wayland {
         std::any userdata;
 
 		resource_t(client_t* client, uint32_t id, uint32_t version, wl_interface* iface, wl_dispatcher_func_t dispatcher);
+	public:
         explicit resource_t(wl_resource *r); // wl_buffer is a builtin interface...
 
 		public:

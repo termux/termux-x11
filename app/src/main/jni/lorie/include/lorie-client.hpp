@@ -15,10 +15,9 @@ public:
 	static LorieClient* get(struct wl_client* client);
 	LorieOutput *output = NULL;
 	LorieCompositor& compositor;
-	LoriePointer pointer;
-	LorieKeyboard keyboard;
-	LorieTouch touch;
-	LorieSeat seat;
+	wayland::pointer_t* pointer = nullptr;
+	wayland::keyboard_t* kbd = nullptr;
+	wayland::touch_t* touch = nullptr;
 	LorieDataDeviceManager data_device_manager;
 	operator struct wl_client*() { return client; }
 private:

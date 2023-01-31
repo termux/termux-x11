@@ -44,8 +44,12 @@ void LorieShellSurface::request_set_toplevel() {
 	if (client == nullptr || surface == nullptr) return;
 
 	(*client)->compositor.set_toplevel(surface);
-	(*client)->pointer.send_enter();
-	(*client)->keyboard.send_enter();
+	if ((*client)->pointer)
+		(*client)->pointer->enter(next_serial(),
+							  reinterpret_cast<wayland::surface_t *>(wayland::resource_t::get((*client)->compositor.toplevel)), 0, 0);
+
+	if((*client)->kbd)
+		(*client)->kbd->enter(next_serial(), reinterpret_cast<wayland::surface_t *>(wayland::resource_t::get((*client)->compositor.toplevel)), 0, 0);
 	
 	send_configure(0, (*client)->compositor.renderer.width, (*client)->compositor.renderer.height);
 }

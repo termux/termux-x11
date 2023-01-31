@@ -5,6 +5,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+using namespace wayland;
+
 #ifndef __ANDROID__
 #include <sys/syscall.h>
 #define gettid() syscall(SYS_gettid)
@@ -116,8 +118,11 @@ static GLuint createProgram(const char* pVertexSource, const char* pFragmentSour
     return program;
 }
 
-LorieRenderer::LorieRenderer(LorieCompositor& compositor) : compositor(compositor) {
+static inline LorieCompositor::surface_data* data(surface_t* sfc) {
+	return any_cast<LorieCompositor::surface_data*>(sfc->user_data());
 }
+
+LorieRenderer::LorieRenderer(LorieCompositor& compositor) : compositor(compositor) {}
 
 void LorieRenderer::init() {
 	LOGV("Initializing renderer (tid %d)", ::gettid());
@@ -140,7 +145,7 @@ void LorieRenderer::requestRedraw() {
 	
 	idle = wl_event_loop_add_idle(
 		wl_display_get_event_loop(compositor.display),
-		&idleDraw,
+		[](void* data) { reinterpret_cast<LorieRenderer*>(data)->redraw(); },
 		this
 	);
 }
@@ -158,17 +163,17 @@ void LorieRenderer::resize(uint32_t w, uint32_t h, uint32_t pw, uint32_t ph) {
 	
 	glViewport(0, 0, w, h); checkGlError("glViewport");
 
-	LorieClient *cl = nullptr;
-	if (compositor.toplevel != nullptr) cl = LorieClient::get(compositor.toplevel->client);
-	if (cl == nullptr) return;
-	compositor.report_mode(wayland::client_t::get(*cl));
+	if (toplevel_surface) {
+		auto data = any_cast<LorieCompositor::client_data*>(toplevel_surface->client()->user_data());
+		compositor.report_mode(data->output);
+	}
 }
 
 void LorieRenderer::cursorMove(uint32_t x, uint32_t y) {
-	if (compositor.cursor == NULL) return;
-	
-	compositor.cursor->x = x;
-	compositor.cursor->y = y;
+	if (compositor.cursor == nullptr) return;
+
+	data(cursor_surface)->x = x;
+	data(cursor_surface)->y = y;
 	requestRedraw();
 }
 
@@ -177,16 +182,17 @@ void LorieRenderer::setCursorVisibility(bool visibility) {
 		cursorVisible = visibility;
 }
 
-void LorieRenderer::set_toplevel(LorieSurface *surface) {
+void LorieRenderer::set_toplevel(surface_t* surface) {
 	LOGV("Setting surface %p as toplevel", surface);
-	if (toplevel_surface) toplevel_surface->texture.uninit();
+	if (toplevel_surface) data(toplevel_surface)->texture.uninit();
 	toplevel_surface = surface;
 	requestRedraw();
 }
 
-void LorieRenderer::set_cursor(LorieSurface *surface, uint32_t hotspot_x, uint32_t hotspot_y) {
+void LorieRenderer::set_cursor(surface_t* surface, uint32_t hotspot_x, uint32_t hotspot_y) {
 	LOGV("Setting surface %p as cursor", surface);
-	if (cursor_surface) cursor_surface->texture.uninit();
+	if (cursor_surface)
+		data(cursor_surface)->texture.uninit();
 	cursor_surface = surface;
 	this->hotspot_x = hotspot_x;
 	this->hotspot_y = hotspot_y;
@@ -194,31 +200,25 @@ void LorieRenderer::set_cursor(LorieSurface *surface, uint32_t hotspot_x, uint32
 	requestRedraw();
 }
 
-void LorieRenderer::idleDraw(void *data) {
-	LorieRenderer* r = static_cast<LorieRenderer*> (data);
-	
-	r->redraw();
-}
-
 void LorieRenderer::drawCursor() {
-	if (toplevel_surface == NULL || cursor_surface == NULL) return;
+	if (cursor_surface == nullptr) return;
 
-	LorieTexture& toplevel = compositor.toplevel->texture;
-	LorieTexture& cursor = compositor.cursor->texture;
+	auto toplevel = data(toplevel_surface);
+	auto cursor = data(cursor_surface);
 	
-	if (!cursor.valid()) cursor.reinit();
-	if (!cursor.valid()) return;
+	if (!cursor->texture.valid()) cursor->texture.reinit();
+	if (!cursor->texture.valid()) return;
 	
 	float x, y, width, height, hs_x, hs_y;
-	hs_x = ((float)hotspot_x)/toplevel.width*2;
-	hs_y = ((float)hotspot_y)/toplevel.height*2;
-	x = (((float)compositor.cursor->x)/toplevel.width)*2 - 1.0 - hs_x;
-	y = (((float)compositor.cursor->y)/toplevel.height)*2 - 1.0 - hs_y;
-	width = 2*((float)cursor.width)/toplevel.width;
-	height = 2*((float)cursor.height)/toplevel.height;
+	hs_x = ((float)hotspot_x)/toplevel->texture.width*2;
+	hs_y = ((float)hotspot_y)/toplevel->texture.height*2;
+	x = (((float)cursor->x)/toplevel->texture.width)*2 - 1.0 - hs_x;
+	y = (((float)cursor->y)/toplevel->texture.height)*2 - 1.0 - hs_y;
+	width = 2*((float)cursor->texture.width)/toplevel->texture.width;
+	height = 2*((float)cursor->texture.height)/toplevel->texture.height;
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	cursor.draw(x, y, x + width, y + height);
+	cursor->texture.draw(x, y, x + width, y + height);
 	glDisable(GL_BLEND);
 }
 
@@ -226,19 +226,17 @@ void LorieRenderer::redraw() {
 	//LOGV("Redrawing screen");
 	idle = NULL;
 	if (!ready) return;
-	//#define RAND ((float)(rand()%256)/256)
-	//glClearColor(RAND, RAND, RAND, 1.0); checkGlError("glClearColor");
 	glClearColor(0.f, 0.f, 0.f, 0.f); checkGlError("glClearColor");
 	glClear(GL_COLOR_BUFFER_BIT); checkGlError("glClear");
 	
-	if (toplevel_surface) {
-		if (!toplevel_surface->texture.valid())
-			toplevel_surface->texture.reinit();
-		toplevel_surface->texture.draw(-1.0, -1.0, 1.0, 1.0);
-	}
+	if (toplevel_surface && data(toplevel_surface)) {
+		if (!data(toplevel_surface)->texture.valid())
+			data(toplevel_surface)->texture.reinit();
+		data(toplevel_surface)->texture.draw(-1.0, -1.0, 1.0, 1.0);
 
-	if (cursorVisible)
-		drawCursor();
+		if (cursorVisible)
+			drawCursor();
+	}
 
 	compositor.swap_buffers();
 }
@@ -250,8 +248,8 @@ void LorieRenderer::uninit() {
 	glDeleteProgram(gTextureProgram);
 	gTextureProgram = gvPos = gvCoords = gvTextureSamplerHandle = 0;
 
-	if (toplevel_surface) toplevel_surface->texture.uninit();
-	if (cursor_surface) cursor_surface->texture.uninit();
+	if (toplevel_surface) data(toplevel_surface)->texture.uninit();
+	if (cursor_surface) data(cursor_surface)->texture.uninit();
 }
 
 LorieRenderer::~LorieRenderer() {

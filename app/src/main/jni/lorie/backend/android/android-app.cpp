@@ -12,6 +12,7 @@
 #include <android/native_window_jni.h>
 #include <sys/socket.h>
 #include <dirent.h>
+#include <android/log.h>
 
 #pragma ide diagnostic ignored "hicpp-signed-bitwise"
 #define unused __attribute__((__unused__))
@@ -149,6 +150,23 @@ static LorieBackendAndroid* fromLong(jlong v) {
 
 extern "C" JNIEXPORT jlong JNICALL
 JNI_DECLARE(LorieService, createLorieThread)(unused JNIEnv *env, unused jobject instance) {
+#if 0
+	// It is needed to redirect stderr to logcat
+	setenv("WAYLAND_DEBUG", "1", 1);
+	new std::thread([]{
+		FILE *fp;
+		int p[2];
+		size_t read, len;
+		char* line = nullptr;
+		pipe(p);
+		fp = fdopen(p[0], "r");
+
+		dup2(p[1], 2);
+		while ((read = getline(&line, &len, fp)) != -1) {
+			__android_log_write(ANDROID_LOG_VERBOSE, "WAYLAND_STDERR", line);
+		}
+	});
+#endif
     return (jlong) new LorieBackendAndroid;
 }
 

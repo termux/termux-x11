@@ -3,6 +3,27 @@
 #include <limits.h>
 #include "LorieImpls.hpp"
 
+class LorieRenderer;
+class LorieTexture {
+private:
+	LorieRenderer* r = nullptr;
+	bool damaged = false;
+public:
+	LorieTexture();
+	uint32_t width{}, height{};
+	void *data{};
+	void set_data(LorieRenderer* renderer, uint32_t width, uint32_t height, void *data);
+	void damage(int32_t x, int32_t y, int32_t width, int32_t height);
+	void uninit();
+	void reinit();
+	bool valid();
+private:
+	GLuint id = UINT_MAX;
+	void draw(float x0, float y0, float x1, float y1);
+
+	friend class LorieRenderer;
+};
+
 class LorieCompositor;
 class LorieSurface;
 class LorieRenderer {
@@ -26,14 +47,13 @@ public:
 	void setCursorVisibility(bool visibility);
 	~LorieRenderer();
 private:
-	static void idleDraw(void *data);
 	LorieCompositor& compositor;
 
-	void set_toplevel(LorieSurface *surface);
-	void set_cursor(LorieSurface *surface, uint32_t hotspot_x, uint32_t hotspot_y);
+	void set_toplevel(wayland::surface_t* surface);
+	void set_cursor(wayland::surface_t* surface, uint32_t hotspot_x, uint32_t hotspot_y);
 
-	LorieSurface* toplevel_surface = nullptr;
-	LorieSurface* cursor_surface = nullptr;
+	wayland::surface_t* toplevel_surface = nullptr;
+	wayland::surface_t* cursor_surface = nullptr;
 	
 	struct wl_event_source *idle = NULL;
 	void drawCursor();
@@ -46,24 +66,4 @@ private:
     
     friend class LorieTexture;
     friend class LorieCompositor;
-};
-
-class LorieTexture {
-private:
-	LorieRenderer* r = nullptr;
-	bool damaged = false;
-public:
-	LorieTexture();
-	uint32_t width, height;
-	void *data = nullptr;
-	void set_data(LorieRenderer* renderer, uint32_t width, uint32_t height, void *data);
-	void damage(int32_t x, int32_t y, int32_t width, int32_t height);
-	void uninit();
-	void reinit();
-	bool valid();
-private:
-	GLuint id = UINT_MAX;
-	void draw(float x0, float y0, float x1, float y1);
-	
-	friend class LorieRenderer;
 };

@@ -4,15 +4,11 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := lorie
 LOCAL_SRC_FILES := \
-	client.cpp \
-	clipboard.cpp \
 	compositor.cpp \
 	egl-helper.cpp \
 	message-queue.cpp \
 	renderer.cpp \
-	surface.cpp \
 	utils/log.cpp \
-	utils/utils.cpp \
 	scanner/wayland.cpp \
 	\
 	backend/android/android-app.cpp \

@@ -2,16 +2,16 @@
 #include <GLES2/gl2.h>
 #include <limits.h>
 
-class LorieRenderer;
-class LorieTexture {
+class lorie_renderer;
+class lorie_texture {
 private:
-	LorieRenderer* r = nullptr;
+	lorie_renderer* r = nullptr;
 	bool damaged = false;
 public:
-	LorieTexture();
+	lorie_texture();
 	int width{}, height{};
 	void *data{};
-	void set_data(LorieRenderer* renderer, uint32_t width, uint32_t height, void *data);
+	void set_data(lorie_renderer* renderer, uint32_t width, uint32_t height, void *data);
 	void damage(int32_t x, int32_t y, int32_t width, int32_t height);
 	void uninit();
 	void reinit();
@@ -20,15 +20,14 @@ private:
 	GLuint id = UINT_MAX;
 	void draw(float x0, float y0, float x1, float y1);
 
-	friend class LorieRenderer;
+	friend class lorie_renderer;
 };
 
-class LorieCompositor;
-class LorieSurface;
-class LorieRenderer {
+class lorie_compositor;
+class lorie_renderer {
 public:
-	LorieRenderer(LorieCompositor& compositor);
-	void requestRedraw();
+	lorie_renderer(lorie_compositor& compositor);
+	void request_redraw();
 	void init();
 	void uninit();
 	
@@ -37,16 +36,16 @@ public:
 	uint32_t physical_width = 270;
 	uint32_t physical_height = 158;
 	
-	bool cursorVisible = false;
+	bool cursor_visible = false;
 	
 	uint32_t hotspot_x{}, hotspot_y{};
 	
 	void resize(int w, int h, uint32_t pw, uint32_t ph);
-	void cursorMove(uint32_t x, uint32_t y);
-	void setCursorVisibility(bool visibility);
-	~LorieRenderer();
+	void cursor_move(uint32_t x, uint32_t y);
+	void set_cursor_visibility(bool visibility);
+	~lorie_renderer();
 private:
-	LorieCompositor& compositor;
+	lorie_compositor& compositor;
 
 	void set_toplevel(wayland::surface_t* surface);
 	void set_cursor(wayland::surface_t* surface, uint32_t hotspot_x, uint32_t hotspot_y);
@@ -55,14 +54,14 @@ private:
 	wayland::surface_t* cursor_surface = nullptr;
 	
 	struct wl_event_source *idle = NULL;
-	void drawCursor();
+	void draw_cursor();
 	void redraw();
-    GLuint gTextureProgram = 0;
-    GLuint gvPos = 0;
-    GLuint gvCoords = 0;
-    GLuint gvTextureSamplerHandle = 0;
+    GLuint g_texture_program = 0;
+    GLuint gv_pos = 0;
+    GLuint gv_coords = 0;
+    GLuint gv_texture_sampler_handle = 0;
     bool ready = false;
     
-    friend class LorieTexture;
-    friend class LorieCompositor;
+    friend class lorie_texture;
+    friend class lorie_compositor;
 };

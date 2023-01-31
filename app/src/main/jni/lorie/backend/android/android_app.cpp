@@ -17,9 +17,32 @@
 #pragma ide diagnostic ignored "hicpp-signed-bitwise"
 #define unused __attribute__((__unused__))
 
-class LorieBackendAndroid : public LorieCompositor {
+static jfieldID lorie_service_compositor_field_id = nullptr;
+
+template<class F, F f, auto defaultValue = 0> struct wrapper_impl;
+template<class R, class C, class... A, R(C::*f)(A...), auto defaultValue>
+struct wrapper_impl<R(C::*)(A...), f, defaultValue> {
+    // Be careful and do passing jobjects here!!!
+    static inline R execute(JNIEnv* env, jobject obj, A... args) {
+        auto native = reinterpret_cast<C*>(env->GetLongField(obj, lorie_service_compositor_field_id));
+        if (native != nullptr)
+            return (native->*f)(args...);
+        return static_cast<R>(defaultValue);
+    }
+    static inline void queue(JNIEnv* env, jobject obj, A... args) {
+        auto native = reinterpret_cast<C*>(env->GetLongField(obj, lorie_service_compositor_field_id));
+        if (native != nullptr)
+            native->post([=]{ (native->*f)(args...); });
+    }
+};
+template<auto f, auto defaultValue = 0>
+auto execute = wrapper_impl<decltype(f), f, defaultValue>::execute;
+template<auto f, auto defaultValue = 0>
+auto queue = wrapper_impl<decltype(f), f, defaultValue>::queue;
+
+class lorie_backend_android : public lorie_compositor {
 public:
-	LorieBackendAndroid();
+	lorie_backend_android();
 
 	void backend_init() override;
 	void swap_buffers() override;
@@ -29,27 +52,21 @@ public:
 
 	void on_egl_init();
 
-	void unused on_egl_uninit();
-
 	LorieEGLHelper helper;
 
 	int keymap_fd = -1;
     std::thread self;
 };
 
-LorieBackendAndroid::LorieBackendAndroid()
-    : self(&LorieCompositor::start, this) {
+lorie_backend_android::lorie_backend_android()
+    : self(&lorie_compositor::start, this) {
 }
 
-void LorieBackendAndroid::on_egl_init() {
+void lorie_backend_android::on_egl_init() {
 	renderer.init();
 }
 
-void unused LorieBackendAndroid::on_egl_uninit() {
-	renderer.uninit();
-}
-
-void LorieBackendAndroid::backend_init() {
+void lorie_backend_android::backend_init() {
 	if (!helper.init(EGL_DEFAULT_DISPLAY)) {
 	    LOGE("Failed to initialize EGL context");
 	}
@@ -58,11 +75,11 @@ void LorieBackendAndroid::backend_init() {
 
 }
 
-void LorieBackendAndroid::swap_buffers () {
+void lorie_backend_android::swap_buffers () {
 	helper.swap();
 }
 
-void LorieBackendAndroid::get_keymap(int *fd, int *size) {
+void lorie_backend_android::get_keymap(int *fd, int *size) {
     if (keymap_fd != -1)
         close(keymap_fd);
 
@@ -73,15 +90,16 @@ void LorieBackendAndroid::get_keymap(int *fd, int *size) {
 	*fd = keymap_fd;
 }
 
-void LorieBackendAndroid::window_change_callback(EGLNativeWindowType win, uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height) {
-	LOGE("WindowChangeCallback");
+void lorie_backend_android::window_change_callback(EGLNativeWindowType win, uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height) {
+	LOGV("JNI: window is changed: %p %dx%d (%dmm x %dmm)", win, width, height, physical_width, physical_height);
 	helper.setWindow(win);
 	post([=, this]() {
         output_resize(width, height, physical_width, physical_height);
 	});
 }
 
-void LorieBackendAndroid::passfd(int fd) {
+void lorie_backend_android::passfd(int fd) {
+    LOGI("JNI: got fd %d", fd);
     listen(fd, 128);
     wl_display_add_socket_fd(display, fd);
 }
@@ -93,14 +111,8 @@ void LorieBackendAndroid::passfd(int fd) {
 #define JNI_DECLARE(classname, methodname) \
      JNI_DECLARE_INNER(com_termux_x11, classname, methodname)
 
-#define WL_POINTER_MOTION 2
-
-static LorieBackendAndroid* fromLong(jlong v) {
-    return reinterpret_cast<LorieBackendAndroid*>(v);
-}
-
 extern "C" JNIEXPORT jlong JNICALL
-JNI_DECLARE(LorieService, createLorieThread)(unused JNIEnv *env, unused jobject instance) {
+JNI_DECLARE(LorieService, createLorieThread)(JNIEnv *env, jobject thiz) {
 #if 0
 	// It is needed to redirect stderr to logcat
 	setenv("WAYLAND_DEBUG", "1", 1);
@@ -118,135 +130,69 @@ JNI_DECLARE(LorieService, createLorieThread)(unused JNIEnv *env, unused jobject 
 		}
 	});
 #endif
-    return (jlong) new LorieBackendAndroid;
+    lorie_service_compositor_field_id = env->GetFieldID(env->GetObjectClass(thiz), "compositor", "J");
+    return (jlong) new lorie_backend_android;
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, passWaylandFD)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint fd) {
-    if (jcompositor == 0) return;
-    LorieBackendAndroid *b = fromLong(jcompositor);
-    char path[256] = {0};
-    char realpath[256] = {0};
-    sprintf(path, "/proc/self/fd/%d", fd);
-    readlink(path, realpath, sizeof(realpath)); // NOLINT(bugprone-unused-return-value)
-    LOGI("JNI: got fd %d (%s)", fd, realpath);
-
-    b->passfd(fd);
+JNI_DECLARE(LorieService, passWaylandFD)(JNIEnv *env, jobject thiz, jint fd) {
+    execute<&lorie_backend_android::passfd>(env, thiz, fd);
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, terminate)(unused JNIEnv *env, unused jobject instance,  jlong jcompositor) {
-    if (jcompositor == 0) return;
-        LorieBackendAndroid *b = fromLong(jcompositor);
-    LOGI("JNI: requested termination");
-    b->post([b](){
-        b->terminate();
-    });
+JNI_DECLARE(LorieService, terminate)(JNIEnv *env, jobject obj) {
+    auto b = reinterpret_cast<lorie_backend_android*>(env->GetLongField(obj, lorie_service_compositor_field_id));
+    b->terminate();
     b->self.join();
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, windowChanged)(JNIEnv *env, unused jobject instance, jlong jcompositor, jobject jsurface, jint width, jint height, jint mmWidth, jint mmHeight) {
-	if (jcompositor == 0) return;
-	LorieBackendAndroid *b = fromLong(jcompositor);
-
+JNI_DECLARE(LorieService, windowChanged)(JNIEnv *env, jobject thiz, jobject jsurface, jint width, jint height, jint mm_width, jint mm_height) {
 	EGLNativeWindowType win = ANativeWindow_fromSurface(env, jsurface);
-	b->post([b, win, width, height, mmWidth, mmHeight](){
-        b->window_change_callback(win, width, height, mmWidth, mmHeight);
-	});
-
-    LOGV("JNI: window is changed: %p(%p) %dx%d (%dmm x %dmm)", win, jsurface, width, height, mmWidth, mmHeight);
+    queue<&lorie_backend_android::window_change_callback>(env, thiz, win, width, height, mm_width, mm_height);
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, touchDown)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint id, jint x, jint y) {
-    if (jcompositor == 0) return;
-    LorieBackendAndroid *b = fromLong(jcompositor);
-	LOGV("JNI: touch down");
-
-    b->post([b, id, x, y]() {
-        b->touch_down(static_cast<uint32_t>(id), static_cast<uint32_t>(x), static_cast<uint32_t>(y));
-    });
+JNI_DECLARE(LorieService, touchDown)(JNIEnv *env, jobject thiz, jint id, jfloat x, jfloat y) {
+    queue<&lorie_backend_android::touch_down>(env, thiz, static_cast<uint32_t>(id), static_cast<uint32_t>(x), static_cast<uint32_t>(y));
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, touchMotion)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint id, jint x, jint y) {
-    if (jcompositor == 0) return;
-    LorieBackendAndroid *b = fromLong(jcompositor);
-	LOGV("JNI: touch motion");
-
-    b->post([b, id, x, y]() {
-        b->touch_motion(static_cast<uint32_t>(id), static_cast<uint32_t>(x),
-                             static_cast<uint32_t>(y));
-    });
+JNI_DECLARE(LorieService, touchMotion)(JNIEnv *env, jobject thiz, jint id, jfloat x, jfloat y) {
+    queue<&lorie_backend_android::touch_motion>(env, thiz, static_cast<uint32_t>(id), static_cast<uint32_t>(x), static_cast<uint32_t>(y));
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, touchUp)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint id) {
-    if (jcompositor == 0) return;
-    LorieBackendAndroid *b = fromLong(jcompositor);
-	LOGV("JNI: touch up");
-
-    b->post([b, id]() {
-        b->touch_up(static_cast<uint32_t>(id));
-    });
+JNI_DECLARE(LorieService, touchUp)(JNIEnv *env, jobject thiz, jint id) {
+    queue<&lorie_backend_android::touch_up>(env, thiz, id);
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, touchFrame)(unused JNIEnv *env, unused jobject instance, jlong jcompositor) {
-    if (jcompositor == 0) return;
-    LorieBackendAndroid *b = fromLong(jcompositor);
-	LOGV("JNI: touch frame");
-
-    b->post([b]() {
-        b->touch_frame();
-    });
+JNI_DECLARE(LorieService, touchFrame)(JNIEnv *env, jobject thiz) {
+    queue<&lorie_backend_android::touch_frame>(env, thiz);
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, pointerMotion)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint x, jint y) {
-    if (jcompositor == 0) return;
-    LorieBackendAndroid *b = fromLong(jcompositor);
-
-    LOGV("JNI: pointer motion %dx%d", x, y);
-    b->post([b, x, y](){
-        b->pointer_motion(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
-    });
+JNI_DECLARE(LorieService, pointerMotion)(JNIEnv *env, jobject thiz, jint x, jint y) {
+    queue<&lorie_backend_android::pointer_motion>(env, thiz, static_cast<uint32_t>(x), static_cast<uint32_t>(y));
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, pointerScroll)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint axis, jfloat value) {
-    if (jcompositor == 0) return;
-    LorieBackendAndroid *b = fromLong(jcompositor);
-
-    LOGV("JNI: pointer scroll %d  %f", axis, value);
-    b->post([b, axis, value]() {
-        b->pointer_scroll(static_cast<uint32_t>(axis), value);
-    });
+JNI_DECLARE(LorieService, pointerScroll)(JNIEnv *env, jobject thiz, jint axis, jfloat value) {
+    queue<&lorie_backend_android::pointer_scroll>(env, thiz, static_cast<uint32_t>(axis), value);
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, pointerButton)(unused JNIEnv *env, unused jobject instance, jlong jcompositor, jint button, jint type) {
-    if (jcompositor == 0) return;
-    LorieBackendAndroid *b = fromLong(jcompositor);
-
-    LOGV("JNI: pointer button %d type %d", button, type);
-    b->post([b, button, type]() {
-        b->pointer_button(static_cast<uint32_t>(button), static_cast<uint32_t>(type));
-    });
+JNI_DECLARE(LorieService, pointerButton)(JNIEnv *env, jobject thiz, jint button, jint type) {
+    queue<&lorie_backend_android::pointer_button>(env, thiz, static_cast<uint32_t>(button), static_cast<uint32_t>(type));
 }
 
 extern "C" void get_character_data(char** layout, int *shift, int *ec, char *ch);
 extern "C" void android_keycode_get_eventcode(int kc, int *ec, int *shift);
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, unused jobject instance,
-                                           jlong jcompositor, jint type,
-                                           jint key_code, jint jshift,
-                                           jstring characters_) {
-	if (jcompositor == 0) return;
-    LorieBackendAndroid *b = fromLong(jcompositor);
-
+JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, jobject thiz,
+                                           jint type, jint key_code, jint jshift, jstring characters_) {
     char *characters = nullptr;
 
 	int event_code = 0;
@@ -263,24 +209,16 @@ JNI_DECLARE(LorieService, keyboardKey)(JNIEnv *env, unused jobject instance,
 	LOGE("Keyboard input: keyCode: %d; eventCode: %d; characters: %s; shift: %d, type: %d", key_code, event_code, characters, shift, type);
 
     if (shift || jshift)
-        b->post([b]() {
-            b->keyboard_key(42, WL_KEYBOARD_KEY_STATE_PRESSED); // Send KEY_LEFTSHIFT
-        });
+        queue<&lorie_backend_android::keyboard_key>(env, thiz, 42, wayland::keyboard_key_state::pressed);
 
     // For some reason Android do not send ACTION_DOWN for non-English characters
     if (characters)
-        b->post([b, event_code]() {
-            b->keyboard_key(static_cast<uint32_t>(event_code), WL_KEYBOARD_KEY_STATE_PRESSED);
-        });
+        queue<&lorie_backend_android::keyboard_key>(env, thiz, event_code, wayland::keyboard_key_state::pressed);
 
-    b->post([b, event_code, type]() {
-        b->keyboard_key(static_cast<uint32_t>(event_code), static_cast<uint32_t>(type));
-    });
+    queue<&lorie_backend_android::keyboard_key>(env, thiz, event_code, wayland::keyboard_key_state(type));
 
     if (shift || jshift)
-        b->post([b]() {
-            b->keyboard_key(42, WL_KEYBOARD_KEY_STATE_RELEASED); // Send KEY_LEFTSHIFT
-        });
+        queue<&lorie_backend_android::keyboard_key>(env, thiz, 42, wayland::keyboard_key_state::released);
 
     if (characters_ != nullptr) env->ReleaseStringUTFChars(characters_, characters);
 }

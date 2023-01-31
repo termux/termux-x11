@@ -5,13 +5,12 @@
 #include <lorie_message_queue.hpp>
 #include "log.h"
 
-class LorieCompositor {
+class lorie_compositor {
 public:
-	LorieCompositor();
+	lorie_compositor();
 // compositor features
 	void start();
 	void post(std::function<void()> f);
-	struct wl_event_source* add_fd_listener(int fd, uint32_t mask, wl_event_loop_fd_func_t func, void *data);
 
 	void terminate();
 	void output_resize(int width, int height, uint32_t physical_width, uint32_t physical_height);
@@ -24,7 +23,7 @@ public:
 	void pointer_motion(uint32_t x, uint32_t y); // absolute values
 	void pointer_scroll(uint32_t axis, float value);
 	void pointer_button(uint32_t button, uint32_t state);
-	void keyboard_key(uint32_t key, uint32_t state);
+	void keyboard_key(uint32_t key, wayland::keyboard_key_state state);
 
 	struct client_data {
 		wayland::output_t* output = nullptr;
@@ -35,12 +34,12 @@ public:
 
 	struct surface_data {
 		uint32_t x = 0, y = 0;
-		LorieTexture texture;
+		lorie_texture texture;
 		wayland::buffer_t *buffer = NULL;
 		wayland::callback_t *frame_callback = NULL;
 	};
 
-	LorieRenderer renderer;
+	lorie_renderer renderer;
 
 	wayland::surface_t*& toplevel;
 	wayland::surface_t*& cursor;
@@ -49,7 +48,7 @@ public:
 	virtual void backend_init() = 0;
 	virtual void swap_buffers() = 0;
 	virtual void get_keymap(int *fd, int *size) = 0;
-	virtual ~LorieCompositor() {};
+	virtual ~lorie_compositor() {};
 
 //private:
 	wayland::display_t dpy;

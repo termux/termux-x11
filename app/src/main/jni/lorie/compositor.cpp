@@ -7,7 +7,7 @@
 
 using namespace wayland;
 
-LorieCompositor::LorieCompositor() :
+lorie_compositor::lorie_compositor() :
 display(dpy),
 global_compositor(dpy),
 global_seat(dpy),
@@ -137,14 +137,14 @@ cursor(renderer.cursor_surface) {
 }
 
 int proc(int fd, uint32_t mask, void *data) {
-	LorieCompositor *b = static_cast<LorieCompositor*>(data);
+	lorie_compositor *b = static_cast<lorie_compositor*>(data);
 	if (b == nullptr) {LOGF("b == nullptr"); return 0;}
 
 	b->queue.run();
 	return 0;
 };
 
-void LorieCompositor::start() {
+void lorie_compositor::start() {
 	LogInit();
 	LOGV("Starting compositor");
 	wl_display_add_socket_auto(display);
@@ -158,85 +158,78 @@ void LorieCompositor::start() {
 	wl_display_run(display);
 }
 
-void LorieCompositor::post(std::function<void()> f) {
+void lorie_compositor::post(std::function<void()> f) {
     queue.write(f);
 }
 
-struct wl_event_source* LorieCompositor::add_fd_listener(int fd, uint32_t mask, wl_event_loop_fd_func_t func, void *data) {
-	LOGV("Adding fd %d to event loop", fd);
-	struct wl_event_loop* loop = nullptr;
-	if (display != nullptr)
-		loop = wl_display_get_event_loop(display);
-
-	if (loop != nullptr)
-		return wl_event_loop_add_fd(loop, fd, mask, func, data);
-
-	return nullptr;
-}
-
-void LorieCompositor::terminate() {
-	LOGV("Terminating compositor");
+void lorie_compositor::terminate() {
+	LOGI("JNI: requested termination");
 	if (display != nullptr)
 		wl_display_terminate(display);
 }
 
-void LorieCompositor::output_resize(int width, int height, uint32_t physical_width, uint32_t physical_height) {
+void lorie_compositor::output_resize(int width, int height, uint32_t physical_width, uint32_t physical_height) {
 	// Xwayland segfaults without that line
 	if (width == 0 || height == 0 || physical_width == 0 || physical_height == 0) return;
 	renderer.resize(width, height, physical_width, physical_height);
 	post([this]() {
-		renderer.requestRedraw();
+		renderer.request_redraw();
 	});
 }
 
-void LorieCompositor::report_mode(wayland::output_t* output) const {
+void lorie_compositor::report_mode(wayland::output_t* output) const {
 	output->geometry(0, 0, renderer.physical_width, renderer.physical_height, output_subpixel::unknown, "Lorie", "none", output_transform::normal);
 	output->scale(1.0);
 	output->mode(output_mode::current | output_mode::preferred, renderer.width, renderer.height, 60000);
 	output->done();
 }
 
-void LorieCompositor::touch_down(uint32_t id, uint32_t x, uint32_t y) {
+void lorie_compositor::touch_down(uint32_t id, uint32_t x, uint32_t y) {
+    LOGV("JNI: touch down");
 	if (!toplevel)
 		return;
 
 	auto data = any_cast<client_data*>(toplevel->client()->user_data());
 
 	data->touch->down(next_serial(), resource_t::timestamp(), toplevel, id, x, y);
-	renderer.setCursorVisibility(false);
+	renderer.set_cursor_visibility(false);
 }
 
-void LorieCompositor::touch_motion(uint32_t id, uint32_t x, uint32_t y) {
+void lorie_compositor::touch_motion(uint32_t id, uint32_t x, uint32_t y) {
+    LOGV("JNI: touch motion");
 	if (!toplevel)
 		return;
 
 	auto data = any_cast<client_data*>(toplevel->client()->user_data());
 
 	data->touch->motion(resource_t::timestamp(), id, x, y);
-	renderer.setCursorVisibility(false);
+	renderer.set_cursor_visibility(false);
 }
 
-void LorieCompositor::touch_up(uint32_t id) {
+void lorie_compositor::touch_up(uint32_t id) {
+    LOGV("JNI: touch up");
 	if (!toplevel)
 		return;
 
 	auto data = any_cast<client_data*>(toplevel->client()->user_data());
 
 	data->touch->up(next_serial(), resource_t::timestamp(), id);
-	renderer.setCursorVisibility(false);
+	renderer.set_cursor_visibility(false);
 }
 
-void LorieCompositor::touch_frame() {
+void lorie_compositor::touch_frame() {
+    LOGV("JNI: touch frame");
 	if (!toplevel)
 		return;
 
 	auto data = any_cast<client_data*>(toplevel->client()->user_data());
 
 	data->touch->frame();
-	renderer.setCursorVisibility(false);
+	renderer.set_cursor_visibility(false);
 }
 
-void LorieCompositor::pointer_motion(uint32_t x, uint32_t y) {
+void lorie_compositor::pointer_motion(uint32_t x, uint32_t y) {
+    LOGV("JNI: pointer motion %dx%d", x, y);
 	if (!toplevel)
 		return;
 
@@ -245,11 +238,12 @@ void LorieCompositor::pointer_motion(uint32_t x, uint32_t y) {
 	data->pointer->motion(resource_t::timestamp(), x, y);
 	data->pointer->frame();
 
-	renderer.setCursorVisibility(true);
-	renderer.cursorMove(x, y);
+    renderer.set_cursor_visibility(true);
+    renderer.cursor_move(x, y);
 }
 
-void LorieCompositor::pointer_scroll(uint32_t axis, float value) {
+void lorie_compositor::pointer_scroll(uint32_t axis, float value) {
+    LOGV("JNI: pointer scroll %d  %f", axis, value);
 	if (!toplevel)
 		return;
 
@@ -258,10 +252,11 @@ void LorieCompositor::pointer_scroll(uint32_t axis, float value) {
     data->pointer->axis_discrete(pointer_axis(axis), (value >= 0) ? 1 : -1);
     data->pointer->axis(resource_t::timestamp(), pointer_axis(axis), value);
     data->pointer->frame();
-	renderer.setCursorVisibility(true);
+	renderer.set_cursor_visibility(true);
 }
 
-void LorieCompositor::pointer_button(uint32_t button, uint32_t state) {
+void lorie_compositor::pointer_button(uint32_t button, uint32_t state) {
+    LOGV("JNI: pointer button %d type %d", button, state);
 	if (!toplevel)
 		return;
 
@@ -270,19 +265,18 @@ void LorieCompositor::pointer_button(uint32_t button, uint32_t state) {
 	LOGI("pointer button: %d %d", button, state);
 	data->pointer->button(next_serial(), resource_t::timestamp(), button, pointer_button_state(state));
 	data->pointer->frame();
-	renderer.setCursorVisibility(true);
+    renderer.set_cursor_visibility(true);
 }
 
-void LorieCompositor::keyboard_key(uint32_t key, uint32_t state) {
+void lorie_compositor::keyboard_key(uint32_t key, keyboard_key_state state) {
 	if (!toplevel)
 		return;
 
 	auto data = any_cast<client_data*>(toplevel->client()->user_data());
-
 	data->kbd->key (next_serial(), resource_t::timestamp(), key, keyboard_key_state(state));
 }
 
-uint32_t LorieCompositor::next_serial() const {
+uint32_t lorie_compositor::next_serial() const {
 	if (display == nullptr) return 0;
 
 	return wl_display_next_serial(display);

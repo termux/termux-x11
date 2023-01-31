@@ -301,12 +301,6 @@ public class LorieService extends Service {
         return listener;
     }
 
-    void terminate() {
-        terminate(compositor);
-        compositor = 0;
-        Log.e("LorieService", "terminate");
-    }
-
     @Override
     public IBinder onBind(Intent intent) {
         return null;
@@ -476,40 +470,18 @@ public class LorieService extends Service {
         };
     }
 
-    private void windowChanged(Surface s, int w, int h, int pw, int ph) {windowChanged(compositor, s, w, h, pw, ph);}
-    private native void windowChanged(long compositor, Surface surface, int width, int height, int mmWidth, int mmHeight);
-    
-    private void touchDown(int id, float x, float y) { touchDown(compositor, id, (int) x, (int) y); }
-    private native void touchDown(long compositor, int id, int x, int y);
-    
-    private void touchMotion(int id, float x, float y) { touchMotion(compositor, id, (int) x, (int) y); }
-    private native void touchMotion(long compositor, int id, int x, int y);
-    
-    private void touchUp(int id) { touchUp(compositor, id); }
-    private native void touchUp(long compositor, int id);
-    
-    private void touchFrame() { touchFrame(compositor); }
-    private native void touchFrame(long compositor);
-    
-    private void pointerMotion(float x, float y) { pointerMotion(compositor, (int) x, (int) y); }
-    private native void pointerMotion(long compositor, int x, int y);
-    
-    private void pointerScroll(int axis, float value) { pointerScroll(compositor, axis, value); }
-    private native void pointerScroll(long compositor, int axis, float value);
-    
-    private void pointerButton(int button, int type) { pointerButton(compositor, button, type); }
-    private native void pointerButton(long compositor, int button, int type);
-    
-    private void keyboardKey(int key, int type, int shift, String characters) {keyboardKey(compositor, key, type, shift, characters);}
-    private native void keyboardKey(long compositor, int key, int type, int shift, String characters);
-
-    private void passWaylandFD(int fd) {passWaylandFD(compositor, fd);}
-    private native void passWaylandFD(long compositor, int fd);
-
-    private native long createLorieThread();
-    
-    private native void terminate(long compositor);
-
+    private native void windowChanged(Surface surface, int width, int height, int mmWidth, int mmHeight);
+    private native void touchDown(int id, float x, float y);
+    private native void touchMotion(int id, float x, float y);
+    private native void touchUp(int id);
+    private native void touchFrame();
+    private native void pointerMotion(int x, int y);
+    private native void pointerScroll(int axis, float value);
+    private native void pointerButton(int button, int type);
+    private native void keyboardKey(int key, int type, int shift, String characters);
+    private native void passWaylandFD(int fd);
+    private native long createLorieThread();    
+    private native void terminate();
     public static native void startLogcatForFd(int fd);
 
     static {

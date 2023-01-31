@@ -6,7 +6,7 @@
 
 using namespace wayland;
 
-static const char gSimpleVS[] = R"(
+static const char vertex_shader[] = R"(
     attribute vec4 position;
     attribute vec2 texCoords;
     varying vec2 outTexCoords;
@@ -15,7 +15,7 @@ static const char gSimpleVS[] = R"(
        gl_Position = position;
     }
 )";
-static const char gSimpleFS[] = R"(
+static const char fragment_shader[] = R"(
     precision mediump float;
     varying vec2 outTexCoords;
     uniform sampler2D texture;
@@ -24,7 +24,7 @@ static const char gSimpleFS[] = R"(
     }
 )";
 
-static GLuint loadShader(GLenum shaderType, const char* pSource) {
+static GLuint load_shader(GLenum shaderType, const char* pSource) {
     GLuint shader = glCreateShader(shaderType);
     if (shader) {
         glShaderSource(shader, 1, &pSource, nullptr);
@@ -49,13 +49,13 @@ static GLuint loadShader(GLenum shaderType, const char* pSource) {
     return shader;
 }
 
-static GLuint createProgram(const char* pVertexSource, const char* pFragmentSource) {
-    GLuint vertexShader = loadShader(GL_VERTEX_SHADER, pVertexSource);
+static GLuint create_program(const char* p_vertex_source, const char* p_fragment_source) {
+    GLuint vertexShader = load_shader(GL_VERTEX_SHADER, p_vertex_source);
     if (!vertexShader) {
         return 0;
     }
 
-    GLuint pixelShader = loadShader(GL_FRAGMENT_SHADER, pFragmentSource);
+    GLuint pixelShader = load_shader(GL_FRAGMENT_SHADER, p_fragment_source);
     if (!pixelShader) {
         return 0;
     }
@@ -85,39 +85,39 @@ static GLuint createProgram(const char* pVertexSource, const char* pFragmentSour
     return program;
 }
 
-static inline LorieCompositor::surface_data* data(surface_t* sfc) {
-	return any_cast<LorieCompositor::surface_data*>(sfc->user_data());
+static inline lorie_compositor::surface_data* data(surface_t* sfc) {
+	return any_cast<lorie_compositor::surface_data*>(sfc->user_data());
 }
 
-LorieRenderer::LorieRenderer(LorieCompositor& compositor) : compositor(compositor) {}
+lorie_renderer::lorie_renderer(lorie_compositor& compositor) : compositor(compositor) {}
 
-void LorieRenderer::init() {
+void lorie_renderer::init() {
 	LOGV("Initializing renderer (tid %d)", ::gettid());
-	gTextureProgram = createProgram(gSimpleVS, gSimpleFS);
-	if (!gTextureProgram) {
+	g_texture_program = create_program(vertex_shader, fragment_shader);
+	if (!g_texture_program) {
 		LOGE("GLESv2: Unable to create shader program");
 		return;
 	}
-	gvPos = (GLuint) glGetAttribLocation(gTextureProgram, "position");
-	gvCoords = (GLuint) glGetAttribLocation(gTextureProgram, "texCoords");
-	gvTextureSamplerHandle = (GLuint) glGetUniformLocation(gTextureProgram, "texture");
+	gv_pos = (GLuint) glGetAttribLocation(g_texture_program, "position");
+	gv_coords = (GLuint) glGetAttribLocation(g_texture_program, "texCoords");
+	gv_texture_sampler_handle = (GLuint) glGetUniformLocation(g_texture_program, "texture");
 	ready = true;	
 	
 	redraw();
 }
 
-void LorieRenderer::requestRedraw() {
+void lorie_renderer::request_redraw() {
 	//LOGV("Requesting redraw");
 	if (idle) return; 
 	
 	idle = wl_event_loop_add_idle(
 		wl_display_get_event_loop(compositor.display),
-		[](void* data) { reinterpret_cast<LorieRenderer*>(data)->redraw(); },
+		[](void* data) { reinterpret_cast<lorie_renderer*>(data)->redraw(); },
 		this
 	);
 }
 
-void LorieRenderer::resize(int w, int h, uint32_t pw, uint32_t ph) {
+void lorie_renderer::resize(int w, int h, uint32_t pw, uint32_t ph) {
 	LOGV("Resizing renderer to %dx%d (%dmm x %dmm)", w, h, pw, ph);
 	if (w == width &&
 		h == height &&
@@ -131,32 +131,32 @@ void LorieRenderer::resize(int w, int h, uint32_t pw, uint32_t ph) {
 	glViewport(0, 0, w, h);
 
 	if (toplevel_surface) {
-		auto data = any_cast<LorieCompositor::client_data*>(toplevel_surface->client()->user_data());
+		auto data = any_cast<lorie_compositor::client_data*>(toplevel_surface->client()->user_data());
 		compositor.report_mode(data->output);
 	}
 }
 
-void LorieRenderer::cursorMove(uint32_t x, uint32_t y) {
+void lorie_renderer::cursor_move(uint32_t x, uint32_t y) {
 	if (compositor.cursor == nullptr) return;
 
 	data(cursor_surface)->x = x;
 	data(cursor_surface)->y = y;
-	requestRedraw();
+	request_redraw();
 }
 
-void LorieRenderer::setCursorVisibility(bool visibility) {
-	if (cursorVisible != visibility)
-		cursorVisible = visibility;
+void lorie_renderer::set_cursor_visibility(bool visibility) {
+	if (cursor_visible != visibility)
+		cursor_visible = visibility;
 }
 
-void LorieRenderer::set_toplevel(surface_t* surface) {
+void lorie_renderer::set_toplevel(surface_t* surface) {
 	LOGV("Setting surface %p as toplevel", surface);
 	if (toplevel_surface) data(toplevel_surface)->texture.uninit();
 	toplevel_surface = surface;
-	requestRedraw();
+	request_redraw();
 }
 
-void LorieRenderer::set_cursor(surface_t* surface, uint32_t hotspot_x, uint32_t hotspot_y) {
+void lorie_renderer::set_cursor(surface_t* surface, uint32_t hotspot_x, uint32_t hotspot_y) {
 	LOGV("Setting surface %p as cursor", surface);
 	if (cursor_surface)
 		data(cursor_surface)->texture.uninit();
@@ -164,10 +164,10 @@ void LorieRenderer::set_cursor(surface_t* surface, uint32_t hotspot_x, uint32_t 
 	this->hotspot_x = hotspot_x;
 	this->hotspot_y = hotspot_y;
 
-	requestRedraw();
+	request_redraw();
 }
 
-void LorieRenderer::drawCursor() {
+void lorie_renderer::draw_cursor() {
 	if (cursor_surface == nullptr) return;
 
 	auto toplevel = data(toplevel_surface);
@@ -189,7 +189,7 @@ void LorieRenderer::drawCursor() {
 	glDisable(GL_BLEND);
 }
 
-void LorieRenderer::redraw() {
+void lorie_renderer::redraw() {
 	//LOGV("Redrawing screen");
 	idle = NULL;
 	if (!ready) return;
@@ -201,33 +201,33 @@ void LorieRenderer::redraw() {
 			data(toplevel_surface)->texture.reinit();
 		data(toplevel_surface)->texture.draw(-1.0, -1.0, 1.0, 1.0);
 
-		if (cursorVisible)
-			drawCursor();
+		if (cursor_visible)
+			draw_cursor();
 	}
 
 	compositor.swap_buffers();
 }
 
-void LorieRenderer::uninit() {
+void lorie_renderer::uninit() {
 	ready = false;
 	LOGV("Destroying renderer (tid %d)", ::gettid());
 	glUseProgram(0);
-	glDeleteProgram(gTextureProgram);
-	gTextureProgram = gvPos = gvCoords = gvTextureSamplerHandle = 0;
+	glDeleteProgram(g_texture_program);
+	g_texture_program = gv_pos = gv_coords = gv_texture_sampler_handle = 0;
 
 	if (toplevel_surface) data(toplevel_surface)->texture.uninit();
 	if (cursor_surface) data(cursor_surface)->texture.uninit();
 }
 
-LorieRenderer::~LorieRenderer() {
+lorie_renderer::~lorie_renderer() {
 	uninit();
 }
 
-LorieTexture::LorieTexture(){
+lorie_texture::lorie_texture(){
 	uninit();
 }
 
-void LorieTexture::uninit() {
+void lorie_texture::uninit() {
 	if (valid()) {
 		glDeleteTextures(1, &id);
 	}
@@ -236,7 +236,7 @@ void LorieTexture::uninit() {
 	r = nullptr;
 }
 
-void LorieTexture::set_data(LorieRenderer* renderer, uint32_t width, uint32_t height, void *data) {
+void lorie_texture::set_data(lorie_renderer* renderer, uint32_t width, uint32_t height, void *data) {
 	uninit();
 	LOGV("Reinitializing texture to %dx%d", width, height);
 	this->r = renderer;
@@ -246,7 +246,7 @@ void LorieTexture::set_data(LorieRenderer* renderer, uint32_t width, uint32_t he
 	reinit();
 }
 
-void LorieTexture::reinit() {
+void lorie_texture::reinit() {
 	glClearColor(0.f, 0.f, 0.f, 0.f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	
@@ -260,16 +260,16 @@ void LorieTexture::reinit() {
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 }
 
-void LorieTexture::damage(int32_t x, int32_t y, int32_t width, int32_t height) {
+void lorie_texture::damage(int32_t x, int32_t y, int32_t width, int32_t height) {
 	damaged = true;
-	r->requestRedraw();
+	r->request_redraw();
 }
 
-bool LorieTexture::valid() {
+bool lorie_texture::valid() {
 	return (width != 0 && height != 0 && id != UINT_MAX && r != nullptr);
 }
 
-void LorieTexture::draw(float x0, float y0, float x1, float y1) {
+void lorie_texture::draw(float x0, float y0, float x1, float y1) {
 	if (!valid()) return;
 	float coords[20] = {
 			x0, -y0, 0.f, 0.f, 0.f,
@@ -279,7 +279,7 @@ void LorieTexture::draw(float x0, float y0, float x1, float y1) {
 	};
 	//LOGV("Drawing texture %p", this);
     glActiveTexture(GL_TEXTURE0);
-    glUseProgram(r->gTextureProgram);
+    glUseProgram(r->g_texture_program);
     glBindTexture(GL_TEXTURE_2D, id);
     
     if (damaged) {
@@ -287,10 +287,10 @@ void LorieTexture::draw(float x0, float y0, float x1, float y1) {
 		damaged = false;
 	}
     
-    glVertexAttribPointer(r->gvPos, 3, GL_FLOAT, GL_FALSE, 20, coords);
-	glVertexAttribPointer(r->gvCoords, 2, GL_FLOAT, GL_FALSE, 20, &coords[3]);
-	glEnableVertexAttribArray(r->gvPos);
-	glEnableVertexAttribArray(r->gvCoords);
+    glVertexAttribPointer(r->gv_pos, 3, GL_FLOAT, GL_FALSE, 20, coords);
+	glVertexAttribPointer(r->gv_coords, 2, GL_FLOAT, GL_FALSE, 20, &coords[3]);
+	glEnableVertexAttribArray(r->gv_pos);
+	glEnableVertexAttribArray(r->gv_coords);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     
     glBindTexture(GL_TEXTURE_2D, 0);

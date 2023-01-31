@@ -153,6 +153,8 @@ public class TermuxX11StarterReceiver extends Activity {
 
         try {
             svc.finish();
+            // Finish activities so the app doesnt get bugged after stopping the service
+            finishAffinity();
         } catch (RemoteException e) {
             e.printStackTrace();
         }

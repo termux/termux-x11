@@ -1,8 +1,8 @@
 #pragma once
-#include <wayland-server.h>
+#include <lorie_wayland_server.hpp>
+#include <wayland-server-protocol.hpp>
 #include <lorie-renderer.hpp>
-#include <lorie-message-queue.hpp>
-#include <LorieImpls.hpp>
+#include <lorie_message_queue.hpp>
 
 class LorieRenderer;
 class LorieBackend;
@@ -74,7 +74,7 @@ public:
 	wayland::global_shell_t global_shell;
 	struct wl_display *display = nullptr;
 
-	LorieMessageQueue queue;
+	lorie_message_queue queue;
 private:
 	uint32_t next_serial() const;
 

@@ -1,5 +1,5 @@
 #include <log.h>
-#include <lorie-egl-helper.hpp>
+#include <lorie_egl_helper.hpp>
 #include <GLES2/gl2.h>
 
 static char* eglGetErrorText(int code) {

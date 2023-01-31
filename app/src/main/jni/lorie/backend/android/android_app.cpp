@@ -1,5 +1,5 @@
 #include <thread>
-#include <lorie-compositor.hpp>
+#include <lorie_compositor.hpp>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -8,11 +8,12 @@
 #include <ashmem.h>
 #include <csignal>
 
-#include <lorie-egl-helper.hpp>
+#include <lorie_egl_helper.hpp>
 #include <android/native_window_jni.h>
 #include <sys/socket.h>
 #include <dirent.h>
 #include <android/log.h>
+#include "log.h"
 
 #pragma ide diagnostic ignored "hicpp-signed-bitwise"
 #define unused __attribute__((__unused__))

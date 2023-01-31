@@ -5,6 +5,7 @@
 #include <cerrno>
 #include <sys/eventfd.h>
 #include <mutex>
+#include "log.h"
 
 LorieMessageQueue::LorieMessageQueue() {
 	std::unique_lock<std::mutex> lock(mutex);

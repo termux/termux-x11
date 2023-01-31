@@ -161,7 +161,7 @@ void LorieRenderer::resize(uint32_t w, uint32_t h, uint32_t pw, uint32_t ph) {
 	LorieClient *cl = nullptr;
 	if (compositor.toplevel != nullptr) cl = LorieClient::get(compositor.toplevel->client);
 	if (cl == nullptr) return;
-	cl->output->report_mode();
+	compositor.report_mode(wayland::client_t::get(*cl));
 }
 
 void LorieRenderer::cursorMove(uint32_t x, uint32_t y) {

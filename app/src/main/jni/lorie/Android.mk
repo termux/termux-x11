@@ -11,7 +11,6 @@ LOCAL_SRC_FILES := \
 	message-queue.cpp \
 	renderer.cpp \
 	surface.cpp \
-	output.cpp \
 	utils/log.cpp \
 	utils/utils.cpp \
 	scanner/wayland.cpp \

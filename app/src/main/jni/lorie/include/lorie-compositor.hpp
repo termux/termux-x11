@@ -26,6 +26,7 @@ public:
 	void terminate();
 	void output_redraw();
 	void output_resize(uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height);
+	void report_mode(wayland::client_t* cl);
 
 	void touch_down(uint32_t id, uint32_t x, uint32_t y);
 	void touch_motion(uint32_t id, uint32_t x, uint32_t y);
@@ -54,6 +55,8 @@ public:
 //private:
 	wayland::display_t dpy;
 	wayland::global_seat_t global_seat;
+	wayland::global_output_t global_output;
+	wayland::global_shell_t global_shell;
 	struct wl_display *display = nullptr;
 
 

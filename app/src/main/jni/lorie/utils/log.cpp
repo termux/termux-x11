@@ -158,8 +158,6 @@ void print_func(void *func, int enter) {
 		demangled = abi::__cxa_demangle(info.dli_sname, NULL, 0, &status);
 		LOGP("%s%s %s%s", (level==2)?COLORIZE:"", enter ? ">" : "<", status == 0 ? demangled : info.dli_sname, (level==2)?COLOR_RESET:"");
 		free(demangled);
-	} else {
-		LOGP("%s%p%s", (level==2)?COLORIZE:"", func, (level==2)?COLOR_RESET:"");
 	}
 }
 

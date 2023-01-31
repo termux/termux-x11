@@ -15,6 +15,8 @@ using namespace wayland;
 LorieCompositor::LorieCompositor() :
 display(dpy),
 global_seat(dpy),
+global_output(dpy),
+global_shell(dpy),
 renderer(*this),
 toplevel(renderer.toplevel_surface),
 cursor(renderer.cursor_surface),
@@ -67,6 +69,31 @@ client_created_listener(*this) {
             };
         };
     };
+	global_output.on_bind = [=, this](client_t* cl, output_t* output) {
+		LorieClient* client = LorieClient::get(*cl);
+		client->output = output;
+		report_mode(cl);
+
+		output->on_release = [=]{
+			output->destroy();
+		};
+	};
+	global_shell.on_bind = [=](client_t* cl, shell_t* shell) {
+		shell->on_get_shell_surface = [=] (shell_surface_t* shell, surface_t* sfc) {
+			shell->on_set_toplevel = [=] () {
+				LorieClient* client = LorieClient::get(*cl);
+				LorieSurface* surface = LorieSurface::from_wl_resource<LorieSurface>(*sfc);
+				set_toplevel(surface);
+				if (client->pointer)
+					client->pointer->enter(next_serial(),sfc, 0, 0);
+
+				if(client->kbd)
+					client->kbd->enter(next_serial(), sfc, nullptr);
+
+				shell->configure(shell_surface_resize::none, renderer.width, renderer.height);
+			};
+		};
+	};
 }
 
 int proc(int fd, uint32_t mask, void *data) {
@@ -89,8 +116,6 @@ void LorieCompositor::start() {
 
 	wl_display_init_shm (display);
 	wl_resource_t::global_create<LorieCompositor_>(display, this);
-	wl_resource_t::global_create<LorieOutput>(display, this);
-	wl_resource_t::global_create<LorieShell>(display, this);
 
 	backend_init();
 
@@ -139,6 +164,15 @@ void LorieCompositor::output_resize(uint32_t width, uint32_t height, uint32_t ph
 	post([this]() {
 		output_redraw();
 	});
+}
+
+void LorieCompositor::report_mode(wayland::client_t* cl) {
+	LorieClient* client = LorieClient::get(*cl);
+
+	client->output->geometry(0, 0, renderer.physical_width, renderer.physical_height, output_subpixel::unknown, "Lorie", "none", output_transform::normal);
+	client->output->scale(1.0);
+	client->output->mode(output_mode::current | output_mode::preferred, renderer.width, renderer.height, 60000);
+	client->output->done();
 }
 
 void LorieCompositor::touch_down(uint32_t id, uint32_t x, uint32_t y) {

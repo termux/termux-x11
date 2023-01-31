@@ -13,7 +13,7 @@ public:
 
 	LorieClient& get();
 	static LorieClient* get(struct wl_client* client);
-	LorieOutput *output = NULL;
+	wayland::output_t* output = nullptr;
 	LorieCompositor& compositor;
 	wayland::pointer_t* pointer = nullptr;
 	wayland::keyboard_t* kbd = nullptr;

@@ -1,4 +1,7 @@
 apply plugin: 'com.android.application'
+apply from: 'wayland-scanner.gradle'
+
+def waylandOut = project.buildDir.absolutePath + "/generated/wayland"
 
 android {
     compileSdkVersion 30
@@ -55,8 +58,16 @@ android {
     }
 }
 
+
+wayland {
+    out waylandOut
+    scan "protocol/wayland.xml"
+    scan "protocol/xdg-shell.xml", "wayland"
+}
+
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
+    //noinspection GradleDependency
     implementation 'androidx.appcompat:appcompat:1.3.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation project(path: ':common')

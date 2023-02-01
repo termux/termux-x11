@@ -117,16 +117,33 @@ renderer(*this) {
 
         shell->on_get_shell_surface = [=] (shell_surface_t* shell, surface_t* sfc) {
             shell->on_set_toplevel = [=] () {
+                wl_array keys{};
+                wl_array_init(&keys);
                 renderer.set_toplevel(sfc);
                 if (data->pointer)
                     data->pointer->enter(next_serial(),sfc, 0, 0);
 
                 if(data->kbd)
-                    data->kbd->enter(next_serial(), sfc, nullptr);
+                    data->kbd->enter(next_serial(), sfc, &keys);
 
                 shell->configure(shell_surface_resize::none, renderer.width, renderer.height);
             };
         };
+    };
+    global_xdg_wm_base.on_bind = [=, this](client_t* client, xdg_wm_base_t* wm_base) {
+        wm_base->on_get_xdg_surface = [=, this](xdg_surface_t* xdg_surface, surface_t* sfc) {
+            xdg_surface->on_get_toplevel = [=, this](xdg_toplevel_t*) {
+                auto data = any_cast<client_data*>(toplevel->client()->user_data());
+                wl_array keys{};
+                wl_array_init(&keys);
+                renderer.set_toplevel(sfc);
+                if (data->pointer)
+                    data->pointer->enter(next_serial(),sfc, 0, 0);
+                if (data->kbd)
+                    data->kbd->enter(next_serial(), sfc, &keys);
+            };
+        };
+        wm_base->on__destroy = [=]() { wm_base->destroy(); };
     };
 }
 

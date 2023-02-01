@@ -254,7 +254,7 @@ void lorie_renderer::redraw() {
 		if (cursor_visible)
 			draw_cursor();
 	} else {
-		glClearColor(0.f, 0.f, 1.f, 0.f);
+		glClearColor(0.f, 0.f, 0.f, 0.f);
 		glClear(GL_COLOR_BUFFER_BIT);
 	}
 

@@ -1,6 +1,7 @@
 #pragma once
 #include <lorie_wayland_server.hpp>
 #include <wayland-server-protocol.hpp>
+#include <xdg-shell-server-protocol.hpp>
 #include <lorie_renderer.hpp>
 #include <lorie_message_queue.hpp>
 #include "log.h"
@@ -56,6 +57,7 @@ public:
 	wayland::global_seat_t global_seat{dpy};
 	wayland::global_output_t global_output{dpy};
 	wayland::global_shell_t global_shell{dpy};
+	wayland::global_xdg_wm_base_t global_xdg_wm_base{dpy};
 	struct wl_display *display = nullptr;
 
 	lorie_message_queue queue;

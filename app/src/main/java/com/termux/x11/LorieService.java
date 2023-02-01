@@ -118,7 +118,6 @@ public class LorieService extends Service {
         }
 
         instance = this;
-        Toast.makeText(this, "Service was Created", Toast.LENGTH_LONG).show();
         Log.e("LorieService", "created");
 
         Intent notificationIntent = new Intent(getApplicationContext(), MainActivity.class);
@@ -131,9 +130,9 @@ public class LorieService extends Service {
         Intent preferencesIntent = new Intent(getApplicationContext(), LoriePreferences.class);
         preferencesIntent.setAction(ACTION_START_PREFERENCES_ACTIVITY);
 
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-        PendingIntent pendingExitIntent = PendingIntent.getService(getApplicationContext(), 0, exitIntent, 0);
-        PendingIntent pendingPreferencesIntent = PendingIntent.getActivity(getApplicationContext(), 0, preferencesIntent, 0);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pendingExitIntent = PendingIntent.getService(getApplicationContext(), 0, exitIntent, PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pendingPreferencesIntent = PendingIntent.getActivity(getApplicationContext(), 0, preferencesIntent, PendingIntent.FLAG_IMMUTABLE);
 
         //For creating the Foreground Service
         int priority = Notification.PRIORITY_HIGH;
@@ -310,6 +309,7 @@ public class LorieService extends Service {
     private static class ServiceEventListener implements SurfaceHolder.Callback, View.OnTouchListener, View.OnKeyListener, View.OnHoverListener, View.OnGenericMotionListener, TouchParser.OnTouchParseListener {
         LorieService svc;
 
+        @SuppressLint("WrongConstant")
         private void setAsListenerTo(SurfaceView view) {
             view.getHolder().addCallback(this);
             view.setOnTouchListener(this);

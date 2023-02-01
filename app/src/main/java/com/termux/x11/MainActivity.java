@@ -138,7 +138,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onUserLeaveHint () {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        if (preferences.getBoolean("PIP", true) && PermissionUtils.hasPipPermission(this)) {
+        if (preferences.getBoolean("PIP", false) && PermissionUtils.hasPipPermission(this)) {
             enterPictureInPictureMode();
         }
     }

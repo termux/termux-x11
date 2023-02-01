@@ -193,7 +193,7 @@ public class LorieService extends Service {
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(instance);
 
-        int mode = Integer.parseInt(preferences.getString("touchMode", "1"));
+        int mode = Integer.parseInt(preferences.getString("touchMode", "3"));
         instance.mTP.setMode(mode);
         Log.e("LorieService", "Preferences changed");
     }

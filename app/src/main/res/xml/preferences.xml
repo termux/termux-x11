@@ -10,7 +10,7 @@
     <ListPreference
         android:title="Touchscreen input mode"
         android:key="touchMode"
-        android:defaultValue="1"
+        android:defaultValue="3"
         android:entries="@array/touchscreenInputModesEntries"
         android:entryValues="@array/touchscreenInputModesValues" />
     

@@ -45,6 +45,10 @@
             android:supportsPictureInPicture="false"
             android:resizeableActivity="true">
         </activity>
+        <activity
+            android:name=".GettingStartedActivity"
+            android:theme="@style/Theme.BaseActivity.DayNight.NoActionBar"
+            android:exported="true" />
         <activity android:name=".TermuxX11StarterReceiver"
             android:excludeFromRecents="true"
             android:exported="true" />

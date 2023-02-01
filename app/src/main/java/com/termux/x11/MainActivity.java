@@ -20,11 +20,12 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.termux.x11.utils.PermissionUtils;
+import com.termux.x11.utils.SamsungDexUtils;
 
 public class MainActivity extends AppCompatActivity {
     static final String REQUEST_LAUNCH_EXTERNAL_DISPLAY = "request_launch_external_display";
 
-    private static int[] keys = {
+    private static final int[] keys = {
             KeyEvent.KEYCODE_ESCAPE,
             KeyEvent.KEYCODE_TAB,
             KeyEvent.KEYCODE_CTRL_LEFT,
@@ -55,9 +56,10 @@ public class MainActivity extends AppCompatActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
+        SamsungDexUtils.dexMetaKeyCapture(this);
 
         kbd = findViewById(R.id.additionalKbd);
-	frm = findViewById(R.id.frame);
+        frm = findViewById(R.id.frame);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
             getWindow().

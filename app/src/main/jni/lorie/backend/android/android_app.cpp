@@ -63,7 +63,7 @@ lorie_backend_android::lorie_backend_android()
 }
 
 void lorie_backend_android::on_egl_init() {
-	renderer.init();
+	renderer.on_surface_create();
 }
 
 void lorie_backend_android::backend_init() {

@@ -28,8 +28,7 @@ class lorie_renderer {
 public:
 	lorie_renderer(lorie_compositor& compositor);
 	void request_redraw();
-	void init();
-	void uninit();
+	void on_surface_create();
 	
 	uint32_t width = 1024;
 	uint32_t height = 600;
@@ -43,23 +42,28 @@ public:
 	void resize(int w, int h, uint32_t pw, uint32_t ph);
 	void cursor_move(uint32_t x, uint32_t y);
 	void set_cursor_visibility(bool visibility);
-	~lorie_renderer();
 private:
 	lorie_compositor& compositor;
 
 	void set_toplevel(wayland::surface_t* surface);
 	void set_cursor(wayland::surface_t* surface, uint32_t hotspot_x, uint32_t hotspot_y);
-
-	wayland::surface_t* toplevel_surface = nullptr;
-	wayland::surface_t* cursor_surface = nullptr;
 	
 	struct wl_event_source *idle = NULL;
+	void draw(GLuint id, float x0, float y0, float x1, float y1) const;
 	void draw_cursor();
 	void redraw();
     GLuint g_texture_program = 0;
     GLuint gv_pos = 0;
     GLuint gv_coords = 0;
     GLuint gv_texture_sampler_handle = 0;
+
+	struct {
+		GLuint id;
+		GLsizei width, height;
+		inline void reset() { width = 0; height = 0; }
+		inline bool valid() { return width != 0 && height != 0; }
+	} toplevel_texture{}, cursor_texture{};
+
     bool ready = false;
     
     friend class lorie_texture;

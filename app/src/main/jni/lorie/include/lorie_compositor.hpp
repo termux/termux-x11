@@ -26,23 +26,23 @@ public:
 	void keyboard_key(uint32_t key, wayland::keyboard_key_state state);
 
 	struct client_data {
-		wayland::output_t* output = nullptr;
-		wayland::pointer_t* pointer = nullptr;
-		wayland::keyboard_t* kbd = nullptr;
-		wayland::touch_t* touch = nullptr;
+		wayland::output_t* output{};
+		wayland::pointer_t* pointer{};
+		wayland::keyboard_t* kbd{};
+		wayland::touch_t* touch{};
 	};
 
 	struct surface_data {
-		uint32_t x = 0, y = 0;
-		lorie_texture texture;
-		wayland::buffer_t *buffer = NULL;
-		wayland::callback_t *frame_callback = NULL;
+		uint32_t x{}, y{};
+		bool damaged{};
+		wayland::buffer_t *buffer{};
+		wayland::callback_t *frame_callback{};
 	};
 
 	lorie_renderer renderer;
 
-	wayland::surface_t*& toplevel;
-	wayland::surface_t*& cursor;
+	wayland::surface_t* toplevel{};
+	wayland::surface_t* cursor{};
 
 // backend features
 	virtual void backend_init() = 0;
@@ -52,10 +52,10 @@ public:
 
 //private:
 	wayland::display_t dpy;
-	wayland::global_compositor_t global_compositor;
-	wayland::global_seat_t global_seat;
-	wayland::global_output_t global_output;
-	wayland::global_shell_t global_shell;
+	wayland::global_compositor_t global_compositor{dpy};
+	wayland::global_seat_t global_seat{dpy};
+	wayland::global_output_t global_output{dpy};
+	wayland::global_shell_t global_shell{dpy};
 	struct wl_display *display = nullptr;
 
 	lorie_message_queue queue;

@@ -9,13 +9,7 @@ using namespace wayland;
 
 lorie_compositor::lorie_compositor() :
 display(dpy),
-global_compositor(dpy),
-global_seat(dpy),
-global_output(dpy),
-global_shell(dpy),
-renderer(*this),
-toplevel(renderer.toplevel_surface),
-cursor(renderer.cursor_surface) {
+renderer(*this) {
     dpy.on_client = [=](client_t* client) {
 		client->user_data() = new client_data;
         client->on_destroy = [=] {
@@ -28,7 +22,7 @@ cursor(renderer.cursor_surface) {
             LOGI("Client destroyed");
         };
     };
-    global_compositor.on_bind = [=, this] (client_t*, compositor_t* compositor) {
+    global_compositor.on_bind = [=] (client_t*, compositor_t* compositor) {
         compositor->on_create_region = [](region_t* region) {
             region->on__destroy = [=] {
                 region->destroy();
@@ -38,20 +32,18 @@ cursor(renderer.cursor_surface) {
             auto data = new surface_data;
             surface->user_data() = data;
             surface->on_attach = [=](buffer_t* b, int32_t, int32_t) {
+                if (data->buffer)
+                    data->buffer->release();
                 data->buffer = b;
-                if (!b || !b->is_shm())
-                    data->texture.set_data(&renderer, 0, 0, nullptr);
-                else
-                    data->texture.set_data(&renderer, b->shm_width(), b->shm_height(), b->shm_data());
             };
             surface->on_damage = [=](int32_t, int32_t, int32_t, int32_t) {
-                data->texture.damage(0, 0, 0, 0);
+                data->damaged = true;
             };
             surface->on_frame = [=] (callback_t* cb) {
                 data->frame_callback = cb;
             };
             surface->on_commit = [=] {
-                data->buffer->release();
+                renderer.request_redraw();
                 data->frame_callback->done(resource_t::timestamp());
             };
             surface->on__destroy = [=] {
@@ -73,6 +65,8 @@ cursor(renderer.cursor_surface) {
 
             pointer->on_set_cursor = [=](uint32_t, wayland::surface_t* sfc, int32_t x, int32_t y) {
                 renderer.set_cursor(sfc, (uint32_t) x, (uint32_t) y);
+                if (sfc)
+                    any_cast<surface_data*>(sfc->user_data())->damaged = true;
             };
             pointer->on_release = [=] {
                 pointer->destroy();

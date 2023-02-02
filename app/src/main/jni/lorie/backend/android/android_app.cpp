@@ -94,8 +94,7 @@ void lorie_backend_android::window_change_callback(EGLNativeWindowType win, uint
 
 void lorie_backend_android::passfd(int fd) {
     LOGI("JNI: got fd %d", fd);
-    listen(fd, 128);
-    wl_display_add_socket_fd(display, fd);
+    dpy.add_socket_fd(fd);
 }
 
 template<class F, F f, auto defaultValue = 0> struct wrapper_impl;
@@ -128,7 +127,7 @@ auto queue = wrapper_impl<decltype(f), f, defaultValue>::queue;
 
 extern "C" JNIEXPORT jlong JNICALL
 JNI_DECLARE(LorieService, createLorieThread)(JNIEnv *env, jobject thiz) {
-#if 1
+#if 0
 	// It is needed to redirect stderr to logcat
 	setenv("WAYLAND_DEBUG", "1", 1);
 	new std::thread([]{

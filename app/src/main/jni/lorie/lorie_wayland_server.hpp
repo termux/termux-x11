@@ -35,9 +35,7 @@ namespace wayland {
     public:
         void add_fd_listener(int fd, uint32_t mask, std::function<int(int fd, uint32_t mask)> listener);
 		
-		inline void add_socket_fd(int fd) {
-			wl_display_add_socket_fd(display, fd);
-		}
+		void add_socket_fd(int fd);
 
 		inline void add_socket_auto() {
 			wl_display_add_socket_auto(display);

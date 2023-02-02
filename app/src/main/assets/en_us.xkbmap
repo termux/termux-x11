@@ -1,7 +1,7 @@
 xkb_keymap {
 xkb_keycodes "(unnamed)" {
 	minimum = 8;
-	maximum = 708;
+	maximum = 255;
 	<ESC>                = 9;
 	<AE01>               = 10;
 	<AE02>               = 11;

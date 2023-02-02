@@ -97,8 +97,15 @@ public class LorieService extends Service {
 
         File outDir = new File(getApplicationInfo().dataDir, "files");
         File out = new File(outDir, "en_us.xkbmap");
+        File apk = null;
 
-        if (!out.exists()) {
+        try {
+            PackageManager pm = getPackageManager();
+            String apkPath = pm.getApplicationInfo(getPackageName(), 0).publicSourceDir;
+            apk = new File(apkPath);
+        } catch (Throwable ignored) {}
+
+        if (!out.exists() || (apk != null && apk.lastModified() > out.lastModified())) {
             //noinspection ResultOfMethodCallIgnored
             outDir.mkdirs();
             try (InputStream fin = getAssets().open("en_us.xkbmap")) {

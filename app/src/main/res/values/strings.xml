@@ -33,4 +33,7 @@
 
     <string name="action_already_granted">Already Granted</string>
     <string name="action_already_disabled">Already Disabled</string>
+    <string name="not_connected">Not conected</string>
+    <string name="getting_started_button_text">Getting started</string>
+    <string name="preferences_button_text">Preferences</string>
 </resources>

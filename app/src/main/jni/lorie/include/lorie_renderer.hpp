@@ -42,6 +42,7 @@ public:
 	void resize(int w, int h, uint32_t pw, uint32_t ph);
 	void cursor_move(uint32_t x, uint32_t y);
 	void set_cursor_visibility(bool visibility);
+	std::function<void(bool)> set_renderer_visibility = [](bool){};
 private:
 	lorie_compositor& compositor;
 
@@ -65,6 +66,7 @@ private:
 	} toplevel_texture{}, cursor_texture{};
 
     bool ready = false;
+	bool visible = false;
     
     friend class lorie_texture;
     friend class lorie_compositor;

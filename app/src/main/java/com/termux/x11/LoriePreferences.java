@@ -62,7 +62,7 @@ public class LoriePreferences extends AppCompatActivity implements SharedPrefere
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-        LorieService.start(LorieService.ACTION_PREFERENCES_CHAGED);
+        LorieService.start(LorieService.ACTION_PREFERENCES_CHANGED);
     }
 
     public static class LoriePreferenceFragment extends PreferenceFragment implements PreferenceScreen.OnPreferenceClickListener, Preference.OnPreferenceChangeListener {
@@ -112,7 +112,8 @@ public class LoriePreferences extends AppCompatActivity implements SharedPrefere
                     } else e.printStackTrace();
                     return false;
                 }
-            }return true;
+            }
+            return true;
         }
     }
 }

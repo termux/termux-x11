@@ -1,4 +1,4 @@
-package com.termux.x11;
+package com.termux.x11.utils;
 
 import android.app.Activity;
 import android.graphics.Rect;
@@ -7,8 +7,7 @@ import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.content.Context;
 import android.view.inputmethod.InputMethodManager;
-import android.content.SharedPreferences;
-import android.preference.PreferenceManager;
+
 import java.util.HashMap;
 
 /**

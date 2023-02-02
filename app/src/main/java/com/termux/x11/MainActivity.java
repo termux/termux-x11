@@ -4,25 +4,35 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.PointerIcon;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.Window;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.termux.x11.utils.PermissionUtils;
 import com.termux.x11.utils.SamsungDexUtils;
 
-public class MainActivity extends AppCompatActivity {
+import static com.termux.x11.LorieService.ACTION_START_PREFERENCES_ACTIVITY;
+
+import java.util.Objects;
+
+public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener {
     static final String REQUEST_LAUNCH_EXTERNAL_DISPLAY = "request_launch_external_display";
 
     private static final int[] keys = {
@@ -38,19 +48,20 @@ public class MainActivity extends AppCompatActivity {
 
     AdditionalKeyboardView kbd;
     FrameLayout frm;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        if (didRequestLaunchExternalDisplay() || preferences.getBoolean("fullscreen", true)) {
+        if (didRequestLaunchExternalDisplay() || preferences.getBoolean("fullscreen", false)) {
             setFullScreenForExternalDisplay();
         }
 
         LorieService.setMainActivity(this);
         LorieService.start(LorieService.ACTION_START_FROM_ACTIVITY);
 
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN|
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN |
                 WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -60,6 +71,12 @@ public class MainActivity extends AppCompatActivity {
 
         kbd = findViewById(R.id.additionalKbd);
         frm = findViewById(R.id.frame);
+        Button preferencesButton = findViewById(R.id.preferences_button);
+        preferencesButton.setOnClickListener((l) -> {
+            Intent i = new Intent(this, LoriePreferences.class);
+            i.setAction(ACTION_START_PREFERENCES_ACTIVITY);
+            startActivity(i);
+        });
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
             getWindow().
@@ -95,6 +112,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     int orientation;
+
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
@@ -119,26 +137,25 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onWindowFocusChanged(boolean hasFocus)
-    {
+    public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         Window window = getWindow();
 
-	if (preferences.getBoolean("Reseed", true))
-	{
-	    window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-	} else {
-	    window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN|
-                WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
-	}
+        if (preferences.getBoolean("Reseed", true)) {
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        } else {
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN |
+                    WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
+        }
     }
 
     @Override
-    public void onBackPressed() {}
+    public void onBackPressed() {
+    }
 
     @Override
-    public void onUserLeaveHint () {
+    public void onUserLeaveHint() {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         if (preferences.getBoolean("PIP", false) && PermissionUtils.hasPipPermission(this)) {
             enterPictureInPictureMode();
@@ -146,25 +163,37 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onPictureInPictureModeChanged (boolean isInPictureInPictureMode, Configuration newConfig) {
+    public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
-	if (isInPictureInPictureMode) {
-	    if (kbd.getVisibility() != View.GONE)
+        if (isInPictureInPictureMode) {
+            if (kbd.getVisibility() != View.GONE)
                 kbd.setVisibility(View.GONE);
-		frm.setPadding(0,0,0,0);
-	    return;
-	} else {
-	    if (kbd.getVisibility() != View.VISIBLE)
-		if (preferences.getBoolean("showAdditionalKbd", true)) {
+            frm.setPadding(0, 0, 0, 0);
+        } else {
+            if (kbd.getVisibility() != View.VISIBLE)
+                if (preferences.getBoolean("showAdditionalKbd", true)) {
                     kbd.setVisibility(View.VISIBLE);
-		    int paddingDp = 35;
-		    float density = this.getResources().getDisplayMetrics().density;
-		    int paddingPixel = (int)(paddingDp * density);
-		    frm.setPadding(0,0,0,paddingPixel);
-	    	}
-	    return;
-	}
+                    int paddingDp = 35;
+                    float density = this.getResources().getDisplayMetrics().density;
+                    int paddingPixel = (int) (paddingDp * density);
+                    frm.setPadding(0, 0, 0, paddingPixel);
+                }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+        }
     }
 
+    @Override
+    public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+        if (kbd != null) {
+            Rect r = new Rect();
+            getWindow().getDecorView().getWindowVisibleDisplayFrame(r);
+            boolean isSoftKbdVisible = Objects.requireNonNull(ViewCompat.getRootWindowInsets(kbd)).isVisible(WindowInsetsCompat.Type.ime());
+            kbd.setVisibility(isSoftKbdVisible ? View.VISIBLE : View.GONE);
+            kbd.setY(r.bottom - kbd.getHeight());
+        }
+        return insets;
+    }
 }

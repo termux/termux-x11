@@ -22,7 +22,7 @@
 
     <CheckBoxPreference
         android:title="Reseed Screen While Soft Keyboard is open"
-        android:defaultValue="false"
+        android:defaultValue="true"
         android:key="Reseed"
         android:summary="The screen size will be adjusted while Soft Keyboard is open." />
 

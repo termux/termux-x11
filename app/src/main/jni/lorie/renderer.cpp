@@ -253,7 +253,11 @@ void lorie_renderer::redraw() {
 
 		if (cursor_visible)
 			draw_cursor();
+		if (!visible)
+			set_renderer_visibility(visible = true);
 	} else {
+		if (visible)
+			set_renderer_visibility(visible = false);
 		glClearColor(0.f, 0.f, 0.f, 0.f);
 		glClear(GL_COLOR_BUFFER_BIT);
 	}

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" 
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	xmlns:tools="http://schemas.android.com/tools"
+	android:layout_width="match_parent"
     android:layout_height="match_parent">
 
     <FrameLayout
@@ -8,18 +10,76 @@
    	android:layout_height="match_parent"
 	android:id="@+id/frame">
 
-    	<SurfaceView
-            android:id="@+id/lorieView"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
+		<SurfaceView
+			android:id="@+id/lorieView"
+			android:visibility="visible"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent" />
 
-    </FrameLayout>
+		<LinearLayout
+			android:id="@+id/stub"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			android:gravity="center_horizontal|center_vertical"
+			android:background="@android:color/transparent"
+			android:visibility="visible"
+			android:orientation="vertical">
 
-    <com.termux.x11.AdditionalKeyboardView
-        android:id="@+id/additionalKbd"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-	android:layout_gravity="bottom|center" />
+			<ImageView
+				android:id="@+id/x11_image"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:minWidth="100sp"
+				android:minHeight="100sp"
+				android:scaleType="fitCenter"
+				app:srcCompat="@drawable/ic_x11_icon" />
+
+			<Space
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:minHeight="20dp" />
+
+			<TextView
+				android:id="@+id/textView"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:gravity="center_horizontal|center_vertical"
+				android:text="@string/not_connected"
+				android:textColor="#FFFFFF"
+				android:textSize="20sp" />
+
+			<Space
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:minHeight="40dp" />
+
+			<Button
+				android:id="@+id/preferences_button"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:text="@string/preferences_button_text" />
+
+			<Space
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:minHeight="10dp" />
+
+			<Button
+				android:id="@+id/getting_started_button"
+				android:visibility="gone"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:text="@string/getting_started_button_text" />
+		</LinearLayout>
+
+	</FrameLayout>
+
+	<com.termux.x11.AdditionalKeyboardView
+		android:id="@+id/additionalKbd"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:layout_gravity="bottom|center"
+		tools:ignore="SpeakableTextPresentCheck" />
 
     <!-- Without this view AdditionalKeyboard view sometimes dissapear -->
     <View

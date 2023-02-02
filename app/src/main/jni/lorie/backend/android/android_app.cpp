@@ -17,37 +17,19 @@
 #pragma ide diagnostic ignored "hicpp-signed-bitwise"
 #define unused __attribute__((__unused__))
 
-static jfieldID lorie_service_compositor_field_id = nullptr;
-
-template<class F, F f, auto defaultValue = 0> struct wrapper_impl;
-template<class R, class C, class... A, R(C::*f)(A...), auto defaultValue>
-struct wrapper_impl<R(C::*)(A...), f, defaultValue> {
-    // Be careful and do passing jobjects here!!!
-    static inline R execute(JNIEnv* env, jobject obj, A... args) {
-        auto native = reinterpret_cast<C*>(env->GetLongField(obj, lorie_service_compositor_field_id));
-        if (native != nullptr)
-            return (native->*f)(args...);
-        return static_cast<R>(defaultValue);
-    }
-    static inline void queue(JNIEnv* env, jobject obj, A... args) {
-        auto native = reinterpret_cast<C*>(env->GetLongField(obj, lorie_service_compositor_field_id));
-        if (native != nullptr)
-            native->post([=]{ (native->*f)(args...); });
-    }
-};
-template<auto f, auto defaultValue = 0>
-auto execute = wrapper_impl<decltype(f), f, defaultValue>::execute;
-template<auto f, auto defaultValue = 0>
-auto queue = wrapper_impl<decltype(f), f, defaultValue>::queue;
-
 class lorie_backend_android : public lorie_compositor {
 public:
-	lorie_backend_android();
+	lorie_backend_android(JavaVM *env, jobject obj, jmethodID pId);
 
 	void backend_init() override;
+
 	void swap_buffers() override;
+
 	void get_keymap(int *fd, int *size) override;
-	void window_change_callback(EGLNativeWindowType win, uint32_t width, uint32_t height, uint32_t physical_width, uint32_t physical_height);
+
+	void window_change_callback(EGLNativeWindowType win, uint32_t width, uint32_t height,
+								uint32_t physical_width, uint32_t physical_height);
+
 	void passfd(int fd);
 
 	void on_egl_init();
@@ -55,12 +37,19 @@ public:
 	LorieEGLHelper helper;
 
 	int keymap_fd = -1;
-    std::thread self;
+	std::thread self;
+
+	JavaVM *vm{};
+	JNIEnv *env{};
+	jobject thiz{};
+	static jfieldID compositor_field_id;
+	jmethodID set_renderer_visibility_id{};
 };
 
-lorie_backend_android::lorie_backend_android()
-    : self(&lorie_compositor::start, this) {
-}
+jfieldID lorie_backend_android::compositor_field_id{};
+
+lorie_backend_android::lorie_backend_android(JavaVM *vm, jobject obj, jmethodID mid)
+    : vm(vm), thiz(obj), set_renderer_visibility_id(mid), self(&lorie_compositor::start, this) {}
 
 void lorie_backend_android::on_egl_init() {
 	renderer.on_surface_create();
@@ -73,6 +62,11 @@ void lorie_backend_android::backend_init() {
 
 	helper.onInit = [this](){ on_egl_init(); };
 
+	renderer.set_renderer_visibility = [=](bool visible) {
+		vm->AttachCurrentThread(&env, nullptr);
+		env->CallVoidMethod(thiz, set_renderer_visibility_id, visible);
+		vm->DetachCurrentThread();
+	};
 }
 
 void lorie_backend_android::swap_buffers () {
@@ -104,6 +98,27 @@ void lorie_backend_android::passfd(int fd) {
     wl_display_add_socket_fd(display, fd);
 }
 
+template<class F, F f, auto defaultValue = 0> struct wrapper_impl;
+template<class R, class C, class... A, R(C::*f)(A...), auto defaultValue>
+struct wrapper_impl<R(C::*)(A...), f, defaultValue> {
+	// Be careful and do passing jobjects here!!!
+	static inline R execute(JNIEnv* env, jobject obj, A... args) {
+		auto native = reinterpret_cast<C*>(env->GetLongField(obj, lorie_backend_android::compositor_field_id));
+		if (native != nullptr)
+			return (native->*f)(args...);
+		return static_cast<R>(defaultValue);
+	}
+	static inline void queue(JNIEnv* env, jobject obj, A... args) {
+		auto native = reinterpret_cast<C*>(env->GetLongField(obj, lorie_backend_android::compositor_field_id));
+		if (native != nullptr)
+			native->post([=]{ (native->*f)(args...); });
+	}
+};
+template<auto f, auto defaultValue = 0>
+auto execute = wrapper_impl<decltype(f), f, defaultValue>::execute;
+template<auto f, auto defaultValue = 0>
+auto queue = wrapper_impl<decltype(f), f, defaultValue>::queue;
+
 ///////////////////////////////////////////////////////////
 
 #define JNI_DECLARE_INNER(package, classname, methodname ) \
@@ -113,7 +128,7 @@ void lorie_backend_android::passfd(int fd) {
 
 extern "C" JNIEXPORT jlong JNICALL
 JNI_DECLARE(LorieService, createLorieThread)(JNIEnv *env, jobject thiz) {
-#if 0
+#if 1
 	// It is needed to redirect stderr to logcat
 	setenv("WAYLAND_DEBUG", "1", 1);
 	new std::thread([]{
@@ -130,8 +145,12 @@ JNI_DECLARE(LorieService, createLorieThread)(JNIEnv *env, jobject thiz) {
 		}
 	});
 #endif
-    lorie_service_compositor_field_id = env->GetFieldID(env->GetObjectClass(thiz), "compositor", "J");
-    return (jlong) new lorie_backend_android;
+	JavaVM* vm{};
+	env->GetJavaVM(&vm);
+	lorie_backend_android::compositor_field_id = env->GetFieldID(env->GetObjectClass(thiz), "compositor", "J");
+	jmethodID set_renderer_visibility_id = env->GetMethodID(env->GetObjectClass(thiz), "setRendererVisibility", "(Z)V");
+    return (jlong) new lorie_backend_android(vm, env->NewGlobalRef(thiz),
+											 set_renderer_visibility_id);
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -141,7 +160,7 @@ JNI_DECLARE(LorieService, passWaylandFD)(JNIEnv *env, jobject thiz, jint fd) {
 
 extern "C" JNIEXPORT void JNICALL
 JNI_DECLARE(LorieService, terminate)(JNIEnv *env, jobject obj) {
-    auto b = reinterpret_cast<lorie_backend_android*>(env->GetLongField(obj, lorie_service_compositor_field_id));
+    auto b = reinterpret_cast<lorie_backend_android*>(env->GetLongField(obj, lorie_backend_android::compositor_field_id));
     b->terminate();
     b->self.join();
 }

@@ -12,9 +12,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.content.res.AssetFileDescriptor;
 import android.content.res.Configuration;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -29,6 +29,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.InputDevice;
@@ -38,16 +41,13 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
-import android.widget.Toast;
+import android.view.inputmethod.InputMethodManager;
 
+import com.termux.x11.utils.KeyboardUtils;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 
 @SuppressWarnings({"ConstantConditions", "SameParameterValue", "SdCardPath"})
@@ -57,7 +57,7 @@ public class LorieService extends Service {
     static final String ACTION_STOP_SERVICE = "com.termux.x11.service_stop";
     static final String ACTION_START_FROM_ACTIVITY = "com.termux.x11.start_from_activity";
     static final String ACTION_START_PREFERENCES_ACTIVITY = "com.termux.x11.start_preferences_activity";
-    static final String ACTION_PREFERENCES_CHAGED = "com.termux.x11.preferences_changed";
+    static final String ACTION_PREFERENCES_CHANGED = "com.termux.x11.preferences_changed";
 
     private static LorieService instance = null;
     //private
@@ -98,18 +98,20 @@ public class LorieService extends Service {
         File outDir = new File(getApplicationInfo().dataDir, "files");
         File out = new File(outDir, "en_us.xkbmap");
 
-        //noinspection ResultOfMethodCallIgnored
-        outDir.mkdirs();
-        try(InputStream fin = getAssets().open("en_us.xkbmap")) {
-            byte[] buffer = new byte[8192];
-            int count;
-            try (FileOutputStream fout = new FileOutputStream(out)) {
-                while ((count = fin.read(buffer)) != -1)
-                    fout.write(buffer, 0, count);
-                fout.flush();
+        if (!out.exists()) {
+            //noinspection ResultOfMethodCallIgnored
+            outDir.mkdirs();
+            try (InputStream fin = getAssets().open("en_us.xkbmap")) {
+                byte[] buffer = new byte[8192];
+                int count;
+                try (FileOutputStream fout = new FileOutputStream(out)) {
+                    while ((count = fin.read(buffer)) != -1)
+                        fout.write(buffer, 0, count);
+                    fout.flush();
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
         }
 
         if (compositor == 0) {
@@ -188,13 +190,22 @@ public class LorieService extends Service {
         return false;
     }
 
-    private static void onPreferencesChanged() {
+    private void onPreferencesChanged() {
         if (instance == null || act == null) return;
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(instance);
 
         int mode = Integer.parseInt(preferences.getString("touchMode", "3"));
         instance.mTP.setMode(mode);
+
+        if (preferences.getBoolean("showAdditionalKbd", true)) {
+            act.getWindow().getDecorView().setOnApplyWindowInsetsListener(act);
+            act.kbd.setVisibility(View.VISIBLE);
+        } else {
+            act.getWindow().getDecorView().setOnApplyWindowInsetsListener(null);
+            act.kbd.setVisibility(View.GONE);
+        }
+
         Log.e("LorieService", "Preferences changed");
     }
 
@@ -391,8 +402,10 @@ public class LorieService extends Service {
                     svc.pointerButton(TouchParser.BTN_RIGHT, (e.getAction() == KeyEvent.ACTION_DOWN) ? TouchParser.ACTION_DOWN : TouchParser.ACTION_UP);
                     rightPressed = (e.getAction() == KeyEvent.ACTION_DOWN);
                 } else if (e.getAction() == KeyEvent.ACTION_UP) {
-                    if (act.kbd!=null) act.kbd.requestFocus();
                     KeyboardUtils.toggleKeyboardVisibility(act);
+                    if (act.kbd!=null)
+                        act.kbd.requestFocus();
+
                 }
                 return true;
             }
@@ -468,6 +481,12 @@ public class LorieService extends Service {
                 svc.passWaylandFD(fd);
             }
         };
+    }
+
+    @SuppressWarnings("unused")
+    // It is used in native code
+    void setRendererVisibility(boolean visible) {
+        act.runOnUiThread(()-> act.findViewById(visible ? R.id.lorieView : R.id.stub).bringToFront());
     }
 
     private native void windowChanged(Surface surface, int width, int height, int mmWidth, int mmHeight);

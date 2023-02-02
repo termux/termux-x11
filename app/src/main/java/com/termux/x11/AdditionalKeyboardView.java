@@ -13,6 +13,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewTreeObserver;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.HorizontalScrollView;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -21,7 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @SuppressWarnings({"unused", "FieldCanBeLocal"})
-public class AdditionalKeyboardView extends HorizontalScrollView implements ViewTreeObserver.OnGlobalLayoutListener {
+public class AdditionalKeyboardView extends HorizontalScrollView {
     private final static int KEYCODE_BASE = 300;
     public final static int PREFERENCES_KEY = KEYCODE_BASE + 1;
     public final static int KEY_HEIGHT_DP = 35;
@@ -46,31 +47,12 @@ public class AdditionalKeyboardView extends HorizontalScrollView implements View
         ctx = context;
         density = (int) context.getResources().getDisplayMetrics().density;
 
-        getViewTreeObserver().addOnGlobalLayoutListener(this);
-
         setBackgroundColor(0xFF000000);
         LayoutParams lp = new LayoutParams(LayoutParams.WRAP_CONTENT, KEY_HEIGHT_DP * density);
         root = new LinearLayout(context);
         root.setLayoutParams(lp);
         root.setOrientation(LinearLayout.HORIZONTAL);
         addView(root);
-    }
-
-    @Override
-    public void onGlobalLayout() {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(ctx);
-        if (!preferences.getBoolean("showAdditionalKbd", true)) {
-            if (getVisibility() != View.GONE)
-                setVisibility(View.GONE);
-            return;
-        } else {
-
-            int visibility = View.VISIBLE;
-            softKbdVisible = (visibility == View.VISIBLE);
-
-            if (!softKbdVisible)
-           	 setVisibility(visibility);
-	}
     }
 
     public void reload(int[] keys, View TargetView, View.OnKeyListener TargetListener) {

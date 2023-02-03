@@ -61,6 +61,7 @@ void display_t::add_fd_listener(int fd, uint32_t mask, std::function<int(int fd,
     wl_event_loop* loop = wl_display_get_event_loop(display);
     auto l = new fd_listener(loop, std::move(listener));
     l->source = wl_event_loop_add_fd(loop, fd, mask, fd_listener::fire, l);
+    wl_event_loop_add_destroy_listener(loop, l);
 }
 
 // It is wl_display_socket_add_fd version which drops server fd if it is faulty.
@@ -96,7 +97,7 @@ void display_t::add_socket_fd(int fd) {
                 client_fd = accept4(fd, (struct sockaddr *) &name, &length, SOCK_CLOEXEC);
                 if (client_fd < 0) {
                     LOGE("failed to accept: %s\n", strerror(errno));
-                    if (errno == EBADF || errno == ENOTSOCK) {
+                    if (errno == EBADF || errno == ENOTSOCK || errno == EPERM) {
                         l->destroy(l, nullptr);
                         return 0;
                     }

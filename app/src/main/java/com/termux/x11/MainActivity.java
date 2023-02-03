@@ -11,6 +11,7 @@ import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.PointerIcon;
+import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.Window;
@@ -131,8 +132,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     public void onLorieServiceStart(LorieService instance) {
         SurfaceView lorieView = findViewById(R.id.lorieView);
+        SurfaceView cursorView = findViewById(R.id.cursorView);
 
-        instance.setListeners(lorieView);
+        instance.setListeners(lorieView, cursorView);
         kbd.reload(keys, lorieView, LorieService.getOnKeyListener());
     }
 
@@ -187,13 +189,15 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-        if (kbd != null) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(LorieService.getInstance());
+        if (preferences.getBoolean("showAdditionalKbd", true) && kbd != null) {
             Rect r = new Rect();
             getWindow().getDecorView().getWindowVisibleDisplayFrame(r);
             boolean isSoftKbdVisible = Objects.requireNonNull(ViewCompat.getRootWindowInsets(kbd)).isVisible(WindowInsetsCompat.Type.ime());
             kbd.setVisibility(isSoftKbdVisible ? View.VISIBLE : View.GONE);
             kbd.setY(r.bottom - kbd.getHeight());
         }
-        return insets;
+
+        return LorieService.getInstance().onApplyWindowInsets(v, insets);
     }
 }

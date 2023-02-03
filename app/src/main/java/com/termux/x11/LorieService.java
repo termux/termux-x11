@@ -13,6 +13,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.Canvas;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.net.Uri;
@@ -41,7 +42,10 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.FrameLayout;
 
 import com.termux.x11.utils.KeyboardUtils;
 
@@ -52,7 +56,7 @@ import java.io.InputStream;
 
 @SuppressWarnings({"ConstantConditions", "SameParameterValue", "SdCardPath"})
 @SuppressLint({"ClickableViewAccessibility", "StaticFieldLeak"})
-public class LorieService extends Service {
+public class LorieService extends Service implements View.OnApplyWindowInsetsListener {
     static final String LAUNCHED_BY_COMPATION = "com.termux.x11.launched_by_companion";
     static final String ACTION_STOP_SERVICE = "com.termux.x11.service_stop";
     static final String ACTION_START_FROM_ACTIVITY = "com.termux.x11.start_from_activity";
@@ -205,13 +209,12 @@ public class LorieService extends Service {
         int mode = Integer.parseInt(preferences.getString("touchMode", "3"));
         instance.mTP.setMode(mode);
 
-        if (preferences.getBoolean("showAdditionalKbd", true)) {
-            act.getWindow().getDecorView().setOnApplyWindowInsetsListener(act);
+        act.getWindow().getDecorView().setOnApplyWindowInsetsListener(act);
+
+        if (preferences.getBoolean("showAdditionalKbd", true))
             act.kbd.setVisibility(View.VISIBLE);
-        } else {
-            act.getWindow().getDecorView().setOnApplyWindowInsetsListener(null);
+        else
             act.kbd.setVisibility(View.GONE);
-        }
 
         Log.e("LorieService", "Preferences changed");
     }
@@ -295,7 +298,7 @@ public class LorieService extends Service {
         return instance;
     }
 
-    void setListeners(@NonNull SurfaceView view) {
+    void setListeners(@NonNull SurfaceView view, @NonNull SurfaceView cursor) {
         Context a = view.getRootView().findViewById(android.R.id.content).getContext();
         if (!(a instanceof MainActivity)) {
             Log.e("LorieService", "Context is not an activity!!!");
@@ -308,7 +311,7 @@ public class LorieService extends Service {
         view.requestFocus();
 
         listener.svc = this;
-        listener.setAsListenerTo(view);
+        listener.setAsListenerTo(view, cursor);
 
         mTP = new TouchParser(view, listener);
         onPreferencesChanged();
@@ -328,13 +331,24 @@ public class LorieService extends Service {
         LorieService svc;
 
         @SuppressLint("WrongConstant")
-        private void setAsListenerTo(SurfaceView view) {
+        private void setAsListenerTo(SurfaceView view, SurfaceView cursor) {
             view.getHolder().addCallback(this);
             view.setOnTouchListener(this);
             view.setOnHoverListener(this);
             view.setOnGenericMotionListener(this);
             view.setOnKeyListener(this);
             surfaceChanged(view.getHolder(), PixelFormat.UNKNOWN, view.getWidth(), view.getHeight());
+
+            cursor.getHolder().addCallback(new SurfaceHolder.Callback() {
+                @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {}
+                @Override
+                public void surfaceChanged(@NonNull SurfaceHolder holder, int format, int width, int height) {
+                    svc.cursorChanged(holder.getSurface());
+                }
+                @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
+                    svc.cursorChanged(null);
+                }
+            });
         }
 
         public void onPointerButton(int button, int state) {
@@ -436,8 +450,10 @@ public class LorieService extends Service {
         @Override
         public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
             DisplayMetrics dm = new DisplayMetrics();
+            Rect r = new Rect();
             int mmWidth, mmHeight;
             act.getWindowManager().getDefaultDisplay().getMetrics(dm);
+            act.getWindow().getDecorView().getWindowVisibleDisplayFrame(r);
 
             if (act.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT) {
                 mmWidth = (int) Math.round((width * 25.4) / dm.xdpi);
@@ -447,11 +463,14 @@ public class LorieService extends Service {
                 mmHeight = (int) Math.round((height * 25.4) / dm.xdpi);
             }
 
-            svc.windowChanged(holder.getSurface(), width, height, mmWidth, mmHeight);
+            svc.windowChanged(holder.getSurface(), r.right, r.bottom, mmWidth, mmHeight);
         }
 
         @Override public void surfaceCreated(SurfaceHolder holder) {}
-        @Override public void surfaceDestroyed(SurfaceHolder holder) {}
+        @SuppressLint("WrongConstant")
+        @Override public void surfaceDestroyed(SurfaceHolder holder) {
+            surfaceChanged(holder, PixelFormat.UNKNOWN, 0, 0);
+        }
 
     }
 
@@ -490,12 +509,47 @@ public class LorieService extends Service {
         };
     }
 
+    @SuppressLint("WrongConstant")
+    @Override
+    public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+        SurfaceView c = v.getRootView().findViewById(R.id.lorieView);
+        SurfaceHolder h = (c != null) ? c.getHolder() : null;
+        if (h != null)
+            listener.surfaceChanged(h, PixelFormat.UNKNOWN, 0, 0);
+        return insets;
+    }
+
     @SuppressWarnings("unused")
     // It is used in native code
     void setRendererVisibility(boolean visible) {
-        act.runOnUiThread(()-> act.findViewById(visible ? R.id.lorieView : R.id.stub).bringToFront());
+        act.runOnUiThread(()-> act.findViewById(R.id.stub).setVisibility(visible?View.GONE:View.VISIBLE));
     }
 
+    @SuppressWarnings("unused")
+    // It is used in native code
+    void setCursorVisibility(boolean visible) {
+        act.runOnUiThread(()-> act.findViewById(R.id.cursorView).setVisibility(visible?View.VISIBLE:View.GONE));
+    }
+
+    @SuppressWarnings("unused")
+    // It is used in native code
+    void setCursorRect(int x, int y, int w, int h) {
+        act.runOnUiThread(()-> {
+            Log.d("POSITIONER", "pointing cursor: " + x + " " + y + " " + w + " " + h);
+            SurfaceView v = act.findViewById(R.id.cursorView);
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(w*10, h*10);
+            params.leftMargin = x;
+            params.topMargin = y;
+
+            v.setLayoutParams(params);
+            v.setVisibility(View.VISIBLE);
+            v.setZOrderOnTop(true);
+            v.bringToFront();
+            FrameLayout frm = act.findViewById(R.id.frame);
+        });
+    }
+
+    private native void cursorChanged(Surface surface);
     private native void windowChanged(Surface surface, int width, int height, int mmWidth, int mmHeight);
     private native void touchDown(int id, float x, float y);
     private native void touchMotion(int id, float x, float y);

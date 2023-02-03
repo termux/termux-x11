@@ -56,6 +56,10 @@ namespace wayland {
 		inline void set_log_handler(wl_log_func_t f) {
 			wl_log_set_handler_server(f);
 		}
+
+		inline uint32_t next_serial() {
+			return wl_display_next_serial(*this);
+		};
 	};
 
     class client_t: public wl_listener {
@@ -128,10 +132,6 @@ namespace wayland {
         inline client_t* client() {
             return m_client;
         }
-
-		inline uint32_t next_serial() {
-			return wl_display_next_serial(display);
-		};
 		
 		static inline resource_t* get(wl_resource* r) {
 			return r == nullptr ? nullptr : static_cast<resource_t*>(wl_resource_get_destroy_listener(r, &resource_destroyed));

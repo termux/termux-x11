@@ -17,9 +17,6 @@ static int enabled = 0;
 using namespace std;
 extern "C" {
 
-#define COLORIZE "\033[0;32m"
-#define COLOR_RESET "\033[0m"
-
 extern void *blacklist[];
 #define skip_blacklisted(f) for (int z=0; blacklist[z]!=NULL; z++) if (blacklist[z]==f) return;
 
@@ -122,11 +119,11 @@ void LogInit(void) {
 		LogMessageInternal(LOG_ERROR, "Logger mutex init failed\n");
 		return;
 	}
-	
+
 	LOGD("Logging initialized");
 }
 
-static int level = -1;
+static thread_local int level = -1;
 
 void print_func(void *func, int enter);
 
@@ -150,13 +147,12 @@ __cyg_profile_func_exit (void *func, void *caller) {
 }
 
 void print_func(void *func, int enter) {
-	for (int i=0; i<level; i++) printf(" ");
 	Dl_info info;
 	if (dladdr(func, &info) && info.dli_sname != NULL) {
 		char *demangled = NULL;
 		int status;
 		demangled = abi::__cxa_demangle(info.dli_sname, NULL, 0, &status);
-		LOGP("%s%s %s%s", (level==2)?COLORIZE:"", enter ? ">" : "<", status == 0 ? demangled : info.dli_sname, (level==2)?COLOR_RESET:"");
+		LOGP("%*c%s %s", level, ' ', enter ? ">" : "<", status == 0 ? demangled : info.dli_sname);
 		free(demangled);
 	}
 }
@@ -168,7 +164,7 @@ void *blacklist[] = {
 #if defined(__ANDROID__)
 	(void*) androidLogFn,
 #endif
-	(void*) LogInit, 
+	(void*) LogInit,
 	(void*) LogMessage, 
 	(void*) LogMessageInternal, 
 	(void*) __cyg_profile_func_enter,

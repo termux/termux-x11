@@ -11,6 +11,11 @@
 	android:id="@+id/frame">
 
 		<SurfaceView
+			android:id="@+id/cursorView"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content" />
+
+		<SurfaceView
 			android:id="@+id/lorieView"
 			android:visibility="visible"
 			android:layout_width="match_parent"

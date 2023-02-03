@@ -13,6 +13,20 @@
         android:defaultValue="3"
         android:entries="@array/touchscreenInputModesEntries"
         android:entryValues="@array/touchscreenInputModesValues" />
+
+    <ListPreference
+        android:title="Display resolution"
+        android:key="touchMode"
+        android:defaultValue="default"
+        android:entries="@array/displayResolutionEntries"
+        android:entryValues="@array/displayResolutionValues" />
+
+    <ListPreference
+        android:title="Display scale"
+        android:key="touchMode"
+        android:defaultValue="1.0"
+        android:entries="@array/displayScaleEntries"
+        android:entryValues="@array/displayScaleValues" />
     
     <CheckBoxPreference
         android:title="Show IME with external keyboard"

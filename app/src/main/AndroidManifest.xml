@@ -28,7 +28,9 @@
             android:launchMode="singleInstance"
             android:supportsPictureInPicture="true"
             android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density"
-            android:resizeableActivity="true">
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="stateHidden"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

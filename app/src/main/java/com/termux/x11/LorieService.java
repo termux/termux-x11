@@ -516,7 +516,7 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
         SurfaceView c = v.getRootView().findViewById(R.id.lorieView);
         SurfaceHolder h = (c != null) ? c.getHolder() : null;
         if (h != null)
-            listener.surfaceChanged(h, PixelFormat.UNKNOWN, 0, 0);
+            handler.postDelayed(() -> listener.surfaceChanged(h, PixelFormat.UNKNOWN, 0, 0), 100);
         return insets;
     }
 

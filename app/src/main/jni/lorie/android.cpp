@@ -185,10 +185,10 @@ JNI_DECLARE(LorieService, passWaylandFD)(JNIEnv *env, jobject thiz, jint fd) {
 extern "C" JNIEXPORT void JNICALL
 JNI_DECLARE(LorieService, terminate)(JNIEnv *env, jobject obj) {
     auto b = reinterpret_cast<lorie_compositor*>(env->GetLongField(obj, lorie_compositor::compositor_field_id));
-    env->SetLongField(obj, lorie_compositor::compositor_field_id, 0);
     b->terminate();
     b->post([]{});
     b->self.join();
+    env->SetLongField(obj, lorie_compositor::compositor_field_id, 0);
     delete b;
 }
 

@@ -9,6 +9,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.PointerIcon;
 import android.view.SurfaceHolder;
@@ -30,6 +31,7 @@ import com.termux.x11.utils.PermissionUtils;
 import com.termux.x11.utils.SamsungDexUtils;
 
 import static com.termux.x11.LorieService.ACTION_START_PREFERENCES_ACTIVITY;
+import static com.termux.x11.LorieService.handler;
 
 import java.util.Objects;
 
@@ -169,8 +171,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
         if (isInPictureInPictureMode) {
-            if (kbd.getVisibility() != View.GONE)
-                kbd.setVisibility(View.GONE);
+            if (kbd.getVisibility() != View.INVISIBLE)
+                kbd.setVisibility(View.INVISIBLE);
             frm.setPadding(0, 0, 0, 0);
         } else {
             if (kbd.getVisibility() != View.VISIBLE)
@@ -191,11 +193,21 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(LorieService.getInstance());
         if (preferences.getBoolean("showAdditionalKbd", true) && kbd != null) {
-            Rect r = new Rect();
-            getWindow().getDecorView().getWindowVisibleDisplayFrame(r);
-            boolean isSoftKbdVisible = Objects.requireNonNull(ViewCompat.getRootWindowInsets(kbd)).isVisible(WindowInsetsCompat.Type.ime());
-            kbd.setVisibility(isSoftKbdVisible ? View.VISIBLE : View.GONE);
-            kbd.setY(r.bottom - kbd.getHeight());
+            handler.postDelayed(() -> {
+                Rect r = new Rect();
+                getWindow().getDecorView().getWindowVisibleDisplayFrame(r);
+                boolean isSoftKbdVisible = Objects.requireNonNull(ViewCompat.getRootWindowInsets(kbd)).isVisible(WindowInsetsCompat.Type.ime());
+                kbd.setVisibility(isSoftKbdVisible ? View.VISIBLE : View.INVISIBLE);
+
+                FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+                if (preferences.getBoolean("Reseed", true)) {
+                    p.gravity = Gravity.BOTTOM | Gravity.CENTER;
+                } else {
+                    p.topMargin = r.bottom - r.top - kbd.getHeight();
+                }
+
+                kbd.setLayoutParams(p);
+            }, 100);
         }
 
         return LorieService.getInstance().onApplyWindowInsets(v, insets);

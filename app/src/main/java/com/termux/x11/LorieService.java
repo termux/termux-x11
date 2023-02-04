@@ -214,7 +214,7 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
         if (preferences.getBoolean("showAdditionalKbd", true))
             act.kbd.setVisibility(View.VISIBLE);
         else
-            act.kbd.setVisibility(View.GONE);
+            act.kbd.setVisibility(View.INVISIBLE);
 
         Log.e("LorieService", "Preferences changed");
     }
@@ -340,9 +340,12 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
             surfaceChanged(view.getHolder(), PixelFormat.UNKNOWN, view.getWidth(), view.getHeight());
 
             cursor.getHolder().addCallback(new SurfaceHolder.Callback() {
-                @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {}
+                @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
+                    cursor.getHolder().setFormat(PixelFormat.TRANSLUCENT);
+                }
                 @Override
                 public void surfaceChanged(@NonNull SurfaceHolder holder, int format, int width, int height) {
+                    cursor.getHolder().setFormat(PixelFormat.TRANSLUCENT);
                     svc.cursorChanged(holder.getSurface());
                 }
                 @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
@@ -522,30 +525,26 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
     @SuppressWarnings("unused")
     // It is used in native code
     void setRendererVisibility(boolean visible) {
-        act.runOnUiThread(()-> act.findViewById(R.id.stub).setVisibility(visible?View.GONE:View.VISIBLE));
+        act.runOnUiThread(()-> act.findViewById(R.id.stub).setVisibility(visible?View.INVISIBLE:View.VISIBLE));
     }
 
     @SuppressWarnings("unused")
     // It is used in native code
     void setCursorVisibility(boolean visible) {
-        act.runOnUiThread(()-> act.findViewById(R.id.cursorView).setVisibility(visible?View.VISIBLE:View.GONE));
+        act.runOnUiThread(()-> act.findViewById(R.id.cursorView).setVisibility(visible?View.VISIBLE:View.INVISIBLE));
     }
 
     @SuppressWarnings("unused")
     // It is used in native code
     void setCursorRect(int x, int y, int w, int h) {
         act.runOnUiThread(()-> {
-            Log.d("POSITIONER", "pointing cursor: " + x + " " + y + " " + w + " " + h);
             SurfaceView v = act.findViewById(R.id.cursorView);
-            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(w*10, h*10);
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(w, h);
             params.leftMargin = x;
             params.topMargin = y;
 
             v.setLayoutParams(params);
             v.setVisibility(View.VISIBLE);
-            v.setZOrderOnTop(true);
-            v.bringToFront();
-            FrameLayout frm = act.findViewById(R.id.frame);
         });
     }
 

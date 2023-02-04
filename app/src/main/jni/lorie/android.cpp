@@ -44,7 +44,7 @@ lorie_compositor::lorie_compositor(jobject thiz): lorie_compositor() {
                     int sx = x - cursor.hotspot_x;
                     int sy = y - cursor.hotspot_y;
                     int w = b ? b->shm_width() : 0;
-                    int h = b ? b->shm_width() : 0;
+                    int h = b ? b->shm_height() : 0;
                     env->CallVoidMethod(thiz, set_cursor_rect_id, sx, sy, w, h);
                 };
         };
@@ -76,7 +76,7 @@ static always_inline void blit_exact(EGLNativeWindowType win, const uint32_t* sr
     ANativeWindow_Buffer b{};
 
     ANativeWindow_acquire(win);
-    auto ret = ANativeWindow_setBuffersGeometry(win, width, height, AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM);
+    auto ret = ANativeWindow_setBuffersGeometry(win, width, height, AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM);
     if (ret != 0) {
         LOGE("Failed to set buffers geometry (%d)", ret);
         return;
@@ -92,10 +92,9 @@ static always_inline void blit_exact(EGLNativeWindowType win, const uint32_t* sr
     if (src) {
         for (int i = 0; i < height; i++) {
             for (int j = 0; j < width; j++) {
-                //uint32_t* d = &dst[b.stride*i + j];
                 uint32_t s = src[width * i + j];
                 // Cast BGRA to RGBA
-                dst[b.stride * i + j] = ((s & 0x0000FF) << 16) | (s & 0x00FF00) | ((s & 0xFF0000) >> 16);
+                dst[b.stride * i + j] = (s & 0xFF000000) | ((s & 0x00FF0000) >> 16) | (s & 0x0000FF00) | ((s & 0x000000FF) << 16);
             }
         }
     } else
@@ -115,7 +114,7 @@ void lorie_compositor::blit(EGLNativeWindowType win, wayland::surface_t* sfc) {
         return;
 
     auto buffer = sfc ? any_cast<surface_data*>(sfc->user_data())->buffer : nullptr;
-    if (buffer)
+    if (buffer && buffer->is_shm() && buffer->shm_data())
         blit_exact(win, cast(buffer->shm_data()), buffer->shm_width(), buffer->shm_height());
     else
         blit_exact(win, nullptr, 0, 0);

@@ -11,15 +11,16 @@
 	android:id="@+id/frame">
 
 		<SurfaceView
-			android:id="@+id/cursorView"
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content" />
-
-		<SurfaceView
 			android:id="@+id/lorieView"
 			android:visibility="visible"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent" />
+
+		<SurfaceView
+			android:id="@+id/cursorView"
+			android:visibility="invisible"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content" />
 
 		<LinearLayout
 			android:id="@+id/stub"
@@ -81,6 +82,7 @@
 
 	<com.termux.x11.AdditionalKeyboardView
 		android:id="@+id/additionalKbd"
+		android:visibility="invisible"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"
 		android:layout_gravity="bottom|center"

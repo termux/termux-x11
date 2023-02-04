@@ -9,7 +9,7 @@
 lorie_message_queue::lorie_message_queue() {
 	std::unique_lock<std::mutex> lock(mutex);
 
-	fd = eventfd(0, EFD_CLOEXEC);
+	fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
 	if (fd == -1) {
 		LOGE("Failed to create socketpair for message queue: %s", strerror(errno));
 		return;

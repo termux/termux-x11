@@ -231,10 +231,8 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
         if (action.equals(ACTION_STOP_SERVICE)) {
             Log.e("LorieService", action);
             terminate();
-            sleep(500);
             act.finish();
             stopSelf();
-            System.exit(0); // This is needed to completely finish the process
         }
 
         onPreferencesChanged();

@@ -40,6 +40,7 @@ protected:
     std::function<int(int, uint32_t)> dispatch;
     static void destroy(wl_listener* that, void *) {
         auto listener = static_cast<fd_listener*>(that);
+        wl_list_remove(&listener->link);
         wl_event_source_remove(listener->source);
         delete listener;
     }
@@ -61,7 +62,6 @@ void display_t::add_fd_listener(int fd, uint32_t mask, std::function<int(int fd,
     wl_event_loop* loop = wl_display_get_event_loop(display);
     auto l = new fd_listener(loop, std::move(listener));
     l->source = wl_event_loop_add_fd(loop, fd, mask, fd_listener::fire, l);
-    wl_event_loop_add_destroy_listener(loop, l);
 }
 
 // It is wl_display_socket_add_fd version which drops server fd if it is faulty.

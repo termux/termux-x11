@@ -14,17 +14,14 @@ namespace wayland {
     class client_t;
 	class display_t: public wl_listener {
     private:
-		wl_display *display;
+        volatile bool running = true;
+        wl_display *display;
         wl_listener client_created_listener;
 		
-		public:
+    public:
         display_t();
         std::function<void(client_t*)> on_client = nullptr;
         std::function<void()> on_destroy = nullptr;
-
-        inline void terminate() {
-            wl_display_terminate(*this);
-        }
 		
 		inline operator wl_display*() {
 			return display;
@@ -32,7 +29,6 @@ namespace wayland {
 
         ~display_t();
 
-    public:
         void add_fd_listener(int fd, uint32_t mask, std::function<int(int fd, uint32_t mask)> listener);
 		
 		void add_socket_fd(int fd);
@@ -48,9 +44,16 @@ namespace wayland {
 		inline void init_shm() {
 			wl_display_init_shm(display);
 		}
+
+		inline void terminate() {
+			running = false;
+		}
 		
 		inline void run() {
-			wl_display_run(display);
+			while (running) {
+				wl_display_flush_clients(display);
+				wl_event_loop_dispatch(wl_display_get_event_loop(display), 200);
+			}
 		}
 
 		inline void set_log_handler(wl_log_func_t f) {

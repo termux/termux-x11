@@ -18,7 +18,7 @@
 
 #define DEFAULT_PREFIX "/data/data/com.termux/files/usr"
 #define DEFAULT_XDG_RUNTIME_DIR DEFAULT_PREFIX "/tmp"
-#define DEFAULT_SOCKET_NAME "wayland-0"
+#define DEFAULT_SOCKET_NAME "termux-x11"
 
 static int socket_action(int* fd, char* path,
                          int (*action)(int, const struct sockaddr *, socklen_t)) {
@@ -172,6 +172,7 @@ Java_com_termux_x11_starter_Starter_exec(JNIEnv *env, jclass clazz, jstring jpat
         (*env)->ReleaseStringUTFChars(env, js, pjc);
     }
     argv[argc] = NULL; // Terminating NULL
+    setenv("WAYLAND_DISPLAY", DEFAULT_SOCKET_NAME, 1);
 
     execv(argv[0], argv);
     perror("execv");

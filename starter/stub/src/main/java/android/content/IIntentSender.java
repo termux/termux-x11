@@ -16,19 +16,17 @@
 
 package android.content;
 
-import android.content.IIntentReceiver;
-import android.content.Intent;
 import android.os.Bundle;
+import android.os.IBinder;
+import android.os.RemoteException;
 
-/** @hide */
-oneway interface IIntentSender {
+public interface IIntentSender {
     // Android 8+
-    void send(int code, in Intent intent, String resolvedType, in IBinder whitelistToken,
-                IIntentReceiver finishedReceiver, String requiredPermission, in Bundle options);
-    // Android 7
-    void send(int code, in Intent intent, String resolvedType,
-                IIntentReceiver finishedReceiver, String requiredPermission, in Bundle options);
-    // Android 6
-    int send(int code, in Intent intent, String resolvedType,
-                IIntentReceiver finishedReceiver, String requiredPermission, in Bundle options);
+    void send(int code, Intent intent, String resolvedType, IBinder whitelistToken,
+              IIntentReceiver finishedReceiver, String requiredPermission, Bundle options)
+            throws RemoteException;
+    // Android 6+
+    int send(int code, Intent intent, String resolvedType,
+             IIntentReceiver finishedReceiver, String requiredPermission, Bundle options)
+            throws RemoteException;
 }

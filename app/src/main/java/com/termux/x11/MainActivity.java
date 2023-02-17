@@ -196,7 +196,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             handler.postDelayed(() -> {
                 Rect r = new Rect();
                 getWindow().getDecorView().getWindowVisibleDisplayFrame(r);
-                boolean isSoftKbdVisible = Objects.requireNonNull(ViewCompat.getRootWindowInsets(kbd)).isVisible(WindowInsetsCompat.Type.ime());
+                WindowInsetsCompat rootInsets = WindowInsetsCompat.toWindowInsetsCompat(kbd.getRootWindowInsets());
+                boolean isSoftKbdVisible = rootInsets.isVisible(WindowInsetsCompat.Type.ime());
                 kbd.setVisibility(isSoftKbdVisible ? View.VISIBLE : View.INVISIBLE);
 
                 FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);

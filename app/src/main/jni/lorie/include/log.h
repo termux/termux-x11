@@ -1,37 +1,23 @@
 #pragma once
-#ifdef __cplusplus
-extern "C" {
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "OCUnusedMacroInspection"
+#ifdef ANDROID
+#include <android/log.h>
+
+#ifndef LOG_TAG
+#define LOG_TAG "LorieNative"
 #endif
 
-#define LOG_VERBOSE 2
-#define LOG_DEBUG 3
-#define LOG_INFO 4
-#define LOG_WARN 5
-#define LOG_ERROR 6
-#define LOG_FATAL 7
-#define LOG_PROFILER 8
-
-void 
-LogInit(void);
-
-void 
-LogMessage(int priority, const char *format, ...);
-
-#define LOG(prio, ...) LogMessage(prio, __VA_ARGS__)
-
-#define LOGI(...) LOG(LOG_INFO, __VA_ARGS__)
-#define LOGW(...) LOG(LOG_WARN, __VA_ARGS__)
-#define LOGD(...) LOG(LOG_DEBUG, __VA_ARGS__)
-#define LOGV(...) LOG(LOG_VERBOSE, __VA_ARGS__)
-#define LOGE(...) LOG(LOG_ERROR, __VA_ARGS__)
-#define LOGF(...) LOG(LOG_FATAL, __VA_ARGS__)
-#define LOGP(...) LOG(LOG_PROFILER, __VA_ARGS__)
-
-#ifdef DBG
-#undef DBG
+#ifndef LOG
+#define LOG(prio, ...) __android_log_print(prio, LOG_TAG, __VA_ARGS__)
 #endif
 
-#define DBG LOGD("Here! %s %d", __FILE__, __LINE__)
-#ifdef __cplusplus
-}
+#define LOGI(...) LOG(ANDROID_LOG_INFO, __VA_ARGS__)
+#define LOGW(...) LOG(ANDROID_LOG_WARN, __VA_ARGS__)
+#define LOGD(...) LOG(ANDROID_LOG_DEBUG, __VA_ARGS__)
+#define LOGV(...) LOG(ANDROID_LOG_VERBOSE, __VA_ARGS__)
+#define LOGE(...) LOG(ANDROID_LOG_ERROR, __VA_ARGS__)
+#define LOGF(...) LOG(ANDROID_LOG_FATAL, __VA_ARGS__)
+
 #endif
+#pragma clang diagnostic pop

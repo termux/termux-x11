@@ -52,8 +52,6 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
     static final String ACTION_PREFERENCES_CHANGED = "com.termux.x11.preferences_changed";
 
     private static LorieService instance = null;
-    //private
-    //static
     long compositor;
     private static final ServiceEventListener listener = new ServiceEventListener();
     private static MainActivity act;

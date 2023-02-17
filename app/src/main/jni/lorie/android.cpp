@@ -307,7 +307,7 @@ static void killAllLogcats() {
 		}
 		if (strstr(link, "/logcat") != nullptr) {
 			if (kill(pid, SIGKILL) < 0) {
-				LOGE("kill %d (%s): %s", pid, link, strerror);
+				LOGE("kill %d (%s): %s", pid, link, strerror(errno));
 			}
 		}
 	}

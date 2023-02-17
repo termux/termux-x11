@@ -57,12 +57,6 @@ android {
         }
     }
 
-    sourceSets {
-        main {
-            jniLibs.srcDirs 'src/main/jni/prebuilt'
-        }
-    }
-
     packagingOptions {
         jniLibs {
             // This will allow us to use shared libraries inside *.apk, without unpacking
@@ -73,6 +67,14 @@ android {
     }
 }
 
+task patchWayland {
+    println("Patch can fail here, it is normal if a patch was already applied")
+    ant.patch(patchfile: "${project.projectDir}/src/main/jni/wayland.patch", dir: "${project.projectDir}/src/main/jni/wayland/src")
+    ant.patch(patchfile: "${project.projectDir}/src/main/jni/wayland2.patch", dir: "${project.projectDir}/src/main/jni/wayland")
+}
+
+tasks.matching { it.name.toLowerCase().contains("ndk") && !it.name.toLowerCase().contains("clean") }
+        .all { it.dependsOn(patchWayland) }
 
 wayland {
     out waylandOut

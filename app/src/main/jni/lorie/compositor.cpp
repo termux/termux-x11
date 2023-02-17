@@ -163,7 +163,6 @@ lorie_compositor::lorie_compositor() {
         wm_base->on__destroy = [=]() { wm_base->destroy(); };
     };
 
-    LogInit();
     LOGV("Starting compositor");
     wl_display_init_shm (*this);
     add_fd_listener(queue.get_fd(), WL_EVENT_READABLE, [&](int, uint){ queue.run(); return 0; });

@@ -15,25 +15,12 @@ android {
         versionName "0.1"
     }
 
-    externalNativeBuild {
-        ndkBuild {
-            path "src/main/jni/Android.mk"
-        }
-    }
-
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-        }
-    }
-
-    packagingOptions {
-        jniLibs {
-            // This will allow us to use shared libraries inside *.apk, without unpacking
-            // @agnostic-apollo is the best
-            // https://github.com/termux/termux-x11/commit/6cdfb75c4451eef63f114a93baef5ba73b7cfd8c#commitcomment-77856313
-            useLegacyPackaging false
+    signingConfigs {
+        debug {
+            storeFile file('../app/testkey_untrusted.jks')
+            keyAlias 'alias'
+            storePassword 'xrj45yWGLbsO7W0v'
+            keyPassword 'xrj45yWGLbsO7W0v'
         }
     }
 
@@ -45,6 +32,5 @@ android {
 }
 
 dependencies {
-    implementation project(':common')
-    compileOnly project(':starter:stub')
+    compileOnly project(':shell-loader:stub')
 }

@@ -12,10 +12,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.content.res.Configuration;
-import android.graphics.Canvas;
 import android.graphics.PixelFormat;
-import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -30,10 +27,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
-import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -42,16 +36,10 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.WindowInsets;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.FrameLayout;
 
 import com.termux.x11.utils.KeyboardUtils;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
 
 
 @SuppressWarnings({"ConstantConditions", "SameParameterValue", "SdCardPath"})
@@ -98,33 +86,6 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
         if (isServiceRunningInForeground(this, LorieService.class)) return;
 
         compositor = createLorieThread();
-
-        File outDir = new File(getApplicationInfo().dataDir, "files");
-        File out = new File(outDir, "en_us.xkbmap");
-        File apk = null;
-
-        try {
-            PackageManager pm = getPackageManager();
-            String apkPath = pm.getApplicationInfo(getPackageName(), 0).publicSourceDir;
-            apk = new File(apkPath);
-        } catch (Throwable ignored) {}
-
-        if (!out.exists() || (apk != null && apk.lastModified() > out.lastModified())) {
-            //noinspection ResultOfMethodCallIgnored
-            outDir.mkdirs();
-            try (InputStream fin = getAssets().open("en_us.xkbmap")) {
-                byte[] buffer = new byte[8192];
-                int count;
-                try (FileOutputStream fout = new FileOutputStream(out)) {
-                    while ((count = fin.read(buffer)) != -1)
-                        fout.write(buffer, 0, count);
-                    fout.flush();
-                }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
-
         if (compositor == 0) {
             Log.e("LorieService", "compositor thread was not created");
             return;
@@ -450,21 +411,7 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
 
         @Override
         public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-            DisplayMetrics dm = new DisplayMetrics();
-            Rect r = new Rect();
-            int mmWidth, mmHeight;
-            act.getWindowManager().getDefaultDisplay().getMetrics(dm);
-            act.getWindow().getDecorView().getWindowVisibleDisplayFrame(r);
-
-            if (act.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT) {
-                mmWidth = (int) Math.round((width * 25.4) / dm.xdpi);
-                mmHeight = (int) Math.round((height * 25.4) / dm.ydpi);
-            } else {
-                mmWidth = (int) Math.round((width * 25.4) / dm.ydpi);
-                mmHeight = (int) Math.round((height * 25.4) / dm.xdpi);
-            }
-
-            svc.windowChanged(holder.getSurface(), r.right, r.bottom, mmWidth, mmHeight);
+            svc.windowChanged(holder.getSurface(), width, height);
         }
 
         @Override public void surfaceCreated(SurfaceHolder holder) {}
@@ -538,8 +485,7 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
         act.runOnUiThread(()-> {
             SurfaceView v = act.findViewById(R.id.cursorView);
             FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(w, h);
-            params.leftMargin = x;
-            params.topMargin = y;
+            params.setMargins(x, y, 0, 0);
 
             v.setLayoutParams(params);
             v.setVisibility(View.VISIBLE);
@@ -547,7 +493,7 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
     }
 
     private native void cursorChanged(Surface surface);
-    private native void windowChanged(Surface surface, int width, int height, int mmWidth, int mmHeight);
+    private native void windowChanged(Surface surface, int width, int height);
     private native void touchDown(int id, float x, float y);
     private native void touchMotion(int id, float x, float y);
     private native void touchUp(int id);

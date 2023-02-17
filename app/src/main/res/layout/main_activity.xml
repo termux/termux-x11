@@ -5,33 +5,38 @@
 	android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <FrameLayout
-    	android:layout_width="match_parent"
-   	android:layout_height="match_parent"
+	<FrameLayout
+		android:id="@+id/frame"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:clipToPadding="false"
 		android:layoutDirection="ltr"
-	android:id="@+id/frame">
+		android:paddingLeft="0dp"
+		android:paddingTop="0dp"
+		android:paddingRight="0dp"
+		android:paddingBottom="0dp">
 
 		<SurfaceView
 			android:id="@+id/lorieView"
-			android:visibility="visible"
 			android:layout_width="match_parent"
-			android:layout_height="match_parent" />
+			android:layout_height="match_parent"
+			android:visibility="visible" />
 
 		<SurfaceView
 			android:id="@+id/cursorView"
-			android:visibility="invisible"
-			android:layout_gravity="left|top"
 			android:layout_width="wrap_content"
-			android:layout_height="wrap_content" />
+			android:layout_height="wrap_content"
+			android:layout_gravity="left|top"
+			android:visibility="invisible" />
 
 		<LinearLayout
 			android:id="@+id/stub"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent"
-			android:gravity="center_horizontal|center_vertical"
 			android:background="@android:color/transparent"
-			android:visibility="visible"
-			android:orientation="vertical">
+			android:gravity="center_horizontal|center_vertical"
+			android:orientation="vertical"
+			android:visibility="visible">
 
 			<ImageView
 				android:id="@+id/x11_image"
@@ -74,10 +79,10 @@
 
 			<Button
 				android:id="@+id/getting_started_button"
-				android:visibility="gone"
 				android:layout_width="wrap_content"
 				android:layout_height="wrap_content"
-				android:text="@string/getting_started_button_text" />
+				android:text="@string/getting_started_button_text"
+				android:visibility="gone" />
 		</LinearLayout>
 
 	</FrameLayout>

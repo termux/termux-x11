@@ -62,6 +62,15 @@ android {
             jniLibs.srcDirs 'src/main/jni/prebuilt'
         }
     }
+
+    packagingOptions {
+        jniLibs {
+            // This will allow us to use shared libraries inside *.apk, without unpacking
+            // @agnostic-apollo is the best
+            // https://github.com/termux/termux-x11/commit/6cdfb75c4451eef63f114a93baef5ba73b7cfd8c#commitcomment-77856313
+            useLegacyPackaging false
+        }
+    }
 }
 
 
@@ -85,4 +94,5 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     implementation 'androidx.annotation:annotation:1.5.0'
     implementation 'androidx.drawerlayout:drawerlayout:1.1.1'
+    compileOnly project(':app:stub')
 }

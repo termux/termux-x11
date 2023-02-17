@@ -16,16 +16,16 @@ mkdir -p $PREFIX/bin/
 mkdir -p $PREFIX/libexec/termux-x11
 
 cp termux-x11 $PREFIX/bin/
-cp termux-startx11 $PREFIX/libexec/termux-x11
-cp starter/build/outputs/apk/debug/starter-debug.apk \
-	$PREFIX/libexec/termux-x11/starter.apk
+cp termux-startx11 $PREFIX/libexec/termux-x11/
+cp shell-loader/build/outputs/apk/debug/shell-loader-debug.apk \
+	$PREFIX/libexec/termux-x11/loader.apk
 
 mkdir -p $CONTROL_DIR
 cat <<EOF > $CONTROL_DIR/control
 Package: termux-x11
 Architecture: all
 Maintainer: Twaik Yont @twaik
-Version: 1.02.06
+Version: 1.02.07
 Homepage: https://github.com/termux/termux-x11
 Depends: xwayland
 Description: Companion package for termux-x11 app

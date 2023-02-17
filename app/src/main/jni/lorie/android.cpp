@@ -5,13 +5,15 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include "ashmem.h"
+#include <shm.h>
 #include <csignal>
 
 #include <android/native_window_jni.h>
 #include <sys/socket.h>
 #include <dirent.h>
 #include <android/log.h>
+
+#define DEFAULT_DPI 96
 
 #pragma ide diagnostic ignored "hicpp-signed-bitwise"
 #define unused __attribute__((__unused__))
@@ -55,9 +57,27 @@ lorie_compositor::lorie_compositor(jobject thiz): lorie_compositor() {
 	});
 }
 
+__asm__ (
+        "     .global blob\n"
+        "     .global blob_size\n"
+        "     .section .rodata\n"
+        " blob:\n"
+        "     .incbin \"en_us.xkbmap\"\n"
+        " 1:\n"
+        " blob_size:\n"
+        "     .int 1b - blob"
+);
+
+extern jbyte blob[];
+extern int blob_size;
+
 void lorie_compositor::get_keymap(int *fd, int *size) { // NOLINT(readability-convert-member-functions-to-static)
-    int keymap_fd = open("/data/data/com.termux.x11/files/en_us.xkbmap", O_RDONLY);
-	struct stat s = {};
+    int keymap_fd = os_create_anonymous_file(blob_size);
+    void *dest = mmap(nullptr, blob_size, PROT_READ | PROT_WRITE, MAP_SHARED, keymap_fd, 0);
+    memcpy(dest, blob, blob_size);
+    munmap(dest, blob_size);
+
+    struct stat s = {};
 	fstat(keymap_fd, &s);
 	*size = s.st_size; // NOLINT(cppcoreguidelines-narrowing-conversions)
 	*fd = keymap_fd;
@@ -200,9 +220,9 @@ JNI_DECLARE(LorieService, cursorChanged)(JNIEnv *env, jobject thiz, jobject surf
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, windowChanged)(JNIEnv *env, jobject thiz, jobject surface, jint width, jint height, jint mm_width, jint mm_height) {
+JNI_DECLARE(LorieService, windowChanged)(JNIEnv *env, jobject thiz, jobject surface, jint w, jint h) {
 	EGLNativeWindowType win = surface?ANativeWindow_fromSurface(env, surface):nullptr;
-    queue<&lorie_compositor::output_resize>(env, thiz, win, width, height, mm_width, mm_height);
+    queue<&lorie_compositor::output_resize>(env, thiz, win, w, h, int(w*25.4/DEFAULT_DPI), int(h*25.4/DEFAULT_DPI));
 }
 
 extern "C" JNIEXPORT void JNICALL

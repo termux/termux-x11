@@ -228,16 +228,9 @@ public class Starter {
     private native int openLogFD();
     private static native void exec(String path, String[] argv);
     @SuppressWarnings("FieldMayBeFinal")
-    private static Handler handler;
+    private static Handler handler = new Handler();
 
     static {
-        Looper.prepareMainLooper();
-        handler = new Handler();
-
-        String libPath = System.getenv("CLASSPATH") +
-                "!/lib/" + Build.SUPPORTED_ABIS[0] +
-                "/libx11-starter.so";
-        System.err.println("Loading shared library: " + libPath);
-        System.load(libPath);
+        System.loadLibrary("x11-starter");
     }
 }

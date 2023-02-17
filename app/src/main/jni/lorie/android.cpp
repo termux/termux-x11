@@ -226,26 +226,6 @@ JNI_DECLARE(LorieService, windowChanged)(JNIEnv *env, jobject thiz, jobject surf
 }
 
 extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, touchDown)(JNIEnv *env, jobject thiz, jint id, jfloat x, jfloat y) {
-    queue<&lorie_compositor::touch_down>(env, thiz, static_cast<uint32_t>(id), static_cast<uint32_t>(x), static_cast<uint32_t>(y));
-}
-
-extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, touchMotion)(JNIEnv *env, jobject thiz, jint id, jfloat x, jfloat y) {
-    queue<&lorie_compositor::touch_motion>(env, thiz, static_cast<uint32_t>(id), static_cast<uint32_t>(x), static_cast<uint32_t>(y));
-}
-
-extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, touchUp)(JNIEnv *env, jobject thiz, jint id) {
-    queue<&lorie_compositor::touch_up>(env, thiz, id);
-}
-
-extern "C" JNIEXPORT void JNICALL
-JNI_DECLARE(LorieService, touchFrame)(JNIEnv *env, jobject thiz) {
-    queue<&lorie_compositor::touch_frame>(env, thiz);
-}
-
-extern "C" JNIEXPORT void JNICALL
 JNI_DECLARE(LorieService, pointerMotion)(JNIEnv *env, jobject thiz, jint x, jint y) {
     queue<&lorie_compositor::pointer_motion>(env, thiz, x, y);
 }

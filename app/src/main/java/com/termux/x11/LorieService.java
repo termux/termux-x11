@@ -167,7 +167,7 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(instance);
 
-        int mode = Integer.parseInt(preferences.getString("touchMode", "3"));
+        int mode = Integer.parseInt(preferences.getString("touchMode", "1"));
         instance.mTP.setMode(mode);
 
         act.getWindow().getDecorView().setOnApplyWindowInsetsListener(act);
@@ -328,26 +328,6 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
             svc.pointerScroll(axis, value);
         }
 
-        public void onTouchDown(int id, float x, float y) {
-            if (svc == null) return;
-            svc.touchDown(id, x, y);
-        }
-
-        public void onTouchMotion(int id, float x, float y) {
-            if (svc == null) return;
-            svc.touchMotion(id, x, y);
-        }
-
-        public void onTouchUp(int id) {
-            if (svc == null) return;
-            svc.touchUp(id);
-        }
-
-        public void onTouchFrame() {
-            if (svc == null) return;
-            svc.touchFrame();
-        }
-
         @Override
         public boolean onTouch(View v, MotionEvent e) {
             if (svc == null) return false;
@@ -494,10 +474,6 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
 
     private native void cursorChanged(Surface surface);
     private native void windowChanged(Surface surface, int width, int height);
-    private native void touchDown(int id, float x, float y);
-    private native void touchMotion(int id, float x, float y);
-    private native void touchUp(int id);
-    private native void touchFrame();
     private native void pointerMotion(int x, int y);
     private native void pointerScroll(int axis, float value);
     private native void pointerButton(int button, int type);

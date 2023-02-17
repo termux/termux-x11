@@ -212,50 +212,6 @@ void lorie_compositor::report_mode(wayland::output_t* output) const {
 	output->done();
 }
 
-void lorie_compositor::touch_down(uint32_t id, uint32_t x, uint32_t y) {
-    LOGV("JNI: touch down");
-	if (!screen.sfc)
-		return;
-
-	auto data = any_cast<client_data*>(screen.sfc->client()->user_data());
-
-	data->touch->down(next_serial(), resource_t::timestamp(), screen.sfc, id, x, y);
-	set_cursor_visibility(false);
-}
-
-void lorie_compositor::touch_motion(uint32_t id, uint32_t x, uint32_t y) {
-    LOGV("JNI: touch motion");
-	if (!screen.sfc)
-		return;
-
-	auto data = any_cast<client_data*>(screen.sfc->client()->user_data());
-
-	data->touch->motion(resource_t::timestamp(), id, x, y);
-	set_cursor_visibility(false);
-}
-
-void lorie_compositor::touch_up(uint32_t id) {
-    LOGV("JNI: touch up");
-	if (!screen.sfc)
-		return;
-
-	auto data = any_cast<client_data*>(screen.sfc->client()->user_data());
-
-	data->touch->up(next_serial(), resource_t::timestamp(), id);
-	set_cursor_visibility(false);
-}
-
-void lorie_compositor::touch_frame() {
-    LOGV("JNI: touch frame");
-	if (!screen.sfc)
-		return;
-
-	auto data = any_cast<client_data*>(screen.sfc->client()->user_data());
-
-	data->touch->frame();
-	set_cursor_visibility(false);
-}
-
 void lorie_compositor::pointer_motion(int x, int y) {
     LOGV("JNI: pointer motion %dx%d", x, y);
 	if (!screen.sfc)

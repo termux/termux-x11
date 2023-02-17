@@ -36,9 +36,8 @@ public class TouchParser {
     private static final int WL_POINTER_AXIS_VERTICAL_SCROLL = 0;
     private static final int WL_POINTER_AXIS_HORIZONTAL_SCROLL = 1;
 
-    static final int TOUCH_MODE_DIRECT = 1;
-    static final int TOUCH_MODE_MOUSE = 2;
-    static final int TOUCH_MODE_TOUCHPAD = 3;
+    static final int TOUCH_MODE_MOUSE = 0;
+    static final int TOUCH_MODE_TOUCHPAD = 1;
 
     static final int BTN_LEFT = 0x110;
     static final int BTN_RIGHT = 0x111;
@@ -54,11 +53,6 @@ public class TouchParser {
         void onPointerButton(int button, int state);
         void onPointerMotion(int x, int y);
         void onPointerScroll(int axis, float value);
-
-        void onTouchDown(int id, float x, float y);
-        void onTouchMotion(int id, float x, float y);
-        void onTouchUp(int id);
-        void onTouchFrame();
     }
 
     private int mTouchSlopSquare;
@@ -106,7 +100,7 @@ public class TouchParser {
 
     private View target;
     private Point cursor;
-    private int mMode = TOUCH_MODE_DIRECT;
+    private int mMode = TOUCH_MODE_TOUCHPAD;
 
     private boolean mInDrag = false;
     private boolean mWasInDrag = false;
@@ -206,32 +200,6 @@ public class TouchParser {
     boolean onTouchEvent(MotionEvent ev) {
         if ((ev.getSource() & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE) {
             return hmListener.onTouch(ev);
-        }
-
-        if (mMode == TOUCH_MODE_DIRECT) {
-            // get pointer index from the event object
-            int pointerIndex = ev.getActionIndex();
-
-            // get pointer ID
-            int pointerId = ev.getPointerId(pointerIndex);
-
-            switch(ev.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                case MotionEvent.ACTION_POINTER_DOWN:
-                    mListener.onTouchDown(pointerId, ev.getX(pointerIndex), ev.getY(pointerIndex));
-                    break;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_POINTER_UP:
-                    mListener.onTouchUp(pointerId);
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                    for (int i=0; i< ev.getPointerCount(); i++)
-                    mListener.onTouchMotion(ev.getPointerId(i), ev.getX(i), ev.getY(i));
-                    break;
-            }
-
-            mListener.onTouchFrame();
-            return true;
         }
 
         final int action = ev.getAction();

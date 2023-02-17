@@ -26,10 +26,6 @@ public:
     void output_resize(EGLNativeWindowType win, int real_width, int real_height, int physical_width, int physical_height);
     void report_mode(wayland::output_t* output) const;
 
-    void touch_down(uint32_t id, uint32_t x, uint32_t y);
-    void touch_motion(uint32_t id, uint32_t x, uint32_t y);
-    void touch_up(uint32_t id);
-    void touch_frame();
     void pointer_motion(int x, int y); // absolute values
     void pointer_scroll(int axis, float value);
     void pointer_button(int button, int state);

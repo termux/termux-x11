@@ -1,0 +1,43 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 30
+    defaultConfig {
+        applicationId "com.termux.x11.client.experiment"
+        minSdkVersion 24
+        // Note: targetSdkVersion affects only tests,
+        //       normally, even though this is packaged as apk,
+        //       it's not loaded as apk so targetSdkVersion is ignored.
+        //       targetSdkVersion this must be < 28 because this application accesses hidden apis
+        //noinspection ExpiredTargetSdkVersion,OldTargetApi
+        targetSdkVersion 28
+        versionCode 1
+        versionName "0.1"
+    }
+
+    signingConfigs {
+        debug {
+            storeFile file('../app/testkey_untrusted.jks')
+            keyAlias 'alias'
+            storePassword 'xrj45yWGLbsO7W0v'
+            keyPassword 'xrj45yWGLbsO7W0v'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+        }
+    }
+
+
+}
+
+dependencies {
+    compileOnly project(':shell-loader:stub')
+}

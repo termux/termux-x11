@@ -43,5 +43,10 @@
         android:key="CustXDG"
         android:summary="Set the XDG runtime directory for wayland sockets"
         android:dialogMessage="Changes to this preference will apply on app restart" />
+    <CheckBoxPreference
+        android:defaultValue="false"
+        android:key="dexMetaKeyCapture"
+        android:summary="Allows interception of &quot;Alt+F4&quot;, &quot;Meta+D&quot;, &quot;Meta+E&quot;, -etc. (Samsung Dex only). "
+        android:title="Intercept system shortcuts" />
 
 </PreferenceScreen>

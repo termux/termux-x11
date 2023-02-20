@@ -70,7 +70,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
-        SamsungDexUtils.dexMetaKeyCapture(this);
 
         kbd = findViewById(R.id.additionalKbd);
         frm = findViewById(R.id.frame);
@@ -90,6 +89,24 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (i != null && i.getBooleanExtra(LorieService.LAUNCHED_BY_COMPATION, false)) {
             LorieService.sendRunCommand(this);
         }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        if (prefs.getBoolean("dexMetaKeyCapture", false)) {
+            SamsungDexUtils.dexMetaKeyCapture(this, true);
+        }
+    }
+
+    @Override
+    public void onPause() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        if (preferences.getBoolean("dexMetaKeyCapture", false)) {
+            SamsungDexUtils.dexMetaKeyCapture(this, false);
+        }
+        super.onPause();
     }
 
     @Override

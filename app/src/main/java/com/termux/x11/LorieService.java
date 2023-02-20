@@ -40,6 +40,7 @@ import android.view.WindowInsets;
 import android.widget.FrameLayout;
 
 import com.termux.x11.utils.KeyboardUtils;
+import com.termux.x11.utils.SamsungDexUtils;
 
 
 @SuppressWarnings({"ConstantConditions", "SameParameterValue", "SdCardPath"})
@@ -174,6 +175,10 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
             act.kbd.setVisibility(View.VISIBLE);
         else
             act.kbd.setVisibility(View.INVISIBLE);
+
+        if (preferences.getBoolean("dexMetaKeyCapture", false)) {
+            SamsungDexUtils.dexMetaKeyCapture(act, false);
+        }
 
         Log.e("LorieService", "Preferences changed");
     }

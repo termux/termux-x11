@@ -33,12 +33,12 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-	     <intent-filter>
-        	<category android:name="android.intent.category.SECONDARY_HOME" />
-    	    </intent-filter>
+            <intent-filter>
+                <category android:name="android.intent.category.SECONDARY_HOME" />
+            </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
         <activity
             android:theme="@style/Theme.AppCompat.DayNight"
@@ -46,6 +46,9 @@
             android:name=".LoriePreferences" 
             android:supportsPictureInPicture="false"
             android:resizeableActivity="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+            </intent-filter>
         </activity>
         <activity
             android:name=".GettingStartedActivity"

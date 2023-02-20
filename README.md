@@ -9,6 +9,19 @@ A [Termux](https://termux.com) add-on app providing Android frontend for Xwaylan
 Termux:X11 uses [Wayland](https://wayland.freedesktop.org/) display protocol. a modern replacement and the predecessor of the [X.org](https://www.x.org/wiki) server.
 Pay attention that it is not a full-fledged Wayland server and it can not handle Wayland apps except Xwayland.
 
+## Caveat
+This repo uses submodules. Use 
+
+```
+    git clone --recurse-submodules https://github.com/termux/termux-x11 
+```
+or
+
+```
+    git clone https://github.com/termux/termux-x11
+    git submodule update --init --recursive
+```
+
 ## How does it work?
 The Termux:X11 app's companion package executable creates socket through `$XDG_RUNTIME_DIR` in Termux directory by default.
 

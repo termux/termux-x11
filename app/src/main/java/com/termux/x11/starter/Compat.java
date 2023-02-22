@@ -19,8 +19,8 @@ import com.android.internal.app.IAppOpsService;
 import java.lang.reflect.InvocationTargetException;
 
 public class Compat {
-    static final String callingPackage = "com.termux";
-    static int startActivity(Intent i) {
+    public static final String callingPackage = "com.termux";
+    public static int startActivity(Intent i) {
         try {
             if (Build.VERSION.SDK_INT >= 30) {
                 IActivityTaskManager taskManager = ActivityTaskManager.getService();
@@ -46,7 +46,7 @@ public class Compat {
 
     @SuppressWarnings({"JavaReflectionMemberAccess", "SameParameterValue"})
     @SuppressLint("PrivateApi")
-    static boolean havePermission(String permission) {
+    public static boolean havePermission(String permission) {
         try {
             // We do not need Context to use checkOpNoThrow/unsafeCheckOpNoThrow so it can be null
             IBinder binder = ServiceManager.getService("appops");

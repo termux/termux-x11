@@ -43,7 +43,7 @@ static int socket_action(int* fd, char* path,
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_starter_Starter_checkXdgRuntimeDir(unused JNIEnv *env, unused jobject thiz) {
+Java_com_termux_x11_CmdEntryPoint_checkXdgRuntimeDir(unused JNIEnv *env, unused jobject thiz) {
     char* XDG_RUNTIME_DIR = getenv("XDG_RUNTIME_DIR");
     if (!XDG_RUNTIME_DIR || strlen(XDG_RUNTIME_DIR) == 0) {
         printf("$XDG_RUNTIME_DIR is unset.\n");
@@ -71,7 +71,7 @@ static const char *getWaylandSocketPath() {
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_termux_x11_starter_Starter_checkWaylandSocket(unused JNIEnv *env, unused jobject thiz) {
+Java_com_termux_x11_CmdEntryPoint_checkWaylandSocket(unused JNIEnv *env, unused jobject thiz) {
     int fd;
     errno = 0;
 
@@ -84,7 +84,7 @@ Java_com_termux_x11_starter_Starter_checkWaylandSocket(unused JNIEnv *env, unuse
 }
 
 JNIEXPORT jint JNICALL
-Java_com_termux_x11_starter_Starter_createWaylandSocket(unused JNIEnv *env, unused jobject thiz) {
+Java_com_termux_x11_CmdEntryPoint_createWaylandSocket(unused JNIEnv *env, unused jobject thiz) {
     int fd;
     errno = 0;
 
@@ -100,7 +100,7 @@ Java_com_termux_x11_starter_Starter_createWaylandSocket(unused JNIEnv *env, unus
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "hicpp-signed-bitwise"
 JNIEXPORT jint JNICALL
-Java_com_termux_x11_starter_Starter_openLogFD(unused JNIEnv *env, unused jobject thiz) {
+Java_com_termux_x11_CmdEntryPoint_openLogFD(unused JNIEnv *env, unused jobject thiz) {
     const char* TERMUX_X11_LOG_FILE = getenv("TERMUX_X11_LOG_FILE");
     int sv[2]; /* the pair of socket descriptors */
     if (TERMUX_X11_LOG_FILE == NULL || strlen(TERMUX_X11_LOG_FILE) == 0)
@@ -157,7 +157,7 @@ Java_com_termux_x11_starter_Starter_openLogFD(unused JNIEnv *env, unused jobject
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_starter_Starter_exec(JNIEnv *env, jclass clazz, jstring jpath, jobjectArray jargv) {
+Java_com_termux_x11_CmdEntryPoint_exec(JNIEnv *env, jclass clazz, jstring jpath, jobjectArray jargv) {
     // execv's argv array is a bit incompatible with Java's String[], so we do some converting here...
     int argc = (*env)->GetArrayLength(env, jargv) + 2; // Leading executable path and terminating NULL
     char *argv[argc];

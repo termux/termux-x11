@@ -1,10 +1,9 @@
-package com.termux.x11.starter;
+package com.termux.x11;
 
 import android.annotation.SuppressLint;
 import android.app.AppOpsManager;
 import android.content.ComponentName;
 import android.content.Intent;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -17,11 +16,12 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Objects;
 
-import com.termux.x11.common.ITermuxX11Internal;
+import com.termux.x11.starter.ActivityManager;
+import com.termux.x11.starter.Compat;
 
 @SuppressLint("UnsafeDynamicallyLoadedCode")
 @SuppressWarnings({"unused", "RedundantThrows", "SameParameterValue", "FieldCanBeLocal"})
-public class Starter {
+public class CmdEntryPoint {
     @SuppressLint("SdCardPath")
     private final String XwaylandPath = "/data/data/com.termux/files/usr/bin/Xwayland";
     private final ComponentName TermuxX11Component =
@@ -39,7 +39,7 @@ public class Starter {
         try {
             (new Thread(() -> {
                 try {
-                    (new Starter()).onRun(args);
+                    (new CmdEntryPoint()).onRun(args);
                 } catch (Throwable e) {
                     e.printStackTrace();
                 }
@@ -60,7 +60,7 @@ public class Starter {
     };
 
     public void onRun(String[] args) throws Throwable {
-        Starter.this.args = args;
+        CmdEntryPoint.this.args = args;
         checkXdgRuntimeDir();
         prepareLogFD();
         if (!Compat.havePermission(AppOpsManager.OPSTR_SYSTEM_ALERT_WINDOW)) {
@@ -187,7 +187,7 @@ public class Starter {
     class Service extends ITermuxX11Internal.Stub {
         @Override
         public boolean onTransact(int code, android.os.Parcel data, android.os.Parcel reply, int flags) throws RemoteException {
-            Starter.this.onTransact(code, data, reply, flags);
+            CmdEntryPoint.this.onTransact(code, data, reply, flags);
             return super.onTransact(code, data, reply, flags);
         }
 
@@ -195,7 +195,7 @@ public class Starter {
         public ParcelFileDescriptor getWaylandFD() throws RemoteException {
             System.err.println("Got getWaylandFD");
             try {
-                return Starter.this.getWaylandFD();
+                return CmdEntryPoint.this.getWaylandFD();
             } catch (Throwable e) {
                 throw new RemoteException(e.getMessage());
             }
@@ -211,7 +211,7 @@ public class Starter {
         @Override
         public void finish() throws RemoteException {
             System.err.println("Got finish request");
-            handler.postDelayed(Starter.this::onFinish, 10);
+            handler.postDelayed(CmdEntryPoint.this::onFinish, 10);
         }
     }
 

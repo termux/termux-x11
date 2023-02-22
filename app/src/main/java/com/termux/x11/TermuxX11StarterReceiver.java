@@ -16,8 +16,6 @@ import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.core.hardware.display.DisplayManagerCompat;
 
-import com.termux.x11.common.ITermuxX11Internal;
-
 public class TermuxX11StarterReceiver extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {

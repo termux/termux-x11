@@ -39,7 +39,7 @@ public:
     };
 
     struct surface_data {
-        uint32_t x{}, y{};
+        uint32_t x{}, y{}, id{};
         bool damaged{};
         wayland::buffer_t *buffer{};
         wayland::callback_t *frame_callback{};
@@ -60,8 +60,8 @@ public:
     } cursor{};
     static void blit(EGLNativeWindowType win, wayland::surface_t* sfc);
     std::function<void(bool)> set_renderer_visibility = [](bool){};
-    std::function<void(bool)> set_cursor_visibility = [](bool){};
-    std::function<void(int, int)> set_cursor_position = [](int, int){};
+    std::function<void(JNIEnv*, bool)> set_cursor_visibility = [](JNIEnv*, bool){};
+    std::function<void(JNIEnv*, int, int)> set_cursor_position = [](JNIEnv*, int, int){};
 
 // backend features
     void get_keymap(int *fd, int *size);

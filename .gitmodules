@@ -1,3 +1,15 @@
 [submodule "app/src/main/jni/wayland"]
 	path = app/src/main/jni/wayland
 	url = https://gitlab.freedesktop.org/wayland/wayland
+[submodule "x11-client-experimental/src/main/cpp/libxcb"]
+	path = x11-client-experimental/src/main/cpp/libxcb
+	url = https://gitlab.freedesktop.org/xorg/lib/libxcb
+[submodule "x11-client-experimental/src/main/cpp/xorgproto"]
+	path = x11-client-experimental/src/main/cpp/xorgproto
+	url = https://gitlab.freedesktop.org/xorg/proto/xorgproto
+[submodule "x11-client-experimental/src/main/cpp/xcbproto"]
+	path = x11-client-experimental/src/main/cpp/xcbproto
+	url = https://gitlab.freedesktop.org/xorg/proto/xcbproto
+[submodule "x11-client-experimental/src/main/cpp/libXau"]
+	path = x11-client-experimental/src/main/cpp/libXau
+	url = https://gitlab.freedesktop.org/xorg/lib/libxau

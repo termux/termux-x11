@@ -148,6 +148,10 @@ namespace wayland {
             return userdata;
         }
 
+		inline int id() {
+			return wl_resource_get_id(*this);
+		}
+
         inline void destroy() {
             wl_resource_destroy(*this);
         }

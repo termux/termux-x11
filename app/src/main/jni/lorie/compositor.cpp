@@ -39,6 +39,7 @@ lorie_compositor::lorie_compositor() {
         };
         compositor->on_create_surface = [=](surface_t* surface) {
             auto data = new surface_data;
+            data->id = surface->id(); // For debugging purposes
             surface->user_data() = data;
             surface->on_attach = [=](buffer_t* b, int32_t, int32_t) {
                 data->buffer = b;
@@ -46,13 +47,20 @@ lorie_compositor::lorie_compositor() {
             surface->on_damage = [=](int32_t, int32_t, int32_t, int32_t) {
                 data->damaged = true;
             };
+            surface->on_damage_buffer = [=](int32_t, int32_t, int32_t, int32_t) {
+                data->damaged = true;
+            };
             surface->on_frame = [=] (callback_t* cb) {
                 data->frame_callback = cb;
             };
             surface->on_commit = [=] {
                 redraw();
-                data->buffer->release();
-                data->frame_callback->done(resource_t::timestamp());
+                if (data->buffer)
+                    data->buffer->release();
+                if (data->frame_callback) {
+                    data->frame_callback->done(resource_t::timestamp());
+                    data->frame_callback = nullptr;
+                }
             };
             surface->on__destroy = [=] {
                 surface->destroy();
@@ -147,17 +155,20 @@ lorie_compositor::lorie_compositor() {
         };
     };
     global_xdg_wm_base.on_bind = [=, this](client_t* client, xdg_wm_base_t* wm_base) {
+        auto data = any_cast<client_data*>(client->user_data());
         wm_base->on_get_xdg_surface = [=, this](xdg_surface_t* xdg_surface, surface_t* sfc) {
             xdg_surface->on_get_toplevel = [=, this](xdg_toplevel_t*) {
-                auto data = any_cast<client_data*>(screen.sfc->client()->user_data());
                 wl_array keys{};
                 wl_array_init(&keys);
                 screen.sfc = sfc;
+                redraw();
+                set_renderer_visibility(sfc != nullptr);
+
                 if (data->pointer)
                     data->pointer->enter(next_serial(),sfc, 0, 0);
-                if (data->kbd)
+
+                if(data->kbd)
                     data->kbd->enter(next_serial(), sfc, &keys);
-                redraw();
             };
         };
         wm_base->on__destroy = [=]() { wm_base->destroy(); };
@@ -174,6 +185,8 @@ void lorie_compositor::redraw(bool force) {
         bool damaged = (data && data->damaged) || force;
         if (damaged)
             blit(screen.win, screen.sfc);
+        if (data)
+            data->damaged = false;
     }
 
     if (cursor.win) {
@@ -181,6 +194,8 @@ void lorie_compositor::redraw(bool force) {
         bool damaged = (data && data->damaged) || force;
         if (damaged)
             blit(cursor.win, cursor.sfc);
+        if (data)
+            data->damaged = false;
     }
 }
 
@@ -220,9 +235,6 @@ void lorie_compositor::pointer_motion(int x, int y) {
 
 	data->pointer->motion(resource_t::timestamp(), double(x), double(y));
 	data->pointer->frame();
-
-    set_cursor_visibility(true);
-    set_cursor_position(x, y);
 }
 
 void lorie_compositor::pointer_scroll(int axis, float value) {
@@ -235,7 +247,6 @@ void lorie_compositor::pointer_scroll(int axis, float value) {
     data->pointer->axis_discrete(pointer_axis(axis), (value >= 0) ? 1 : -1);
     data->pointer->axis(resource_t::timestamp(), pointer_axis(axis), value);
     data->pointer->frame();
-    set_cursor_visibility(true);
 }
 
 void lorie_compositor::pointer_button(int button, int state) {
@@ -248,7 +259,6 @@ void lorie_compositor::pointer_button(int button, int state) {
 	LOGI("pointer button: %d %d", button, state);
 	data->pointer->button(next_serial(), resource_t::timestamp(), button, pointer_button_state(state));
 	data->pointer->frame();
-    set_cursor_visibility(true);
 }
 
 void lorie_compositor::keyboard_key(uint32_t key, keyboard_key_state state) {

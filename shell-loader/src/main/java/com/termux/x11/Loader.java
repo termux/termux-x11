@@ -14,7 +14,7 @@ import dalvik.system.PathClassLoader;
 @SuppressLint("UnsafeDynamicallyLoadedCode")
 public class Loader {
     private final static String targetPackageName = "com.termux.x11";
-    private final static String targetClassName = "com.termux.x11.starter.Starter";
+    private final static String targetClassName = "com.termux.x11.CmdEntryPoint";
     private final static String logTag = "Termux:X11 loader";
 
     /**

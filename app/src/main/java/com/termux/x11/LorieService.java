@@ -453,7 +453,10 @@ public class LorieService extends Service implements View.OnApplyWindowInsetsLis
     @SuppressWarnings("unused")
     // It is used in native code
     void setRendererVisibility(boolean visible) {
-        act.runOnUiThread(()-> act.findViewById(R.id.stub).setVisibility(visible?View.INVISIBLE:View.VISIBLE));
+        act.runOnUiThread(()-> {
+            act.findViewById(R.id.stub).setVisibility(visible?View.INVISIBLE:View.VISIBLE);
+            act.findViewById(R.id.lorieView).setVisibility(visible?View.VISIBLE:View.INVISIBLE);
+        });
     }
 
     @SuppressWarnings("unused")

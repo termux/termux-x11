@@ -36,18 +36,19 @@ lorie_compositor::lorie_compositor(jobject thiz): lorie_compositor() {
             env->CallVoidMethod(thiz, set_renderer_visibility_id, visible);
         };
 
-        set_cursor_visibility = [=](bool visible) {
-            env->CallVoidMethod(thiz, set_cursor_visibility_id, visible);
-            if (!visible)
-                set_cursor_position = [=](int, int) {};
+        set_cursor_visibility = [=](JNIEnv* jenv, bool visible) {
+            jenv->CallVoidMethod(thiz, set_cursor_visibility_id, visible);
+            if (!visible || !screen.sfc)
+                set_cursor_position = [=](JNIEnv*, int, int) {};
             else
-                set_cursor_position = [=](int x, int y) {
-                    auto b = cursor.sfc ? any_cast<surface_data*>(cursor.sfc->user_data())->buffer : nullptr;
+                set_cursor_position = [=](JNIEnv* jenv, int x, int y) {
+                    auto data = cursor.sfc ? any_cast<surface_data*>(cursor.sfc->user_data()) : nullptr;
+                    auto b = data->buffer ?: nullptr;
                     int sx = x - cursor.hotspot_x;
                     int sy = y - cursor.hotspot_y;
                     int w = b ? b->shm_width() : 0;
                     int h = b ? b->shm_height() : 0;
-                    env->CallVoidMethod(thiz, set_cursor_rect_id, sx, sy, w, h);
+                    jenv->CallVoidMethod(thiz, set_cursor_rect_id, sx, sy, w, h);
                 };
         };
 
@@ -228,16 +229,44 @@ JNI_DECLARE(LorieService, windowChanged)(JNIEnv *env, jobject thiz, jobject surf
 extern "C" JNIEXPORT void JNICALL
 JNI_DECLARE(LorieService, pointerMotion)(JNIEnv *env, jobject thiz, jint x, jint y) {
     queue<&lorie_compositor::pointer_motion>(env, thiz, x, y);
+    if (lorie_compositor::compositor_field_id) {
+        auto native =
+                lorie_compositor::compositor_field_id ?
+                reinterpret_cast<lorie_compositor *>(env->GetLongField(thiz,lorie_compositor::compositor_field_id)):
+                nullptr;
+        if (native) {
+            native->set_cursor_visibility(env, true);
+            native->set_cursor_position(env, x, y);
+        }
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
 JNI_DECLARE(LorieService, pointerScroll)(JNIEnv *env, jobject thiz, jint axis, jfloat value) {
     queue<&lorie_compositor::pointer_scroll>(env, thiz, axis, value);
+    if (lorie_compositor::compositor_field_id) {
+        auto native =
+                lorie_compositor::compositor_field_id ?
+                reinterpret_cast<lorie_compositor *>(env->GetLongField(thiz,lorie_compositor::compositor_field_id)):
+                nullptr;
+        if (native) {
+            native->set_cursor_visibility(env, true);
+        }
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
 JNI_DECLARE(LorieService, pointerButton)(JNIEnv *env, jobject thiz, jint button, jint type) {
     queue<&lorie_compositor::pointer_button>(env, thiz, uint32_t(button), uint32_t(type));
+    if (lorie_compositor::compositor_field_id) {
+        auto native =
+                lorie_compositor::compositor_field_id ?
+                reinterpret_cast<lorie_compositor *>(env->GetLongField(thiz,lorie_compositor::compositor_field_id)):
+                nullptr;
+        if (native) {
+            native->set_cursor_visibility(env, true);
+        }
+    }
 }
 
 extern "C" void get_character_data(char** layout, int *shift, int *ec, char *ch);

@@ -39,19 +39,19 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void surfaceCreated(@NonNull SurfaceHolder holder) {
                 Log.e("asd", "surfaceCreated");
-                surface(holder.getSurface());
+                surface(holder.getSurface(), 0, 0);
             }
 
             @Override
             public void surfaceChanged(@NonNull SurfaceHolder holder, int format, int width, int height) {
                 Log.e("asd", "surfaceChanged");
-                surface(holder.getSurface());
+                surface(holder.getSurface(), width, height);
             }
 
             @Override
             public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
                 Log.e("asd", "surfaceDestroyed");
-                surface(null);
+                surface(null, 0, 0);
             }
         });
     }
@@ -66,7 +66,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private native void start(int fd);
-    private  native void surface(Surface sfc);
+    private  native void surface(Surface sfc, int width, int height);
 
     static {
         System.loadLibrary("lorie");

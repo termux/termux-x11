@@ -22,3 +22,6 @@
 	path = x11-client-experimental/src/main/cpp/libxcb-errors
 	url = https://gitlab.freedesktop.org/xorg/lib/libxcb-errors
 	ignore = dirty
+[submodule "x11-client-experimental/src/main/cpp/libxcvt"]
+	path = x11-client-experimental/src/main/cpp/libxcvt
+	url = https://gitlab.freedesktop.org/xorg/lib/libxcvt

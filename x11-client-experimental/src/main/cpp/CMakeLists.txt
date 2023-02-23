@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 project(lorie)
+set(CMAKE_CXX_STANDARD 20)
 
 find_package(Python3 REQUIRED)
 
@@ -98,6 +99,13 @@ add_library(xcb-errors
 target_link_libraries(xcb-errors xcbproto)
 
 ####################################################################################################
+########################################## LIBXCVT #################################################
+####################################################################################################
+
+add_library(xcvt "${CMAKE_CURRENT_SOURCE_DIR}/libxcvt/lib/libxcvt.c")
+target_include_directories(xcvt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libxcvt/include")
+
+####################################################################################################
 ########################################### LORIE ##################################################
 ####################################################################################################
 
@@ -106,5 +114,5 @@ add_library(xcb-xfixes SHARED ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
 add_library(xcb-xinput SHARED ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
 add_library(xcb-damage SHARED ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
 
-add_library(lorie SHARED lorie/lorie.cpp)
-target_link_libraries(lorie xcbproto xcb xcb-errors xcb-shm xcb-xfixes xcb-xinput xcb-damage "-llog" "-landroid")
+add_library(lorie SHARED lorie/lorie.cpp lorie/lorie_message_queue.cpp)
+target_link_libraries(lorie xcbproto xcb xcb-errors xcb-shm xcb-xfixes xcb-xinput xcb-damage xcvt "-llog" "-landroid")

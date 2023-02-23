@@ -53,7 +53,10 @@ public class CmdEntryPoint {
         ctx.sendBroadcast(intent);
 
         Looper.loop();
+<<<<<<< Updated upstream
 //        connect();
+=======
+>>>>>>> Stashed changes
     }
 
     static native int connect();

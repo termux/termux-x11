@@ -78,11 +78,15 @@ add_custom_command(
         COMMENT "Generating errors database from XML"
         VERBATIM
 )
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/libxcb-errors/src" "${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src")
+include_directories(
+        "${CMAKE_CURRENT_SOURCE_DIR}/libxcb-errors/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src"
+        "${CMAKE_CURRENT_BINARY_DIR}/generated"
+)
 add_library(xcb-errors
         "${CMAKE_CURRENT_SOURCE_DIR}/libxcb-errors/src/xcb_errors.c"
         "${CMAKE_CURRENT_BINARY_DIR}/extensions.c"
-        )
+)
 
 ####################################################################################################
 ########################################### LORIE ##################################################

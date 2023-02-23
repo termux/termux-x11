@@ -413,8 +413,8 @@ static void thread_proc(int sockfd[1]) {
         } else if (event->response_type == XCB_CONFIGURE_NOTIFY) {
             ALOGE("Configure notification. ");
             auto e = reinterpret_cast<xcb_configure_request_event_t *>(event);
-            ALOGE("old w: %d h: %d",screen->width_in_pixels, screen->height_in_pixels);
-            ALOGE("new w: %d h: %d",e->width, e->height);
+            ALOGE("old w: %d h: %d", screen->width_in_pixels, screen->height_in_pixels);
+            ALOGE("new w: %d h: %d", e->width, e->height);
             screen->width_in_pixels = e->width;
             screen->height_in_pixels = e->height;
         } else if (c.damage.is_damage_notify_event(event)) {

@@ -11,11 +11,7 @@ find_package(Python3 REQUIRED)
 
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
 execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_BINARY_DIR}/generated/xcb)
-<<<<<<< Updated upstream
-execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/xcb.h ${CMAKE_CURRENT_BINARY_DIR}/xcb/xcb.h)
-=======
 execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/xcb.h ${CMAKE_CURRENT_BINARY_DIR}/generated/xcb.h)
->>>>>>> Stashed changes
 
 set (XCB_GENERATED)
 set(codegen "${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/c_client.py")
@@ -97,18 +93,10 @@ include_directories(
 add_library(xcb-errors
         "${CMAKE_CURRENT_SOURCE_DIR}/libxcb-errors/src/xcb_errors.c"
         "${CMAKE_CURRENT_BINARY_DIR}/extensions.c"
-<<<<<<< Updated upstream
-        )
-
-target_link_libraries(xcb-errors xcbproto)
-
-
-=======
 )
 
 target_link_libraries(xcb-errors xcbproto)
 
->>>>>>> Stashed changes
 ####################################################################################################
 ########################################### LORIE ##################################################
 ####################################################################################################

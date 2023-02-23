@@ -13,3 +13,6 @@
 [submodule "x11-client-experimental/src/main/cpp/libXau"]
 	path = x11-client-experimental/src/main/cpp/libXau
 	url = https://gitlab.freedesktop.org/xorg/lib/libxau
+[submodule "x11-client-experimental/src/main/cpp/libxcb-errors"]
+	path = x11-client-experimental/src/main/cpp/libxcb-errors
+	url = https://gitlab.freedesktop.org/xorg/lib/libxcb-errors

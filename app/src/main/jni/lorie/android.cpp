@@ -42,6 +42,8 @@ lorie_compositor::lorie_compositor(jobject thiz): lorie_compositor() {
                 set_cursor_position = [=](JNIEnv*, int, int) {};
             else
                 set_cursor_position = [=](JNIEnv* jenv, int x, int y) {
+                    if (!cursor.sfc)
+                        return;
                     auto data = cursor.sfc ? any_cast<surface_data*>(cursor.sfc->user_data()) : nullptr;
                     auto b = data->buffer ?: nullptr;
                     int sx = x - cursor.hotspot_x;

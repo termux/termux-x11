@@ -29,7 +29,6 @@ foreach (xcbproto IN LISTS xcbprotos)
             VERBATIM
     )
     set (XCB_GENERATED ${XCB_GENERATED} ${gensrc} ${genhdr})
-
 endforeach ()
 
 ####################################################################################################
@@ -46,18 +45,54 @@ target_include_directories(xorgproto INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/xorgp
 set(XAU_SOURCES AuDispose.c AuFileName.c AuGetAddr.c AuGetBest.c AuLock.c AuRead.c Autest.c
         AuUnlock.c AuWrite.c include/X11/Xauth.h)
 list(TRANSFORM XAU_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/libXau/)
-add_library(libXau SHARED ${XAU_SOURCES})
-target_include_directories(libXau PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libXau/include)
-target_link_libraries(libXau xorgproto)
+add_library(Xau SHARED ${XAU_SOURCES})
+target_include_directories(Xau PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libXau/include)
+target_link_libraries(Xau xorgproto)
 
 ####################################################################################################
 ########################################### LIBXCB #################################################
 ####################################################################################################
 
+execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/xcb)
+execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/xcb.h ${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/xcb/xcb.h)
+
 set(XCB_SOURCES xcb_auth.c xcb_conn.c xcb_ext.c xcb_in.c xcb_list.c
         xcb_out.c xcb_util.c xcb_xid.c xcb.h xcbext.h xcbint.h xcb_windefs.h)
 list(TRANSFORM XCB_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/)
-include_directories("libxcb/src" "${CMAKE_CURRENT_BINARY_DIR}/generated")
-add_library(libxcb SHARED ${XCB_SOURCES} ${XCB_GENERATED})
-target_compile_options(libxcb PRIVATE "-DXCB_QUEUE_BUFFER_SIZE=16384")
-target_link_libraries(libxcb libXau)
+set(XCB_SOURCES ${XCB_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
+add_library(xcb SHARED ${XCB_SOURCES} ${XCB_GENERATED})
+target_include_directories(xcb PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src" "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_compile_options(xcb PRIVATE "-DXCB_QUEUE_BUFFER_SIZE=16384" "-DHAVE_SENDMSG")
+target_link_libraries(xcb Xau)
+
+####################################################################################################
+####################################### LIBXCB-ERRORS ##############################################
+####################################################################################################
+
+add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/extensions.c"
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/libxcb-errors/src/extensions.py"
+        "${CMAKE_CURRENT_BINARY_DIR}/extensions.c" ${xcbprotos}
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/libxcb-errors/src/extensions.py" ${xcbprotos}
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+        COMMENT "Generating errors database from XML"
+        VERBATIM
+)
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/libxcb-errors/src" "${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src")
+add_library(xcb-errors
+        "${CMAKE_CURRENT_SOURCE_DIR}/libxcb-errors/src/xcb_errors.c"
+        "${CMAKE_CURRENT_BINARY_DIR}/extensions.c"
+        )
+
+####################################################################################################
+########################################### LORIE ##################################################
+####################################################################################################
+
+add_library(xcb-shm SHARED ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
+add_library(xcb-xfixes SHARED ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
+add_library(xcb-xinput SHARED ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
+add_library(xcb-damage SHARED ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
+
+add_library(lorie SHARED lorie/lorie.cpp)
+#target_link_libraries(lorie xcb xcb-errors "-llog")
+target_link_libraries(lorie xcb xcb-errors xcb-shm xcb-xfixes xcb-xinput xcb-damage "-llog" "-landroid")

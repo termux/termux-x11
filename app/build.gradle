@@ -20,8 +20,8 @@ android {
         versionName "1.02.06"
 
         externalNativeBuild {
-            ndkBuild {
-                arguments "WAYLAND_GENERATED=${waylandOut}"
+            cmake {
+                arguments "-DWAYLAND_GENERATED_DIR=${waylandOut}"
             }
         }
     }
@@ -52,8 +52,8 @@ android {
     }
 
     externalNativeBuild {
-        ndkBuild {
-            path "src/main/jni/Android.mk"
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
         }
     }
 
@@ -69,8 +69,8 @@ android {
 
 task patchWayland {
     println("Patch can fail here, it is normal if a patch was already applied")
-    ant.patch(patchfile: "${project.projectDir}/src/main/jni/wayland.patch", dir: "${project.projectDir}/src/main/jni/wayland/src", failonerror:false)
-    ant.patch(patchfile: "${project.projectDir}/src/main/jni/wayland2.patch", dir: "${project.projectDir}/src/main/jni/wayland", failonerror:false)
+    ant.patch(patchfile: "${project.projectDir}/src/main/cpp/wayland.patch", dir: "${project.projectDir}/src/main/cpp/wayland/src", failonerror:false)
+    ant.patch(patchfile: "${project.projectDir}/src/main/cpp/wayland2.patch", dir: "${project.projectDir}/src/main/cpp/wayland", failonerror:false)
 }
 
 tasks.matching { it.name.toLowerCase().contains("ndk") && !it.name.toLowerCase().contains("clean") }
@@ -95,5 +95,5 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     implementation 'androidx.annotation:annotation:1.5.0'
     implementation 'androidx.drawerlayout:drawerlayout:1.1.1'
-    compileOnly project(':app:stub')
+    compileOnly project(':shell-loader:stub')
 }

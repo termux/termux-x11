@@ -18,12 +18,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
-        tools:ignore="GoogleAppIndexingWarning"
-        >
-        <service
-            android:name=".LorieService"
-            android:enabled="true"
-            android:exported="false"/>
+        tools:ignore="GoogleAppIndexingWarning">
         <activity android:name=".MainActivity"
             android:launchMode="singleInstance"
             android:supportsPictureInPicture="true"
@@ -45,7 +40,8 @@
             android:excludeFromRecents="true"
             android:name=".LoriePreferences" 
             android:supportsPictureInPicture="false"
-            android:resizeableActivity="true">
+            android:resizeableActivity="true"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
@@ -53,9 +49,6 @@
         <activity
             android:name=".GettingStartedActivity"
             android:theme="@style/Theme.BaseActivity.DayNight.NoActionBar"
-            android:exported="true" />
-        <activity android:name=".TermuxX11StarterReceiver"
-            android:excludeFromRecents="true"
             android:exported="true" />
 	<meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true"/>
 	<meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />

@@ -1,7 +1,6 @@
 package com.termux.x11;
 
 import android.content.SharedPreferences;
-import android.inputmethodservice.Keyboard;
 import android.os.Bundle;
 import android.preference.Preference;
 import android.preference.PreferenceFragment;
@@ -13,7 +12,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import android.util.Log;
 import android.view.MenuItem;
 
-public class LoriePreferences extends AppCompatActivity implements SharedPreferences.OnSharedPreferenceChangeListener {
+public class LoriePreferences extends AppCompatActivity {
 
     static final String SHOW_IME_WITH_HARD_KEYBOARD = "show_ime_with_hard_keyboard";
     LoriePreferenceFragment loriePreferenceFragment;
@@ -34,21 +33,6 @@ public class LoriePreferences extends AppCompatActivity implements SharedPrefere
     }
 
     @Override
-    public void onResume() {
-        super.onResume();
-        if (loriePreferenceFragment != null)
-            loriePreferenceFragment.getPreferenceManager().getSharedPreferences().registerOnSharedPreferenceChangeListener(this);
-
-    }
-
-    @Override
-    public void onPause() {
-        if (loriePreferenceFragment != null)
-            loriePreferenceFragment.getPreferenceManager().getSharedPreferences().unregisterOnSharedPreferenceChangeListener(this);
-        super.onPause();
-    }
-
-    @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
 
@@ -60,11 +44,7 @@ public class LoriePreferences extends AppCompatActivity implements SharedPrefere
         return super.onOptionsItemSelected(item);
     }
 
-    @Override
-    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-        LorieService.start(LorieService.ACTION_PREFERENCES_CHANGED);
-    }
-
+    @SuppressWarnings("deprecation")
     public static class LoriePreferenceFragment extends PreferenceFragment implements PreferenceScreen.OnPreferenceClickListener, Preference.OnPreferenceChangeListener {
 
         @Override

@@ -1,17 +1,29 @@
 package com.termux.x11;
 
+import static com.termux.x11.CmdEntryPoint.ACTION_START;
+
+import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.ParcelFileDescriptor;
+import android.os.RemoteException;
 import android.preference.PreferenceManager;
-import android.util.Log;
 import android.view.Gravity;
+import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.PointerIcon;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -24,18 +36,13 @@ import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.termux.x11.utils.KeyboardUtils;
 import com.termux.x11.utils.PermissionUtils;
 import com.termux.x11.utils.SamsungDexUtils;
 
-import static com.termux.x11.LorieService.ACTION_START_PREFERENCES_ACTIVITY;
-import static com.termux.x11.LorieService.handler;
-
-import java.util.Objects;
-
-public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener {
+public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener, TouchParser.OnTouchParseListener {
     static final String REQUEST_LAUNCH_EXTERNAL_DISPLAY = "request_launch_external_display";
 
     private static final int[] keys = {
@@ -51,8 +58,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     AdditionalKeyboardView kbd;
     FrameLayout frm;
+    private TouchParser mTP;
+    private final ServiceEventListener listener = new ServiceEventListener();
+    private ICmdEntryInterface service = null;
 
-    @Override
+    @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt"}) @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
@@ -61,8 +71,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             setFullScreenForExternalDisplay();
         }
 
-        LorieService.setMainActivity(this);
-        LorieService.start(LorieService.ACTION_START_FROM_ACTIVITY);
+        preferences.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> onPreferencesChanged());
+
+        onLorieServiceStart();
 
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN |
                 WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
@@ -76,7 +87,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         Button preferencesButton = findViewById(R.id.preferences_button);
         preferencesButton.setOnClickListener((l) -> {
             Intent i = new Intent(this, LoriePreferences.class);
-            i.setAction(ACTION_START_PREFERENCES_ACTIVITY);
+            i.setAction(Intent.ACTION_MAIN);
             startActivity(i);
         });
 
@@ -85,9 +96,36 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
              getDecorView().
               setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
 
-        Intent i = getIntent();
-        if (i != null && i.getBooleanExtra(LorieService.LAUNCHED_BY_COMPATION, false)) {
-            LorieService.sendRunCommand(this);
+        registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (ACTION_START.equals(intent.getAction())) {
+                    try {
+                        IBinder b = intent.getBundleExtra("").getBinder("");
+                        service = ICmdEntryInterface.Stub.asInterface(b);
+                        ParcelFileDescriptor fd = service.getXConnection();
+                        if (fd != null)
+                            connect(fd.detachFd());
+                    } catch (Exception ignored) {}
+                }
+            }
+        }, new IntentFilter(ACTION_START));
+    }
+
+    void onPreferencesChanged() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        int mode = Integer.parseInt(preferences.getString("touchMode", "1"));
+        mTP.setMode(mode);
+
+        getWindow().getDecorView().setOnApplyWindowInsetsListener(this);
+
+        if (preferences.getBoolean("showAdditionalKbd", true))
+            kbd.setVisibility(View.VISIBLE);
+        else
+            kbd.setVisibility(View.INVISIBLE);
+
+        if (preferences.getBoolean("dexMetaKeyCapture", false)) {
+            SamsungDexUtils.dexMetaKeyCapture(this, false);
         }
     }
 
@@ -149,12 +187,18 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         orientation = newConfig.orientation;
     }
 
-    public void onLorieServiceStart(LorieService instance) {
+    public void onLorieServiceStart() {
         SurfaceView lorieView = findViewById(R.id.lorieView);
         SurfaceView cursorView = findViewById(R.id.cursorView);
 
-        instance.setListeners(lorieView, cursorView);
-        kbd.reload(keys, lorieView, LorieService.getOnKeyListener());
+        lorieView.setFocusable(true);
+        lorieView.setFocusableInTouchMode(true);
+        lorieView.requestFocus();
+
+        listener.setAsListenerTo(lorieView, cursorView);
+
+        mTP = new TouchParser(lorieView, this);
+        kbd.reload(keys, lorieView, listener);
     }
 
     @Override
@@ -206,9 +250,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         }
     }
 
+    @SuppressLint("WrongConstant")
     @Override
     public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(LorieService.getInstance());
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         if (preferences.getBoolean("showAdditionalKbd", true) && kbd != null) {
             handler.postDelayed(() -> {
                 Rect r = new Rect();
@@ -228,6 +273,131 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }, 100);
         }
 
-        return LorieService.getInstance().onApplyWindowInsets(v, insets);
+        SurfaceView c = v.getRootView().findViewById(R.id.lorieView);
+        SurfaceHolder h = (c != null) ? c.getHolder() : null;
+        if (h != null)
+            handler.postDelayed(() -> windowChanged(h.getSurface(), 0, 0), 100);
+        return insets;
+    }
+
+    @SuppressWarnings("SameParameterValue")
+    private class ServiceEventListener implements View.OnKeyListener {
+        @SuppressLint({"WrongConstant", "ClickableViewAccessibility"})
+        private void setAsListenerTo(SurfaceView view, SurfaceView cursor) {
+            view.setOnTouchListener((v, e) -> mTP.onTouchEvent(e));
+            view.setOnHoverListener((v, e) -> mTP.onTouchEvent(e));
+            view.setOnGenericMotionListener((v, e) -> mTP.onTouchEvent(e));
+            view.setOnKeyListener(this);
+            windowChanged(view.getHolder().getSurface(), view.getWidth(), view.getHeight());
+
+            cursor.getHolder().addCallback(new SurfaceHolder.Callback() {
+                @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
+                    cursor.getHolder().setFormat(PixelFormat.TRANSLUCENT);
+                }
+                @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int w, int h) {
+                    cursor.getHolder().setFormat(PixelFormat.TRANSLUCENT);
+                    cursorChanged(holder.getSurface());
+                }
+                @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
+                    cursorChanged(null);
+                }
+            });
+
+            view.getHolder().addCallback(new SurfaceHolder.Callback() {
+                @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {}
+                @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int w, int h) {
+                    windowChanged(holder.getSurface(), w, h);
+                    if (service != null) {
+                        try {
+                            service.outputResize(w, h);
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+                @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
+                    windowChanged(null, 0, 0);
+                }
+            });
+        }
+
+        private boolean isSource(KeyEvent e, int source) {
+            return (e.getSource() & source) == source;
+        }
+
+        private boolean rightPressed = false; // Prevent right button press event from being repeated
+        private boolean middlePressed = false; // Prevent middle button press event from being repeated
+        @Override
+        public boolean onKey(View v, int keyCode, KeyEvent e) {
+            int action = 0;
+
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
+                if (isSource(e, InputDevice.SOURCE_MOUSE) &&
+                        rightPressed != (e.getAction() == KeyEvent.ACTION_DOWN)) {
+                    onPointerButton(TouchParser.BTN_RIGHT, (e.getAction() == KeyEvent.ACTION_DOWN) ? TouchParser.ACTION_DOWN : TouchParser.ACTION_UP);
+                    rightPressed = (e.getAction() == KeyEvent.ACTION_DOWN);
+                } else if (e.getAction() == KeyEvent.ACTION_UP) {
+                    KeyboardUtils.toggleKeyboardVisibility(MainActivity.this);
+                    if (kbd!=null)
+                        kbd.requestFocus();
+                }
+                return true;
+            }
+
+            if (keyCode == KeyEvent.KEYCODE_MENU &&
+                    isSource(e, InputDevice.SOURCE_MOUSE) &&
+                    middlePressed != (e.getAction() == KeyEvent.ACTION_DOWN)) {
+                onPointerButton(TouchParser.BTN_MIDDLE, (e.getAction() == KeyEvent.ACTION_DOWN) ? TouchParser.ACTION_DOWN : TouchParser.ACTION_UP);
+                middlePressed = (e.getAction() == KeyEvent.ACTION_DOWN);
+                return true;
+            }
+
+            if (e.getAction() == KeyEvent.ACTION_DOWN) action = TouchParser.ACTION_DOWN;
+            if (e.getAction() == KeyEvent.ACTION_UP) action = TouchParser.ACTION_UP;
+            onKeyboardKey(action, keyCode, e.isShiftPressed() ? 1 : 0, e.getCharacters());
+            return true;
+        }
+    }
+
+    @SuppressWarnings("unused")
+    // It is used in native code
+    void setRendererVisibility(boolean visible) {
+        runOnUiThread(()-> {
+            findViewById(R.id.stub).setVisibility(visible?View.INVISIBLE:View.VISIBLE);
+            findViewById(R.id.lorieView).setVisibility(visible?View.VISIBLE:View.INVISIBLE);
+        });
+    }
+
+    @SuppressWarnings("unused")
+    // It is used in native code
+    void setCursorVisibility(boolean visible) {
+        runOnUiThread(()-> findViewById(R.id.cursorView).setVisibility(visible?View.VISIBLE:View.INVISIBLE));
+    }
+
+    @SuppressWarnings("unused")
+    // It is used in native code
+    void setCursorRect(int x, int y, int w, int h) {
+        runOnUiThread(()-> {
+            SurfaceView v = findViewById(R.id.cursorView);
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(w, h);
+            params.setMargins(x, y, 0, 0);
+
+            v.setLayoutParams(params);
+            v.setVisibility(View.VISIBLE);
+        });
+    }
+
+    static Handler handler = new Handler();
+
+    private native long connect(int fd);
+    private native void cursorChanged(Surface surface);
+    private native void windowChanged(Surface surface, int width, int height);
+    public native void onPointerMotion(int x, int y);
+    public native void onPointerScroll(int axis, float value);
+    public native void onPointerButton(int button, int type);
+    private native void onKeyboardKey(int key, int type, int shift, String characters);
+
+    static {
+        System.loadLibrary("lorie-client");
     }
 }

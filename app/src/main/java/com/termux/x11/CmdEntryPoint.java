@@ -1,236 +1,163 @@
 package com.termux.x11;
 
 import android.annotation.SuppressLint;
-import android.app.AppOpsManager;
-import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.IBinder;
 import android.os.Looper;
-import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
-import android.os.RemoteException;
 
-import java.io.IOException;
-import java.io.PrintStream;
-import java.util.Objects;
+import java.io.DataInputStream;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.Arrays;
+import java.util.List;
 
-import com.termux.x11.starter.ActivityManager;
-import com.termux.x11.starter.Compat;
-
-@SuppressLint("UnsafeDynamicallyLoadedCode")
-@SuppressWarnings({"unused", "RedundantThrows", "SameParameterValue", "FieldCanBeLocal"})
 public class CmdEntryPoint {
-    @SuppressLint("SdCardPath")
-    private final String XwaylandPath = "/data/data/com.termux/files/usr/bin/Xwayland";
-    private final ComponentName TermuxX11Component =
-            ComponentName.unflattenFromString("com.termux.x11/.TermuxX11StarterReceiver");
-    private String[] args;
-    private Service svc;
-    private ParcelFileDescriptor logFD;
+    public static final String ACTION_START = "com.termux.x11.CmdEntryPoint.ACTION_START";
+    public static final int PORT = 7892;
+    public static final byte[] MAGIC = "0xDEADBEEF".getBytes();
+
+    // this constant is used in Xwayland itself
+    // https://github.com/freedesktop/xorg-xserver/blob/ccdd431cd8f1cabae9d744f0514b6533c438908c/hw/xwayland/xwayland-screen.c#L66
+    public static final int DEFAULT_DPI = 96;
+
+    @SuppressLint("StaticFieldLeak")
+    private static final Context ctx = android.app.ActivityThread.systemMain().getSystemContext();
+    private static final Handler handler = new Handler();
 
     /**
      * Command-line entry point.
+     * [1]
+     * Application creates socket with name $WAYLAND_DISPLAY in folder $XDG_RUNTIME_DIR
+     * If these environment variables are unset they are specified as
+     * WAYLAND_DISPLAY="termux-x11"
+     * XDG_RUNTIME_DIR="/data/data/com.termux/files/usr/tmp"
+     * Any commandline arguments passed to this program are passed to Xwayland.
+     * The only exception is `--no-xwayland-start`, read [4].
+     *
+     * [2]
+     * Please, do not set WAYLAND_DISPLAY to "wayland-0", lots of programs (primarily GTK-based)
+     * are trying to connect the compositor and crashing. Compositor in termux-x11 is a fake and a stub.
+     * It is only designed to handle Xwayland.
+     *
+     * [3]
+     * Also you should set TMPDIR environment variable in the case if you are running Xwayland in
+     * non-termux environment. That is the only way to localize X connection socket.
+     * TMPDIR should be accessible by termux-x11
+     *
+     * [4]
+     * You can run `termux-x11 --no-xwayland-start` to spawn compositor, but not to spawn Termux's
+     * Xwayland in the case you want to use Xwayland contained in chroot environment.
+     * Do not forget about [2] to avoid application crashes.
+     *
+     * [5]
+     * You can specify DPI by using `-dpi` option.
+     * It is Xwayland option, but termux-x11 also handles it.
      *
      * @param args The command-line arguments
      */
     public static void main(String[] args) {
-        try {
-            (new Thread(() -> {
-                try {
-                    (new CmdEntryPoint()).onRun(args);
-                } catch (Throwable e) {
-                    e.printStackTrace();
-                }
-            })).start();
-
-            synchronized (Thread.currentThread()) {
-                Looper.loop();
-            }
-        } catch (Throwable e) {
-            e.printStackTrace();
-        }
+        handler.post(() -> new CmdEntryPoint(args));
+        Looper.loop();
     }
 
-    Runnable failedToStartActivity = () -> {
-            System.err.println("Android reported activity started but we did not get any respond");
-            System.err.println("Looks like we failed to start activity.");
-            exit(1);
-    };
+    @SuppressWarnings("FieldCanBeLocal")
+    private int dpi = DEFAULT_DPI;
+    @SuppressWarnings("FieldCanBeLocal")
+    private int display = 0;
 
-    public void onRun(String[] args) throws Throwable {
-        CmdEntryPoint.this.args = args;
-        checkXdgRuntimeDir();
-        prepareLogFD();
-        if (!Compat.havePermission(AppOpsManager.OPSTR_SYSTEM_ALERT_WINDOW)) {
-            System.err.println("Looks like " + Compat.callingPackage +
-                        " lacks \"Draw Over Apps\" permission.");
-            System.err.println("You can grant " + Compat.callingPackage +
-                        " the \"Draw Over Apps\" permission from its App Info activity:");
-            System.err.println("\tAndroid Settings -> Apps -> Termux -> Advanced -> Draw over other apps.");
-        }
-
-        if (checkWaylandSocket()) {
-          System.err.println("termux-x11 is already running");
-          startXwayland();
+    CmdEntryPoint(String[] args) {
+        if (socketExists()) {
+            System.err.println("termux-x11 is already running. You can kill it with command `pkill -9 Xwayland`");
+            handler.post(() -> System.exit(0));
         } else {
-            svc = new Service();
-            handler.postDelayed(failedToStartActivity, 2000);
-            boolean launched = startActivity(svc);
-        }
-    }
-
-    public void onTransact(int code, Parcel data, Parcel reply, int flags) {
-        handler.removeCallbacks(failedToStartActivity);
-    }
-
-    private void prepareLogFD() {
-        logFD = ParcelFileDescriptor.adoptFd(openLogFD());
-    }
-
-    private ParcelFileDescriptor getWaylandFD() throws Throwable {
-        try {
-            ParcelFileDescriptor pfd;
-            int fd = createWaylandSocket();
-            if (fd == -1)
-                throw new Exception("Failed to bind a socket");
-
-            pfd = ParcelFileDescriptor.adoptFd(fd);
-
-            System.err.println(pfd);
-            return pfd;
-        } finally {
-            System.err.println("Lorie requested fd");
-        }
-    }
-
-    private void startXwayland() {
-        try {
-            boolean started = false;
-            for (int i = 0; i < 200; i++) {
-                if (checkWaylandSocket()) {
-                    started = true;
-                    Thread.sleep(200);
-                    startXwayland(args);
-                    break;
-                }
-                Thread.sleep(100);
-            }
-            if (!started)
-                System.err.println("Failed to connect to Termux:X11. Something went wrong.");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        exit(0);
-    }
-
-    private void onFinish() {
-        System.err.println("App sent finishing command");
-        startXwayland();
-    }
-
-    private boolean startActivity(IBinder token) throws Throwable {
-        Bundle bundle = new Bundle();
-        bundle.putBinder("", token);
-
-        Intent intent = new Intent();
-        intent.putExtra("com.termux.x11.starter", bundle);
-        intent.setComponent(TermuxX11Component);
-
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|
-                Intent.FLAG_ACTIVITY_SINGLE_TOP);
-
-        int res = Compat.startActivity(intent);
-
-        PrintStream out = System.err;
-        boolean launched = false;
-        out.println("res = " + res);
-        switch (res) {
-            case ActivityManager.START_SUCCESS:
-            case ActivityManager.START_SWITCHES_CANCELED:
-            case ActivityManager.START_DELIVERED_TO_TOP:
-            case ActivityManager.START_TASK_TO_FRONT:
-                launched = true;
-                break;
-            case ActivityManager.START_INTENT_NOT_RESOLVED:
-                out.println(
-                        "Error: Activity not started, unable to "
-                                + "resolve " + intent);
-                break;
-            case ActivityManager.START_CLASS_NOT_FOUND:
-                out.println("Error: Activity class " +
-                        Objects.requireNonNull(intent.getComponent()).toShortString()
-                        + " does not exist.");
-                break;
-            case ActivityManager.START_PERMISSION_DENIED:
-                out.println(
-                        "Error: Activity not started, you do not "
-                                + "have permission to access it.");
-                break;
-            default:
-                out.println(
-                        "Error: Activity not started, unknown error code " + res);
-                break;
-        }
-
-        System.err.println("Activity is" + (launched?"":" not") + " started");
-
-        return launched;
-    }
-
-    private void startXwayland(String[] args) throws IOException {
-        System.err.println("Starting Xwayland");
-        exec(XwaylandPath, args);
-    }
-
-    class Service extends ITermuxX11Internal.Stub {
-        @Override
-        public boolean onTransact(int code, android.os.Parcel data, android.os.Parcel reply, int flags) throws RemoteException {
-            CmdEntryPoint.this.onTransact(code, data, reply, flags);
-            return super.onTransact(code, data, reply, flags);
-        }
-
-        @Override
-        public ParcelFileDescriptor getWaylandFD() throws RemoteException {
-            System.err.println("Got getWaylandFD");
+            List<String> a = Arrays.asList(args);
             try {
-                return CmdEntryPoint.this.getWaylandFD();
-            } catch (Throwable e) {
-                throw new RemoteException(e.getMessage());
+                int dpiIndex = a.lastIndexOf("-dpi");
+                if (dpiIndex != -1 && a.size() >= dpiIndex)
+                    dpi = Integer.parseInt(a.get(dpiIndex + 1));
+            } catch (NumberFormatException ignored) {} // No need to handle it, anyway user will see Xwayland error
+
+            try {
+                for (String arg: a)
+                    if (arg.startsWith(":"))
+                        display = Integer.parseInt(arg.substring(1));
+            } catch (NumberFormatException ignored) {} // No need to handle it, anyway user will see Xwayland error
+
+            spawnCompositor(display, dpi);
+            spawnListeningThread();
+            sendBroadcast();
+            System.err.println("Starting Xwayland");
+
+            if (!a.contains("--no-xwayland-start")) {
+                exec(args);
             }
         }
-
-        @Override
-        public ParcelFileDescriptor getLogFD() throws RemoteException {
-            System.err.println("Got getLogFD");
-            System.err.println(logFD);
-            return logFD;
-        }
-
-        @Override
-        public void finish() throws RemoteException {
-            System.err.println("Got finish request");
-            handler.postDelayed(CmdEntryPoint.this::onFinish, 10);
-        }
     }
 
-    private void exit(int status) {
-        exit(50, status);
-    }
-    private void exit(int delay, int status) {
-        handler.postDelayed(() -> System.exit(status), delay);
+    void sendBroadcast() {
+        Bundle bundle = new Bundle();
+        // We should not care about multiple instances, it should be called only by `Termux:X11` app
+        // which is single instance...
+        bundle.putBinder("", new ICmdEntryInterface.Stub() {
+            @Override
+            public void outputResize(int width, int height) {
+                CmdEntryPoint.this.outputResize(width, height);
+            }
+
+            @Override
+            public ParcelFileDescriptor getXConnection() {
+                return ParcelFileDescriptor.adoptFd(connect());
+            }
+        });
+
+        Intent intent = new Intent(ACTION_START);
+        intent.putExtra("com.termux.x11.starter", bundle);
+        intent.setPackage("com.termux.x11");
+        ctx.sendBroadcast(intent);
     }
 
-    private native void checkXdgRuntimeDir();
-    private native int createWaylandSocket();
-    private native boolean checkWaylandSocket();
-    private native int openLogFD();
-    private static native void exec(String path, String[] argv);
-    @SuppressWarnings("FieldMayBeFinal")
-    private static Handler handler = new Handler();
+    void spawnListeningThread() {
+        new Thread(() -> {
+            /*
+                The purpose of this function is simple. If the application has not been launched
+                before running termux-x11, the initial sendBroadcast had no effect because no one
+                received the intent. To allow the application to reconnect freely, we will listen on
+                port `PORT` and when receiving a magic phrase, we will send another intent.
+             */
+            try (ServerSocket listeningSocket =
+                         new ServerSocket(PORT, 0, InetAddress.getByName("127.0.0.1"))) {
+                listeningSocket.setReuseAddress(true);
+                while(true) {
+                    try (Socket client = listeningSocket.accept()) {
+                        // We should ensure that it is some
+                        byte[] b = new byte[MAGIC.length];
+                        DataInputStream reader = new DataInputStream(client.getInputStream());
+                        reader.readFully(b);
+                        if (Arrays.equals(MAGIC, b)) {
+                            System.err.println("New client connection!");
+                            sendBroadcast();
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
+    private native void spawnCompositor(int display, int dpi);
+    private native void outputResize(int width, int height);
+    private static native boolean socketExists();
+    private static native void exec(String[] argv);
+    private static native int connect();
 
     static {
-        System.loadLibrary("x11-starter");
+        System.loadLibrary("lorie");
     }
 }

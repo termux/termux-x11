@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
+import android.util.Log;
 
 import java.io.DataInputStream;
 import java.net.InetAddress;
@@ -15,7 +16,7 @@ import java.net.Socket;
 import java.util.Arrays;
 import java.util.List;
 
-public class CmdEntryPoint {
+public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static final String ACTION_START = "com.termux.x11.CmdEntryPoint.ACTION_START";
     public static final int PORT = 7892;
     public static final byte[] MAGIC = "0xDEADBEEF".getBytes();
@@ -25,8 +26,8 @@ public class CmdEntryPoint {
     public static final int DEFAULT_DPI = 96;
 
     @SuppressLint("StaticFieldLeak")
-    private static final Context ctx = android.app.ActivityThread.systemMain().getSystemContext();
-    private static final Handler handler = new Handler();
+    private static Handler handler;
+    private final Context ctx;
 
     /**
      * Command-line entry point.
@@ -60,6 +61,7 @@ public class CmdEntryPoint {
      * @param args The command-line arguments
      */
     public static void main(String[] args) {
+        handler = new Handler();
         handler.post(() -> new CmdEntryPoint(args));
         Looper.loop();
     }
@@ -70,6 +72,7 @@ public class CmdEntryPoint {
     private int display = 0;
 
     CmdEntryPoint(String[] args) {
+        ctx = android.app.ActivityThread.systemMain().getSystemContext();
         if (socketExists()) {
             System.err.println("termux-x11 is already running. You can kill it with command `pkill -9 Xwayland`");
             handler.post(() -> System.exit(0));
@@ -90,38 +93,28 @@ public class CmdEntryPoint {
             spawnCompositor(display, dpi);
             spawnListeningThread();
             sendBroadcast();
-            System.err.println("Starting Xwayland");
 
             if (!a.contains("--no-xwayland-start")) {
+                System.err.println("Starting Xwayland");
                 exec(args);
             }
         }
     }
 
     void sendBroadcast() {
-        Bundle bundle = new Bundle();
         // We should not care about multiple instances, it should be called only by `Termux:X11` app
         // which is single instance...
-        bundle.putBinder("", new ICmdEntryInterface.Stub() {
-            @Override
-            public void outputResize(int width, int height) {
-                CmdEntryPoint.this.outputResize(width, height);
-            }
-
-            @Override
-            public ParcelFileDescriptor getXConnection() {
-                return ParcelFileDescriptor.adoptFd(connect());
-            }
-        });
+        Bundle bundle = new Bundle();
+        bundle.putBinder("", this);
 
         Intent intent = new Intent(ACTION_START);
-        intent.putExtra("com.termux.x11.starter", bundle);
+        intent.putExtra("", bundle);
         intent.setPackage("com.termux.x11");
         ctx.sendBroadcast(intent);
     }
 
     void spawnListeningThread() {
-        new Thread(() -> {
+        new Thread(() -> { // New thread is needed to avoid android.os.NetworkOnMainThreadException
             /*
                 The purpose of this function is simple. If the application has not been launched
                 before running termux-x11, the initial sendBroadcast had no effect because no one
@@ -133,6 +126,7 @@ public class CmdEntryPoint {
                 listeningSocket.setReuseAddress(true);
                 while(true) {
                     try (Socket client = listeningSocket.accept()) {
+                        System.err.println("Somebody connected!");
                         // We should ensure that it is some
                         byte[] b = new byte[MAGIC.length];
                         DataInputStream reader = new DataInputStream(client.getInputStream());
@@ -151,8 +145,25 @@ public class CmdEntryPoint {
         }).start();
     }
 
+    public static void requestConnection() {
+        System.err.println("Requesting connection...");
+        new Thread(() -> { // New thread is needed to avoid android.os.NetworkOnMainThreadException
+            try (Socket socket = new Socket("127.0.0.1", CmdEntryPoint.PORT)){
+                socket.getOutputStream().write(CmdEntryPoint.MAGIC);
+            } catch (Exception e) {
+                Log.e("CmdEntryPoint", "Something went wrong when we requested connection", e);
+            }
+        }).start();
+    }
+
+    @Override
+    public ParcelFileDescriptor getXConnection() {
+        int fd = connect();
+        return fd == -1 ? null : ParcelFileDescriptor.adoptFd(fd);
+    }
+
     private native void spawnCompositor(int display, int dpi);
-    private native void outputResize(int width, int height);
+    public native void outputResize(int width, int height);
     private static native boolean socketExists();
     private static native void exec(String[] argv);
     private static native int connect();

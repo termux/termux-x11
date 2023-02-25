@@ -239,119 +239,6 @@ public:
         }
     } fixes {*this};
 
-    struct {
-        xcb_connection& self;
-        xcb_randr_get_screen_resources_reply_t* res{};
-        const char* temporary_name = "temporary";
-        void init() {
-            {
-                auto reply = xcb(randr_query_version, 1, 1);
-                self.handle_error(reply, "Error querying RANDR extension");
-                free(reply);
-            }
-
-            refresh();
-        }
-
-        void refresh() {
-            auto screen = xcb_setup_roots_iterator(xcb_get_setup (self.conn)).data;
-            free(res);
-            res = xcb(randr_get_screen_resources, screen->root);
-            self.handle_error(res, "Error during refreshing RANDR modes.");
-        }
-
-        xcb_randr_mode_t get_id_for_mode(const char *name) {
-            refresh();
-            char *mode_names = reinterpret_cast<char*>(xcb_randr_get_screen_resources_names(res));
-            auto modes = xcb_randr_get_screen_resources_modes(res);
-            for (int i = 0; i < xcb_randr_get_screen_resources_modes_length(res); i++) {
-                auto& mode = modes[i];
-                char mode_name[64]{};
-                snprintf(mode_name, mode.name_len+1, "%s", mode_names);
-                mode_names += mode.name_len;
-
-                if (!strcmp(mode_name, name)) {
-                    return mode.id;
-                }
-            }
-            return 0;
-        }
-
-        void create_mode(const char* name, libxcvt_mode_info *mode_info) {
-            bool is_temporary = strcmp(name, temporary_name) == 0;
-            if (!is_temporary && get_id_for_mode(name))
-                delete_mode(name);
-
-            if (is_temporary && get_id_for_mode(name))
-                return;
-
-            auto screen = xcb_setup_roots_iterator(xcb_get_setup (self.conn)).data;
-            xcb_randr_mode_info_t mode{};
-            mode.width = mode_info->hdisplay;
-            mode.height = mode_info->vdisplay;
-            mode.dot_clock = mode_info->dot_clock * 1000;
-            mode.hsync_start = mode_info->hsync_start;
-            mode.hsync_end = mode_info->hsync_end;
-            mode.htotal = mode_info->htotal;
-            mode.vsync_start = mode_info->vsync_start;
-            mode.vsync_end = mode_info->vsync_end;
-            mode.vtotal = mode_info->vtotal;
-            mode.mode_flags = mode_info->mode_flags;
-            mode.name_len = strlen(name);
-            {
-                auto reply = xcb(randr_create_mode, screen->root, mode, mode.name_len, name);
-                self.handle_error(reply, "Failed to create RANDR mode");
-            }
-
-            refresh();
-            xcb_randr_mode_t mode_id = get_id_for_mode(name);
-            if (!mode_id) {
-                throw std::runtime_error("Failed to find RANDR mode we just created");
-            }
-            xcb_check(randr_add_output_mode_checked, xcb_randr_get_screen_resources_outputs(res)[0], mode_id);
-            self.handle_error("Failed to add RANDR mode we just created to screen");
-        }
-
-        void delete_mode(const char* name) {
-            xcb_randr_mode_t mode_id = get_id_for_mode(name);
-            if (mode_id) {
-                xcb_check(randr_delete_output_mode_checked, xcb_randr_get_screen_resources_outputs(res)[0], mode_id);
-                self.handle_error("Failed to detach RANDR mode from output");
-
-                xcb_check(randr_destroy_mode_checked, mode_id);
-                self.handle_error("Failed to destroy RANDR mode we just detached from output");
-
-                refresh();
-            }
-        }
-
-        void switch_to_mode(const char *name) {
-            xcb_randr_mode_t mode_id = XCB_NONE;
-            xcb_randr_output_t* outputs{};
-            int noutput = 0;
-            if (name) {
-                mode_id = get_id_for_mode(name);
-                if (mode_id == 0) return;
-                outputs = xcb_randr_get_screen_resources_outputs(res);
-                noutput = xcb_randr_get_screen_resources_outputs_length(res);
-            }
-
-            ALOGE("crts len %d", xcb_randr_get_screen_resources_crtcs_length(res));
-
-            auto reply = xcb(randr_set_crtc_config, xcb_randr_get_screen_resources_crtcs(res)[0], XCB_CURRENT_TIME,
-                res->config_timestamp, 0, 0, mode_id, XCB_RANDR_ROTATION_ROTATE_0,
-                noutput, outputs);
-            self.handle_error(reply,"Failed to switch RANDR mode");
-        };
-
-        void set_screen_size(u16 width, u16 height, u32 mm_width, u32 mm_height) {
-            auto screen = xcb_setup_roots_iterator(xcb_get_setup (self.conn)).data;
-            xcb_check(randr_set_screen_size_checked, screen->root, width, height, mm_width, mm_height);
-            self.handle_error("Failed to set RANDR screen size");
-        }
-
-    } randr {*this};
-
     void init(int sockfd) {
         xcb_connection_t* new_conn = xcb_connect_to_fd(sockfd, nullptr);
         int conn_err = xcb_connection_has_error(new_conn);
@@ -415,10 +302,14 @@ os_create_anonymous_file(size_t size) {
 static always_inline uint32_t* cast(void* p) { union { void* a; uint32_t* b; } c {p}; return c.b; } // NOLINT(cppcoreguidelines-pro-type-member-init)
 
 static always_inline void blit_exact(ANativeWindow* win, const uint32_t* src, int width, int height) {
+    if (!win)
+        return;
+
     if (width == 0 || height == 0) {
         width = ANativeWindow_getWidth(win);
         height = ANativeWindow_getHeight(win);
     }
+
     ARect bounds{ 0, 0, width, height };
     ANativeWindow_Buffer b{};
 
@@ -465,15 +356,17 @@ public:
     xcb_connection c;
 
     struct {
-        ANativeWindow* win{};
-        u32 width{};
-        u32 height{};
+        ANativeWindow* win;
+        u32 width, height;
 
-        i32 shmfd{};
-        xcb_shm_seg_t shmseg{};
-        u32 *shmaddr{};
-    } screen;
-    ANativeWindow* cursor{};
+        i32 shmfd;
+        xcb_shm_seg_t shmseg;
+        u32 *shmaddr;
+    } screen {};
+    struct {
+        ANativeWindow* win;
+        u32 width, height, x, y, xhot, yhot;
+    } cursor{};
 
 
     lorie_client() {
@@ -501,131 +394,128 @@ public:
         if (screen.win)
             ANativeWindow_release(screen.win);
 
+        if (win)
+            ANativeWindow_acquire(win);
         screen.win = win;
         screen.width = width;
         screen.height = height;
-
-        if (c.conn)
-            change_resolution(width, height);
     }
 
-    void change_resolution(u16 width, u16 height) {
-        char mode_name[128]{};
+    void cursor_changed(ANativeWindow* win) {
+        if (cursor.win)
+            ANativeWindow_release(cursor.win);
 
-        auto mi = libxcvt_gen_mode_info(width, height, 60, false, false);
-        ALOGE("Changing resolution to %dx%d", mi->hdisplay, mi->vdisplay);
-        sprintf(mode_name, "TERMUX:X11 %dx%d", mi->hdisplay, mi->vdisplay);
-
-        int mm_width = int(25.4*width/120);
-        int mm_height = int(25.4*height/120);
-
-        xcb_grab_server(c.conn);
-        try {
-            ALOGE("line %d", __LINE__);
-            c.randr.create_mode(c.randr.temporary_name, mi);
-            c.randr.switch_to_mode(nullptr);
-            ALOGE("line %d", __LINE__);
-            c.randr.set_screen_size(mi->hdisplay, mi->vdisplay, mm_width, mm_height);
-            c.randr.switch_to_mode(c.randr.temporary_name);
-            ALOGE("line %d", __LINE__);
-            c.randr.delete_mode(mode_name);
-            c.randr.create_mode(mode_name, mi); // NOLINT(cppcoreguidelines-narrowing-conversions)
-            ALOGE("line %d", __LINE__);
-            c.randr.switch_to_mode(mode_name);
-            c.randr.delete_mode(c.randr.temporary_name);
-            ALOGE("line %d", __LINE__);
-        } catch (std::runtime_error& e) {
-            xcb_ungrab_server(c.conn);
-            throw e;
-        }
-        xcb_ungrab_server(c.conn);
+        if (win)
+            ANativeWindow_acquire(win);
+        cursor.win = win;
     }
 
     void adopt_connection_fd(int fd) {
-        ALOGE("Connecting to fd %d", fd);
-        c.init(fd);
-        xcb_screen_t* scr = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
+        try {
+            ALOGE("Connecting to fd %d", fd);
+            c.init(fd);
+            xcb_screen_t *scr = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
 
-        xcb_change_window_attributes(c.conn, scr->root, XCB_CW_EVENT_MASK, (const int[]) { XCB_EVENT_MASK_STRUCTURE_NOTIFY });
-        c.fixes.select_input(scr->root, XCB_XFIXES_CURSOR_NOTIFY_MASK_DISPLAY_CURSOR);
-        c.damage.create(scr->root, XCB_DAMAGE_REPORT_LEVEL_RAW_RECTANGLES);
-        struct {
-            xcb_input_event_mask_t head;
-            xcb_input_xi_event_mask_t mask;
-        } mask{};
-        mask.head.deviceid = c.input.client_pointer_id();
-        mask.head.mask_len = sizeof(mask.mask) / sizeof(uint32_t);
-        mask.mask = XCB_INPUT_XI_EVENT_MASK_RAW_MOTION;
-        c.input.select_events(scr->root, 1, &mask.head);
+            xcb_change_window_attributes(c.conn, scr->root, XCB_CW_EVENT_MASK,
+                                         (const int[]) {XCB_EVENT_MASK_STRUCTURE_NOTIFY});
+            c.fixes.select_input(scr->root, XCB_XFIXES_CURSOR_NOTIFY_MASK_DISPLAY_CURSOR);
+            c.damage.create(scr->root, XCB_DAMAGE_REPORT_LEVEL_RAW_RECTANGLES);
+            struct {
+                xcb_input_event_mask_t head;
+                xcb_input_xi_event_mask_t mask;
+            } mask{};
+            mask.head.deviceid = c.input.client_pointer_id();
+            mask.head.mask_len = sizeof(mask.mask) / sizeof(uint32_t);
+            mask.mask = XCB_INPUT_XI_EVENT_MASK_RAW_MOTION;
+            c.input.select_events(scr->root, 1, &mask.head);
 
-        screen.shmseg = xcb_generate_id(c.conn);
+            screen.shmseg = xcb_generate_id(c.conn);
 
-        if (screen.shmaddr)
-            munmap(screen.shmaddr, DEFAULT_SHMSEG_LENGTH);
-        if (screen.shmfd)
-            close(screen.shmfd);
+            if (screen.shmaddr)
+                munmap(screen.shmaddr, DEFAULT_SHMSEG_LENGTH);
+            if (screen.shmfd)
+                close(screen.shmfd);
 
-        ALOGE("Creating file...");
-        screen.shmfd = os_create_anonymous_file(DEFAULT_SHMSEG_LENGTH);
-        if (screen.shmfd < 1) {
-            ALOGE("Error opening file: %s", strerror(errno));
-        }
-        fchmod(screen.shmfd, 0777);
-        ALOGE("Attaching file...");
-        screen.shmaddr = static_cast<u32 *>(mmap(nullptr, 8096*8096*4,
-                                                      PROT_READ | PROT_WRITE,
-                                                      MAP_SHARED, screen.shmfd, 0));
-        if (screen.shmaddr == MAP_FAILED) {
-            ALOGE("Map failed: %s", strerror(errno));
-        }
-        c.shm.attach_fd(screen.shmseg, screen.shmfd, 0);
-
-        if (screen.win) {
-            change_resolution(screen.width, screen.height);
-        }
-
-        int event_mask = ALOOPER_EVENT_INPUT | ALOOPER_EVENT_OUTPUT | ALOOPER_EVENT_INVALID | ALOOPER_EVENT_HANGUP | ALOOPER_EVENT_ERROR;
-        ALooper_addFd(ALooper_forThread(), fd, ALOOPER_EVENT_INPUT, event_mask, [](int, int mask, void *d) {
-            auto self = reinterpret_cast<lorie_client*>(d);
-            if (mask & (ALOOPER_EVENT_INVALID | ALOOPER_EVENT_HANGUP | ALOOPER_EVENT_ERROR)) {
-                xcb_disconnect(self->c.conn);
-                self->c.conn = nullptr;
-                ALOGE("Disconnected");
-                return 0;
+            ALOGE("Creating file...");
+            screen.shmfd = os_create_anonymous_file(DEFAULT_SHMSEG_LENGTH);
+            if (screen.shmfd < 1) {
+                ALOGE("Error opening file: %s", strerror(errno));
             }
+            fchmod(screen.shmfd, 0777);
+            ALOGE("Attaching file...");
+            screen.shmaddr = static_cast<u32 *>(mmap(nullptr, 8096 * 8096 * 4,
+                                                     PROT_READ | PROT_WRITE,
+                                                     MAP_SHARED, screen.shmfd, 0));
+            if (screen.shmaddr == MAP_FAILED) {
+                ALOGE("Map failed: %s", strerror(errno));
+            }
+            c.shm.attach_fd(screen.shmseg, screen.shmfd, 0);
 
-            self->connection_poll_func();
-            return 1;
-        }, this);
+            int event_mask = ALOOPER_EVENT_INPUT | ALOOPER_EVENT_OUTPUT | ALOOPER_EVENT_INVALID |
+                             ALOOPER_EVENT_HANGUP | ALOOPER_EVENT_ERROR;
+            ALooper_addFd(ALooper_forThread(), fd, ALOOPER_EVENT_INPUT, event_mask,
+                          [](int, int mask, void *d) {
+                              auto self = reinterpret_cast<lorie_client *>(d);
+                              if (mask & (ALOOPER_EVENT_INVALID | ALOOPER_EVENT_HANGUP |
+                                          ALOOPER_EVENT_ERROR)) {
+                                  xcb_disconnect(self->c.conn);
+                                  self->c.conn = nullptr;
+                                  self->set_renderer_visibility(false);
+                                  ALOGE("Disconnected");
+                                  return 0;
+                              }
+
+                              self->connection_poll_func();
+                              return 1;
+                          }, this);
+
+            set_renderer_visibility(true);
+        } catch (std::exception& e) {
+            ALOGE("Failed to adopt X connection socket: %s", e.what());
+        }
     }
 
     void connection_poll_func() {
-        xcb_generic_event_t *event;
-        const char* ext;
-        xcb_screen_t* s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
-
-        while((event = xcb_poll_for_event(c.conn))) {
-            if (event->response_type == 0) {
-                c.err = reinterpret_cast<xcb_generic_error_t *>(event);
-                c.handle_error("Error processing XCB events");
-            } else if (event->response_type == XCB_CONFIGURE_NOTIFY) {
-                ALOGE("Configure notification. ");
-                auto e = reinterpret_cast<xcb_configure_request_event_t *>(event);
-                ALOGE("old w: %d h: %d", s->width_in_pixels, s->height_in_pixels);
-                ALOGE("new w: %d h: %d", e->width, e->height);
-                s->width_in_pixels = e->width;
-                s->height_in_pixels = e->height;
-            } else if (c.damage.is_damage_notify_event(event)) {
-                try {
-                    c.shm.get(s->root, 0, 0, s->width_in_pixels, s->height_in_pixels, ~0, // NOLINT(cppcoreguidelines-narrowing-conversions)
-                              XCB_IMAGE_FORMAT_Z_PIXMAP, screen.shmseg, 0);
-
-                    blit_exact(screen.win, screen.shmaddr, s->width_in_pixels, s->height_in_pixels);
-                } catch (std::runtime_error &err) {
-                    continue;
-                }
-            } //else
-            //  ALOGE("some other event %s of %s", xcb_errors_get_name_for_core_event(c.err_ctx, event->response_type, &ext), (ext ?: "core"));
+        try {
+            xcb_generic_event_t *event;
+            const char *ext;
+            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
+            while ((event = xcb_poll_for_event(c.conn))) {
+                if (event->response_type == 0) {
+                    c.err = reinterpret_cast<xcb_generic_error_t *>(event);
+                    c.handle_error("Error processing XCB events");
+                } else if (event->response_type == XCB_CONFIGURE_NOTIFY) {
+                    auto e = reinterpret_cast<xcb_configure_request_event_t *>(event);
+                    s->width_in_pixels = e->width;
+                    s->height_in_pixels = e->height;
+                } else if (c.damage.is_damage_notify_event(event)) {
+                    try {
+                        c.shm.get(s->root, 0, 0, s->width_in_pixels, s->height_in_pixels,
+                                  ~0, // NOLINT(cppcoreguidelines-narrowing-conversions)
+                                  XCB_IMAGE_FORMAT_Z_PIXMAP, screen.shmseg, 0);
+                        blit_exact(screen.win, screen.shmaddr, s->width_in_pixels,
+                                   s->height_in_pixels);
+                    } catch (std::runtime_error &err) {
+                        continue;
+                    }
+                } else if (c.fixes.is_cursor_notify_event(event)) {
+                    if (cursor.win) {
+                        auto reply = c.fixes.get_cursor_image();
+                        if (reply) {
+                            cursor.width = reply->width;
+                            cursor.height = reply->height;
+                            cursor.xhot = reply->xhot;
+                            cursor.yhot = reply->yhot;
+                            u32* image = xcb_xfixes_get_cursor_image_cursor_image(reply);
+                            blit_exact(cursor.win, image, reply->width, reply->height);
+                        }
+                        free(reply);
+                    }
+                } //else
+                //  ALOGE("some other event %s of %s", xcb_errors_get_name_for_core_event(c.err_ctx, event->response_type, &ext), (ext ?: "core"));
+            }
+        } catch (std::exception& e) {
+            ALOGE("Failure during processing X events: %s", e.what());
         }
     }
 
@@ -635,22 +525,98 @@ public:
             runner_thread.join();
         close(queue.get_fd());
     }
-} lorie_client; // NOLINT(cert-err58-cpp)
+
+    JNIEnv* env{};
+    jobject thiz{};
+    jmethodID set_renderer_visibility_id{};
+    jmethodID set_cursor_rect_id{};
+    void init_jni(JavaVM* vm, jobject thiz) {
+        queue.write([=, this] {
+            this->thiz = thiz;
+            vm->AttachCurrentThread(&env, nullptr);
+            set_renderer_visibility_id =
+                    env->GetMethodID(env->GetObjectClass(thiz),"setRendererVisibility","(Z)V");
+            set_cursor_rect_id =
+                    env->GetMethodID(env->GetObjectClass(thiz),"setCursorRect","(IIII)V");
+        });
+    }
+
+    void set_renderer_visibility(bool visible) const {
+        if (!set_renderer_visibility_id) {
+            ALOGE("Something is wrong, `set_renderer_visibility` is null");
+            return;
+        }
+
+        env->CallVoidMethod(thiz, set_renderer_visibility_id, visible);
+    }
+} client; // NOLINT(cert-err58-cpp)
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_start(unused JNIEnv *env, unused jobject thiz, jint fd) {
-    lorie_client.post([fd] { lorie_client.adopt_connection_fd(fd); });
+Java_com_termux_x11_MainActivity_init(JNIEnv *env, jobject thiz) {
+    // Of course I could do that from JNI_OnLoad, but anyway I need to register `thiz` as class instance;
+    JavaVM *vm;
+    env->GetJavaVM(&vm);
+    client.init_jni(vm, env->NewGlobalRef(thiz));
 }
 
 extern "C"
 JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_connect(JNIEnv *env, [[maybe_unused]] jobject thiz, jint fd) {
+    client.post([fd] { client.adopt_connection_fd(fd); });
+}
 
-Java_com_termux_x11_MainActivity_surface(JNIEnv *env, jobject thiz, jobject sfc, jint width, jint height) {
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_cursorChanged(JNIEnv *env, [[maybe_unused]] jobject thiz, jobject sfc) {
     ANativeWindow *win = sfc ? ANativeWindow_fromSurface(env, sfc) : nullptr;
     if (win)
         ANativeWindow_acquire(win);
 
-    ALOGE("Got new surface %p", win);
-    lorie_client.post([=] { lorie_client.surface_changed(win, width, height); });
+    ALOGE("Cursor: got new surface %p", win);
+    client.post([=] { client.cursor_changed(win); });
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_windowChanged(JNIEnv *env, [[maybe_unused]] jobject thiz, jobject sfc,
+                                               jint width, jint height) {
+    ANativeWindow *win = sfc ? ANativeWindow_fromSurface(env, sfc) : nullptr;
+    if (win)
+        ANativeWindow_acquire(win);
+
+    ALOGE("Surface: got new surface %p", win);
+    client.post([=] { client.surface_changed(win, width, height); });
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_onPointerMotion(JNIEnv *env, jobject thiz, jint x, jint y) {
+    env->CallVoidMethod(thiz,
+                        client.set_cursor_rect_id,
+                        x - client.cursor.xhot,
+                        y - client.cursor.yhot,
+                        client.cursor.width,
+                        client.cursor.height);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_onPointerScroll(JNIEnv *env, jobject thiz, jint axis,
+                                                 jfloat value) {
+    // TODO: implement onPointerScroll()
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_onPointerButton(JNIEnv *env, jobject thiz, jint button,
+                                                 jint type) {
+    // TODO: implement onPointerButton()
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_onKeyboardKey(JNIEnv *env, jobject thiz, jint key, jint type,
+                                               jint shift, jstring characters) {
+    // TODO: implement onKeyboardKey()
 }

@@ -188,6 +188,7 @@ lorie_compositor::lorie_compositor(int dpi): dpi(dpi) {
     };
     global_shell.on_bind = [](client_t*, shell_t*) {};
     global_xdg_wm_base.on_bind = [](client_t*, xdg_wm_base_t* wm_base) {
+        wm_base->on_get_xdg_surface = [](xdg_surface_t*, surface_t*) {};
         wm_base->on__destroy = [=]() { wm_base->destroy(); };
     };
 
@@ -329,9 +330,13 @@ Java_com_termux_x11_CmdEntryPoint_connect([[maybe_unused]] JNIEnv *env, [[maybe_
         return -1;
     }
 
-    snprintf(local.sun_path, sizeof(local.sun_path), "%s/.x11-unix/X%d",
+    snprintf(local.sun_path, sizeof(local.sun_path), "%s/.X11-unix/X%d",
              getenv("TMPDIR") ?: DEFAULT_SOCKET_PATH, display);
 
-    connect(sockfd, reinterpret_cast<const sockaddr *>(&local), sizeof(local)); // NOLINT(bugprone-unused-return-value)
+    if (connect(sockfd, reinterpret_cast<const sockaddr *>(&local), sizeof(local)) < 0) {
+        LOGE("Failed to connect %s: %s\n", local.sun_path, strerror(errno));
+        return -1;
+    }
+
     return sockfd;
 }

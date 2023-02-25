@@ -1,6 +1,7 @@
 package com.termux.x11;
 
 import static com.termux.x11.CmdEntryPoint.ACTION_START;
+import static com.termux.x11.CmdEntryPoint.requestConnection;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -19,6 +20,7 @@ import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.preference.PreferenceManager;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -62,6 +64,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private final ServiceEventListener listener = new ServiceEventListener();
     private ICmdEntryInterface service = null;
 
+    private int screenWidth = 0;
+    private int screenHeight = 0;
+
+    public MainActivity() {
+        init();
+    }
+
     @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt"}) @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -72,8 +81,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         }
 
         preferences.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> onPreferencesChanged());
-
-        onLorieServiceStart();
 
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN |
                 WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
@@ -91,6 +98,18 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             startActivity(i);
         });
 
+        SurfaceView lorieView = findViewById(R.id.lorieView);
+        SurfaceView cursorView = findViewById(R.id.cursorView);
+
+        lorieView.setFocusable(true);
+        lorieView.setFocusableInTouchMode(true);
+        lorieView.requestFocus();
+
+        listener.setAsListenerTo(lorieView, cursorView);
+
+        mTP = new TouchParser(lorieView, this);
+        kbd.reload(keys, lorieView, listener);
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
             getWindow().
              getDecorView().
@@ -103,13 +122,35 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     try {
                         IBinder b = intent.getBundleExtra("").getBinder("");
                         service = ICmdEntryInterface.Stub.asInterface(b);
-                        ParcelFileDescriptor fd = service.getXConnection();
-                        if (fd != null)
-                            connect(fd.detachFd());
-                    } catch (Exception ignored) {}
+                        service.asBinder().linkToDeath(() -> {
+                            service = null;
+                            CmdEntryPoint.requestConnection();
+                        }, 0);
+                        onReceiveConnection();
+                    } catch (Exception e) {
+                        Log.e("MainActivity", "Something went wrong while we extracted connection details from binder.", e);
+                    }
                 }
             }
         }, new IntentFilter(ACTION_START));
+
+        requestConnection();
+    }
+
+    void onReceiveConnection() {
+        try {
+            if (service != null && service.asBinder().isBinderAlive()) {
+                ParcelFileDescriptor fd = service.getXConnection();
+                if (fd != null) {
+                    connect(fd.detachFd());
+                    service.outputResize(screenWidth, screenHeight);
+                }
+                else
+                    handler.postDelayed(this::onReceiveConnection, 500);
+            }
+        } catch (Exception e) {
+            Log.e("MainActivity", "Something went wrong while we were establishing connection", e);
+        }
     }
 
     void onPreferencesChanged() {
@@ -185,20 +226,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         }
 
         orientation = newConfig.orientation;
-    }
-
-    public void onLorieServiceStart() {
-        SurfaceView lorieView = findViewById(R.id.lorieView);
-        SurfaceView cursorView = findViewById(R.id.cursorView);
-
-        lorieView.setFocusable(true);
-        lorieView.setFocusableInTouchMode(true);
-        lorieView.requestFocus();
-
-        listener.setAsListenerTo(lorieView, cursorView);
-
-        mTP = new TouchParser(lorieView, this);
-        kbd.reload(keys, lorieView, listener);
     }
 
     @Override
@@ -309,6 +336,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     windowChanged(holder.getSurface(), w, h);
                     if (service != null) {
                         try {
+                            screenWidth = w;
+                            screenHeight = h;
                             service.outputResize(w, h);
                         } catch (RemoteException e) {
                             e.printStackTrace();
@@ -365,6 +394,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         runOnUiThread(()-> {
             findViewById(R.id.stub).setVisibility(visible?View.INVISIBLE:View.VISIBLE);
             findViewById(R.id.lorieView).setVisibility(visible?View.VISIBLE:View.INVISIBLE);
+            findViewById(R.id.cursorView).setVisibility(visible?View.VISIBLE:View.INVISIBLE);
         });
     }
 
@@ -389,7 +419,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     static Handler handler = new Handler();
 
-    private native long connect(int fd);
+    private native void init();
+    private native void connect(int fd);
     private native void cursorChanged(Surface surface);
     private native void windowChanged(Surface surface, int width, int height);
     public native void onPointerMotion(int x, int y);

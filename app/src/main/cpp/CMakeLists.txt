@@ -3,6 +3,7 @@ project(lorie)
 set(CMAKE_CXX_STANDARD 20)
 
 find_package(Python3 REQUIRED)
+find_package(BISON 3.0 REQUIRED)
 
 ####################################################################################################
 ######################################### LIBWAYLAND ###############################################
@@ -137,10 +138,14 @@ add_library(xcvt "${CMAKE_CURRENT_SOURCE_DIR}/libxcvt/lib/libxcvt.c")
 target_include_directories(xcvt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libxcvt/include")
 
 ####################################################################################################
+####################################### LIBXKB-COMMON ##############################################
+####################################################################################################
+
+####################################################################################################
 ####################################### LORIE-CLIENT ###############################################
 ####################################################################################################
 
 add_library(lorie-client SHARED
         ${CMAKE_CURRENT_SOURCE_DIR}/lorie-client/lorie-client.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/lorie-client/lorie_message_queue.cpp)
+        )
 target_link_libraries(lorie-client xcbproto xcb xcb-errors xcb-shm xcb-xfixes xcb-xinput xcb-damage xcvt "-llog" "-landroid")

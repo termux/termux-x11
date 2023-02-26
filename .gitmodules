@@ -26,3 +26,7 @@
 	path = app/src/main/cpp/libxcvt
 	url = https://gitlab.freedesktop.org/xorg/lib/libxcvt
 	ignore = dirty
+[submodule "app/src/main/cpp/libxkbcommon"]
+	path = app/src/main/cpp/libxkbcommon
+	url = https://github.com/xkbcommon/libxkbcommon
+	ignore = dirty

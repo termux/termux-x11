@@ -1,5 +1,4 @@
 #include <sys/ioctl.h>
-#include <iostream>
 #include <thread>
 #include <functional>
 #include <xcb/xcb.h>
@@ -22,6 +21,14 @@
 #include <sys/stat.h>
 #include <android/native_window_jni.h>
 #include <android/looper.h>
+
+#if 1
+#define ALOGE(fmt, ...) __android_log_print(ANDROID_LOG_ERROR, "LorieX11Client", fmt, ## __VA_ARGS__)
+#else
+#define ALOGE(fmt, ...) printf(fmt, ## __VA_ARGS__); printf("\n")
+#endif
+#define unused __attribute__((unused))
+
 #include "lorie_message_queue.hpp"
 
 // To avoid reopening new segment on every screen resolution
@@ -30,13 +37,6 @@
 
 #pragma ide diagnostic ignored "ConstantParameter"
 #pragma ide diagnostic ignored "cppcoreguidelines-narrowing-conversions"
-
-#if 1
-#define ALOGE(fmt, ...) __android_log_print(ANDROID_LOG_ERROR, "LorieX11Client", fmt, ## __VA_ARGS__)
-#else
-#define ALOGE(fmt, ...) printf(fmt, ## __VA_ARGS__); printf("\n")
-#endif
-#define unused __attribute__((unused))
 
 typedef uint8_t u8 unused;
 typedef uint16_t u16 unused;
@@ -383,8 +383,8 @@ public:
         runner_thread = std::thread([=, this] { runner(); });
     }
 
-    void post(std::function<void()> task) {
-        queue.write(std::move(task));
+    void post(std::function<void()> task, long ms_delay = 0) {
+        queue.post(std::move(task), ms_delay);
     }
 
     void runner() {
@@ -494,24 +494,32 @@ public:
         if (cursor.win && c.conn) {
             auto reply = c.fixes.get_cursor_image();
             if (reply) {
+                env->CallVoidMethod(thiz,
+                                    set_cursor_rect_id,
+                                    cursor.x - cursor.xhot,
+                                    cursor.y - cursor.yhot,
+                                    cursor.width,
+                                    cursor.height);
                 cursor.width = reply->width;
                 cursor.height = reply->height;
                 cursor.xhot = reply->xhot;
                 cursor.yhot = reply->yhot;
                 u32* image = xcb_xfixes_get_cursor_image_cursor_image(reply);
+                env->CallVoidMethod(thiz,
+                                    set_cursor_rect_id,
+                                    cursor.x - cursor.xhot,
+                                    cursor.y - cursor.yhot,
+                                    cursor.width,
+                                    cursor.height);
                 blit_exact(cursor.win, image, reply->width, reply->height);
             }
             free(reply);
-            env->CallVoidMethod(thiz,
-                                set_cursor_rect_id,
-                                cursor.x - cursor.xhot,
-                                cursor.y - cursor.yhot,
-                                cursor.width,
-                                cursor.height);
         }
     }
 
     void refresh_screen() {
+        //post([=] { ALOGE("DELAYED!!!"); refresh_screen(); }, 1000); // post with delay does not work...
+        ALOGE("REFRESH!!!");
         try {
             if (screen.win && c.conn) {
                 xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
@@ -553,7 +561,7 @@ public:
     }
 
     ~lorie_client() {
-        queue.write([=, this] { terminate = true; });
+        queue.post([=, this] { terminate = true; });
         if (runner_thread.joinable())
             runner_thread.join();
         close(queue.get_fd());
@@ -564,7 +572,7 @@ public:
     jmethodID set_renderer_visibility_id{};
     jmethodID set_cursor_rect_id{};
     void init_jni(JavaVM* vm, jobject obj) {
-        queue.write([=, this] {
+        post([=, this] {
             thiz = obj;
             vm->AttachCurrentThread(&env, nullptr);
             set_renderer_visibility_id =

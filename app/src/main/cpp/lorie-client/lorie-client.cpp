@@ -6,6 +6,7 @@
 #include <xcb/damage.h>
 #include <xcb/xinput.h>
 #include <xcb/xfixes.h>
+#include <xcb/xtest.h>
 #include <xcb/shm.h>
 #include <xcb/randr.h>
 #include <xcb_errors.h>
@@ -239,6 +240,15 @@ public:
         }
     } fixes {*this};
 
+    struct {
+        xcb_connection &self;
+        void init() {
+            auto reply = xcb(test_get_version, 2, 2);
+            self.handle_error(reply, "Error querying XFIXES extension");
+            free(reply);
+        }
+    } xtest {*this};
+
     void init(int sockfd) {
         xcb_connection_t* new_conn = xcb_connect_to_fd(sockfd, nullptr);
         int conn_err = xcb_connection_has_error(new_conn);
@@ -268,7 +278,7 @@ public:
         xcb_errors_context_new(conn, &err_ctx);
 
         shm.init();
-        //randr.init();
+        xtest.init();
         damage.init();
         input.init();
         fixes.init();
@@ -380,8 +390,8 @@ public:
     void runner() {
         ALooper_prepare(0);
         ALooper_addFd(ALooper_forThread(), queue.get_fd(), ALOOPER_EVENT_INPUT, ALOOPER_POLL_CALLBACK, [](int, int, void *d) {
-            auto thiz = reinterpret_cast<lorie_client*> (d);
-            thiz->queue.run();
+            auto client = reinterpret_cast<lorie_client*>(d);
+            client->queue.run();
             return 1;
         }, this);
 
@@ -408,6 +418,8 @@ public:
         if (win)
             ANativeWindow_acquire(win);
         cursor.win = win;
+
+        refresh_cursor();
     }
 
     void adopt_connection_fd(int fd) {
@@ -451,6 +463,8 @@ public:
             }
             c.shm.attach_fd(screen.shmseg, screen.shmfd, 0);
 
+            refresh_cursor();
+
             int event_mask = ALOOPER_EVENT_INPUT | ALOOPER_EVENT_OUTPUT | ALOOPER_EVENT_INVALID |
                              ALOOPER_EVENT_HANGUP | ALOOPER_EVENT_ERROR;
             ALooper_addFd(ALooper_forThread(), fd, ALOOPER_EVENT_INPUT, event_mask,
@@ -470,15 +484,53 @@ public:
                           }, this);
 
             set_renderer_visibility(true);
+            refresh_screen();
         } catch (std::exception& e) {
             ALOGE("Failed to adopt X connection socket: %s", e.what());
         }
     }
 
+    void refresh_cursor() {
+        if (cursor.win && c.conn) {
+            auto reply = c.fixes.get_cursor_image();
+            if (reply) {
+                cursor.width = reply->width;
+                cursor.height = reply->height;
+                cursor.xhot = reply->xhot;
+                cursor.yhot = reply->yhot;
+                u32* image = xcb_xfixes_get_cursor_image_cursor_image(reply);
+                blit_exact(cursor.win, image, reply->width, reply->height);
+            }
+            free(reply);
+            env->CallVoidMethod(thiz,
+                                set_cursor_rect_id,
+                                cursor.x - cursor.xhot,
+                                cursor.y - cursor.yhot,
+                                cursor.width,
+                                cursor.height);
+        }
+    }
+
+    void refresh_screen() {
+        try {
+            if (screen.win && c.conn) {
+                xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
+                c.shm.get(s->root, 0, 0, s->width_in_pixels, s->height_in_pixels,
+                          ~0, // NOLINT(cppcoreguidelines-narrowing-conversions)
+                          XCB_IMAGE_FORMAT_Z_PIXMAP, screen.shmseg, 0);
+                blit_exact(screen.win, screen.shmaddr, s->width_in_pixels,
+                           s->height_in_pixels);
+            }
+        } catch (std::runtime_error &err) {
+            ALOGE("Refreshing screen failed: %s", err.what());
+        }
+        // post([=]{ refresh_screen(); }); // this line makes video stream smoother but it consumes a lot of cpu.
+    }
+
     void connection_poll_func() {
         try {
             xcb_generic_event_t *event;
-            const char *ext;
+            // const char *ext;
             xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
             while ((event = xcb_poll_for_event(c.conn))) {
                 if (event->response_type == 0) {
@@ -489,28 +541,9 @@ public:
                     s->width_in_pixels = e->width;
                     s->height_in_pixels = e->height;
                 } else if (c.damage.is_damage_notify_event(event)) {
-                    try {
-                        c.shm.get(s->root, 0, 0, s->width_in_pixels, s->height_in_pixels,
-                                  ~0, // NOLINT(cppcoreguidelines-narrowing-conversions)
-                                  XCB_IMAGE_FORMAT_Z_PIXMAP, screen.shmseg, 0);
-                        blit_exact(screen.win, screen.shmaddr, s->width_in_pixels,
-                                   s->height_in_pixels);
-                    } catch (std::runtime_error &err) {
-                        continue;
-                    }
+                    refresh_screen();
                 } else if (c.fixes.is_cursor_notify_event(event)) {
-                    if (cursor.win) {
-                        auto reply = c.fixes.get_cursor_image();
-                        if (reply) {
-                            cursor.width = reply->width;
-                            cursor.height = reply->height;
-                            cursor.xhot = reply->xhot;
-                            cursor.yhot = reply->yhot;
-                            u32* image = xcb_xfixes_get_cursor_image_cursor_image(reply);
-                            blit_exact(cursor.win, image, reply->width, reply->height);
-                        }
-                        free(reply);
-                    }
+                    refresh_cursor();
                 } //else
                 //  ALOGE("some other event %s of %s", xcb_errors_get_name_for_core_event(c.err_ctx, event->response_type, &ext), (ext ?: "core"));
             }
@@ -530,9 +563,9 @@ public:
     jobject thiz{};
     jmethodID set_renderer_visibility_id{};
     jmethodID set_cursor_rect_id{};
-    void init_jni(JavaVM* vm, jobject thiz) {
+    void init_jni(JavaVM* vm, jobject obj) {
         queue.write([=, this] {
-            this->thiz = thiz;
+            thiz = obj;
             vm->AttachCurrentThread(&env, nullptr);
             set_renderer_visibility_id =
                     env->GetMethodID(env->GetObjectClass(thiz),"setRendererVisibility","(Z)V");
@@ -562,7 +595,7 @@ Java_com_termux_x11_MainActivity_init(JNIEnv *env, jobject thiz) {
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_connect(JNIEnv *env, [[maybe_unused]] jobject thiz, jint fd) {
+Java_com_termux_x11_MainActivity_connect([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz, jint fd) {
     client.post([fd] { client.adopt_connection_fd(fd); });
 }
 
@@ -598,25 +631,43 @@ Java_com_termux_x11_MainActivity_onPointerMotion(JNIEnv *env, jobject thiz, jint
                         y - client.cursor.yhot,
                         client.cursor.width,
                         client.cursor.height);
+
+    client.cursor.x = x;
+    client.cursor.y = y;
+    if (client.c.conn) {
+        client.post([=] {
+            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(client.c.conn)).data;
+            xcb_test_fake_input(client.c.conn, XCB_MOTION_NOTIFY, false, XCB_CURRENT_TIME, s->root, x, y, 0);
+            xcb_flush(client.c.conn);
+        });
+    }
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_onPointerScroll(JNIEnv *env, jobject thiz, jint axis,
-                                                 jfloat value) {
+Java_com_termux_x11_MainActivity_onPointerScroll([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz,
+                                                 [[maybe_unused]] jint axis, [[maybe_unused]] jfloat value) {
     // TODO: implement onPointerScroll()
+    // How to send pointer scroll with XTEST?
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_onPointerButton(JNIEnv *env, jobject thiz, jint button,
+Java_com_termux_x11_MainActivity_onPointerButton([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz, jint button,
                                                  jint type) {
-    // TODO: implement onPointerButton()
+    if (client.c.conn) {
+        client.post([=] {
+            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(client.c.conn)).data;
+            xcb_test_fake_input(client.c.conn, type, button, XCB_CURRENT_TIME, s->root, 0, 0, 0);
+            xcb_flush(client.c.conn);
+        });
+    }
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_onKeyboardKey(JNIEnv *env, jobject thiz, jint key, jint type,
-                                               jint shift, jstring characters) {
+Java_com_termux_x11_MainActivity_onKeyboardKey([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz,
+                                               [[maybe_unused]] jint key, [[maybe_unused]] jint type,
+                                               [[maybe_unused]] jint shift, [[maybe_unused]] jstring characters) {
     // TODO: implement onKeyboardKey()
 }

@@ -30,8 +30,8 @@ import android.view.ViewConfiguration;
 @SuppressWarnings("unused")
 public class TouchParser {
 
-    private static final int WL_STATE_PRESSED = 1;
-    private static final int WL_STATE_RELEASED = 0;
+    private static final int XCB_BUTTON_PRESS = 4;
+    private static final int XCB_BUTTON_RELEASE = 5;
 
     private static final int WL_POINTER_AXIS_VERTICAL_SCROLL = 0;
     private static final int WL_POINTER_AXIS_HORIZONTAL_SCROLL = 1;
@@ -39,12 +39,12 @@ public class TouchParser {
     static final int TOUCH_MODE_MOUSE = 0;
     static final int TOUCH_MODE_TOUCHPAD = 1;
 
-    static final int BTN_LEFT = 0x110;
-    static final int BTN_RIGHT = 0x111;
-    static final int BTN_MIDDLE = 0x112;
+    static final int BTN_LEFT = 1;
+    static final int BTN_MIDDLE = 2;
+    static final int BTN_RIGHT = 3;
 
-    static final int ACTION_DOWN = WL_STATE_PRESSED;
-    static final int ACTION_UP = WL_STATE_RELEASED;
+    static final int ACTION_DOWN = XCB_BUTTON_PRESS;
+    static final int ACTION_UP = XCB_BUTTON_RELEASE;
 
     private static final int AXIS_X = WL_POINTER_AXIS_HORIZONTAL_SCROLL;
     private static final int AXIS_Y = WL_POINTER_AXIS_VERTICAL_SCROLL;

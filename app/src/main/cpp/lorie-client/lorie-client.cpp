@@ -1,14 +1,7 @@
 #include <sys/ioctl.h>
 #include <thread>
+#include <vector>
 #include <functional>
-#include <xcb/xcb.h>
-#include <xcb/damage.h>
-#include <xcb/xinput.h>
-#include <xcb/xfixes.h>
-#include <xcb/xtest.h>
-#include <xcb/shm.h>
-#include <xcb/randr.h>
-#include <xcb_errors.h>
 #include <libxcvt/libxcvt.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -24,6 +17,7 @@
 #include <android/looper.h>
 #include <bits/epoll_event.h>
 #include <sys/epoll.h>
+#include <xkbcommon/xkbcommon-x11.h>
 
 #if 1
 #define ALOGE(fmt, ...) __android_log_print(ANDROID_LOG_ERROR, "LorieX11Client", fmt, ## __VA_ARGS__)
@@ -31,10 +25,12 @@
 #define ALOGE(fmt, ...) printf(fmt, ## __VA_ARGS__); printf("\n")
 #endif
 
-#define unused __attribute__((unused))
 #define always_inline inline __attribute__((__always_inline__))
 
 #include "lorie_message_queue.hpp"
+#include "xcb-connection.hpp"
+#include "android-keycodes-to-x11-keysyms.h"
+
 
 // To avoid reopening new segment on every screen resolution
 // change we can open it only once with some maximal size
@@ -42,251 +38,6 @@
 
 #pragma ide diagnostic ignored "ConstantParameter"
 #pragma ide diagnostic ignored "cppcoreguidelines-narrowing-conversions"
-
-typedef uint8_t u8 unused;
-typedef uint16_t u16 unused;
-typedef uint32_t u32 unused;
-typedef uint64_t u64 unused;
-typedef int8_t i8 unused;
-typedef int16_t i16 unused;
-typedef int32_t i32 unused;
-typedef int64_t i64 unused;
-
-#define xcb(name, ...) xcb_ ## name ## _reply(self.conn, xcb_ ## name(self.conn, ## __VA_ARGS__), &self.err)
-#define xcb_check(name, ...) self.err = xcb_request_check(self.conn, xcb_ ## name(self.conn, ## __VA_ARGS__))
-
-class xcb_connection {
-private:
-
-public:
-    xcb_connection_t *conn{};
-    xcb_generic_error_t* err{}; // not thread-safe, but the whole class should be used in separate thread
-    xcb_errors_context_t *err_ctx{};
-
-    template<typename REPLY>
-    always_inline void handle_error(REPLY* reply, std::string description) { // NOLINT(performance-unnecessary-value-param)
-        if (err) {
-            const char* ext{};
-            const char* err_name =  xcb_errors_get_name_for_error(err_ctx, err->error_code, &ext);
-            std::string err_text = description + "\n" +
-                                   "XCB Error of failed request:               " + (ext?:"") + "::" + err_name + "\n" +
-                                   "  Major opcode of failed request:          " + std::to_string(err->major_code) + " (" +
-                                   xcb_errors_get_name_for_major_code(err_ctx, err->major_code) + ")\n" +
-                                   "  Minor opcode of failed request:          " + std::to_string(err->minor_code) + " (" +
-                                   xcb_errors_get_name_for_minor_code(err_ctx, err->major_code, err->minor_code) + ")\n" +
-                                   "  Serial number of failed request:         " + std::to_string(err->sequence) + "\n" +
-                                   "  Current serial number in output stream:  " + std::to_string(err->full_sequence);
-
-            free(reply);
-            free(err);
-            err = nullptr;
-            throw std::runtime_error(err_text);
-        }
-    }
-
-    always_inline void handle_error(std::string description) { // NOLINT(performance-unnecessary-value-param)
-        if (err) {
-            const char* ext{};
-            const char* err_name =  xcb_errors_get_name_for_error(err_ctx, err->error_code, &ext);
-            std::string err_text = description + "\n" +
-                                   "XCB Error of failed request:               " + (ext?:"") + "::" + err_name + "\n" +
-                                   "  Major opcode of failed request:          " + std::to_string(err->major_code) + " (" +
-                                   xcb_errors_get_name_for_major_code(err_ctx, err->major_code) + ")\n" +
-                                   "  Minor opcode of failed request:          " + std::to_string(err->minor_code) + " (" +
-                                   xcb_errors_get_name_for_minor_code(err_ctx, err->major_code, err->minor_code) + ")\n" +
-                                   "  Serial number of failed request:         " + std::to_string(err->sequence) + "\n" +
-                                   "  Current serial number in output stream:  " + std::to_string(err->full_sequence);
-            free(err);
-            err = nullptr;
-            throw std::runtime_error(err_text);
-        }
-    }
-
-    struct {
-        xcb_connection& self;
-        i32 first_event{};
-        void init() {
-            {
-                auto reply = xcb(shm_query_version);
-                self.handle_error(reply, "Error querying MIT-SHM extension");
-                free(reply);
-            }
-            {
-                auto reply = xcb(query_extension, 6, "DAMAGE");
-                self.handle_error(reply, "Error querying DAMAGE extension");
-                first_event = reply->first_event;
-                free(reply);
-            }
-        };
-
-        void attach_fd(u32 seg, i32 fd, u8 ro) {
-            xcb_check(shm_attach_fd, seg, fd, ro);
-            self.handle_error("Error attaching file descriptor through MIT-SHM extension");
-        };
-
-        void unused detach(u32 seg) {
-            xcb_check(shm_detach, seg);
-            self.handle_error("Error attaching shared segment through MIT-SHM extension");
-        }
-
-        xcb_shm_get_image_reply_t* get(xcb_drawable_t d, i16 x, i16 y, i16 w, i16 h, u32 m, u8 f, xcb_shm_seg_t s, u32 o) {
-            auto reply = xcb(shm_get_image, d, x, y, w, h, m, f, s, o);
-            self.handle_error(reply, "Error getting shm image through MIT-SHM extension");
-            return reply;
-        };
-    } shm {*this};
-
-    struct {
-        xcb_connection& self;
-        i32 first_event{};
-
-        void init() {
-            {
-                auto reply = xcb(query_extension, 6, "DAMAGE");
-                self.handle_error(reply, "Error querying DAMAGE extension");
-                first_event = reply->first_event;
-                free(reply);
-            }
-            {
-                auto reply = xcb(damage_query_version, 1, 1);
-                self.handle_error(reply, "Error querying DAMAGE extension");
-                free(reply);
-            }
-        }
-
-        void create(xcb_drawable_t d, uint8_t l) {
-            xcb_check(damage_create, xcb_generate_id(self.conn), d, l);
-            self.handle_error("Error creating damage");
-        }
-
-        inline bool is_damage_notify_event(xcb_generic_event_t *ev) const {
-            return ev->response_type == (first_event + XCB_DAMAGE_NOTIFY);
-        }
-    } damage {*this};
-
-    struct {
-        xcb_connection& self;
-        i32 opcode{};
-        void init() {
-            {
-                auto reply = xcb(query_extension, 15, "XInputExtension");
-                self.handle_error(reply, "Error querying XInputExtension extension");
-                opcode = reply->major_opcode;
-                free(reply);
-            }
-            {
-                auto reply = xcb(input_get_extension_version, 15, "XInputExtension");
-                self.handle_error(reply, "Error querying XInputExtension extension");
-                free(reply);
-            }
-            {
-                auto reply = xcb(input_xi_query_version, 2, 2);
-                self.handle_error(reply, "Error querying XInputExtension extension");
-                free(reply);
-            }
-        }
-
-        xcb_input_device_id_t client_pointer_id() {
-            xcb_input_device_id_t id;
-            auto reply = xcb(input_xi_get_client_pointer, XCB_NONE);
-            self.handle_error(reply, "Error getting client pointer device id");
-            id = reply->deviceid;
-            free(reply);
-            return id;
-        }
-
-        void select_events(xcb_window_t window, uint16_t num_mask, const xcb_input_event_mask_t *masks){
-            xcb_check(input_xi_select_events, window, num_mask, masks);
-            self.handle_error("Error selecting Xi events");
-        }
-
-        inline bool is_raw_motion_event(xcb_generic_event_t *ev) const {
-            union { // NOLINT(cppcoreguidelines-pro-type-member-init)
-                xcb_generic_event_t *event;
-                xcb_ge_event_t *ge;
-            };
-            event = ev;
-            return ev->response_type == XCB_GE_GENERIC && /* cookie */ ge->pad0 == opcode && ge->event_type == XCB_INPUT_RAW_MOTION;
-        }
-    } input {*this};
-
-    struct {
-        xcb_connection& self;
-        int first_event{};
-        void init() {
-            {
-                auto reply = xcb(query_extension, 6, "XFIXES");
-                self.handle_error(reply, "Error querying XFIXES extension");
-                first_event = reply->first_event;
-                free(reply);
-            }
-            {
-                auto reply = xcb(xfixes_query_version, 4, 0);
-                self.handle_error(reply, "Error querying XFIXES extension");
-                free(reply);
-            }
-        }
-
-        void select_input(xcb_window_t window, uint32_t mask) {
-            xcb_check(xfixes_select_cursor_input, window, mask);
-            self.handle_error("Error querying selecting XFIXES input");
-        }
-
-        bool is_cursor_notify_event(xcb_generic_event_t* e) const {
-            return e->response_type == first_event + XCB_XFIXES_CURSOR_NOTIFY;
-        }
-
-        xcb_xfixes_get_cursor_image_reply_t* unused get_cursor_image() {
-            auto reply = xcb(xfixes_get_cursor_image);
-            self.handle_error(reply, "Error getting XFIXES cursor image");
-            return reply;
-        }
-    } fixes {*this};
-
-    struct {
-        xcb_connection &self;
-        void init() {
-            auto reply = xcb(test_get_version, 2, 2);
-            self.handle_error(reply, "Error querying XFIXES extension");
-            free(reply);
-        }
-    } xtest {*this};
-
-    void init(int sockfd) {
-        xcb_connection_t* new_conn = xcb_connect_to_fd(sockfd, nullptr);
-        int conn_err = xcb_connection_has_error(new_conn);
-        if (conn_err) {
-            const char *s;
-            switch (conn_err) {
-#define c(name) case name: s = static_cast<const char*>(#name); break
-                c(XCB_CONN_ERROR);
-                c(XCB_CONN_CLOSED_EXT_NOTSUPPORTED);
-                c(XCB_CONN_CLOSED_MEM_INSUFFICIENT);
-                c(XCB_CONN_CLOSED_REQ_LEN_EXCEED);
-                c(XCB_CONN_CLOSED_PARSE_ERR);
-                c(XCB_CONN_CLOSED_INVALID_SCREEN);
-                c(XCB_CONN_CLOSED_FDPASSING_FAILED);
-                default:
-                    s = "UNKNOWN";
-#undef c
-            }
-            throw std::runtime_error(std::string() + "XCB connection has error: " + s);
-        }
-
-        if (err_ctx)
-            xcb_errors_context_free(err_ctx);
-        if (conn)
-            xcb_disconnect(conn);
-        conn = new_conn;
-        xcb_errors_context_new(conn, &err_ctx);
-
-        shm.init();
-        xtest.init();
-        damage.init();
-        input.init();
-        fixes.init();
-    }
-};
 
 static inline int
 os_create_anonymous_file(size_t size) {
@@ -360,9 +111,10 @@ static always_inline void blit_exact(ANativeWindow* win, const uint32_t* src, in
 
 class lorie_client {
 public:
-    lorie_message_queue queue;
+    lorie_looper looper;
     std::thread runner_thread;
     bool terminate = false;
+    bool paused = false;
 
     xcb_connection c;
 
@@ -381,76 +133,20 @@ public:
 
 
     lorie_client() {
-        runner_thread = std::thread([=, this] { runner(); });
+        runner_thread = std::thread([=, this] {
+            while(!terminate) {
+                looper.dispatch(1000);
+            }
+        });
     }
 
     void post(std::function<void()> task) {
-        queue.post(std::move(task));
+        looper.post(std::move(task));
     }
 
+    [[maybe_unused]]
     void post_delayed(std::function<void()> task, long ms_delay) {
-        queue.post(std::move(task), ms_delay);
-    }
-
-    int efd{}, xconn {-1};
-    void runner() {
-        struct epoll_event event{};
-        struct epoll_event events[16];
-        int ret;
-
-        efd = epoll_create1(0);
-        if(efd < 0) {
-            ALOGE("epoll_create: %s", strerror(errno));
-            abort();
-        }
-
-        event.data.fd = queue.efd;
-        event.events = EPOLLIN;
-        ret = epoll_ctl(efd, EPOLL_CTL_ADD, queue.efd, &event);
-        if(ret < 0) {
-            ALOGE("queue event epoll_ctl: %s", strerror(errno));
-            abort();
-        }
-
-        event.data.fd = queue.timer;
-        event.events = EPOLLIN;
-        ret = epoll_ctl(efd, EPOLL_CTL_ADD, queue.timer, &event);
-        if(ret < 0) {
-            ALOGE("queue timer epoll_ctl: %s", strerror(errno));
-            abort();
-        }
-
-        while(!terminate) {
-            errno = 0;
-            int n = epoll_wait(efd, events, 16, 1000);
-            if (n == 0)
-                continue;
-            if (errno)
-                ALOGE("Epoll returned %s", strerror(errno));
-
-            for (int i=0; i<n; i++) {
-                if (events[i].data.fd == queue.efd)
-                    queue.run();
-
-                if (events[i].data.fd == queue.timer)
-                    queue.dispatch_delayed();
-
-                if (events[i].data.fd == xconn) {
-                    if (events[i].events & (EPOLLNVAL | EPOLLHUP | EPOLLERR)) {
-                        epoll_ctl(efd, EPOLL_CTL_DEL, xconn, nullptr);
-                        xconn = -1;
-                        xcb_disconnect(c.conn);
-                        c.conn = nullptr;
-                        set_renderer_visibility(false);
-                        ALOGE("Disconnected");
-                        continue;
-                    }
-
-                    connection_poll_func();
-                    break;
-                }
-            }
-        }
+        looper.post(std::move(task), ms_delay);
     }
 
     void surface_changed(ANativeWindow* win, u32 width, u32 height) {
@@ -480,10 +176,9 @@ public:
 
     void adopt_connection_fd(int fd) {
         try {
-            if (xconn != -1) {
-                epoll_ctl(efd, EPOLL_CTL_DEL, xconn, nullptr);
-                xconn = -1;
-            }
+            static int old_fd = -1;
+            if (old_fd != -1)
+                looper.remove_fd(old_fd);
 
             ALOGE("Connecting to fd %d", fd);
             c.init(fd);
@@ -526,18 +221,23 @@ public:
 
             refresh_cursor();
 
-            ALOGE("Adding connection with fd %d to poller", fd);
-            epoll_event event{};
-            event.data.fd = fd;
-            event.events = EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLET | EPOLLHUP | EPOLLNVAL | EPOLLMSG;
-            int ret;
-            ret = epoll_ctl(efd, EPOLL_CTL_ADD, fd, &event);
-            if(ret < 0) {
-                ALOGE("x conection epoll_ctl: %s", strerror(errno));
-                abort();
-            }
 
-            xconn = fd;
+            ALOGE("Adding connection with fd %d to poller", fd);
+            u32 events = EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLET | EPOLLHUP | EPOLLNVAL | EPOLLMSG;
+            looper.add_fd(fd, events, [&] (u32 mask) {
+                    if (mask & (EPOLLNVAL | EPOLLHUP | EPOLLERR)) {
+                        looper.remove_fd(old_fd);
+                        old_fd = -1;
+                        xcb_disconnect(c.conn);
+                        c.conn = nullptr;
+                        set_renderer_visibility(false);
+                        ALOGE("Disconnected");
+                        return;
+                    }
+
+                    connection_poll_func();
+            });
+            old_fd = fd;
 
             set_renderer_visibility(true);
             refresh_screen();
@@ -574,7 +274,7 @@ public:
     }
 
     void refresh_screen() {
-        if (screen.win && c.conn) {
+        if (screen.win && c.conn && !paused) {
             try {
                 xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
                 c.shm.get(s->root, 0, 0, s->width_in_pixels, s->height_in_pixels,
@@ -606,8 +306,7 @@ public:
                     need_redraw = true;
                 } else if (c.fixes.is_cursor_notify_event(event)) {
                     refresh_cursor();
-                } //else
-                //  ALOGE("some other event %s of %s", xcb_errors_get_name_for_core_event(c.err_ctx, event->response_type, &ext), (ext ?: "core"));
+                }
             }
 
             if (need_redraw)
@@ -618,7 +317,7 @@ public:
     }
 
     ~lorie_client() {
-        queue.post([=, this] { terminate = true; });
+        looper.post([=, this] { terminate = true; });
         if (runner_thread.joinable())
             runner_thread.join();
     }
@@ -732,5 +431,54 @@ JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_onKeyboardKey([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz,
                                                [[maybe_unused]] jint key, [[maybe_unused]] jint type,
                                                [[maybe_unused]] jint shift, [[maybe_unused]] jstring characters) {
-    // TODO: implement onKeyboardKey()
+    if (client.c.conn) {
+        ALOGE("Sending key %d %d", key, android_to_keysyms[key]);
+        if (android_to_keysyms[key] != 0) {
+            xkb_keycode_t keycode = 0;
+            ALOGE("Trying to send android keycode %d which corresponds to keysym 0x%X", key, android_to_keysyms[key]);
+            for (auto& code: client.c.xkb.codes) {
+                if (code.keysym == android_to_keysyms[key])
+                    keycode = code.keycode;
+            }
+            if (keycode != 0) {
+                ALOGE("Sending keycode %d", keycode);
+                xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(client.c.conn)).data;
+                auto cookie = xcb_test_fake_input(client.c.conn, type, keycode,
+                                                  XCB_CURRENT_TIME, s->root, 0, 0, 0);
+                client.c.err = xcb_request_check(client.c.conn, cookie);
+                client.c.handle_error("Sending fake keypress failed");
+            }
+        }
+    }
 }
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_nativeResume([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz) {
+    client.post([] {
+        client.paused = false;
+        client.refresh_screen();
+    });
+}
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_nativePause([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz) {
+    client.paused = true;
+}
+
+#if 0
+// It is needed to redirect stderr to logcat
+[[maybe_unused]] std::thread stderr_to_logcat_thread([]{
+    FILE *fp;
+    int p[2];
+    size_t len;
+    char* line = nullptr;
+    pipe(p);
+    fp = fdopen(p[0], "r");
+
+    dup2(p[1], 2);
+    while ((getline(&line, &len, fp)) != -1) {
+        __android_log_write(ANDROID_LOG_VERBOSE, "stderr", line);
+    }
+});
+#endif

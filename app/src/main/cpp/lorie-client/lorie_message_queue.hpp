@@ -9,26 +9,29 @@
 #include <fcntl.h>
 #include <sys/eventfd.h>
 #include <sys/timerfd.h>
-#include <sys/poll.h>
+#include <sys/epoll.h>
+#include <unordered_map>
 
 static always_inline timespec operator+(const timespec& lhs, const timespec& rhs);
 static always_inline timespec operator-(const timespec& lhs, const timespec& rhs);
 static always_inline bool operator<(const timespec& lhs, const timespec& rhs);
 static always_inline timespec now();
 static always_inline timespec ms_to_timespec(long ms);
-static always_inline long timespec_to_ms(timespec& spec);
-static always_inline void timespec_to_human_readable(const timespec& ts, const char* comment);
+[[maybe_unused]] static always_inline long timespec_to_ms(timespec& spec);
+[[maybe_unused]] static always_inline void timespec_to_human_readable(const timespec& ts, const char* comment);
 
-class lorie_message_queue {
+class lorie_looper {
 public:
-	ALooper* looper{};
+	lorie_looper() {
+		efd = epoll_create1(0);
+		if (efd < 0) {
+			ALOGE("Failed to create epoll: %s", strerror(errno));
+			return;
+		}
 
-    int efd;
-
-	lorie_message_queue() {
-        efd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-        if (efd == -1) {
-            ALOGE("Failed to create socketpair for message queue: %s", strerror(errno));
+        evfd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+        if (evfd < 0) {
+            ALOGE("Failed to create eventfd: %s", strerror(errno));
             return;
         }
 
@@ -37,23 +40,62 @@ public:
 			ALOGE("Failed to create timerfd: %s", strerror(errno));
 			return;
 		}
+
+		add_fd(evfd, EPOLLIN, [=, this] (uint32_t) { dispatch_queue(); });
+		add_fd(timer, EPOLLIN, [=, this] (uint32_t) { dispatch_delayed_queue(); });
+	}
+
+	~lorie_looper() {
+		close(efd);
+		close(timer);
+		close(evfd);
 	}
 
 	void post(std::function<void()> func, long ms_delay = 0) {
 		std::unique_lock<std::mutex> lock(mutex);
 		if (ms_delay <= 0) {
 			queue.push(std::move(func));
-            ::write(efd, (const uint64_t[]) {1}, sizeof(uint64_t));
+            ::write(evfd, (const uint64_t[]) {1}, sizeof(uint64_t));
 		} else {
 			delayed_queue.emplace(task_t{ now() + ms_to_timespec(ms_delay), std::move(func) });
 			reset_timer();
 		}
 	};
 
-	void run() {
+	void add_fd(int fd, uint32_t mask, std::function<void(uint32_t mask)> callback) {
+		struct epoll_event event { .events=mask, .data ={ .fd=fd } };
+		event.data.fd = fd;
+		event.events = mask;
+		{
+			std::lock_guard<std::mutex> lock(mutex);
+			callbacks[fd] = std::move(callback);
+			epoll_ctl(efd, EPOLL_CTL_ADD, fd, &event);
+		}
+	}
+
+	void remove_fd(int fd) {
+		std::lock_guard<std::mutex> lock(mutex);
+		callbacks.erase(fd);
+		epoll_ctl(efd, EPOLL_CTL_DEL, fd, nullptr);
+	}
+
+	void dispatch(int timeout) {
+		std::vector<struct epoll_event> events(1024);
+		int num_events = epoll_wait(efd, events.data(), events.size(), timeout);
+		for (int i = 0; i < num_events; ++i) {
+			int fd = events[i].data.fd;
+			if (callbacks.count(fd) != 0) {
+				callbacks[fd](events[i].events);
+			}
+		}
+	}
+private:
+	int efd, evfd, timer;
+
+	void dispatch_queue() {
 		std::function<void()> fn;
 		std::unique_lock<std::mutex> lock(mutex);
-        ::read(efd, (void*) (const uint64_t[]) {1}, sizeof(uint64_t));
+		::read(evfd, (void*) (const uint64_t[]) {1}, sizeof(uint64_t));
 		while(!queue.empty()){
 			fn = queue.front();
 			queue.pop();
@@ -63,7 +105,8 @@ public:
 			lock.lock();
 		}
 	};
-	void dispatch_delayed() {
+
+	void dispatch_delayed_queue() {
 		std::unique_lock<std::mutex> lock(mutex);
 		while (!delayed_queue.empty() && delayed_queue.top().expiration < now()) {
 			auto fn = delayed_queue.top().f;
@@ -76,9 +119,6 @@ public:
 
 		reset_timer();
 	}
-
-	int timer;
-private:
 
 	struct task_t {
 		timespec expiration;
@@ -103,6 +143,7 @@ private:
 	std::mutex mutex;
 	std::queue<std::function<void()>> queue;
 	std::priority_queue<task_t> delayed_queue;
+	std::unordered_map<int, std::function<void(int)>> callbacks;
 
 	static constexpr itimerspec zero = {{0, 0}, {0, 0}};
 };
@@ -149,11 +190,11 @@ static always_inline timespec ms_to_timespec(long ms) {
 	return timespec { ms / 1000, (ms % 1000) * 1000000 };
 }
 
-static always_inline long timespec_to_ms(timespec spec) {
+[[maybe_unused]] static always_inline long timespec_to_ms(timespec spec) {
 	return spec.tv_sec * 1000 + spec.tv_nsec / 1000000 ;
 }
 
-static always_inline void timespec_to_human_readable(const timespec& ts, const char* comment) {
+[[maybe_unused]] static always_inline void timespec_to_human_readable(const timespec& ts, const char* comment) {
 	time_t sec = ts.tv_sec;
 	tm timeinfo{};
 	gmtime_r(&sec, &timeinfo);

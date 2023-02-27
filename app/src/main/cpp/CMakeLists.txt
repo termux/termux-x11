@@ -3,7 +3,6 @@ project(lorie)
 set(CMAKE_CXX_STANDARD 20)
 
 find_package(Python3 REQUIRED)
-find_package(BISON 3.0 REQUIRED)
 
 ####################################################################################################
 ######################################### LIBWAYLAND ###############################################
@@ -141,11 +140,27 @@ target_include_directories(xcvt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libxcvt/incl
 ####################################### LIBXKB-COMMON ##############################################
 ####################################################################################################
 
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/config.h "")
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/config.c
+  "#include <keymap.h>
+  const struct xkb_keymap_format_ops text_v1_keymap_format_ops = {};")
+set(XKBCOMMON_SOURCES atom.c context.c context-priv.c keysym.c keysym-utf.c keymap.c keymap-priv.c
+                      state.c text.c utf8.c utils.c x11/keymap.c x11/state.c x11/util.c)
+list(TRANSFORM XKBCOMMON_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/libxkbcommon/src/)
+set(XKBCOMMON_SOURCES ${XKBCOMMON_SOURCES} ${CMAKE_CURRENT_BINARY_DIR}/config.c)
+add_library(xkbcommon ${XKBCOMMON_SOURCES})
+target_compile_options(xkbcommon PRIVATE
+        "-DHAVE_STRNDUP=1" "-DDEFAULT_XKB_LAYOUT=\"us\"" "-DDEFAULT_XKB_MODEL=\"pc105\""
+        "-DDEFAULT_XKB_OPTIONS=NULL" "-DDEFAULT_XKB_RULES=\"evdev\"" "-DDEFAULT_XKB_VARIANT=NULL"
+        "-DDFLT_XKB_CONFIG_EXTRA_PATH=\"/data/data/com.termux.x11/files\""
+        "-DDFLT_XKB_CONFIG_ROOT=\"/data/data/com.termux.x11/files\"")
+target_include_directories(xkbcommon PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/libxkbcommon/src")
+target_include_directories(xkbcommon PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libxkbcommon/include")
+target_link_libraries(xkbcommon xcbproto)
+
 ####################################################################################################
 ####################################### LORIE-CLIENT ###############################################
 ####################################################################################################
 
-add_library(lorie-client SHARED
-        ${CMAKE_CURRENT_SOURCE_DIR}/lorie-client/lorie-client.cpp
-        )
-target_link_libraries(lorie-client xcbproto xcb xcb-errors xcb-shm xcb-xfixes xcb-xinput xcb-damage xcvt "-llog" "-landroid")
+add_library(lorie-client SHARED ${CMAKE_CURRENT_SOURCE_DIR}/lorie-client/lorie-client.cpp)
+target_link_libraries(lorie-client xkbcommon xcbproto xcb xcb-errors xcb-shm xcb-xfixes xcb-xinput xcb-damage xcvt "-llog" "-landroid")

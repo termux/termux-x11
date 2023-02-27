@@ -1,3 +1,5 @@
+#define XK_MISCELLANY
+#define XK_LATIN1
 #include <X11/keysymdef.h>
 
 /* 
@@ -9,7 +11,7 @@
  * which keeps track on Xserver's keymap, otherways non-English
  * keyboard layouts will be broken.
  */
-int keysyms = {
+int android_to_keysyms[] = {
     /* ANDROID_KEYCODE_UNKNOWN */ 0,
     /* ANDROID_KEYCODE_SOFT_LEFT */ 0,
     /* ANDROID_KEYCODE_SOFT_RIGHT */ 0,
@@ -144,7 +146,7 @@ int keysyms = {
     /* ANDROID_KEYCODE_F1 */ XK_F1,
     /* ANDROID_KEYCODE_F2 */ XK_F2,
     /* ANDROID_KEYCODE_F3 */ XK_F3,
-    /* ANDROID_KEYCODE_F4 */ XK_F4
+    /* ANDROID_KEYCODE_F4 */ XK_F4,
     /* ANDROID_KEYCODE_F5 */ XK_F5,
     /* ANDROID_KEYCODE_F6 */ XK_F6,
     /* ANDROID_KEYCODE_F7 */ XK_F7,
@@ -297,4 +299,4 @@ int keysyms = {
     /* ANDROID_KEYCODE_ALL_APPS */ 0,
     /* ANDROID_KEYCODE_REFRESH */ 0
     /* ANDROID_KEYCODE_LAST */
-}
+};

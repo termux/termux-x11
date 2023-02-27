@@ -105,6 +105,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         lorieView.setFocusableInTouchMode(true);
         lorieView.requestFocus();
 
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(1, 1);
+        cursorView.setLayoutParams(params);
+
         listener.setAsListenerTo(lorieView, cursorView);
 
         mTP = new TouchParser(lorieView, this);
@@ -173,6 +176,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @Override
     public void onResume() {
         super.onResume();
+        nativeResume();
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         if (prefs.getBoolean("dexMetaKeyCapture", false)) {
             SamsungDexUtils.dexMetaKeyCapture(this, true);
@@ -185,6 +189,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (preferences.getBoolean("dexMetaKeyCapture", false)) {
             SamsungDexUtils.dexMetaKeyCapture(this, false);
         }
+
+        // We do not really need to draw while application is in background.
+        nativePause();
         super.onPause();
     }
 
@@ -309,6 +316,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @SuppressWarnings("SameParameterValue")
     private class ServiceEventListener implements View.OnKeyListener {
+        public static final int KeyPress = 2; // synchronized with X.h
+        public static final int KeyRelease = 3; // synchronized with X.h
+
         @SuppressLint({"WrongConstant", "ClickableViewAccessibility"})
         private void setAsListenerTo(SurfaceView view, SurfaceView cursor) {
             view.setOnTouchListener((v, e) -> mTP.onTouchEvent(e));
@@ -381,9 +391,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 return true;
             }
 
-            if (e.getAction() == KeyEvent.ACTION_DOWN) action = TouchParser.ACTION_DOWN;
-            if (e.getAction() == KeyEvent.ACTION_UP) action = TouchParser.ACTION_UP;
-            onKeyboardKey(action, keyCode, e.isShiftPressed() ? 1 : 0, e.getCharacters());
+            switch(e.getAction()) {
+                case KeyEvent.ACTION_DOWN:
+                    onKeyboardKey(keyCode, KeyPress, e.isShiftPressed() ? 1 : 0, e.getCharacters());
+                    break;
+                case KeyEvent.ACTION_UP:
+                    onKeyboardKey(keyCode, KeyRelease, e.isShiftPressed() ? 1 : 0, e.getCharacters());
+                    break;
+            }
             return true;
         }
     }
@@ -430,6 +445,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public native void onPointerScroll(int axis, float value);
     public native void onPointerButton(int button, int type);
     private native void onKeyboardKey(int key, int type, int shift, String characters);
+    private native void nativeResume();
+    private native void nativePause();
 
     static {
         System.loadLibrary("lorie-client");

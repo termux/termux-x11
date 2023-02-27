@@ -207,6 +207,8 @@ lorie_compositor::lorie_compositor(int dpi): dpi(dpi) {
 }
 
 void lorie_compositor::report_mode(int width, int height) {
+    if (width == 0 || height == 0)
+        return;
     int mm_width  = int(width  * 25.4 / dpi);
     int mm_height = int(height * 25.4 / dpi);
     wl_client* client;

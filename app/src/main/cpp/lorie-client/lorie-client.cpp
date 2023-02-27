@@ -19,15 +19,20 @@
 #include <android/log.h>
 #include <linux/un.h>
 #include <sys/stat.h>
+#include <sys/eventfd.h>
 #include <android/native_window_jni.h>
 #include <android/looper.h>
+#include <bits/epoll_event.h>
+#include <sys/epoll.h>
 
 #if 1
 #define ALOGE(fmt, ...) __android_log_print(ANDROID_LOG_ERROR, "LorieX11Client", fmt, ## __VA_ARGS__)
 #else
 #define ALOGE(fmt, ...) printf(fmt, ## __VA_ARGS__); printf("\n")
 #endif
+
 #define unused __attribute__((unused))
+#define always_inline inline __attribute__((__always_inline__))
 
 #include "lorie_message_queue.hpp"
 
@@ -46,8 +51,6 @@ typedef int8_t i8 unused;
 typedef int16_t i16 unused;
 typedef int32_t i32 unused;
 typedef int64_t i64 unused;
-
-#define always_inline inline __attribute__((__always_inline__))
 
 #define xcb(name, ...) xcb_ ## name ## _reply(self.conn, xcb_ ## name(self.conn, ## __VA_ARGS__), &self.err)
 #define xcb_check(name, ...) self.err = xcb_request_check(self.conn, xcb_ ## name(self.conn, ## __VA_ARGS__))
@@ -285,8 +288,6 @@ public:
     }
 };
 
-#define ASHMEM_SET_SIZE _IOW(0x77, 3, size_t)
-
 static inline int
 os_create_anonymous_file(size_t size) {
     int fd, ret;
@@ -294,7 +295,7 @@ os_create_anonymous_file(size_t size) {
     fd = open("/dev/ashmem", O_RDWR | O_CLOEXEC);
     if (fd < 0)
         return fd;
-    ret = ioctl(fd, ASHMEM_SET_SIZE, size);
+    ret = ioctl(fd, /** ASHMEM_SET_SIZE */ _IOW(0x77, 3, size_t), size);
     if (ret < 0)
         goto err;
     flags = fcntl(fd, F_GETFD);
@@ -383,24 +384,77 @@ public:
         runner_thread = std::thread([=, this] { runner(); });
     }
 
-    void post(std::function<void()> task, long ms_delay = 0) {
+    void post(std::function<void()> task) {
+        queue.post(std::move(task));
+    }
+
+    void post_delayed(std::function<void()> task, long ms_delay) {
         queue.post(std::move(task), ms_delay);
     }
 
+    int efd{}, xconn {-1};
     void runner() {
-        ALooper_prepare(0);
-        ALooper_addFd(ALooper_forThread(), queue.get_fd(), ALOOPER_EVENT_INPUT, ALOOPER_POLL_CALLBACK, [](int, int, void *d) {
-            auto client = reinterpret_cast<lorie_client*>(d);
-            client->queue.run();
-            return 1;
-        }, this);
+        struct epoll_event event{};
+        struct epoll_event events[16];
+        int ret;
 
-        while(!terminate) ALooper_pollAll(500, nullptr, nullptr, nullptr);
+        efd = epoll_create1(0);
+        if(efd < 0) {
+            ALOGE("epoll_create: %s", strerror(errno));
+            abort();
+        }
 
-        ALooper_release(ALooper_forThread());
+        event.data.fd = queue.efd;
+        event.events = EPOLLIN;
+        ret = epoll_ctl(efd, EPOLL_CTL_ADD, queue.efd, &event);
+        if(ret < 0) {
+            ALOGE("queue event epoll_ctl: %s", strerror(errno));
+            abort();
+        }
+
+        event.data.fd = queue.timer;
+        event.events = EPOLLIN;
+        ret = epoll_ctl(efd, EPOLL_CTL_ADD, queue.timer, &event);
+        if(ret < 0) {
+            ALOGE("queue timer epoll_ctl: %s", strerror(errno));
+            abort();
+        }
+
+        while(!terminate) {
+            errno = 0;
+            int n = epoll_wait(efd, events, 16, 1000);
+            if (n == 0)
+                continue;
+            if (errno)
+                ALOGE("Epoll returned %s", strerror(errno));
+
+            for (int i=0; i<n; i++) {
+                if (events[i].data.fd == queue.efd)
+                    queue.run();
+
+                if (events[i].data.fd == queue.timer)
+                    queue.dispatch_delayed();
+
+                if (events[i].data.fd == xconn) {
+                    if (events[i].events & (EPOLLNVAL | EPOLLHUP | EPOLLERR)) {
+                        epoll_ctl(efd, EPOLL_CTL_DEL, xconn, nullptr);
+                        xconn = -1;
+                        xcb_disconnect(c.conn);
+                        c.conn = nullptr;
+                        set_renderer_visibility(false);
+                        ALOGE("Disconnected");
+                        continue;
+                    }
+
+                    connection_poll_func();
+                    break;
+                }
+            }
+        }
     }
 
     void surface_changed(ANativeWindow* win, u32 width, u32 height) {
+        ALOGE("Surface: changing surface %p to %p", screen.win, win);
         if (screen.win)
             ANativeWindow_release(screen.win);
 
@@ -409,6 +463,8 @@ public:
         screen.win = win;
         screen.width = width;
         screen.height = height;
+
+        refresh_screen();
     }
 
     void cursor_changed(ANativeWindow* win) {
@@ -424,6 +480,11 @@ public:
 
     void adopt_connection_fd(int fd) {
         try {
+            if (xconn != -1) {
+                epoll_ctl(efd, EPOLL_CTL_DEL, xconn, nullptr);
+                xconn = -1;
+            }
+
             ALOGE("Connecting to fd %d", fd);
             c.init(fd);
             xcb_screen_t *scr = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
@@ -465,23 +526,18 @@ public:
 
             refresh_cursor();
 
-            int event_mask = ALOOPER_EVENT_INPUT | ALOOPER_EVENT_OUTPUT | ALOOPER_EVENT_INVALID |
-                             ALOOPER_EVENT_HANGUP | ALOOPER_EVENT_ERROR;
-            ALooper_addFd(ALooper_forThread(), fd, ALOOPER_EVENT_INPUT, event_mask,
-                          [](int, int mask, void *d) {
-                              auto self = reinterpret_cast<lorie_client *>(d);
-                              if (mask & (ALOOPER_EVENT_INVALID | ALOOPER_EVENT_HANGUP |
-                                          ALOOPER_EVENT_ERROR)) {
-                                  xcb_disconnect(self->c.conn);
-                                  self->c.conn = nullptr;
-                                  self->set_renderer_visibility(false);
-                                  ALOGE("Disconnected");
-                                  return 0;
-                              }
+            ALOGE("Adding connection with fd %d to poller", fd);
+            epoll_event event{};
+            event.data.fd = fd;
+            event.events = EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLET | EPOLLHUP | EPOLLNVAL | EPOLLMSG;
+            int ret;
+            ret = epoll_ctl(efd, EPOLL_CTL_ADD, fd, &event);
+            if(ret < 0) {
+                ALOGE("x conection epoll_ctl: %s", strerror(errno));
+                abort();
+            }
 
-                              self->connection_poll_func();
-                              return 1;
-                          }, this);
+            xconn = fd;
 
             set_renderer_visibility(true);
             refresh_screen();
@@ -518,25 +574,23 @@ public:
     }
 
     void refresh_screen() {
-        //post([=] { ALOGE("DELAYED!!!"); refresh_screen(); }, 1000); // post with delay does not work...
-        ALOGE("REFRESH!!!");
-        try {
-            if (screen.win && c.conn) {
+        if (screen.win && c.conn) {
+            try {
                 xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
                 c.shm.get(s->root, 0, 0, s->width_in_pixels, s->height_in_pixels,
                           ~0, // NOLINT(cppcoreguidelines-narrowing-conversions)
                           XCB_IMAGE_FORMAT_Z_PIXMAP, screen.shmseg, 0);
                 blit_exact(screen.win, screen.shmaddr, s->width_in_pixels,
                            s->height_in_pixels);
+            } catch (std::runtime_error &err) {
+                ALOGE("Refreshing screen failed: %s", err.what());
             }
-        } catch (std::runtime_error &err) {
-            ALOGE("Refreshing screen failed: %s", err.what());
         }
-        // post([=]{ refresh_screen(); }); // this line makes video stream smoother but it consumes a lot of cpu.
     }
 
     void connection_poll_func() {
         try {
+            bool need_redraw = false;
             xcb_generic_event_t *event;
             // const char *ext;
             xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
@@ -549,12 +603,15 @@ public:
                     s->width_in_pixels = e->width;
                     s->height_in_pixels = e->height;
                 } else if (c.damage.is_damage_notify_event(event)) {
-                    refresh_screen();
+                    need_redraw = true;
                 } else if (c.fixes.is_cursor_notify_event(event)) {
                     refresh_cursor();
                 } //else
                 //  ALOGE("some other event %s of %s", xcb_errors_get_name_for_core_event(c.err_ctx, event->response_type, &ext), (ext ?: "core"));
             }
+
+            if (need_redraw)
+                refresh_screen();
         } catch (std::exception& e) {
             ALOGE("Failure during processing X events: %s", e.what());
         }
@@ -564,7 +621,6 @@ public:
         queue.post([=, this] { terminate = true; });
         if (runner_thread.joinable())
             runner_thread.join();
-        close(queue.get_fd());
     }
 
     JNIEnv* env{};
@@ -642,12 +698,12 @@ Java_com_termux_x11_MainActivity_onPointerMotion(JNIEnv *env, jobject thiz, jint
 
     client.cursor.x = x;
     client.cursor.y = y;
+
     if (client.c.conn) {
-        client.post([=] {
-            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(client.c.conn)).data;
-            xcb_test_fake_input(client.c.conn, XCB_MOTION_NOTIFY, false, XCB_CURRENT_TIME, s->root, x, y, 0);
-            xcb_flush(client.c.conn);
-        });
+        // XCB is thread safe, no need to post this to dispatch thread.
+        xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(client.c.conn)).data;
+        xcb_test_fake_input(client.c.conn, XCB_MOTION_NOTIFY, false, XCB_CURRENT_TIME, s->root, x,y,  0);
+        xcb_flush(client.c.conn);
     }
 }
 
@@ -664,11 +720,10 @@ JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_onPointerButton([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz, jint button,
                                                  jint type) {
     if (client.c.conn) {
-        client.post([=] {
-            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(client.c.conn)).data;
-            xcb_test_fake_input(client.c.conn, type, button, XCB_CURRENT_TIME, s->root, 0, 0, 0);
-            xcb_flush(client.c.conn);
-        });
+        // XCB is thread safe, no need to post this to dispatch thread.
+        xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(client.c.conn)).data;
+        xcb_test_fake_input(client.c.conn, type, button, XCB_CURRENT_TIME, s->root, 0, 0, 0);
+        xcb_flush(client.c.conn);
     }
 }
 

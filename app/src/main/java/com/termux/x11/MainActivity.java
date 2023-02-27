@@ -401,7 +401,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @SuppressWarnings("unused")
     // It is used in native code
     void setCursorVisibility(boolean visible) {
-        runOnUiThread(()-> findViewById(R.id.cursorView).setVisibility(visible?View.VISIBLE:View.INVISIBLE));
+        View cursor = findViewById(R.id.cursorView);
+        int visibility = visible?View.VISIBLE:View.INVISIBLE;
+        if (cursor.getVisibility() != visibility)
+            runOnUiThread(()-> findViewById(R.id.cursorView).setVisibility(visibility));
     }
 
     @SuppressWarnings("unused")

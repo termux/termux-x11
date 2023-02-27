@@ -10,98 +10,50 @@
 #include <sys/eventfd.h>
 #include <sys/timerfd.h>
 #include <sys/poll.h>
-#include <sys/epoll.h>
 
-static inline timespec operator+(const timespec& lhs, const timespec& rhs) {
-	timespec result{};
-	result.tv_sec = lhs.tv_sec + rhs.tv_sec;
-	result.tv_nsec = lhs.tv_nsec + rhs.tv_nsec;
-	if (result.tv_nsec >= 1000000000L) {
-		++result.tv_sec;
-		result.tv_nsec -= 1000000000L;
-	}
-	return result;
-}
-
-static inline timespec operator-(const timespec& lhs, const timespec& rhs) {
-	timespec result{};
-	result.tv_sec = lhs.tv_sec - rhs.tv_sec;
-	result.tv_nsec = lhs.tv_nsec - rhs.tv_nsec;
-	if (result.tv_nsec < 0) {
-		--result.tv_sec;
-		result.tv_nsec += 1000000000L;
-	}
-	return result;
-}
-
-static inline bool operator<(const timespec& lhs, const timespec& rhs) {
-	if (lhs.tv_sec < rhs.tv_sec) {
-		return true;
-	}
-	if (lhs.tv_sec > rhs.tv_sec) {
-		return false;
-	}
-	return lhs.tv_nsec < rhs.tv_nsec;
-}
-
-static inline timespec now() {
-	timespec now; // NOLINT(cppcoreguidelines-pro-type-member-init)
-	clock_gettime(CLOCK_MONOTONIC, &now);
-	return now;
-}
-
-static inline timespec ms_to_timespec(long ms) {
-	return timespec { ms / 1000, (ms % 1000) * 1000000 };
-}
-
-void timespec_to_human_readable(const timespec& ts, const char* comment) {
-	time_t sec = ts.tv_sec;
-	tm timeinfo{};
-	gmtime_r(&sec, &timeinfo);
-	ALOGE("%-10s %02d:%02d:%02d.%03ld", comment, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec, ts.tv_nsec / 1000000);
-}
+static always_inline timespec operator+(const timespec& lhs, const timespec& rhs);
+static always_inline timespec operator-(const timespec& lhs, const timespec& rhs);
+static always_inline bool operator<(const timespec& lhs, const timespec& rhs);
+static always_inline timespec now();
+static always_inline timespec ms_to_timespec(long ms);
+static always_inline long timespec_to_ms(timespec& spec);
+static always_inline void timespec_to_human_readable(const timespec& ts, const char* comment);
 
 class lorie_message_queue {
 public:
-	lorie_message_queue() {
-		timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
-		if (timer_fd < 0) {
-			ALOGE("Failed to create timerfd: %s", strerror(errno));
-		}
+	ALooper* looper{};
 
-		fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-		if (fd < 0) {
-			ALOGE("Failed to create eventfd: %s", strerror(errno));
+    int efd;
+
+	lorie_message_queue() {
+        efd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+        if (efd == -1) {
+            ALOGE("Failed to create socketpair for message queue: %s", strerror(errno));
+            return;
+        }
+
+		timer = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+		if (timer < 0) {
+			ALOGE("Failed to create timerfd: %s", strerror(errno));
+			return;
 		}
-		// For some reason epoll_fd does not dispatch timerfd's events...
-		std::thread([=] {
-			struct pollfd pfd = { .fd = timer_fd, .events = POLLIN };
-			while (poll(&pfd, 1, 1000) >= 0) {
-				if (pfd.revents & POLLIN) {
-					post([=] { dispatch_delayed(); });
-				}
-			};
-		}).detach();
 	}
-	~lorie_message_queue() { close(timer_fd); close(fd); }
 
 	void post(std::function<void()> func, long ms_delay = 0) {
-		if (!ms_delay) {
-			static uint64_t i = 1;
-			std::unique_lock<std::mutex> lock(mutex);
+		std::unique_lock<std::mutex> lock(mutex);
+		if (ms_delay <= 0) {
 			queue.push(std::move(func));
-			::write(fd, &i, sizeof(uint64_t));
+            ::write(efd, (const uint64_t[]) {1}, sizeof(uint64_t));
 		} else {
 			delayed_queue.emplace(task_t{ now() + ms_to_timespec(ms_delay), std::move(func) });
 			reset_timer();
 		}
-	}
+	};
 
 	void run() {
-		static uint64_t i = 0;
-		std::unique_lock<std::mutex> lock(mutex);
 		std::function<void()> fn;
-		::read(fd, &i, sizeof(uint64_t));
+		std::unique_lock<std::mutex> lock(mutex);
+        ::read(efd, (void*) (const uint64_t[]) {1}, sizeof(uint64_t));
 		while(!queue.empty()){
 			fn = queue.front();
 			queue.pop();
@@ -110,37 +62,23 @@ public:
 			fn();
 			lock.lock();
 		}
-	}
-
+	};
 	void dispatch_delayed() {
+		std::unique_lock<std::mutex> lock(mutex);
 		while (!delayed_queue.empty() && delayed_queue.top().expiration < now()) {
-			auto f = delayed_queue.top().f;
+			auto fn = delayed_queue.top().f;
 			delayed_queue.pop();
-			f();
+
+			lock.unlock();
+			fn();
+			lock.lock();
 		}
 
 		reset_timer();
 	}
 
-	int get_fd() {
-		return fd;
-	}
+	int timer;
 private:
-	int fd;
-	std::mutex mutex;
-	std::queue<std::function<void()>> queue;
-private:
-	void reset_timer() {
-		if (delayed_queue.empty())
-			return;
-
-		timespec planned = (delayed_queue.top().expiration - now() < ms_to_timespec(0))
-						   ? ms_to_timespec(20)
-						   : delayed_queue.top().expiration - now();
-		itimerspec t = { {}, planned };
-		if (timerfd_settime(timer_fd, 0, &t, nullptr) < 0)
-			ALOGE("Failed to set timerfd: %s", strerror(errno));
-	}
 
 	struct task_t {
 		timespec expiration;
@@ -151,6 +89,73 @@ private:
 		}
 	};
 
-	int timer_fd;
+	void reset_timer() {
+		if (delayed_queue.empty()) {
+			timerfd_settime(timer, 0, &zero, nullptr);
+			return;
+		}
+
+		itimerspec t = { {}, delayed_queue.top().expiration };
+		if (timerfd_settime(timer, TFD_TIMER_ABSTIME, &t, nullptr) < 0)
+			ALOGE("Failed to set timerfd: %s", strerror(errno));
+	}
+
+	std::mutex mutex;
+	std::queue<std::function<void()>> queue;
 	std::priority_queue<task_t> delayed_queue;
+
+	static constexpr itimerspec zero = {{0, 0}, {0, 0}};
 };
+
+static always_inline timespec operator+(const timespec& lhs, const timespec& rhs) {
+	timespec result{};
+	result.tv_sec = lhs.tv_sec + rhs.tv_sec;
+	result.tv_nsec = lhs.tv_nsec + rhs.tv_nsec;
+	if (result.tv_nsec >= 1000000000L) {
+		++result.tv_sec;
+		result.tv_nsec -= 1000000000L;
+	}
+	return result;
+}
+
+static always_inline timespec operator-(const timespec& lhs, const timespec& rhs) {
+	timespec result{};
+	result.tv_sec = lhs.tv_sec - rhs.tv_sec;
+	result.tv_nsec = lhs.tv_nsec - rhs.tv_nsec;
+	if (result.tv_nsec < 0) {
+		--result.tv_sec;
+		result.tv_nsec += 1000000000L;
+	}
+	return result;
+}
+
+static always_inline bool operator<(const timespec& lhs, const timespec& rhs) {
+	if (lhs.tv_sec < rhs.tv_sec) {
+		return true;
+	}
+	if (lhs.tv_sec > rhs.tv_sec) {
+		return false;
+	}
+	return lhs.tv_nsec < rhs.tv_nsec;
+}
+
+static always_inline timespec now() {
+	timespec now; // NOLINT(cppcoreguidelines-pro-type-member-init)
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	return now;
+}
+
+static always_inline timespec ms_to_timespec(long ms) {
+	return timespec { ms / 1000, (ms % 1000) * 1000000 };
+}
+
+static always_inline long timespec_to_ms(timespec spec) {
+	return spec.tv_sec * 1000 + spec.tv_nsec / 1000000 ;
+}
+
+static always_inline void timespec_to_human_readable(const timespec& ts, const char* comment) {
+	time_t sec = ts.tv_sec;
+	tm timeinfo{};
+	gmtime_r(&sec, &timeinfo);
+	ALOGE("%-10s %02d:%02d:%02d.%03ld", comment, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec, ts.tv_nsec / 1000000);
+}

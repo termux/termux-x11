@@ -186,7 +186,9 @@ lorie_compositor::lorie_compositor(int dpi): dpi(dpi) {
         report_mode(800, 600);
         output->on_release = [=]{ output->destroy(); };
     };
-    global_shell.on_bind = [](client_t*, shell_t*) {};
+    global_shell.on_bind = [](client_t*, shell_t* shell) {
+        shell->on_get_shell_surface = [](shell_surface_t*, surface_t*){};
+    };
     global_xdg_wm_base.on_bind = [](client_t*, xdg_wm_base_t* wm_base) {
         wm_base->on_get_xdg_surface = [](xdg_surface_t*, surface_t*) {};
         wm_base->on__destroy = [=]() { wm_base->destroy(); };

@@ -159,8 +159,21 @@ target_include_directories(xkbcommon PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libxkbc
 target_link_libraries(xkbcommon xcbproto)
 
 ####################################################################################################
+#################################### LIBANDROID-SUPPORT ############################################
+####################################################################################################
+
+set(ANDROID_SUPPORT_MUSL_CTYPE iswalnum.c iswalpha.c iswblank.c iswcntrl.c iswctype.c iswdigit.c
+        iswgraph.c iswlower.c iswprint.c iswpunct.c iswspace.c iswupper.c iswxdigit.c towctrans.c
+        wcswidth.c wctrans.c)
+set(ANDROID_SUPPORT_MUSL_MULTIBYTE internal.c mblen.c mbsnrtowcs.c mbsrtowcs.c)
+list(TRANSFORM ANDROID_SUPPORT_MUSL_CTYPE PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/libandroid-support/src/musl-ctype/)
+list(TRANSFORM ANDROID_SUPPORT_MUSL_MULTIBYTE PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/libandroid-support/src/musl-multibyte/)
+add_library(android-support STATIC ${ANDROID_SUPPORT_MUSL_CTYPE} ${ANDROID_SUPPORT_MUSL_MULTIBYTE})
+
+####################################################################################################
 ####################################### LORIE-CLIENT ###############################################
 ####################################################################################################
 
 add_library(lorie-client SHARED ${CMAKE_CURRENT_SOURCE_DIR}/lorie-client/lorie-client.cpp)
-target_link_libraries(lorie-client xkbcommon xcbproto xcb xcb-errors xcb-shm xcb-xfixes xcb-xinput xcb-damage xcvt "-llog" "-landroid")
+target_link_libraries(lorie-client android-support xkbcommon xcbproto xcb xcb-errors xcb-shm
+                                   xcb-xfixes xcb-xinput xcb-damage xcvt "-llog" "-landroid")

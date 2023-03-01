@@ -30,3 +30,6 @@
 	path = app/src/main/cpp/libxkbcommon
 	url = https://github.com/xkbcommon/libxkbcommon
 	ignore = dirty
+[submodule "app/src/main/cpp/libandroid-support"]
+	path = app/src/main/cpp/libandroid-support
+	url = https://github.com/termux/libandroid-support/

@@ -1,5 +1,6 @@
 #include <sys/ioctl.h>
 #include <thread>
+#include <cwchar>
 #include <vector>
 #include <functional>
 #include <libxcvt/libxcvt.h>
@@ -21,6 +22,7 @@
 
 #if 1
 #define ALOGE(fmt, ...) __android_log_print(ANDROID_LOG_ERROR, "LorieX11Client", fmt, ## __VA_ARGS__)
+#define ALOGV(fmt, ...) __android_log_print(ANDROID_LOG_VERBOSE, "LorieX11Client", fmt, ## __VA_ARGS__)
 #else
 #define ALOGE(fmt, ...) printf(fmt, ## __VA_ARGS__); printf("\n")
 #endif
@@ -288,6 +290,13 @@ public:
         }
     }
 
+    void send_keysym(xcb_keysym_t keysym, int meta_state) {
+        if (c.conn)
+            post([=] {
+                c.xkb.send_keysym(keysym, meta_state);
+            });
+    }
+
     void connection_poll_func() {
         try {
             bool need_redraw = false;
@@ -428,28 +437,37 @@ Java_com_termux_x11_MainActivity_onPointerButton([[maybe_unused]] JNIEnv *env, [
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_onKeyboardKey([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz,
-                                               [[maybe_unused]] jint key, [[maybe_unused]] jint type,
-                                               [[maybe_unused]] jint shift, [[maybe_unused]] jstring characters) {
-    if (client.c.conn) {
-        ALOGE("Sending key %d %d", key, android_to_keysyms[key]);
-        if (android_to_keysyms[key] != 0) {
-            xkb_keycode_t keycode = 0;
-            ALOGE("Trying to send android keycode %d which corresponds to keysym 0x%X", key, android_to_keysyms[key]);
-            for (auto& code: client.c.xkb.codes) {
-                if (code.keysym == android_to_keysyms[key])
-                    keycode = code.keycode;
-            }
-            if (keycode != 0) {
-                ALOGE("Sending keycode %d", keycode);
-                xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(client.c.conn)).data;
-                auto cookie = xcb_test_fake_input(client.c.conn, type, keycode,
-                                                  XCB_CURRENT_TIME, s->root, 0, 0, 0);
-                client.c.err = xcb_request_check(client.c.conn, cookie);
-                client.c.handle_error("Sending fake keypress failed");
-            }
-        }
+Java_com_termux_x11_MainActivity_onKeySym([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz,
+                                               jint keycode, jint unicodeChar, jstring str, jint meta_state) {
+    wchar_t unicode = unicodeChar;
+    mbstate_t ps {};
+
+    ALOGE("1");
+
+    if (unicode && !meta_state) {
+        client.send_keysym(xkb_utf32_to_keysym(unicode), meta_state);
+        return;
     }
+
+    ALOGE("2");
+    if (android_to_keysyms[keycode]) {
+        client.send_keysym(android_to_keysyms[keycode], meta_state);
+        return;
+    }
+
+    ALOGE("3");
+    if (str) {
+        const char *characters = env->GetStringUTFChars(str, nullptr);
+        const char *chars = characters; // mbsrtowcs will set it to nullptr, but we still need to release it
+        if (!chars)
+            return;
+
+        while (mbsrtowcs(&unicode, &chars, 1, &ps) > 0)
+            client.send_keysym(xkb_utf32_to_keysym(unicode), meta_state);
+
+        env->ReleaseStringUTFChars(str, characters);
+    }
+    ALOGE("4");
 }
 
 extern "C"

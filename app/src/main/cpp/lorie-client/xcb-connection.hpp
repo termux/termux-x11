@@ -13,6 +13,8 @@
 #include <xcb/xkb.h>
 #undef explicit
 
+#include <android/input.h>
+
 #define xcb(name, ...) xcb_ ## name ## _reply(self.conn, xcb_ ## name(self.conn, ## __VA_ARGS__), &self.err)
 #define xcb_check(name, ...) self.err = xcb_request_check(self.conn, xcb_ ## name(self.conn, ## __VA_ARGS__))
 
@@ -347,6 +349,94 @@ public:
 
             // `codes` will be used in binary search, so we should sort it by unicode symbol value
             std::sort(codes.begin(), codes.end(), [](code& a, code& b){ return a.ucs < b.ucs; });
+        }
+
+        void send_keysym(xcb_keysym_t keysym, int meta_state) {
+            char buf[64]{};
+            xkb_keysym_get_name(keysym, buf, sizeof(buf));
+            ALOGV("Sending keysym %s", buf);
+
+            auto code = std::find_if(codes.begin(), codes.end(), [&c = keysym](auto& code) {
+                return code.keysym == c;
+            });
+
+            if (code == codes.end()) {
+                xkb_keysym_get_name(keysym, buf, sizeof(buf));
+                ALOGE("Code for keysym 0x%X (%s) not found...", keysym, buf);
+                return;
+            }
+
+            xcb_flush(self.conn);
+
+            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
+
+            // Since we do not track state of modifiers we should reset them before we finish here.
+            // Getting current modifiers
+            u32 modifiers = code->modifiers;
+//            {
+//                auto reply = xcb(query_pointer, s->root);
+//                if (reply)
+//                    modifiers &= ~reply->mask;
+//
+//                ALOGE("pointer mods %d", reply->mask);
+//                free(reply);
+//            }
+
+            u8 current_group = 0;
+            {
+                auto reply = xcb(xkb_get_state, XCB_XKB_ID_USE_CORE_KBD);
+                current_group = reply->group;
+                modifiers &= ~reply->mods;
+                ALOGE("pointer mods %d", reply->mods);
+                free(reply);
+            }
+
+            if (meta_state & AMETA_CTRL_ON)
+                modifiers |= XCB_MOD_MASK_CONTROL;
+
+            if (meta_state & AMETA_SHIFT_ON)
+                modifiers |= XCB_MOD_MASK_SHIFT;
+
+            if (meta_state & AMETA_ALT_ON)
+                modifiers |= XCB_MOD_MASK_1;
+
+            if (meta_state & AMETA_META_ON)
+                modifiers |= XCB_MOD_MASK_4;
+
+            auto reply = xcb(get_modifier_mapping);
+            self.handle_error("Failed to get keyboard modifiers.");
+
+            for (int mod_index = XCB_MAP_INDEX_SHIFT; mod_index <= XCB_MAP_INDEX_5; mod_index++) {
+                if (modifiers & (1 << mod_index)) {
+                    for (int mod_key = 0; mod_key < reply->keycodes_per_modifier; mod_key++) {
+                        int keycode = xcb_get_modifier_mapping_keycodes(reply)
+                            [mod_index * reply->keycodes_per_modifier + mod_key];
+                        if (keycode)
+                            xcb_test_fake_input(self.conn, XCB_KEY_PRESS, keycode, XCB_CURRENT_TIME,
+                                                s->root, 0, 0, 0);
+                    }
+                }
+            }
+
+            xcb_xkb_latch_lock_state(self.conn, XCB_XKB_ID_USE_CORE_KBD, 0, 0, 1, code->layout, 0, 0, 0);
+            xcb_test_fake_input(self.conn, XCB_KEY_PRESS, code->keycode, XCB_CURRENT_TIME, s->root, 0, 0, 0);
+            xcb_test_fake_input(self.conn, XCB_KEY_RELEASE, code->keycode, XCB_CURRENT_TIME, s->root, 0, 0, 0);
+            xcb_xkb_latch_lock_state(self.conn, XCB_XKB_ID_USE_CORE_KBD, 0, 0, 1, current_group, 0, 0, 0);
+
+            for (int mod_index = XCB_MAP_INDEX_SHIFT; mod_index <= XCB_MAP_INDEX_5; mod_index++) {
+                if (modifiers & (1 << mod_index)) {
+                    for (int mod_key = 0; mod_key < reply->keycodes_per_modifier; mod_key++) {
+                        int keycode = xcb_get_modifier_mapping_keycodes(reply)
+                            [mod_index * reply->keycodes_per_modifier + mod_key];
+                        if (keycode)
+                            xcb_test_fake_input(self.conn, XCB_KEY_RELEASE, keycode,
+                                                XCB_CURRENT_TIME, s->root, 0, 0, 0);
+                    }
+                }
+            }
+
+            free(reply);
+            xcb_flush(self.conn);
         }
     } xkb {*this};
 

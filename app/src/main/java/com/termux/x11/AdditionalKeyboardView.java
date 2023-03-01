@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Rect;
+import android.os.Build;
 import android.preference.PreferenceManager;
 import androidx.appcompat.widget.AppCompatTextView;
 import android.util.AttributeSet;

@@ -29,6 +29,7 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowManager;
@@ -42,7 +43,9 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.termux.x11.utils.KeyboardUtils;
 import com.termux.x11.utils.PermissionUtils;
+import com.termux.shared.termux.settings.properties.TermuxAppSharedProperties;
 import com.termux.x11.utils.SamsungDexUtils;
+
 
 public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener, TouchParser.OnTouchParseListener {
     static final String REQUEST_LAUNCH_EXTERNAL_DISPLAY = "request_launch_external_display";
@@ -60,12 +63,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     AdditionalKeyboardView kbd;
     FrameLayout frm;
+    KeyboardUtils.KeyboardHeightProvider kbdHeightListener;
     private TouchParser mTP;
     private final ServiceEventListener listener = new ServiceEventListener();
     private ICmdEntryInterface service = null;
 
     private int screenWidth = 0;
     private int screenHeight = 0;
+    TermuxAppSharedProperties mProperties;
 
     public MainActivity() {
         init();
@@ -74,6 +79,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt"}) @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        mProperties = TermuxAppSharedProperties.init(this);
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         if (didRequestLaunchExternalDisplay() || preferences.getBoolean("fullscreen", false)) {
@@ -118,6 +124,23 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
              getDecorView().
               setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
 
+
+        //if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
+            kbdHeightListener = new KeyboardUtils.KeyboardHeightProvider(this, getWindowManager(), findViewById(android.R.id.content),
+                    (keyboardHeight, keyboardOpen, isLandscape) -> {
+                Log.e("ADDKBD", "show " + keyboardOpen + " height " + keyboardHeight + " land " + isLandscape);
+                @SuppressLint("CutPasteId")
+                AdditionalKeyboardView v = findViewById(R.id.additionalKbd);
+                v.setVisibility(keyboardOpen?View.VISIBLE:View.INVISIBLE);
+                FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, v.getHeight());
+                //p.gravity = Gravity.BOTTOM;
+                p.setMargins(0, keyboardHeight, 0, 0);
+
+                v.setLayoutParams(params);
+                v.setVisibility(View.VISIBLE);
+
+            });
+
         registerReceiver(new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -160,13 +183,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         int mode = Integer.parseInt(preferences.getString("touchMode", "1"));
         mTP.setMode(mode);
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+//            getWindow().getDecorView().setOnApplyWindowInsetsListener(this);
 
-        getWindow().getDecorView().setOnApplyWindowInsetsListener(this);
-
-        if (preferences.getBoolean("showAdditionalKbd", true))
+        /*if (preferences.getBoolean("showAdditionalKbd", true))
             kbd.setVisibility(View.VISIBLE);
         else
-            kbd.setVisibility(View.INVISIBLE);
+            kbd.setVisibility(View.INVISIBLE);*/
 
         if (preferences.getBoolean("dexMetaKeyCapture", false)) {
             SamsungDexUtils.dexMetaKeyCapture(this, false);
@@ -227,7 +250,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             InputMethodManager imm = (InputMethodManager) getSystemService(Activity.INPUT_METHOD_SERVICE);
             View view = getCurrentFocus();
             if (view == null) {
-                view = new View(this);
+                view = findViewById(R.id.lorieView);
+                view.requestFocus();
             }
             imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
         }
@@ -294,7 +318,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 getWindow().getDecorView().getWindowVisibleDisplayFrame(r);
                 WindowInsetsCompat rootInsets = WindowInsetsCompat.toWindowInsetsCompat(kbd.getRootWindowInsets());
                 boolean isSoftKbdVisible = rootInsets.isVisible(WindowInsetsCompat.Type.ime());
-                kbd.setVisibility(isSoftKbdVisible ? View.VISIBLE : View.INVISIBLE);
+//                kbd.setVisibility(isSoftKbdVisible ? View.VISIBLE : View.INVISIBLE);
 
                 FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
                 if (preferences.getBoolean("Reseed", true)) {
@@ -303,7 +327,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     p.topMargin = r.bottom - r.top - kbd.getHeight();
                 }
 
-                kbd.setLayoutParams(p);
+//                kbd.setLayoutParams(p);
             }, 100);
         }
 
@@ -368,8 +392,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         private boolean middlePressed = false; // Prevent middle button press event from being repeated
         @Override
         public boolean onKey(View v, int keyCode, KeyEvent e) {
-            int action = 0;
-
             if (keyCode == KeyEvent.KEYCODE_BACK) {
                 if (isSource(e, InputDevice.SOURCE_MOUSE) &&
                         rightPressed != (e.getAction() == KeyEvent.ACTION_DOWN)) {
@@ -377,8 +399,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     rightPressed = (e.getAction() == KeyEvent.ACTION_DOWN);
                 } else if (e.getAction() == KeyEvent.ACTION_UP) {
                     KeyboardUtils.toggleKeyboardVisibility(MainActivity.this);
-                    if (kbd!=null)
-                        kbd.requestFocus();
+                    findViewById(R.id.lorieView).requestFocus();
                 }
                 return true;
             }
@@ -391,14 +412,62 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 return true;
             }
 
-            switch(e.getAction()) {
-                case KeyEvent.ACTION_DOWN:
-                    onKeyboardKey(keyCode, KeyPress, e.isShiftPressed() ? 1 : 0, e.getCharacters());
-                    break;
-                case KeyEvent.ACTION_UP:
-                    onKeyboardKey(keyCode, KeyRelease, e.isShiftPressed() ? 1 : 0, e.getCharacters());
-                    break;
-            }
+            /*
+             * A KeyEvent is generated in Android when the user interacts with the device's
+             * physical keyboard or software keyboard. If the KeyEvent is generated by a physical key,
+             * or a software key that has a corresponding physical key, it will contain a key code.
+             * If the key that is pressed generates a symbol, such as a letter or number,
+             * the symbol can be retrieved by calling the KeyEvent::getUnicodeChar() method.
+             * If the physical key requires the user to press the Shift key to enter the symbol,
+             * the software keyboard will emulate the Shift key press.
+             * However, in the case of a non-English keyboard layout, KeyEvent::getUnicodeChar()
+             * will not return 0 symbol for non-English keyboard layouts, keycode also will be set to 0,
+             * action will be set to KeyEvent.ACTION_MULTIPLE and the symbol data can only be retrieved
+             * by calling the KeyEvent::getCharacters() method.
+             *
+             * For special keys like Tab and Return, both the key code and Unicode symbol are set in
+             * the KeyEvent object. However, this is not the case for all keys, so to determine whether
+             * a key is special or not, we will rely only on the keycode value.
+             *
+             * Android sends emulated Shift key press event along with some key events.
+             * Since we cannot determine the event source from JNI, we ignore the emulated Shift
+             * key press in JNI. In this case, it becomes much easier to handle Shift key press events
+             * coming from a physical keyboard or ExtraKeysView.
+             *
+             * To avoid handling modifier states we will simply ignore modifier keys and
+             * ACTION_DOWN if they come from soft keyboard.
+             *
+             */
+            Log.e("KEY", " " + e + " " + e.isShiftPressed() + " " + e.isAltPressed() + " " + e.isCtrlPressed() + " " + e.isMetaPressed());
+            if (e.getDevice().isVirtual()) {
+                Log.e("KEY", "Virtual");
+                if (e.getAction() == KeyEvent.ACTION_UP || e.getAction() == KeyEvent.ACTION_MULTIPLE) {
+                    Log.e("KEY", "Up or multiple");
+                    switch (keyCode) {
+                        case KeyEvent.KEYCODE_SHIFT_LEFT:
+                        case KeyEvent.KEYCODE_SHIFT_RIGHT:
+                        case KeyEvent.KEYCODE_ALT_LEFT:
+                        case KeyEvent.KEYCODE_ALT_RIGHT:
+                        case KeyEvent.KEYCODE_CTRL_LEFT:
+                        case KeyEvent.KEYCODE_CTRL_RIGHT:
+                        case KeyEvent.KEYCODE_META_LEFT:
+                        case KeyEvent.KEYCODE_META_RIGHT:
+                            Log.e("KEY", "meta key");
+                            break;
+                        default:
+                            Log.e("KEY", "other key");
+                            onKeySym(keyCode, e.getUnicodeChar(), e.getCharacters(), e.getMetaState());
+                    }
+                }
+            } // else
+//                switch(e.getAction()) {
+//                    case KeyEvent.ACTION_DOWN:
+//                        onKeyboardKey(keyCode, KeyPress, e.isShiftPressed() ? 1 : 0, e.getUnicodeChar(), e.getCharacters());
+//                        break;
+//                    case KeyEvent.ACTION_UP:
+//                        onKeyboardKey(keyCode, KeyRelease, e.isShiftPressed() ? 1 : 0, e.getUnicodeChar(), e.getCharacters());
+//                        break;
+//                }
             return true;
         }
     }
@@ -444,7 +513,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public native void onPointerMotion(int x, int y);
     public native void onPointerScroll(int axis, float value);
     public native void onPointerButton(int button, int type);
-    private native void onKeyboardKey(int key, int type, int shift, String characters);
+    private native void onKeySym(int keyCode, int unicode, String str, int metaState);
     private native void nativeResume();
     private native void nativePause();
 

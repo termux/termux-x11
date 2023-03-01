@@ -24,6 +24,7 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.PointerIcon;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -370,6 +371,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         return insets;
     }
 
+    @Override
+    public void toggleExtraKeys() {
+        int visibility = getTerminalToolbarViewPager().getVisibility();
+        int newVisibility = (visibility != View.VISIBLE) ? View.VISIBLE : View.GONE;
+        getTerminalToolbarViewPager().setVisibility(newVisibility);
+    }
+
     @SuppressWarnings("SameParameterValue")
     private class ServiceEventListener implements View.OnKeyListener {
         public static final int KeyPress = 2; // synchronized with X.h
@@ -554,6 +562,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private native void windowChanged(Surface surface, int width, int height);
     public native void onPointerMotion(int x, int y);
     public native void onPointerScroll(int axis, float value);
+
     public native void onPointerButton(int button, int type);
     private native void onKeySym(int keyCode, int unicode, String str, int metaState, int type);
     private native void nativeResume();

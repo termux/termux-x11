@@ -438,6 +438,36 @@ public:
             free(reply);
             xcb_flush(self.conn);
         }
+
+        void send_key(xcb_keysym_t keysym, u8 type) {
+            // SurfaceView can only receive Unicode input from a virtual keyboard.
+            // Since SurfaceView is not a text editor, it cannot receive Unicode input from a
+            // physical keyboard. This is actually beneficial for us as we receive original
+            // input events, albeit with encoded keycodes. Since we receive original keycodes
+            // regardless of the layout, we can simply pass them to X11 as is, and the desktop
+            // environment will determine in which layout the user will be typing.
+            // Here we do not change current layout and do not change modifiers because
+            // this function should only be triggered by hardware keyboard or extra key bar.
+            char buf[64]{};
+            xkb_keysym_get_name(keysym, buf, sizeof(buf));
+            ALOGV("Sending keysym %s", buf);
+
+            auto code = std::find_if(codes.begin(), codes.end(), [&c = keysym](auto& code) {
+                return code.keysym == c;
+            });
+
+            if (code == codes.end()) {
+                xkb_keysym_get_name(keysym, buf, sizeof(buf));
+                ALOGE("Code for keysym 0x%X (%s) not found...", keysym, buf);
+                return;
+            }
+
+            xcb_flush(self.conn);
+
+            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
+            xcb_test_fake_input(self.conn, type, code->keycode, XCB_CURRENT_TIME, s->root, 0, 0, 0);
+            xcb_flush(self.conn);
+        }
     } xkb {*this};
 
     void init(int sockfd) {

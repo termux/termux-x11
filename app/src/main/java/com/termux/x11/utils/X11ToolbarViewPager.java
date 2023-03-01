@@ -1,5 +1,6 @@
 package com.termux.x11.utils;
 
+import android.view.InputDevice;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -60,12 +61,8 @@ public class X11ToolbarViewPager {
                 editText.setOnEditorActionListener((v, actionId, event) -> {
                     String textToSend = editText.getText().toString();
                     if (textToSend.length() == 0) textToSend = "\r";
-
-                    KeyEvent[] events = mVirtualKeyboardKeyCharacterMap.getEvents(textToSend.toCharArray());
-                    for (KeyEvent evnt : events) {
-                        int keyCode = evnt.getKeyCode();
-                        mEventListener.onKey(act.getLorieView(), keyCode, evnt);
-                    }
+                    KeyEvent e = new KeyEvent(0, textToSend, KeyCharacterMap.VIRTUAL_KEYBOARD, 0);
+                    mEventListener.onKey(act.getLorieView(), 0, e);
 
                     editText.setText("");
                     return true;

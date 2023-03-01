@@ -297,6 +297,13 @@ public:
             });
     }
 
+    void send_key(xcb_keysym_t keysym, u8 type) {
+        if (c.conn)
+            post([=] {
+                c.xkb.send_key(keysym, type);
+            });
+    }
+
     void connection_poll_func() {
         try {
             bool need_redraw = false;
@@ -440,24 +447,26 @@ Java_com_termux_x11_MainActivity_onPointerButton([[maybe_unused]] JNIEnv *env, [
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_onKeySym([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz,
-                                               jint keycode, jint unicodeChar, jstring str, jint meta_state) {
+                                               jint keycode, jint unicodeChar, jstring str, jint meta_state, jint type) {
     wchar_t unicode = unicodeChar;
     mbstate_t ps {};
 
-    ALOGE("1");
+    /* When event is triggered by software keyboard type is always 0 */
+    if (type) {
+        client.send_key(android_to_keysyms[keycode], type);
+        return;
+    }
 
     if (unicode && !meta_state) {
         client.send_keysym(xkb_utf32_to_keysym(unicode), meta_state);
         return;
     }
 
-    ALOGE("2");
     if (android_to_keysyms[keycode]) {
         client.send_keysym(android_to_keysyms[keycode], meta_state);
         return;
     }
 
-    ALOGE("3");
     if (str) {
         const char *characters = env->GetStringUTFChars(str, nullptr);
         const char *chars = characters; // mbsrtowcs will set it to nullptr, but we still need to release it
@@ -469,7 +478,6 @@ Java_com_termux_x11_MainActivity_onKeySym([[maybe_unused]] JNIEnv *env, [[maybe_
 
         env->ReleaseStringUTFChars(str, characters);
     }
-    ALOGE("4");
 }
 
 extern "C"

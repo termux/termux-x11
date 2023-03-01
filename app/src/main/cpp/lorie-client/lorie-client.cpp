@@ -307,6 +307,8 @@ public:
                 if (event->response_type == 0) {
                     c.err = reinterpret_cast<xcb_generic_error_t *>(event);
                     c.handle_error("Error processing XCB events");
+                } else if (event->response_type == XCB_MAPPING_NOTIFY) {
+                    c.xkb.reload_keymaps();
                 } else if (event->response_type == XCB_CONFIGURE_NOTIFY) {
                     auto e = reinterpret_cast<xcb_configure_request_event_t *>(event);
                     s->width_in_pixels = e->width;

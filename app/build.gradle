@@ -84,7 +84,7 @@ wayland {
 
 dependencies {
     implementation 'com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava'
-    implementation 'com.termux.termux-app:termux-shared:-SNAPSHOT'
+    implementation 'com.termux.termux-app:termux-shared:2f5a6f7de6'
     implementation 'com.google.android.material:material:1.8.0'
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     //noinspection GradleDependency

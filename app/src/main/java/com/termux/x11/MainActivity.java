@@ -40,37 +40,30 @@ import android.widget.FrameLayout;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.viewpager.widget.ViewPager;
 
+import com.termux.shared.termux.extrakeys.ExtraKeysView;
 import com.termux.x11.utils.KeyboardUtils;
 import com.termux.x11.utils.PermissionUtils;
-import com.termux.shared.termux.settings.properties.TermuxAppSharedProperties;
 import com.termux.x11.utils.SamsungDexUtils;
+import com.termux.x11.utils.TermuxX11ExtraKeys;
+import com.termux.x11.utils.X11ToolbarViewPager;
 
 
 public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener, TouchParser.OnTouchParseListener {
     static final String REQUEST_LAUNCH_EXTERNAL_DISPLAY = "request_launch_external_display";
 
-    private static final int[] keys = {
-            KeyEvent.KEYCODE_ESCAPE,
-            KeyEvent.KEYCODE_TAB,
-            KeyEvent.KEYCODE_CTRL_LEFT,
-            KeyEvent.KEYCODE_ALT_LEFT,
-            KeyEvent.KEYCODE_DPAD_UP,
-            KeyEvent.KEYCODE_DPAD_DOWN,
-            KeyEvent.KEYCODE_DPAD_LEFT,
-            KeyEvent.KEYCODE_DPAD_RIGHT,
-    };
-
-    AdditionalKeyboardView kbd;
     FrameLayout frm;
     KeyboardUtils.KeyboardHeightProvider kbdHeightListener;
     private TouchParser mTP;
     private final ServiceEventListener listener = new ServiceEventListener();
     private ICmdEntryInterface service = null;
+    private int mTerminalToolbarDefaultHeight;
+    public TermuxX11ExtraKeys mExtraKeys;
+    private ExtraKeysView mExtraKeysView;
 
     private int screenWidth = 0;
     private int screenHeight = 0;
-    TermuxAppSharedProperties mProperties;
 
     public MainActivity() {
         init();
@@ -79,7 +72,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt"}) @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mProperties = TermuxAppSharedProperties.init(this);
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         if (didRequestLaunchExternalDisplay() || preferences.getBoolean("fullscreen", false)) {
@@ -95,7 +87,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
 
-        kbd = findViewById(R.id.additionalKbd);
+        //kbd = findViewById(R.id.additionalKbd);
         frm = findViewById(R.id.frame);
         Button preferencesButton = findViewById(R.id.preferences_button);
         preferencesButton.setOnClickListener((l) -> {
@@ -107,17 +99,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         SurfaceView lorieView = findViewById(R.id.lorieView);
         SurfaceView cursorView = findViewById(R.id.cursorView);
 
-        lorieView.setFocusable(true);
-        lorieView.setFocusableInTouchMode(true);
-        lorieView.requestFocus();
-
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(1, 1);
         cursorView.setLayoutParams(params);
 
         listener.setAsListenerTo(lorieView, cursorView);
 
         mTP = new TouchParser(lorieView, this);
-        kbd.reload(keys, lorieView, listener);
+        setTerminalToolbarView();
+        toggleTerminalToolbar();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
             getWindow().
@@ -126,20 +115,20 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
 
         //if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
-            kbdHeightListener = new KeyboardUtils.KeyboardHeightProvider(this, getWindowManager(), findViewById(android.R.id.content),
-                    (keyboardHeight, keyboardOpen, isLandscape) -> {
-                Log.e("ADDKBD", "show " + keyboardOpen + " height " + keyboardHeight + " land " + isLandscape);
-                @SuppressLint("CutPasteId")
-                AdditionalKeyboardView v = findViewById(R.id.additionalKbd);
-                v.setVisibility(keyboardOpen?View.VISIBLE:View.INVISIBLE);
-                FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, v.getHeight());
-                //p.gravity = Gravity.BOTTOM;
-                p.setMargins(0, keyboardHeight, 0, 0);
-
-                v.setLayoutParams(params);
-                v.setVisibility(View.VISIBLE);
-
-            });
+//        kbdHeightListener = new KeyboardUtils.KeyboardHeightProvider(this, getWindowManager(), findViewById(android.R.id.content),
+//                    (keyboardHeight, keyboardOpen, isLandscape) -> {
+//                Log.e("ADDKBD", "show " + keyboardOpen + " height " + keyboardHeight + " land " + isLandscape);
+//                @SuppressLint("CutPasteId")
+//                AdditionalKeyboardView v = findViewById(R.id.additionalKbd);
+//                v.setVisibility(keyboardOpen?View.VISIBLE:View.INVISIBLE);
+//                FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, v.getHeight());
+//                //p.gravity = Gravity.BOTTOM;
+//                p.setMargins(0, keyboardHeight, 0, 0);
+//
+//                v.setLayoutParams(params);
+//                v.setVisibility(View.VISIBLE);
+//
+//            });
 
         registerReceiver(new BroadcastReceiver() {
             @Override
@@ -161,6 +150,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         }, new IntentFilter(ACTION_START));
 
         requestConnection();
+
+        lorieView.setFocusable(true);
+        lorieView.setFocusableInTouchMode(true);
+        lorieView.requestFocus();
     }
 
     void onReceiveConnection() {
@@ -226,6 +219,45 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 R.style.FullScreen_ExternalDisplay : R.style.NoActionBar);
     }
 
+    public ExtraKeysView getExtraKeysView() {
+        return mExtraKeysView;
+    }
+
+    public void setExtraKeysView(ExtraKeysView extraKeysView) {
+        mExtraKeysView = extraKeysView;
+    }
+
+    public SurfaceView getLorieView() {
+        return findViewById(R.id.lorieView);
+    }
+
+    public ViewPager getTerminalToolbarViewPager() {
+        return findViewById(R.id.terminal_toolbar_view_pager);
+    }
+
+
+    private void setTerminalToolbarView() {
+        final ViewPager terminalToolbarViewPager = getTerminalToolbarViewPager();
+
+        ViewGroup.LayoutParams layoutParams = terminalToolbarViewPager.getLayoutParams();
+        mTerminalToolbarDefaultHeight = layoutParams.height;
+
+        terminalToolbarViewPager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, listener));
+        terminalToolbarViewPager.addOnPageChangeListener(new X11ToolbarViewPager.OnPageChangeListener(this, terminalToolbarViewPager));
+    }
+
+    public void toggleTerminalToolbar() {
+        final ViewPager terminalToolbarViewPager = getTerminalToolbarViewPager();
+        if (terminalToolbarViewPager == null) return;
+
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        boolean showNow = preferences.getBoolean("Toolbar", true);
+
+        terminalToolbarViewPager.setVisibility(showNow ? View.VISIBLE : View.GONE);
+        findViewById(R.id.terminal_toolbar_view_pager).requestFocus();
+    }
+
+
     private boolean didRequestLaunchExternalDisplay() {
         return getIntent().getBooleanExtra(REQUEST_LAUNCH_EXTERNAL_DISPLAY, false);
     }
@@ -246,7 +278,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
 
-        if (newConfig.orientation != orientation && kbd != null && kbd.getVisibility() == View.VISIBLE) {
+        if (newConfig.orientation != orientation /*&& kbd != null && kbd.getVisibility() == View.VISIBLE*/) {
             InputMethodManager imm = (InputMethodManager) getSystemService(Activity.INPUT_METHOD_SERVICE);
             View view = getCurrentFocus();
             if (view == null) {
@@ -290,19 +322,19 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
         if (isInPictureInPictureMode) {
-            if (kbd.getVisibility() != View.INVISIBLE)
-                kbd.setVisibility(View.INVISIBLE);
+//            if (kbd.getVisibility() != View.INVISIBLE)
+//                kbd.setVisibility(View.INVISIBLE);
             frm.setPadding(0, 0, 0, 0);
-        } else {
-            if (kbd.getVisibility() != View.VISIBLE)
-                if (preferences.getBoolean("showAdditionalKbd", true)) {
-                    kbd.setVisibility(View.VISIBLE);
-                    int paddingDp = 35;
-                    float density = this.getResources().getDisplayMetrics().density;
-                    int paddingPixel = (int) (paddingDp * density);
-                    frm.setPadding(0, 0, 0, paddingPixel);
-                }
-        }
+        } // else {
+//            if (kbd.getVisibility() != View.VISIBLE)
+//                if (preferences.getBoolean("showAdditionalKbd", true)) {
+//                    kbd.setVisibility(View.VISIBLE);
+//                    int paddingDp = 35;
+//                    float density = this.getResources().getDisplayMetrics().density;
+//                    int paddingPixel = (int) (paddingDp * density);
+//                    frm.setPadding(0, 0, 0, paddingPixel);
+//                }
+//        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
         }
@@ -312,24 +344,24 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @Override
     public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        if (preferences.getBoolean("showAdditionalKbd", true) && kbd != null) {
-            handler.postDelayed(() -> {
-                Rect r = new Rect();
-                getWindow().getDecorView().getWindowVisibleDisplayFrame(r);
-                WindowInsetsCompat rootInsets = WindowInsetsCompat.toWindowInsetsCompat(kbd.getRootWindowInsets());
-                boolean isSoftKbdVisible = rootInsets.isVisible(WindowInsetsCompat.Type.ime());
-//                kbd.setVisibility(isSoftKbdVisible ? View.VISIBLE : View.INVISIBLE);
-
-                FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-                if (preferences.getBoolean("Reseed", true)) {
-                    p.gravity = Gravity.BOTTOM | Gravity.CENTER;
-                } else {
-                    p.topMargin = r.bottom - r.top - kbd.getHeight();
-                }
-
-//                kbd.setLayoutParams(p);
-            }, 100);
-        }
+//        if (preferences.getBoolean("showAdditionalKbd", true) && kbd != null) {
+//            handler.postDelayed(() -> {
+//                Rect r = new Rect();
+//                getWindow().getDecorView().getWindowVisibleDisplayFrame(r);
+//                WindowInsetsCompat rootInsets = WindowInsetsCompat.toWindowInsetsCompat(kbd.getRootWindowInsets());
+//                boolean isSoftKbdVisible = rootInsets.isVisible(WindowInsetsCompat.Type.ime());
+////                kbd.setVisibility(isSoftKbdVisible ? View.VISIBLE : View.INVISIBLE);
+//
+//                FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+//                if (preferences.getBoolean("Reseed", true)) {
+//                    p.gravity = Gravity.BOTTOM | Gravity.CENTER;
+//                } else {
+//                    p.topMargin = r.bottom - r.top - kbd.getHeight();
+//                }
+//
+////                kbd.setLayoutParams(p);
+//            }, 100);
+//        }
 
         SurfaceView c = v.getRootView().findViewById(R.id.lorieView);
         SurfaceHolder h = (c != null) ? c.getHolder() : null;

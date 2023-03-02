@@ -96,6 +96,18 @@ public:
             self.handle_error("Error attaching file descriptor through MIT-SHM extension");
         };
 
+        int create_segment(u32 seg, u32 size, u8 ro) {
+            int fd;
+            auto reply = xcb(shm_create_segment, seg, size, ro);
+            self.handle_error("Error creating shared segment through MIT-SHM extension");
+            if (reply->nfd != 1) {
+                std::runtime_error("Error creating shared segment through MIT-SHM extension: did not get file descriptor");
+            }
+            fd = xcb_shm_create_segment_reply_fds(self.conn, reply)[0];
+            free(reply);
+            return fd;
+        }
+
         [[maybe_unused]] void detach(u32 seg) {
             xcb_check(shm_detach, seg);
             self.handle_error("Error attaching shared segment through MIT-SHM extension");

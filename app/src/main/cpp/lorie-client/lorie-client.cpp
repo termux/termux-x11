@@ -14,6 +14,7 @@
 #include <linux/un.h>
 #include <sys/stat.h>
 #include <sys/eventfd.h>
+#include <sys/vfs.h>
 #include <android/native_window_jni.h>
 #include <android/looper.h>
 #include <bits/epoll_event.h>
@@ -176,6 +177,52 @@ public:
         refresh_cursor();
     }
 
+    void attach_region() {
+        if (screen.shmaddr)
+            munmap(screen.shmaddr, DEFAULT_SHMSEG_LENGTH);
+        if (screen.shmfd)
+            close(screen.shmfd);
+
+        ALOGE("Creating ashmem file...");
+        screen.shmfd = os_create_anonymous_file(DEFAULT_SHMSEG_LENGTH);
+        if (screen.shmfd < 0) {
+            ALOGE("Error opening file: %s", strerror(errno));
+        } else {
+            fchmod(screen.shmfd, 0777);
+            ALOGE("Attaching file...");
+            screen.shmaddr = static_cast<u32 *>(mmap(nullptr, DEFAULT_SHMSEG_LENGTH,
+                                                     PROT_READ | PROT_WRITE,
+                                                     MAP_SHARED, screen.shmfd, 0));
+            if (screen.shmaddr == MAP_FAILED) {
+                ALOGE("Map failed: %s", strerror(errno));
+            }
+        }
+
+        // There is a chance that Xwayland we are trying to connect is non-termux, try another way
+        if (screen.shmfd < 0) {
+            screen.shmfd = c.shm.create_segment(screen.shmseg, DEFAULT_SHMSEG_LENGTH, 0);
+            if (screen.shmfd < 0)
+                ALOGE("Failed to retrieve shared segment file descriptor...");
+            else {
+                struct statfs info{};
+                fstatfs(screen.shmfd, &info);
+                if (info.f_type != TMPFS_MAGIC) {
+                    ALOGE("Shared segment is not hosted on tmpfs. You are likely doing something wrong. "
+                            "Check if /run/shm, /var/tmp and /tmp are tmpfs.");
+                } else {
+                    ALOGE("Attaching shared memory segment...");
+                    screen.shmaddr = static_cast<u32 *>(mmap(nullptr, DEFAULT_SHMSEG_LENGTH,
+                                                             PROT_READ | PROT_WRITE,
+                                                             MAP_SHARED, screen.shmfd, 0));
+                    if (screen.shmaddr == MAP_FAILED) {
+                        ALOGE("Map failed: %s", strerror(errno));
+                    }
+                }
+            }
+        }
+        c.shm.attach_fd(screen.shmseg, screen.shmfd, 0);
+    }
+
     void adopt_connection_fd(int fd) {
         try {
             static int old_fd = -1;
@@ -201,26 +248,7 @@ public:
 
             screen.shmseg = xcb_generate_id(c.conn);
 
-            if (screen.shmaddr)
-                munmap(screen.shmaddr, DEFAULT_SHMSEG_LENGTH);
-            if (screen.shmfd)
-                close(screen.shmfd);
-
-            ALOGE("Creating file...");
-            screen.shmfd = os_create_anonymous_file(DEFAULT_SHMSEG_LENGTH);
-            if (screen.shmfd < 1) {
-                ALOGE("Error opening file: %s", strerror(errno));
-            }
-            fchmod(screen.shmfd, 0777);
-            ALOGE("Attaching file...");
-            screen.shmaddr = static_cast<u32 *>(mmap(nullptr, 8096 * 8096 * 4,
-                                                     PROT_READ | PROT_WRITE,
-                                                     MAP_SHARED, screen.shmfd, 0));
-            if (screen.shmaddr == MAP_FAILED) {
-                ALOGE("Map failed: %s", strerror(errno));
-            }
-            c.shm.attach_fd(screen.shmseg, screen.shmfd, 0);
-
+            attach_region();
             refresh_cursor();
 
 
@@ -494,7 +522,8 @@ Java_com_termux_x11_MainActivity_nativePause([[maybe_unused]] JNIEnv *env, [[may
     client.paused = true;
 }
 
-#if 0
+// I need this to catch initialisation errors of libxkbcommon.
+#if 1
 // It is needed to redirect stderr to logcat
 [[maybe_unused]] std::thread stderr_to_logcat_thread([]{
     FILE *fp;

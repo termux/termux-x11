@@ -38,9 +38,9 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
 
     private int metaAltState = 0;
 
-    public TermuxX11ExtraKeys(@NonNull View.OnKeyListener eventlistener, MainActivity mact, ExtraKeysView extrakeysview) {
+    public TermuxX11ExtraKeys(@NonNull View.OnKeyListener eventlistener, MainActivity activity, ExtraKeysView extrakeysview) {
         mEventListener = eventlistener;
-        mActivity = mact;
+        mActivity = activity;
         mExtraKeysView = extrakeysview;
     }
 
@@ -101,10 +101,8 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
                 metaState |= KeyEvent.META_FUNCTION_ON;
             }
 
-
             mEventListener.onKey(mActivity.getLorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_DOWN, keyCode, 0, metaState));
             mEventListener.onKey(mActivity.getLorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, metaState));
-
         } else {
             // not a control char
             key.codePoints().forEach(codePoint -> {
@@ -154,27 +152,21 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     @SuppressLint("RtlHardcoded")
     public void onLorieExtraKeyButtonClick(View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean fnDown) {
         if ("KEYBOARD".equals(key)) {
-
             if (getToolbarViewPager()!=null) {
                 getToolbarViewPager().requestFocus();
                 KeyboardUtils.toggleKeyboardVisibility(mActivity);
             }
-
         } else if ("DRAWER".equals(key)) {
             Intent preferencesIntent = new Intent(mActivity, LoriePreferences.class);
             preferencesIntent.setAction(ACTION_START_PREFERENCES_ACTIVITY);
             mActivity.startActivity(preferencesIntent);
-
         } else if ("PASTE".equals(key)) {
-
             ClipboardManager clipboard = (ClipboardManager) mActivity.getSystemService(Context.CLIPBOARD_SERVICE);
             ClipData clipData = clipboard.getPrimaryClip();
-
             if (clipData != null) {
                 CharSequence pasted = clipData.getItemAt(0).coerceToText(mActivity);
                 if (!TextUtils.isEmpty(pasted)) paste(pasted);
             }
-
         } else {
             onTerminalExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, fnDown);
         }

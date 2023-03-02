@@ -564,7 +564,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public native void onPointerScroll(int axis, float value);
 
     public native void onPointerButton(int button, int type);
-    private native void onKeySym(int keyCode, int unicode, String str, int metaState, int type);
+    public native void onKeySym(int keyCode, int unicode, String str, int metaState, int type);
     private native void nativeResume();
     private native void nativePause();
 

@@ -47,12 +47,16 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
      * [3]
      * Also you should set TMPDIR environment variable in the case if you are running Xwayland in
      * non-termux environment. That is the only way to localize X connection socket.
-     * TMPDIR should be accessible by termux-x11
+     * TMPDIR should be accessible by termux-x11.
      *
      * [4]
-     * You can run `termux-x11 --no-xwayland-start` to spawn compositor, but not to spawn Termux's
+     * You can run `termux-x11 :0 --no-xwayland-start` to spawn compositor, but not to spawn Termux's
      * Xwayland in the case you want to use Xwayland contained in chroot environment.
      * Do not forget about [2] to avoid application crashes.
+     * Also you must specify the same display number you will set to Xwayland.
+     * You must start `termux-x11` as root if you want to make it work with chroot'd Xwayland.
+     * `root@termux: ~# WAYLAND_DISPLAY="termux-x11" XDG_RUNTIME_DIR=/<chroot path>/var/run/1000/ TMDIR=/<chroot path>/tmp/ termux-x11 :0 --no-xwayland-start`
+     * `root@chroot: ~# WAYLAND_DISPLAY="termux-x11" XDG_RUNTIME_DIR=/<chroot path>/var/run/1000/ TMDIR=/<chroot path>/tmp/ Xwayland :0 -ac`
      *
      * [5]
      * You can specify DPI by using `-dpi` option.

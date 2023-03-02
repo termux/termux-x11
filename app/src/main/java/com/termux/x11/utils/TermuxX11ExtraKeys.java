@@ -32,9 +32,6 @@ import com.termux.x11.R;
 
 import org.json.JSONException;
 
-import static com.termux.shared.termux.extrakeys.SpecialButtonStateChecker.isActive;
-import static com.termux.shared.termux.extrakeys.SpecialButtonStateChecker.isLocked;
-
 public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
 
     private final View.OnKeyListener mEventListener;

@@ -20,7 +20,9 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:ignore="GoogleAppIndexingWarning">
-        <activity android:name=".MainActivity"
+        <activity
+            android:name=".MainActivity"
+            android:taskAffinity=".MainActivity"
             android:launchMode="singleInstance"
             android:supportsPictureInPicture="true"
             android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density"
@@ -39,7 +41,8 @@
         <activity
             android:theme="@style/Theme.AppCompat.DayNight"
             android:excludeFromRecents="true"
-            android:name=".LoriePreferences" 
+            android:name=".LoriePreferences"
+            android:taskAffinity=".LoriePreferences"
             android:supportsPictureInPicture="false"
             android:resizeableActivity="true"
             android:exported="true">
@@ -49,6 +52,7 @@
         </activity>
         <activity
             android:name=".GettingStartedActivity"
+            android:taskAffinity=".GettingStartedActivity"
             android:theme="@style/Theme.BaseActivity.DayNight.NoActionBar"
             android:exported="true" />
 	<meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true"/>

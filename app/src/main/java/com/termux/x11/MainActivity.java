@@ -2,6 +2,7 @@ package com.termux.x11;
 
 import static com.termux.x11.CmdEntryPoint.ACTION_START;
 import static com.termux.x11.CmdEntryPoint.requestConnection;
+import static com.termux.x11.LoriePreferences.ACTION_PREFERENCES_CHANGED;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -57,7 +58,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private TouchParser mTP;
     private final ServiceEventListener listener = new ServiceEventListener();
     private ICmdEntryInterface service = null;
-    private int mTerminalToolbarDefaultHeight;
     public TermuxX11ExtraKeys mExtraKeys;
     private ExtraKeysView mExtraKeysView;
 
@@ -105,12 +105,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         mTP = new TouchParser(lorieView, this);
         setTerminalToolbarView();
-        toggleX11Toolbar();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
             getWindow().
              getDecorView().
               setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
+
+        IntentFilter filter = new IntentFilter(ACTION_START);
+        filter.addAction(ACTION_PREFERENCES_CHANGED);
 
         registerReceiver(new BroadcastReceiver() {
             @Override
@@ -132,9 +134,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     } catch (Exception e) {
                         Log.e("MainActivity", "Something went wrong while we extracted connection details from binder.", e);
                     }
+                } else if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction())) {
+                    onPreferencesChanged();
                 }
             }
-        }, new IntentFilter(ACTION_START));
+        }, filter);
 
         requestConnection();
 
@@ -167,6 +171,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (preferences.getBoolean("dexMetaKeyCapture", false)) {
             SamsungDexUtils.dexMetaKeyCapture(this, false);
         }
+
+        setTerminalToolbarView();
     }
 
     @Override
@@ -215,20 +221,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         return findViewById(R.id.terminal_toolbar_view_pager);
     }
 
-
     private void setTerminalToolbarView() {
         final ViewPager terminalToolbarViewPager = getTerminalToolbarViewPager();
 
-        ViewGroup.LayoutParams layoutParams = terminalToolbarViewPager.getLayoutParams();
-        mTerminalToolbarDefaultHeight = layoutParams.height;
-
         terminalToolbarViewPager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, listener));
         terminalToolbarViewPager.addOnPageChangeListener(new X11ToolbarViewPager.OnPageChangeListener(this, terminalToolbarViewPager));
-    }
-
-    public void toggleX11Toolbar() {
-        final ViewPager terminalToolbarViewPager = getTerminalToolbarViewPager();
-        if (terminalToolbarViewPager == null) return;
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         boolean showNow = preferences.getBoolean("showAdditionalKbd", true);
@@ -240,12 +237,23 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             handler.postDelayed(() -> {
                 if (mExtraKeys != null) {
                     ViewGroup.LayoutParams layoutParams = terminalToolbarViewPager.getLayoutParams();
-                    layoutParams.height = Math.round(mTerminalToolbarDefaultHeight *
+                    layoutParams.height = Math.round(layoutParams.height *
                             (mExtraKeys.getExtraKeysInfo() == null ? 0 : mExtraKeys.getExtraKeysInfo().getMatrix().length));
                     terminalToolbarViewPager.setLayoutParams(layoutParams);
                 }
             }, 200);
         }
+    }
+
+    @Override
+    public void toggleExtraKeys() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        if (!preferences.getBoolean("showAdditionalKbd", true))
+            return;
+
+        int visibility = getTerminalToolbarViewPager().getVisibility();
+        int newVisibility = (visibility != View.VISIBLE) ? View.VISIBLE : View.GONE;
+        getTerminalToolbarViewPager().setVisibility(newVisibility);
     }
 
 
@@ -280,6 +288,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         }
 
         orientation = newConfig.orientation;
+        setTerminalToolbarView();
     }
 
     @Override
@@ -359,17 +368,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (h != null)
             handler.postDelayed(() -> windowChanged(h.getSurface(), 0, 0), 100);
         return insets;
-    }
-
-    @Override
-    public void toggleExtraKeys() {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        if (!preferences.getBoolean("showAdditionalKbd", true))
-            return;
-
-        int visibility = getTerminalToolbarViewPager().getVisibility();
-        int newVisibility = (visibility != View.VISIBLE) ? View.VISIBLE : View.GONE;
-        getTerminalToolbarViewPager().setVisibility(newVisibility);
     }
 
     @SuppressWarnings("SameParameterValue")

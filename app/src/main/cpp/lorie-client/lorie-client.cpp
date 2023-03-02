@@ -458,7 +458,19 @@ JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_onPointerScroll([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz,
                                                  [[maybe_unused]] jint axis, [[maybe_unused]] jfloat value) {
     // TODO: implement onPointerScroll()
-    // How to send pointer scroll with XTEST?
+    if (client.c.conn) {
+        bool press_shift = axis == 1; // AXIS_X
+        int button = value < 0 ? XCB_BUTTON_INDEX_4 : XCB_BUTTON_INDEX_5;
+        xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(client.c.conn)).data;
+        if (press_shift)
+            client.send_key(XK_Shift_L, XCB_KEY_PRESS);
+        client.post([=] {
+            xcb_test_fake_input(client.c.conn, XCB_BUTTON_PRESS, button, XCB_CURRENT_TIME, s->root, 0, 0, 0);
+            xcb_test_fake_input(client.c.conn, XCB_BUTTON_RELEASE, button, XCB_CURRENT_TIME, s->root, 0, 0, 0);
+        });
+        if (press_shift)
+            client.send_key(XK_Shift_L, XCB_KEY_RELEASE);
+    }
 }
 
 extern "C"

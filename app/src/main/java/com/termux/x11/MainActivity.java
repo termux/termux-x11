@@ -12,7 +12,6 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.PixelFormat;
-import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -21,10 +20,8 @@ import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.preference.PreferenceManager;
 import android.util.Log;
-import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
-import android.view.MotionEvent;
 import android.view.PointerIcon;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -40,7 +37,6 @@ import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.viewpager.widget.ViewPager;
 
 import com.termux.shared.termux.extrakeys.ExtraKeysView;
@@ -107,7 +103,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         mTP = new TouchParser(lorieView, this);
         setTerminalToolbarView();
-        toggleTerminalToolbar();
+        toggleX11Toolbar();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
             getWindow().
@@ -247,12 +243,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         terminalToolbarViewPager.addOnPageChangeListener(new X11ToolbarViewPager.OnPageChangeListener(this, terminalToolbarViewPager));
     }
 
-    public void toggleTerminalToolbar() {
+    public void toggleX11Toolbar() {
         final ViewPager terminalToolbarViewPager = getTerminalToolbarViewPager();
         if (terminalToolbarViewPager == null) return;
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        boolean showNow = preferences.getBoolean("Toolbar", true);
+        boolean showNow = preferences.getBoolean("showAdditionalKbd", true);
 
         terminalToolbarViewPager.setVisibility(showNow ? View.VISIBLE : View.GONE);
         findViewById(R.id.terminal_toolbar_view_pager).requestFocus();
@@ -373,6 +369,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     public void toggleExtraKeys() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        if (!preferences.getBoolean("showAdditionalKbd", true))
+            return;
+        
         int visibility = getTerminalToolbarViewPager().getVisibility();
         int newVisibility = (visibility != View.VISIBLE) ? View.VISIBLE : View.GONE;
         getTerminalToolbarViewPager().setVisibility(newVisibility);

@@ -49,6 +49,8 @@ import com.termux.x11.utils.X11ToolbarViewPager;
 
 public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener, TouchParser.OnTouchParseListener {
     static final String REQUEST_LAUNCH_EXTERNAL_DISPLAY = "request_launch_external_display";
+    public static final int KeyPress = 2; // synchronized with X.h
+    public static final int KeyRelease = 3; // synchronized with X.h
 
     FrameLayout frm;
     KeyboardUtils.KeyboardHeightProvider kbdHeightListener;
@@ -110,23 +112,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
              getDecorView().
               setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
 
-
-        //if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
-//        kbdHeightListener = new KeyboardUtils.KeyboardHeightProvider(this, getWindowManager(), findViewById(android.R.id.content),
-//                    (keyboardHeight, keyboardOpen, isLandscape) -> {
-//                Log.e("ADDKBD", "show " + keyboardOpen + " height " + keyboardHeight + " land " + isLandscape);
-//                @SuppressLint("CutPasteId")
-//                AdditionalKeyboardView v = findViewById(R.id.additionalKbd);
-//                v.setVisibility(keyboardOpen?View.VISIBLE:View.INVISIBLE);
-//                FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, v.getHeight());
-//                //p.gravity = Gravity.BOTTOM;
-//                p.setMargins(0, keyboardHeight, 0, 0);
-//
-//                v.setLayoutParams(params);
-//                v.setVisibility(View.VISIBLE);
-//
-//            });
-
         registerReceiver(new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -139,6 +124,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                             CmdEntryPoint.requestConnection();
                         }, 0);
                         onReceiveConnection();
+
+                        ParcelFileDescriptor logcatOutput = service.getLogcatOutput();
+                        if (logcatOutput != null) {
+                            startLogcat(logcatOutput.detachFd());
+                        }
                     } catch (Exception e) {
                         Log.e("MainActivity", "Something went wrong while we extracted connection details from binder.", e);
                     }
@@ -173,13 +163,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         int mode = Integer.parseInt(preferences.getString("touchMode", "1"));
         mTP.setMode(mode);
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
-//            getWindow().getDecorView().setOnApplyWindowInsetsListener(this);
-
-        /*if (preferences.getBoolean("showAdditionalKbd", true))
-            kbd.setVisibility(View.VISIBLE);
-        else
-            kbd.setVisibility(View.INVISIBLE);*/
 
         if (preferences.getBoolean("dexMetaKeyCapture", false)) {
             SamsungDexUtils.dexMetaKeyCapture(this, false);
@@ -372,7 +355,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         if (!preferences.getBoolean("showAdditionalKbd", true))
             return;
-        
+
         int visibility = getTerminalToolbarViewPager().getVisibility();
         int newVisibility = (visibility != View.VISIBLE) ? View.VISIBLE : View.GONE;
         getTerminalToolbarViewPager().setVisibility(newVisibility);
@@ -380,9 +363,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @SuppressWarnings("SameParameterValue")
     private class ServiceEventListener implements View.OnKeyListener {
-        public static final int KeyPress = 2; // synchronized with X.h
-        public static final int KeyRelease = 3; // synchronized with X.h
-
         @SuppressLint({"WrongConstant", "ClickableViewAccessibility"})
         private void setAsListenerTo(SurfaceView view, SurfaceView cursor) {
             view.setOnTouchListener((v, e) -> mTP.onTouchEvent(e));
@@ -484,11 +464,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
              * ACTION_DOWN if they come from soft keyboard.
              *
              */
-            Log.e("KEY", " " + e + " " + e.isShiftPressed() + " " + e.isAltPressed() + " " + e.isCtrlPressed() + " " + e.isMetaPressed());
             if (e.getDevice() == null || e.getDevice().isVirtual()) {
-                Log.e("KEY", "Virtual");
                 if (e.getAction() == KeyEvent.ACTION_UP || e.getAction() == KeyEvent.ACTION_MULTIPLE) {
-                    Log.e("KEY", "Up or multiple");
                     switch (keyCode) {
                         case KeyEvent.KEYCODE_SHIFT_LEFT:
                         case KeyEvent.KEYCODE_SHIFT_RIGHT:
@@ -498,10 +475,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         case KeyEvent.KEYCODE_CTRL_RIGHT:
                         case KeyEvent.KEYCODE_META_LEFT:
                         case KeyEvent.KEYCODE_META_RIGHT:
-                            Log.e("KEY", "meta key");
                             break;
                         default:
-                            Log.e("KEY", "other key");
                             onKeySym(keyCode, e.getUnicodeChar(), e.getCharacters(), e.getMetaState(), 0);
                     }
                 }
@@ -567,6 +542,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public native void onKeySym(int keyCode, int unicode, String str, int metaState, int type);
     private native void nativeResume();
     private native void nativePause();
+
+    private native void startLogcat(int fd);
 
     static {
         System.loadLibrary("lorie-client");

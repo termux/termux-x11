@@ -4,4 +4,5 @@ package com.termux.x11;
 interface ICmdEntryInterface {
     void outputResize(int width, int height);
     ParcelFileDescriptor getXConnection();
+    ParcelFileDescriptor getLogcatOutput();
 }

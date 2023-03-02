@@ -1,6 +1,8 @@
 package com.termux.x11.utils;
 
 import static com.termux.shared.termux.extrakeys.ExtraKeysConstants.PRIMARY_KEY_CODES_FOR_STRINGS;
+import static com.termux.x11.MainActivity.KeyPress;
+import static com.termux.x11.MainActivity.KeyRelease;
 
 import android.annotation.SuppressLint;
 import android.content.ClipData;
@@ -8,6 +10,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.View;
@@ -29,6 +32,9 @@ import com.termux.x11.R;
 
 import org.json.JSONException;
 
+import static com.termux.shared.termux.extrakeys.SpecialButtonStateChecker.isActive;
+import static com.termux.shared.termux.extrakeys.SpecialButtonStateChecker.isLocked;
+
 public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
 
     private final View.OnKeyListener mEventListener;
@@ -36,7 +42,9 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     private final ExtraKeysView mExtraKeysView;
     private ExtraKeysInfo mExtraKeysInfo;
 
-    private int metaAltState = 0;
+    private boolean ctrlDown;
+    private boolean altDown;
+    private boolean shiftDown;
 
     public TermuxX11ExtraKeys(@NonNull View.OnKeyListener eventlistener, MainActivity activity, ExtraKeysView extrakeysview) {
         mEventListener = eventlistener;
@@ -49,6 +57,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
 
     @Override
     public void onExtraKeyButtonClick(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
+        Log.e("keys", "key " + buttonInfo.getDisplay());
         if (buttonInfo.isMacro()) {
             String[] keys = buttonInfo.getKey().split(" ");
             boolean ctrlDown = false;
@@ -78,60 +87,37 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     }
 
     protected void onTerminalExtraKeyButtonClick(View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean fnDown) {
+        if (this.ctrlDown != ctrlDown) {
+            this.ctrlDown = ctrlDown;
+            mActivity.onKeySym(KeyEvent.KEYCODE_CTRL_LEFT, 0, null, 0, ctrlDown ? KeyPress : KeyRelease);
+        }
+
+        if (this.altDown != altDown) {
+            this.altDown = altDown;
+            mActivity.onKeySym(KeyEvent.KEYCODE_ALT_LEFT, 0, null, 0, altDown ? KeyPress : KeyRelease);
+        }
+
+        if (this.shiftDown != shiftDown) {
+            this.shiftDown = shiftDown;
+            mActivity.onKeySym(KeyEvent.KEYCODE_SHIFT_LEFT, 0, null, 0, shiftDown ? KeyPress : KeyRelease);
+        }
+
         if (PRIMARY_KEY_CODES_FOR_STRINGS.containsKey(key)) {
             Integer keyCode = PRIMARY_KEY_CODES_FOR_STRINGS.get(key);
             if (keyCode == null) return;
-            int metaState = 0;
 
-            if (ctrlDown) {
-                metaState |= KeyEvent.META_CTRL_ON | KeyEvent.META_CTRL_LEFT_ON;
-                metaAltState |= KeyEvent.KEYCODE_CTRL_LEFT | KeyEvent.KEYCODE_CTRL_RIGHT;
-            }
-
-            if (altDown) {
-                metaState |= KeyEvent.META_ALT_ON | KeyEvent.META_ALT_LEFT_ON;
-                metaAltState |= KeyEvent.KEYCODE_ALT_LEFT | KeyEvent.KEYCODE_ALT_RIGHT;
-            }
-
-            if (shiftDown) {
-                metaState |= KeyEvent.META_SHIFT_ON | KeyEvent.META_SHIFT_LEFT_ON;
-            }
-
-            if (fnDown) {
-                metaState |= KeyEvent.META_FUNCTION_ON;
-            }
-
-            mEventListener.onKey(mActivity.getLorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_DOWN, keyCode, 0, metaState));
-            mEventListener.onKey(mActivity.getLorieView(), keyCode, new KeyEvent(0, 0, KeyEvent.ACTION_UP, keyCode, 0, metaState));
+            mActivity.onKeySym(keyCode, 0, null, 0, 0);
         } else {
             // not a control char
-            key.codePoints().forEach(codePoint -> {
-                char[] ch;
-                ch = Character.toChars(codePoint);
-                KeyEvent[] events = mVirtualKeyboardKeyCharacterMap.getEvents(ch);
-                if (events != null) {
-                    for (KeyEvent event : events) {
-
-                        int keyCode = event.getKeyCode();
-
-                        if (metaAltState != 0) {
-                            mEventListener.onKey(mActivity.getLorieView(), keyCode, new KeyEvent(metaAltState, keyCode));
-                        }
-
-                        mEventListener.onKey(mActivity.getLorieView(), keyCode, new KeyEvent(KeyEvent.ACTION_UP, keyCode));
-
-                        if (metaAltState != 0) {
-                            mEventListener.onKey(mActivity.getLorieView(), keyCode, new KeyEvent(metaAltState, keyCode));
-                            metaAltState = 0;
-                        }
-                    }
-                }
-            });
+            key.codePoints().forEach(codePoint -> mActivity.onKeySym(0, codePoint, null, 0, 0));
         }
     }
 
     @Override
     public boolean performExtraKeyButtonHapticFeedback(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
+        Log.e("keys", "key " + buttonInfo.getKey() + " active " + isActive(mActivity.getExtraKeysView().getSpecialButtons().get(SpecialButton.valueOf(buttonInfo.getKey()))));
+        Log.e("keys", "key " + buttonInfo.getKey() + " locked " + isLocked(mActivity.getExtraKeysView().getSpecialButtons().get(SpecialButton.valueOf(buttonInfo.getKey()))));
+
         return false;
     }
 

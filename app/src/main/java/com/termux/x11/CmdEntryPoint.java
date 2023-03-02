@@ -58,6 +58,10 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
      * You can specify DPI by using `-dpi` option.
      * It is Xwayland option, but termux-x11 also handles it.
      *
+     * [6]
+     * Start termux-x11 with TERMUX_X11_DEBUG=1 flag to redirect Termux:X11 logcat to termux-x11 stderr.
+     * `env TERMUX_X11_DEBUG=1 termux-x11 :0 -ac`
+     *
      * @param args The command-line arguments
      */
     public static void main(String[] args) {
@@ -162,11 +166,18 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         return fd == -1 ? null : ParcelFileDescriptor.adoptFd(fd);
     }
 
+    @Override
+    public ParcelFileDescriptor getLogcatOutput() {
+        int fd = stderr();
+        return fd == -1 ? null : ParcelFileDescriptor.adoptFd(fd);
+    }
+
     private native void spawnCompositor(int display, int dpi);
     public native void outputResize(int width, int height);
     private static native boolean socketExists();
     private static native void exec(String[] argv);
     private static native int connect();
+    private static native int stderr();
 
     static {
         System.loadLibrary("lorie");

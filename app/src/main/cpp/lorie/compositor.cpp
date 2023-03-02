@@ -344,3 +344,30 @@ Java_com_termux_x11_CmdEntryPoint_connect([[maybe_unused]] JNIEnv *env, [[maybe_
 
     return sockfd;
 }
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_termux_x11_CmdEntryPoint_stderr(JNIEnv *env, jclass clazz) {
+    const char *debug = getenv("TERMUX_X11_DEBUG");
+    if (debug && !strcmp(debug, "1")) {
+        int p[2];
+        pipe(p);
+        fchmod(p[1], 0777);
+        if (!fork()) {
+            close(p[1]);
+            FILE *fp = fdopen(p[0], "r");
+            size_t len;
+            char *line = nullptr;
+
+            while ((getline(&line, &len, fp)) != -1) {
+                printf("com.termux.x11 logcat: %s", line);
+            }
+            exit(env, 0);
+        }
+        close(p[0]);
+
+        return p[1];
+    }
+
+    return -1;
+}

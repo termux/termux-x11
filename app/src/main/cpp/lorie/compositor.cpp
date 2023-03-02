@@ -371,3 +371,9 @@ Java_com_termux_x11_CmdEntryPoint_stderr(JNIEnv *env, jclass clazz) {
 
     return -1;
 }
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_termux_x11_CmdEntryPoint_getuid(JNIEnv *env, jclass clazz) {
+    return getuid();
+}

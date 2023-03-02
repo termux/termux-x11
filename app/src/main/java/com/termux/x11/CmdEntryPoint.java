@@ -109,6 +109,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         }
     }
 
+    @SuppressLint("WrongConstant")
     void sendBroadcast() {
         // We should not care about multiple instances, it should be called only by `Termux:X11` app
         // which is single instance...
@@ -118,6 +119,11 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         Intent intent = new Intent(ACTION_START);
         intent.putExtra("", bundle);
         intent.setPackage("com.termux.x11");
+        
+        if (getuid() == 0 || getuid() == 2000) {
+            intent.setFlags(/* FLAG_RECEIVER_FROM_SHELL */ 0x00400000);
+        }
+
         ctx.sendBroadcast(intent);
     }
 
@@ -182,6 +188,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     private static native void exec(String[] argv);
     private static native int connect();
     private static native int stderr();
+    private static native int getuid();
 
     static {
         System.loadLibrary("lorie");

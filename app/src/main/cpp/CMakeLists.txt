@@ -152,8 +152,8 @@ add_library(xkbcommon ${XKBCOMMON_SOURCES})
 target_compile_options(xkbcommon PRIVATE
         "-DHAVE_STRNDUP=1" "-DDEFAULT_XKB_LAYOUT=\"us\"" "-DDEFAULT_XKB_MODEL=\"pc105\""
         "-DDEFAULT_XKB_OPTIONS=NULL" "-DDEFAULT_XKB_RULES=\"evdev\"" "-DDEFAULT_XKB_VARIANT=NULL"
-        "-DDFLT_XKB_CONFIG_EXTRA_PATH=\"/data/data/com.termux.x11/files\""
-        "-DDFLT_XKB_CONFIG_ROOT=\"/data/data/com.termux.x11/files\"")
+        "-DDFLT_XKB_CONFIG_EXTRA_PATH=\"/data/data/com.termux.x11\""
+        "-DDFLT_XKB_CONFIG_ROOT=\"/data/data/com.termux.x11\"")
 target_include_directories(xkbcommon PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/libxkbcommon/src")
 target_include_directories(xkbcommon PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libxkbcommon/include")
 target_link_libraries(xkbcommon xcbproto)

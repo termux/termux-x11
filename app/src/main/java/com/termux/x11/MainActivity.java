@@ -235,6 +235,17 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         terminalToolbarViewPager.setVisibility(showNow ? View.VISIBLE : View.GONE);
         findViewById(R.id.terminal_toolbar_view_pager).requestFocus();
+
+        if (mExtraKeys == null) {
+            handler.postDelayed(() -> {
+                if (mExtraKeys != null) {
+                    ViewGroup.LayoutParams layoutParams = terminalToolbarViewPager.getLayoutParams();
+                    layoutParams.height = Math.round(mTerminalToolbarDefaultHeight *
+                            (mExtraKeys.getExtraKeysInfo() == null ? 0 : mExtraKeys.getExtraKeysInfo().getMatrix().length));
+                    terminalToolbarViewPager.setLayoutParams(layoutParams);
+                }
+            }, 200);
+        }
     }
 
 
@@ -529,7 +540,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         });
     }
 
-    static Handler handler = new Handler();
+    public static Handler handler = new Handler();
 
     private native void init();
     private native void connect(int fd);

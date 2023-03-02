@@ -115,8 +115,26 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
 
     @Override
     public boolean performExtraKeyButtonHapticFeedback(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
-        Log.e("keys", "key " + buttonInfo.getKey() + " active " + isActive(mActivity.getExtraKeysView().getSpecialButtons().get(SpecialButton.valueOf(buttonInfo.getKey()))));
-        Log.e("keys", "key " + buttonInfo.getKey() + " locked " + isLocked(mActivity.getExtraKeysView().getSpecialButtons().get(SpecialButton.valueOf(buttonInfo.getKey()))));
+        MainActivity.handler.postDelayed(() -> {
+            int pressed;
+            switch (buttonInfo.getKey()) {
+                case "CTRL":
+                    pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.CTRL, false))
+                            ? KeyPress : KeyRelease;
+                    mActivity.onKeySym(KeyEvent.KEYCODE_CTRL_LEFT, 0, null, 0, pressed);
+                    break;
+                case "ALT":
+                    pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.ALT, false))
+                            ? KeyPress : KeyRelease;
+                    mActivity.onKeySym(KeyEvent.KEYCODE_ALT_LEFT, 0, null, 0, pressed);
+                    break;
+                case "SHIFT":
+                    pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.SHIFT, false))
+                            ? KeyPress : KeyRelease;
+                    mActivity.onKeySym(KeyEvent.KEYCODE_SHIFT_LEFT, 0, null, 0, pressed);
+                    break;
+            }
+        }, 100);
 
         return false;
     }

@@ -256,7 +256,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         getTerminalToolbarViewPager().setVisibility(newVisibility);
     }
 
-
     private boolean didRequestLaunchExternalDisplay() {
         return getIntent().getBooleanExtra(REQUEST_LAUNCH_EXTERNAL_DISPLAY, false);
     }
@@ -319,22 +318,16 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        ViewPager pager = getTerminalToolbarViewPager();
+        ViewGroup parent = (ViewGroup) pager.getParent();
 
         if (isInPictureInPictureMode) {
-//            if (kbd.getVisibility() != View.INVISIBLE)
-//                kbd.setVisibility(View.INVISIBLE);
-            frm.setPadding(0, 0, 0, 0);
-        } // else {
-//            if (kbd.getVisibility() != View.VISIBLE)
-//                if (preferences.getBoolean("showAdditionalKbd", true)) {
-//                    kbd.setVisibility(View.VISIBLE);
-//                    int paddingDp = 35;
-//                    float density = this.getResources().getDisplayMetrics().density;
-//                    int paddingPixel = (int) (paddingDp * density);
-//                    frm.setPadding(0, 0, 0, paddingPixel);
-//                }
-//        }
+            parent.removeView(pager);
+            parent.addView(pager, 0);
+        } else
+            pager.bringToFront();
+
+        frm.setPadding(0, 0, 0, 0);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
         }

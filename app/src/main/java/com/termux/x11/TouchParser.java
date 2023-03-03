@@ -155,8 +155,6 @@ public class TouchParser {
         target = view;
         cursor = new Point(target.getWidth()/2, target.getHeight()/2);
 
-        density = view.getContext().getResources().getDisplayMetrics().density;
-
         init();
     }
 
@@ -188,6 +186,13 @@ public class TouchParser {
         mTouchSlopSquare = touchSlop * touchSlop;
         mDoubleTapTouchSlopSquare = doubleTapTouchSlop * doubleTapTouchSlop;
         mDoubleTapSlopSquare = doubleTapSlop * doubleTapSlop;
+        density = context.getResources().getDisplayMetrics().density;
+    }
+
+    public void setCursorCoordinates(int x, int y) {
+        cursor.x = x;
+        cursor.y = y;
+        mListener.onPointerMotion(x, y);
     }
 
     void setMode(int mode) {

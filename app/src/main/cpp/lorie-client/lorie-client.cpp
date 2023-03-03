@@ -291,28 +291,27 @@ public:
 
     void refresh_cursor() {
         if (cursor.win && c.conn) {
-            auto reply = c.fixes.get_cursor_image();
-            if (reply) {
-                env->CallVoidMethod(thiz,
-                                    set_cursor_rect_id,
-                                    cursor.x - cursor.xhot,
-                                    cursor.y - cursor.yhot,
-                                    cursor.width,
-                                    cursor.height);
-                cursor.width = reply->width;
-                cursor.height = reply->height;
-                cursor.xhot = reply->xhot;
-                cursor.yhot = reply->yhot;
-                u32* image = xcb_xfixes_get_cursor_image_cursor_image(reply);
-                env->CallVoidMethod(thiz,
-                                    set_cursor_rect_id,
-                                    cursor.x - cursor.xhot,
-                                    cursor.y - cursor.yhot,
-                                    cursor.width,
-                                    cursor.height);
-                blit_exact(cursor.win, image, reply->width, reply->height);
+            {
+                xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
+                auto reply = xcb_query_pointer_reply(c.conn, xcb_query_pointer(c.conn, s->root),
+                                                     nullptr);
+                if (reply)
+                    set_cursor_coordinates(reply->root_x, reply->root_y);
+                free(reply);
             }
-            free(reply);
+            {
+                auto reply = c.fixes.get_cursor_image();
+                if (reply) {
+                    cursor.width = reply->width;
+                    cursor.height = reply->height;
+                    cursor.xhot = reply->xhot;
+                    cursor.yhot = reply->yhot;
+                    u32 *image = xcb_xfixes_get_cursor_image_cursor_image(reply);
+                    blit_exact(cursor.win, image, reply->width, reply->height);
+                    move_cursor_rect(env, cursor.x, cursor.y);
+                }
+                free(reply);
+            }
         }
     }
 
@@ -391,15 +390,18 @@ public:
     JNIEnv* env{};
     jobject thiz{};
     jmethodID set_renderer_visibility_id{};
-    jmethodID set_cursor_rect_id{};
+    jmethodID move_cursor_rect_id{};
+    jmethodID set_cursor_coordinates_id{};
     void init_jni(JavaVM* vm, jobject obj) {
         post([=, this] {
             thiz = obj;
             vm->AttachCurrentThread(&env, nullptr);
             set_renderer_visibility_id =
                     env->GetMethodID(env->GetObjectClass(thiz),"setRendererVisibility","(Z)V");
-            set_cursor_rect_id =
-                    env->GetMethodID(env->GetObjectClass(thiz),"setCursorRect","(IIII)V");
+            move_cursor_rect_id =
+                    env->GetMethodID(env->GetObjectClass(thiz),"moveCursorRect","(IIII)V");
+            set_cursor_coordinates_id =
+                    env->GetMethodID(env->GetObjectClass(thiz),"setCursorCoordinates","(II)V");
         });
     }
 
@@ -410,6 +412,29 @@ public:
         }
 
         env->CallVoidMethod(thiz, set_renderer_visibility_id, visible);
+    }
+
+    void move_cursor_rect(JNIEnv* e, int x, int y) const {
+        if (!move_cursor_rect_id) {
+            ALOGE("Something is wrong, `set_renderer_visibility` is null");
+            return;
+        }
+
+        e->CallVoidMethod(thiz,
+                            move_cursor_rect_id,
+                            x - cursor.xhot,
+                            y - cursor.yhot,
+                            cursor.width,
+                            cursor.height);
+    }
+
+    void set_cursor_coordinates(int x, int y) const {
+        if (!set_renderer_visibility_id) {
+            ALOGE("Something is wrong, `set_cursor_coordinates_id` is null");
+            return;
+        }
+
+        env->CallVoidMethod(thiz, set_cursor_coordinates_id, x, y);
     }
 } client; // NOLINT(cert-err58-cpp)
 
@@ -454,15 +479,9 @@ Java_com_termux_x11_MainActivity_windowChanged(JNIEnv *env, [[maybe_unused]] job
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_onPointerMotion(JNIEnv *env, jobject thiz, jint x, jint y) {
-    env->CallVoidMethod(thiz,
-                        client.set_cursor_rect_id,
-                        x - client.cursor.xhot,
-                        y - client.cursor.yhot,
-                        client.cursor.width,
-                        client.cursor.height);
-
     client.cursor.x = x;
     client.cursor.y = y;
+    client.move_cursor_rect(env, x, y);
 
     if (client.c.conn) {
         // XCB is thread safe, no need to post this to dispatch thread.

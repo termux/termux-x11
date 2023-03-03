@@ -586,7 +586,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @SuppressWarnings("unused")
     // It is used in native code
-    void setCursorRect(int x, int y, int w, int h) {
+    void setCursorCoordinates(int x, int y) {
+        mTP.setCursorCoordinates(x, y);
+    }
+
+    @SuppressWarnings("unused")
+    // It is used in native code
+    void moveCursorRect(int x, int y, int w, int h) {
         runOnUiThread(()-> {
             SurfaceView v = findViewById(R.id.cursorView);
             FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(w, h);

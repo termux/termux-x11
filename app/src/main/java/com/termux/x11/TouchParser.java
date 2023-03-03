@@ -97,6 +97,7 @@ public class TouchParser {
     private float mLastFocusY;
     private float mDownFocusX;
     private float mDownFocusY;
+    private float density;
 
     private boolean mIsLongpressEnabled;
 
@@ -153,6 +154,8 @@ public class TouchParser {
 
         target = view;
         cursor = new Point(target.getWidth()/2, target.getHeight()/2);
+
+        density = view.getContext().getResources().getDisplayMetrics().density;
 
         init();
     }
@@ -394,9 +397,9 @@ public class TouchParser {
 
             mListener.onPointerMotion(cursor.x, cursor.y);
         } else if (ev.getPointerCount() == 2) {
-            if (scrollX != 0)
+            if (scrollX != 0 && Math.abs(scrollX) > density)
                 mListener.onPointerScroll(MotionEvent.AXIS_Y, (int)scrollX);
-            if (scrollY != 0)
+            if (scrollY != 0 && Math.abs(scrollY) > density)
                 mListener.onPointerScroll(MotionEvent.AXIS_X, (int)scrollY);
         } else if (ev.getPointerCount() == 3) {
             if (currentTripleFingerTriggered)
@@ -482,8 +485,6 @@ public class TouchParser {
         mInLongPress = true;
         mListener.onPointerButton(BTN_LEFT, ACTION_DOWN);
     }
-
-
 
     private class HardwareMouseListener {
         private int savedBS = 0;

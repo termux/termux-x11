@@ -480,6 +480,12 @@ public:
             xcb_test_fake_input(self.conn, type, code->keycode, XCB_CURRENT_TIME, s->root, 0, 0, 0);
             xcb_flush(self.conn);
         }
+
+        void send_button(u8 button, u8 type) {
+            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
+            xcb_test_fake_input(self.conn, type, button, XCB_CURRENT_TIME, s->root, 0, 0, 0);
+            xcb_flush(self.conn);
+        }
     } xkb {*this};
 
     void init(int sockfd) {

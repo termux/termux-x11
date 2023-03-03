@@ -1,6 +1,5 @@
 package com.termux.x11.utils;
 
-import android.view.InputDevice;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -22,7 +21,6 @@ public class X11ToolbarViewPager {
 
         final MainActivity act;
         private final View.OnKeyListener mEventListener;
-        private final KeyCharacterMap mVirtualKeyboardKeyCharacterMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD);
 
         public PageAdapter(MainActivity activity, View.OnKeyListener listen) {
             this.act = activity;

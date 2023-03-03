@@ -41,7 +41,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.viewpager.widget.ViewPager;
 
 import com.termux.shared.termux.extrakeys.ExtraKeysView;
-import com.termux.x11.utils.KeyboardUtils;
 import com.termux.x11.utils.PermissionUtils;
 import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
@@ -54,7 +53,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public static final int KeyRelease = 3; // synchronized with X.h
 
     FrameLayout frm;
-    KeyboardUtils.KeyboardHeightProvider kbdHeightListener;
     private TouchParser mTP;
     private final ServiceEventListener listener = new ServiceEventListener();
     private ICmdEntryInterface service = null;
@@ -185,6 +183,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (prefs.getBoolean("dexMetaKeyCapture", false)) {
             SamsungDexUtils.dexMetaKeyCapture(this, true);
         }
+        
+        setTerminalToolbarView();
     }
 
     @Override
@@ -338,26 +338,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @SuppressLint("WrongConstant")
     @Override
     public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-//        if (preferences.getBoolean("showAdditionalKbd", true) && kbd != null) {
-//            handler.postDelayed(() -> {
-//                Rect r = new Rect();
-//                getWindow().getDecorView().getWindowVisibleDisplayFrame(r);
-//                WindowInsetsCompat rootInsets = WindowInsetsCompat.toWindowInsetsCompat(kbd.getRootWindowInsets());
-//                boolean isSoftKbdVisible = rootInsets.isVisible(WindowInsetsCompat.Type.ime());
-////                kbd.setVisibility(isSoftKbdVisible ? View.VISIBLE : View.INVISIBLE);
-//
-//                FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-//                if (preferences.getBoolean("Reseed", true)) {
-//                    p.gravity = Gravity.BOTTOM | Gravity.CENTER;
-//                } else {
-//                    p.topMargin = r.bottom - r.top - kbd.getHeight();
-//                }
-//
-////                kbd.setLayoutParams(p);
-//            }, 100);
-//        }
-
         SurfaceView c = v.getRootView().findViewById(R.id.lorieView);
         SurfaceHolder h = (c != null) ? c.getHolder() : null;
         if (h != null)
@@ -428,7 +408,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     onPointerButton(TouchParser.BTN_RIGHT, (e.getAction() == KeyEvent.ACTION_DOWN) ? TouchParser.ACTION_DOWN : TouchParser.ACTION_UP);
                     rightPressed = (e.getAction() == KeyEvent.ACTION_DOWN);
                 } else if (e.getAction() == KeyEvent.ACTION_UP) {
-                    KeyboardUtils.toggleKeyboardVisibility(MainActivity.this);
+                    toggleKeyboardVisibility(MainActivity.this);
                     findViewById(R.id.lorieView).requestFocus();
                 }
                 return true;
@@ -499,6 +479,16 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 }
             return true;
         }
+    }
+
+    /**
+     * Manually toggle soft keyboard visibility
+     * @param context calling context
+     */
+    public static void toggleKeyboardVisibility(Context context) {
+        InputMethodManager inputMethodManager = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
+        if(inputMethodManager != null)
+            inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
     }
 
     @SuppressWarnings("unused")

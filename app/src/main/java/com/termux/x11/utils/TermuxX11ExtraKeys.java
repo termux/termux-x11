@@ -3,6 +3,7 @@ package com.termux.x11.utils;
 import static com.termux.shared.termux.extrakeys.ExtraKeysConstants.PRIMARY_KEY_CODES_FOR_STRINGS;
 import static com.termux.x11.MainActivity.KeyPress;
 import static com.termux.x11.MainActivity.KeyRelease;
+import static com.termux.x11.MainActivity.toggleKeyboardVisibility;
 
 import android.annotation.SuppressLint;
 import android.content.ClipData;
@@ -83,7 +84,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
         }
     }
 
-    protected void onTerminalExtraKeyButtonClick(View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean fnDown) {
+    protected void onTerminalExtraKeyButtonClick(@SuppressWarnings("unused") View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, @SuppressWarnings("unused") boolean fnDown) {
         if (this.ctrlDown != ctrlDown) {
             this.ctrlDown = ctrlDown;
             mActivity.onKeySym(KeyEvent.KEYCODE_CTRL_LEFT, 0, null, 0, ctrlDown ? KeyPress : KeyRelease);
@@ -155,7 +156,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
         if ("KEYBOARD".equals(key)) {
             if (getToolbarViewPager()!=null) {
                 getToolbarViewPager().requestFocus();
-                KeyboardUtils.toggleKeyboardVisibility(mActivity);
+                toggleKeyboardVisibility(mActivity);
             }
         } else if ("DRAWER".equals(key)) {
             Intent preferencesIntent = new Intent(mActivity, LoriePreferences.class);

@@ -30,8 +30,8 @@ import android.view.ViewConfiguration;
 @SuppressWarnings("unused")
 public class TouchParser {
 
-    private static final int WL_STATE_PRESSED = 1;
-    private static final int WL_STATE_RELEASED = 0;
+    private static final int XCB_BUTTON_PRESS = 4;
+    private static final int XCB_BUTTON_RELEASE = 5;
 
     private static final int WL_POINTER_AXIS_VERTICAL_SCROLL = 0;
     private static final int WL_POINTER_AXIS_HORIZONTAL_SCROLL = 1;
@@ -39,12 +39,12 @@ public class TouchParser {
     static final int TOUCH_MODE_MOUSE = 0;
     static final int TOUCH_MODE_TOUCHPAD = 1;
 
-    static final int BTN_LEFT = 0x110;
-    static final int BTN_RIGHT = 0x111;
-    static final int BTN_MIDDLE = 0x112;
+    static final int BTN_LEFT = 1;
+    static final int BTN_MIDDLE = 2;
+    static final int BTN_RIGHT = 3;
 
-    static final int ACTION_DOWN = WL_STATE_PRESSED;
-    static final int ACTION_UP = WL_STATE_RELEASED;
+    static final int ACTION_DOWN = XCB_BUTTON_PRESS;
+    static final int ACTION_UP = XCB_BUTTON_RELEASE;
 
     private static final int AXIS_X = WL_POINTER_AXIS_HORIZONTAL_SCROLL;
     private static final int AXIS_Y = WL_POINTER_AXIS_VERTICAL_SCROLL;
@@ -53,6 +53,7 @@ public class TouchParser {
         void onPointerButton(int button, int state);
         void onPointerMotion(int x, int y);
         void onPointerScroll(int axis, float value);
+        void toggleExtraKeys();
     }
 
     private int mTouchSlopSquare;
@@ -67,6 +68,7 @@ public class TouchParser {
     private static final int TOUCH_SLOP = 8;
     private static final int DOUBLE_TAP_SLOP = 100;
     private static final int DOUBLE_TAP_TOUCH_SLOP = TOUCH_SLOP;
+    private static final int TRIPLE_FINGER_SWING_TRESHOLD = 10;
 
     // constants for Message.what used by GestureHandler below
     private static final int SHOW_PRESS = 1;
@@ -321,6 +323,8 @@ public class TouchParser {
 
             case MotionEvent.ACTION_UP:
                 mStillDown = false;
+                currentTripleFingerTriggered = false;
+                currentTripleFingerScrollValue = 0;
                 MotionEvent currentUpEvent = MotionEvent.obtain(ev);
                 if (mMode == TOUCH_MODE_MOUSE) {
                     stopDrag();
@@ -368,6 +372,8 @@ public class TouchParser {
         return handled;
     }
 
+    float currentTripleFingerScrollValue = 0;
+    boolean currentTripleFingerTriggered = false;
     private void onScroll(MotionEvent ev, float scrollX, float scrollY) {
         if (ev.getPointerCount() == 1) {
             if (mMode == TOUCH_MODE_MOUSE) {
@@ -392,6 +398,20 @@ public class TouchParser {
                 mListener.onPointerScroll(MotionEvent.AXIS_Y, (int)scrollX);
             if (scrollY != 0)
                 mListener.onPointerScroll(MotionEvent.AXIS_X, (int)scrollY);
+        } else if (ev.getPointerCount() == 3) {
+            if (currentTripleFingerTriggered)
+                return;
+
+            if (scrollY > 0)
+                currentTripleFingerScrollValue = 0; // some kind of reset
+            if (scrollY < 0)
+                currentTripleFingerScrollValue -= scrollY;
+
+            if (currentTripleFingerScrollValue < -30 || currentTripleFingerScrollValue > 30) {
+                mListener.toggleExtraKeys();
+                currentTripleFingerScrollValue = 0;
+                currentTripleFingerTriggered = true;
+            }
         }
     }
 

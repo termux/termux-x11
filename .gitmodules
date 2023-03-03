@@ -1,27 +1,35 @@
-[submodule "app/src/main/jni/wayland"]
-	path = app/src/main/jni/wayland
+[submodule "app/src/main/cpp/wayland"]
+	path = app/src/main/cpp/wayland
 	url = https://gitlab.freedesktop.org/wayland/wayland
 	ignore = dirty
-[submodule "x11-client-experimental/src/main/cpp/libxcb"]
-	path = x11-client-experimental/src/main/cpp/libxcb
+[submodule "app/src/main/cpp/libxcb"]
+	path = app/src/main/cpp/libxcb
 	url = https://gitlab.freedesktop.org/xorg/lib/libxcb
 	ignore = dirty
-[submodule "x11-client-experimental/src/main/cpp/xorgproto"]
-	path = x11-client-experimental/src/main/cpp/xorgproto
+[submodule "app/src/main/cpp/xorgproto"]
+	path = app/src/main/cpp/xorgproto
 	url = https://gitlab.freedesktop.org/xorg/proto/xorgproto
 	ignore = dirty
-[submodule "x11-client-experimental/src/main/cpp/xcbproto"]
-	path = x11-client-experimental/src/main/cpp/xcbproto
+[submodule "app/src/main/cpp/xcbproto"]
+	path = app/src/main/cpp/xcbproto
 	url = https://gitlab.freedesktop.org/xorg/proto/xcbproto
 	ignore = dirty
-[submodule "x11-client-experimental/src/main/cpp/libXau"]
-	path = x11-client-experimental/src/main/cpp/libXau
+[submodule "app/src/main/cpp/libXau"]
+	path = app/src/main/cpp/libXau
 	url = https://gitlab.freedesktop.org/xorg/lib/libxau
 	ignore = dirty
-[submodule "x11-client-experimental/src/main/cpp/libxcb-errors"]
-	path = x11-client-experimental/src/main/cpp/libxcb-errors
+[submodule "app/src/main/cpp/libxcb-errors"]
+	path = app/src/main/cpp/libxcb-errors
 	url = https://gitlab.freedesktop.org/xorg/lib/libxcb-errors
 	ignore = dirty
-[submodule "x11-client-experimental/src/main/cpp/libxcvt"]
-	path = x11-client-experimental/src/main/cpp/libxcvt
+[submodule "app/src/main/cpp/libxcvt"]
+	path = app/src/main/cpp/libxcvt
 	url = https://gitlab.freedesktop.org/xorg/lib/libxcvt
+	ignore = dirty
+[submodule "app/src/main/cpp/libxkbcommon"]
+	path = app/src/main/cpp/libxkbcommon
+	url = https://github.com/xkbcommon/libxkbcommon
+	ignore = dirty
+[submodule "app/src/main/cpp/libandroid-support"]
+	path = app/src/main/cpp/libandroid-support
+	url = https://github.com/termux/libandroid-support/

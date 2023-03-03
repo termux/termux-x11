@@ -92,7 +92,7 @@ public:
         };
 
         void attach_fd(u32 seg, i32 fd, u8 ro) {
-            xcb_check(shm_attach_fd, seg, fd, ro);
+            xcb_check(shm_attach_fd_checked, seg, fd, ro);
             self.handle_error("Error attaching file descriptor through MIT-SHM extension");
         };
 

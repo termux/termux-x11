@@ -198,30 +198,42 @@ public:
                 ALOGE("Map failed: %s", strerror(errno));
             }
         }
+        try {
+            c.shm.attach_fd(screen.shmseg, screen.shmfd, 0);
+            return;
+        } catch (std::runtime_error &e) {
+            ALOGE("%s", e.what());
+            if (screen.shmaddr && screen.shmaddr != MAP_FAILED)
+                munmap(screen.shmaddr, DEFAULT_SHMSEG_LENGTH);
+            if (screen.shmfd != -1)
+                close(screen.shmfd);
+
+            ALOGE("Trying to retrieve shared segment...");
+        }
 
         // There is a chance that Xwayland we are trying to connect is non-termux, try another way
+        screen.shmfd = c.shm.create_segment(screen.shmseg, DEFAULT_SHMSEG_LENGTH, 0);
         if (screen.shmfd < 0) {
-            screen.shmfd = c.shm.create_segment(screen.shmseg, DEFAULT_SHMSEG_LENGTH, 0);
-            if (screen.shmfd < 0)
-                ALOGE("Failed to retrieve shared segment file descriptor...");
-            else {
-                struct statfs info{};
-                fstatfs(screen.shmfd, &info);
-                if (info.f_type != TMPFS_MAGIC) {
-                    ALOGE("Shared segment is not hosted on tmpfs. You are likely doing something wrong. "
-                            "Check if /run/shm, /var/tmp and /tmp are tmpfs.");
-                } else {
-                    ALOGE("Attaching shared memory segment...");
-                    screen.shmaddr = static_cast<u32 *>(mmap(nullptr, DEFAULT_SHMSEG_LENGTH,
-                                                             PROT_READ | PROT_WRITE,
-                                                             MAP_SHARED, screen.shmfd, 0));
-                    if (screen.shmaddr == MAP_FAILED) {
-                        ALOGE("Map failed: %s", strerror(errno));
-                    }
+            ALOGE("Failed to retrieve shared segment file descriptor...");
+            return;
+        } else {
+            struct statfs info{};
+            fstatfs(screen.shmfd, &info);
+            if (info.f_type != TMPFS_MAGIC) {
+                ALOGE("Shared segment is not hosted on tmpfs. You are likely doing something wrong. "
+                      "Check if /run/shm, /var/tmp and /tmp are tmpfs.");
+                close(screen.shmfd);
+                screen.shmfd = -1;
+            } else {
+                ALOGE("Attaching shared memory segment...");
+                screen.shmaddr = static_cast<u32 *>(mmap(nullptr, DEFAULT_SHMSEG_LENGTH,
+                                                         PROT_READ | PROT_WRITE,
+                                                         MAP_SHARED, screen.shmfd, 0));
+                if (screen.shmaddr == MAP_FAILED) {
+                    ALOGE("Map failed: %s", strerror(errno));
                 }
             }
         }
-        c.shm.attach_fd(screen.shmseg, screen.shmfd, 0);
     }
 
     void adopt_connection_fd(int fd) {
@@ -538,7 +550,7 @@ Java_com_termux_x11_MainActivity_nativePause([[maybe_unused]] JNIEnv *env, [[may
 // I need this to catch initialisation errors of libxkbcommon.
 #if 1
 // It is needed to redirect stderr to logcat
-[[maybe_unused]] std::thread stderr_to_logcat_thread([]{
+[[maybe_unused]] std::thread stderr_to_logcat_thread([]{ // NOLINT(cert-err58-cpp)
     FILE *fp;
     int p[2];
     size_t len;
@@ -600,7 +612,7 @@ void fork(const std::function<void()>& f) {
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_startLogcat(JNIEnv *env, jobject thiz, jint fd) {
+Java_com_termux_x11_MainActivity_startLogcat([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz, jint fd) {
     killAllLogcats();
 
     ALOGV("Starting logcat with output to given fd");

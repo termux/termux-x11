@@ -119,7 +119,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         Intent intent = new Intent(ACTION_START);
         intent.putExtra("", bundle);
         intent.setPackage("com.termux.x11");
-        
+
         if (getuid() == 0 || getuid() == 2000) {
             intent.setFlags(/* FLAG_RECEIVER_FROM_SHELL */ 0x00400000);
         }

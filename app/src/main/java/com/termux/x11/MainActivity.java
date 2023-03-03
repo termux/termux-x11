@@ -119,6 +119,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             public void onReceive(Context context, Intent intent) {
                 if (ACTION_START.equals(intent.getAction())) {
                     try {
+                        Log.v("LorieBroadcastReceiver", "Got new ACTION_START intent");
                         IBinder b = intent.getBundleExtra("").getBinder("");
                         service = ICmdEntryInterface.Stub.asInterface(b);
                         service.asBinder().linkToDeath(() -> {
@@ -150,6 +151,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     void onReceiveConnection() {
         try {
             if (service != null && service.asBinder().isBinderAlive()) {
+                Log.v("LorieBroadcastReceiver", "trying to extract X connection socket.");
                 ParcelFileDescriptor fd = service.getXConnection();
                 if (fd != null) {
                     connect(fd.detachFd());

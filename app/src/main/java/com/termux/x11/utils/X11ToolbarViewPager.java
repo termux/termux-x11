@@ -19,11 +19,11 @@ import com.termux.x11.R;
 public class X11ToolbarViewPager {
     public static class PageAdapter extends PagerAdapter {
 
-        final MainActivity act;
+        final MainActivity mActivity;
         private final View.OnKeyListener mEventListener;
 
         public PageAdapter(MainActivity activity, View.OnKeyListener listen) {
-            this.act = activity;
+            this.mActivity = activity;
             this.mEventListener = listen;
         }
 
@@ -40,18 +40,18 @@ public class X11ToolbarViewPager {
         @NonNull
         @Override
         public Object instantiateItem(@NonNull ViewGroup collection, int position) {
-            LayoutInflater inflater = LayoutInflater.from(act);
+            LayoutInflater inflater = LayoutInflater.from(mActivity);
             View layout;
             if (position == 0) {
                 layout = inflater.inflate(R.layout.view_terminal_toolbar_extra_keys, collection, false);
                 ExtraKeysView extraKeysView = (ExtraKeysView) layout;
-                act.mExtraKeys = new TermuxX11ExtraKeys(mEventListener, act, extraKeysView);
-                int mTerminalToolbarDefaultHeight = act.getTerminalToolbarViewPager().getLayoutParams().height;
+                mActivity.mExtraKeys = new TermuxX11ExtraKeys(mEventListener, mActivity, extraKeysView);
+                int mTerminalToolbarDefaultHeight = mActivity.getTerminalToolbarViewPager().getLayoutParams().height;
                 int height = mTerminalToolbarDefaultHeight *
-                        ((act.mExtraKeys.getExtraKeysInfo() == null) ? 0 : act.mExtraKeys.getExtraKeysInfo().getMatrix().length);
-                extraKeysView.reload(act.mExtraKeys.getExtraKeysInfo(), height);
-                extraKeysView.setExtraKeysViewClient(act.mExtraKeys);
-                act.setExtraKeysView(extraKeysView);
+                        ((mActivity.mExtraKeys.getExtraKeysInfo() == null) ? 0 : mActivity.mExtraKeys.getExtraKeysInfo().getMatrix().length);
+                extraKeysView.reload(mActivity.mExtraKeys.getExtraKeysInfo(), height);
+                extraKeysView.setExtraKeysViewClient(mActivity.mExtraKeys);
+                mActivity.setDefaultToolbarHeight(mTerminalToolbarDefaultHeight);
             } else {
                 layout = inflater.inflate(R.layout.view_terminal_toolbar_text_input, collection, false);
                 final EditText editText = layout.findViewById(R.id.terminal_toolbar_text_input);
@@ -60,7 +60,7 @@ public class X11ToolbarViewPager {
                     String textToSend = editText.getText().toString();
                     if (textToSend.length() == 0) textToSend = "\r";
                     KeyEvent e = new KeyEvent(0, textToSend, KeyCharacterMap.VIRTUAL_KEYBOARD, 0);
-                    mEventListener.onKey(act.getLorieView(), 0, e);
+                    mEventListener.onKey(mActivity.getLorieView(), 0, e);
 
                     editText.setText("");
                     return true;

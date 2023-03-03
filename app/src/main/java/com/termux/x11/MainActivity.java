@@ -6,6 +6,10 @@ import static com.termux.x11.LoriePreferences.ACTION_PREFERENCES_CHANGED;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -37,10 +41,13 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.NotificationCompat;
 import androidx.viewpager.widget.ViewPager;
 
 import com.termux.shared.termux.extrakeys.ExtraKeysView;
+import com.termux.x11.utils.FullscreenWorkaround;
 import com.termux.x11.utils.PermissionUtils;
 import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
@@ -48,6 +55,7 @@ import com.termux.x11.utils.X11ToolbarViewPager;
 
 
 public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener, TouchParser.OnTouchParseListener {
+    static final String ACTION_STOP = "com.termux.x11.ACTION_STOP";
     static final String REQUEST_LAUNCH_EXTERNAL_DISPLAY = "request_launch_external_display";
     public static final int KeyPress = 2; // synchronized with X.h
     public static final int KeyRelease = 3; // synchronized with X.h
@@ -57,7 +65,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private final ServiceEventListener listener = new ServiceEventListener();
     private ICmdEntryInterface service = null;
     public TermuxX11ExtraKeys mExtraKeys;
-    private ExtraKeysView mExtraKeysView;
+    private int mTerminalToolbarDefaultHeight;
+    private Notification mNotification;
+    private final int mNotificationId = 7892;
+    NotificationManager mNotificationManager;
 
     private int screenWidth = 0;
     private int screenHeight = 0;
@@ -71,14 +82,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         super.onCreate(savedInstanceState);
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        if (didRequestLaunchExternalDisplay() || preferences.getBoolean("fullscreen", false)) {
-            setFullScreenForExternalDisplay();
-        }
-
         preferences.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> onPreferencesChanged());
-
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN |
-                WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -102,7 +106,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         listener.setAsListenerTo(lorieView, cursorView);
 
         mTP = new TouchParser(lorieView, this);
-        setTerminalToolbarView();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
             getWindow().
@@ -111,6 +114,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         IntentFilter filter = new IntentFilter(ACTION_START);
         filter.addAction(ACTION_PREFERENCES_CHANGED);
+        filter.addAction(ACTION_STOP);
 
         registerReceiver(new BroadcastReceiver() {
             @Override
@@ -124,32 +128,38 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                             service = null;
                             CmdEntryPoint.requestConnection();
                         }, 0);
-                        onReceiveConnection();
 
-                        ParcelFileDescriptor logcatOutput = service.getLogcatOutput();
-                        if (logcatOutput != null) {
-                            startLogcat(logcatOutput.detachFd());
-                        }
+                        onReceiveConnection();
                     } catch (Exception e) {
                         Log.e("MainActivity", "Something went wrong while we extracted connection details from binder.", e);
                     }
+                } else if (ACTION_STOP.equals(intent.getAction())) {
+                    finishAffinity();
                 } else if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction())) {
                     onPreferencesChanged();
                 }
             }
         }, filter);
 
-        requestConnection();
+        // Taken from Stackoverflow answer https://stackoverflow.com/questions/7417123/android-how-to-adjust-layout-in-full-screen-mode-when-softkeyboard-is-visible/7509285#
+        FullscreenWorkaround.assistActivity(this);
+        mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        mNotification = buildNotification();
 
-        lorieView.setFocusable(true);
-        lorieView.setFocusableInTouchMode(true);
-        lorieView.requestFocus();
+        requestConnection();
+        onPreferencesChanged();
     }
 
     void onReceiveConnection() {
         try {
             if (service != null && service.asBinder().isBinderAlive()) {
-                Log.v("LorieBroadcastReceiver", "trying to extract X connection socket.");
+                Log.v("LorieBroadcastReceiver", "Extracting X connection socket.");
+                ParcelFileDescriptor logcatOutput = service.getLogcatOutput();
+                if (logcatOutput != null) {
+                    startLogcat(logcatOutput.detachFd());
+                }
+
+                Log.v("LorieBroadcastReceiver", "Extracting X connection socket.");
                 ParcelFileDescriptor fd = service.getXConnection();
                 if (fd != null) {
                     connect(fd.detachFd());
@@ -165,6 +175,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     void onPreferencesChanged() {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+
         int mode = Integer.parseInt(preferences.getString("touchMode", "1"));
         mTP.setMode(mode);
 
@@ -173,6 +184,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         }
 
         setTerminalToolbarView();
+
+        onWindowFocusChanged(true);
+
+        View lorieView = getLorieView();
+        lorieView.setFocusable(true);
+        lorieView.setFocusableInTouchMode(true);
+        lorieView.requestFocus();
     }
 
     @Override
@@ -183,8 +201,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (prefs.getBoolean("dexMetaKeyCapture", false)) {
             SamsungDexUtils.dexMetaKeyCapture(this, true);
         }
-        
+
+        mNotificationManager.notify(mNotificationId, mNotification);
+
         setTerminalToolbarView();
+        getLorieView().requestFocus();
     }
 
     @Override
@@ -193,6 +214,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (preferences.getBoolean("dexMetaKeyCapture", false)) {
             SamsungDexUtils.dexMetaKeyCapture(this, false);
         }
+        mNotificationManager.cancel(mNotificationId);
 
         // We do not really need to draw while application is in background.
         nativePause();
@@ -201,18 +223,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     public void setTheme(int resId) {
+        boolean externalDisplayRequested = getIntent().getBooleanExtra(REQUEST_LAUNCH_EXTERNAL_DISPLAY, false);
+
         // for some reason, calling setTheme() in onCreate() wasn't working.
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        super.setTheme(didRequestLaunchExternalDisplay() || preferences.getBoolean("fullscreen", true) ?
+        super.setTheme(externalDisplayRequested || preferences.getBoolean("fullscreen", true) ?
                 R.style.FullScreen_ExternalDisplay : R.style.NoActionBar);
-    }
-
-    public ExtraKeysView getExtraKeysView() {
-        return mExtraKeysView;
-    }
-
-    public void setExtraKeysView(ExtraKeysView extraKeysView) {
-        mExtraKeysView = extraKeysView;
     }
 
     public SurfaceView getLorieView() {
@@ -221,6 +237,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     public ViewPager getTerminalToolbarViewPager() {
         return findViewById(R.id.terminal_toolbar_view_pager);
+    }
+
+    public void setDefaultToolbarHeight(int height) {
+        mTerminalToolbarDefaultHeight = height;
     }
 
     private void setTerminalToolbarView() {
@@ -239,12 +259,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             handler.postDelayed(() -> {
                 if (mExtraKeys != null) {
                     ViewGroup.LayoutParams layoutParams = terminalToolbarViewPager.getLayoutParams();
-                    layoutParams.height = Math.round(layoutParams.height *
+                    layoutParams.height = Math.round(mTerminalToolbarDefaultHeight *
                             (mExtraKeys.getExtraKeysInfo() == null ? 0 : mExtraKeys.getExtraKeysInfo().getMatrix().length));
                     terminalToolbarViewPager.setLayoutParams(layoutParams);
                 }
             }, 200);
         }
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     }
 
     @Override
@@ -258,19 +279,52 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         getTerminalToolbarViewPager().setVisibility(newVisibility);
     }
 
-    private boolean didRequestLaunchExternalDisplay() {
-        return getIntent().getBooleanExtra(REQUEST_LAUNCH_EXTERNAL_DISPLAY, false);
+    @SuppressLint("ObsoleteSdkInt")
+    Notification buildNotification() {
+        Intent notificationIntent = new Intent(this, MainActivity.class);
+        notificationIntent.putExtra("foo_bar_extra_key", "foo_bar_extra_value");
+        notificationIntent.setAction(Long.toString(System.currentTimeMillis()));
+
+        Intent exitIntent = new Intent(ACTION_STOP);
+        exitIntent.setPackage(getPackageName());
+
+        Intent preferencesIntent = new Intent(this, LoriePreferences.class);
+        preferencesIntent.setAction("0");
+
+        PendingIntent pIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pExitIntent = PendingIntent.getBroadcast(this, 0, exitIntent, PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pPreferencesIntent = PendingIntent.getActivity(this, 0, preferencesIntent, PendingIntent.FLAG_IMMUTABLE);
+
+        int priority = Notification.PRIORITY_HIGH;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N)
+            priority = NotificationManager.IMPORTANCE_HIGH;
+        NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        String channelId = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? getNotificationChannel(notificationManager) : "";
+        return new NotificationCompat.Builder(this, channelId)
+                .setContentTitle("Termux:X11")
+                .setSmallIcon(R.drawable.ic_x11_icon)
+                .setContentText("Pull down to show options")
+                .setContentIntent(pIntent)
+                .setOngoing(true)
+                .setPriority(priority)
+                .setShowWhen(false)
+                .setColor(0xFF607D8B)
+                .addAction(0, "Preferences", pPreferencesIntent)
+                .addAction(0, "Exit", pExitIntent)
+                .build();
     }
 
-    private void setFullScreenForExternalDisplay() {
-        getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_IMMERSIVE);
+    @RequiresApi(Build.VERSION_CODES.O)
+    private String getNotificationChannel(NotificationManager notificationManager){
+        String channelId = getResources().getString(R.string.app_name);
+        String channelName = getResources().getString(R.string.app_name);
+        NotificationChannel channel = new NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_HIGH);
+        channel.setImportance(NotificationManager.IMPORTANCE_NONE);
+        channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+        notificationManager.createNotificationChannel(channel);
+        return channelId;
     }
+
 
     int orientation;
 
@@ -297,13 +351,32 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         super.onWindowFocusChanged(hasFocus);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         Window window = getWindow();
+        View decorView = window.getDecorView();
+        boolean fullscreen = preferences.getBoolean("fullscreen", false);
+        boolean reseed = preferences.getBoolean("Reseed", true);
 
-        if (preferences.getBoolean("Reseed", true)) {
-            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        fullscreen = fullscreen || getIntent().getBooleanExtra(REQUEST_LAUNCH_EXTERNAL_DISPLAY, false);
+
+        if (hasFocus && fullscreen) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            decorView.setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         } else {
-            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN |
-                    WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
+            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            decorView.setSystemUiVisibility(0);
         }
+
+        if (reseed)
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        else
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN|
+                    WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
     }
 
     @Override
@@ -397,6 +470,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         @SuppressWarnings("DanglingJavadoc")
         @Override
         public boolean onKey(View v, int keyCode, KeyEvent e) {
+            Log.e("KEY", " " + e);
             // Ignoring Android's autorepeat.
             if (e.getRepeatCount() > 0)
                 return true;

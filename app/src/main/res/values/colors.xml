@@ -5,4 +5,5 @@
     <color name="colorAccent">#D81B60</color>
     <color name="red_error">#DC143C</color>
     <color name="red_error_link">#FC143C</color>
+    <color name="white">#FFFFFF</color>
 </resources>

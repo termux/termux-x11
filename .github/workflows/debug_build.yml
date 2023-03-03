@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - x11-client-experimental
   pull_request:
     branches:
       - master

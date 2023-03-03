@@ -291,6 +291,7 @@ public:
 
     void refresh_cursor() {
         if (cursor.win && c.conn) {
+            if (false)
             {
                 xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
                 auto reply = xcb_query_pointer_reply(c.conn, xcb_query_pointer(c.conn, s->root),

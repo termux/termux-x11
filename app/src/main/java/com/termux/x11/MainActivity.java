@@ -200,10 +200,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public void onResume() {
         super.onResume();
         nativeResume();
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        if (prefs.getBoolean("dexMetaKeyCapture", false)) {
-            SamsungDexUtils.dexMetaKeyCapture(this, true);
-        }
 
         mNotificationManager.notify(mNotificationId, mNotification);
 
@@ -213,10 +209,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     public void onPause() {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        if (preferences.getBoolean("dexMetaKeyCapture", false)) {
-            SamsungDexUtils.dexMetaKeyCapture(this, false);
-        }
         mNotificationManager.cancel(mNotificationId);
 
         // We do not really need to draw while application is in background.
@@ -339,7 +331,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         return channelId;
     }
 
-
     int orientation;
 
     @Override
@@ -391,6 +382,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         else
             window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN|
                     WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
+
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        if (prefs.getBoolean("dexMetaKeyCapture", false)) {
+            SamsungDexUtils.dexMetaKeyCapture(this, hasFocus);
+        }
     }
 
     @Override

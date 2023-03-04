@@ -46,7 +46,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
 import androidx.viewpager.widget.ViewPager;
 
-import com.termux.shared.termux.extrakeys.ExtraKeysView;
 import com.termux.x11.utils.FullscreenWorkaround;
 import com.termux.x11.utils.PermissionUtils;
 import com.termux.x11.utils.SamsungDexUtils;
@@ -126,6 +125,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         service = ICmdEntryInterface.Stub.asInterface(b);
                         service.asBinder().linkToDeath(() -> {
                             service = null;
+                            toggleExtraKeys(false);
                             CmdEntryPoint.requestConnection();
                         }, 0);
 
@@ -148,6 +148,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         requestConnection();
         onPreferencesChanged();
+
+        toggleExtraKeys(false);
     }
 
     void onReceiveConnection() {
@@ -163,6 +165,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 ParcelFileDescriptor fd = service.getXConnection();
                 if (fd != null) {
                     connect(fd.detachFd());
+                    toggleExtraKeys(true);
                     service.outputResize(screenWidth, screenHeight);
                 }
                 else
@@ -268,15 +271,26 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     }
 
+    public void toggleExtraKeys(boolean visible) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        boolean enabled = preferences.getBoolean("showAdditionalKbd", true);
+        ViewPager pager = getTerminalToolbarViewPager();
+        ViewGroup parent = (ViewGroup) pager.getParent();
+
+        if (enabled && service != null && visible) {
+            getTerminalToolbarViewPager().bringToFront();
+        } else {
+            parent.removeView(pager);
+            parent.addView(pager, 0);
+        }
+
+        pager.setVisibility(visible ? View.VISIBLE : View.GONE);
+    }
+
     @Override
     public void toggleExtraKeys() {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        if (!preferences.getBoolean("showAdditionalKbd", true))
-            return;
-
         int visibility = getTerminalToolbarViewPager().getVisibility();
-        int newVisibility = (visibility != View.VISIBLE) ? View.VISIBLE : View.GONE;
-        getTerminalToolbarViewPager().setVisibility(newVisibility);
+        toggleExtraKeys(visibility != View.VISIBLE);
     }
 
     @SuppressLint("ObsoleteSdkInt")
@@ -332,7 +346,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
 
-        if (newConfig.orientation != orientation /*&& kbd != null && kbd.getVisibility() == View.VISIBLE*/) {
+        if (newConfig.orientation != orientation) {
             InputMethodManager imm = (InputMethodManager) getSystemService(Activity.INPUT_METHOD_SERVICE);
             View view = getCurrentFocus();
             if (view == null) {
@@ -393,14 +407,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
-        ViewPager pager = getTerminalToolbarViewPager();
-        ViewGroup parent = (ViewGroup) pager.getParent();
-
-        if (isInPictureInPictureMode) {
-            parent.removeView(pager);
-            parent.addView(pager, 0);
-        } else
-            pager.bringToFront();
+        toggleExtraKeys(!isInPictureInPictureMode);
 
         frm.setPadding(0, 0, 0, 0);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -442,7 +449,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             });
 
             view.getHolder().addCallback(new SurfaceHolder.Callback() {
-                @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {}
+                @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
+                    holder.setFormat(PixelFormat.OPAQUE);
+                }
                 @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int w, int h) {
                     windowChanged(holder.getSurface(), w, h);
                     if (service != null) {
@@ -534,8 +543,20 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         case KeyEvent.KEYCODE_META_LEFT:
                         case KeyEvent.KEYCODE_META_RIGHT:
                             break;
-                        default:
-                            onKeySym(keyCode, e.getUnicodeChar(), e.getCharacters(), e.getMetaState(), 0);
+                        default: {
+                            int unicode = e.getUnicodeChar();
+                            if (unicode != 0 && e.getMetaState() == 0) {
+                                onKeySym(0, unicode, 0);
+                                return true;
+                            }
+
+                            if (keyCode != 0) {
+                                onKeySym(keyCode, unicode, 0);
+                            }
+
+                            if (e.getCharacters() != null)
+                                e.getCharacters().codePoints().forEach(codePoint -> onKeySym(0, codePoint, 0));
+                        }
                     }
                 }
             } else
@@ -545,10 +566,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
              */
                 switch(e.getAction()) {
                     case KeyEvent.ACTION_DOWN:
-                        onKeySym(keyCode, 0, null, 0, KeyPress);
+                        MainActivity.this.onKey(keyCode, KeyPress);
                         break;
                     case KeyEvent.ACTION_UP:
-                        onKeySym(keyCode, 0, null, 0, KeyRelease);
+                        MainActivity.this.onKey(keyCode, KeyRelease);
                         break;
                 }
             return true;
@@ -613,7 +634,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public native void onPointerScroll(int axis, float value);
 
     public native void onPointerButton(int button, int type);
-    public native void onKeySym(int keyCode, int unicode, String str, int metaState, int type);
+    public native void onKeySym(int keyCode, int unicode, int metaState);
+    public native void onKey(int keyCode, int type);
     private native void nativeResume();
     private native void nativePause();
 

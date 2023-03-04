@@ -87,27 +87,27 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     protected void onTerminalExtraKeyButtonClick(@SuppressWarnings("unused") View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, @SuppressWarnings("unused") boolean fnDown) {
         if (this.ctrlDown != ctrlDown) {
             this.ctrlDown = ctrlDown;
-            mActivity.onKeySym(KeyEvent.KEYCODE_CTRL_LEFT, 0, null, 0, ctrlDown ? KeyPress : KeyRelease);
+            mActivity.onKey(KeyEvent.KEYCODE_CTRL_LEFT, ctrlDown ? KeyPress : KeyRelease);
         }
 
         if (this.altDown != altDown) {
             this.altDown = altDown;
-            mActivity.onKeySym(KeyEvent.KEYCODE_ALT_LEFT, 0, null, 0, altDown ? KeyPress : KeyRelease);
+            mActivity.onKey(KeyEvent.KEYCODE_ALT_LEFT, altDown ? KeyPress : KeyRelease);
         }
 
         if (this.shiftDown != shiftDown) {
             this.shiftDown = shiftDown;
-            mActivity.onKeySym(KeyEvent.KEYCODE_SHIFT_LEFT, 0, null, 0, shiftDown ? KeyPress : KeyRelease);
+            mActivity.onKey(KeyEvent.KEYCODE_SHIFT_LEFT, shiftDown ? KeyPress : KeyRelease);
         }
 
         if (PRIMARY_KEY_CODES_FOR_STRINGS.containsKey(key)) {
             Integer keyCode = PRIMARY_KEY_CODES_FOR_STRINGS.get(key);
             if (keyCode == null) return;
 
-            mActivity.onKeySym(keyCode, 0, null, 0, 0);
+            mActivity.onKeySym(keyCode, 0, 0);
         } else {
             // not a control char
-            key.codePoints().forEach(codePoint -> mActivity.onKeySym(0, codePoint, null, 0, 0));
+            key.codePoints().forEach(codePoint -> mActivity.onKeySym(0, codePoint, 0));
         }
     }
 
@@ -119,17 +119,17 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
                 case "CTRL":
                     pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.CTRL, false))
                             ? KeyPress : KeyRelease;
-                    mActivity.onKeySym(KeyEvent.KEYCODE_CTRL_LEFT, 0, null, 0, pressed);
+                    mActivity.onKey(KeyEvent.KEYCODE_CTRL_LEFT, pressed);
                     break;
                 case "ALT":
                     pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.ALT, false))
                             ? KeyPress : KeyRelease;
-                    mActivity.onKeySym(KeyEvent.KEYCODE_ALT_LEFT, 0, null, 0, pressed);
+                    mActivity.onKey(KeyEvent.KEYCODE_ALT_LEFT, pressed);
                     break;
                 case "SHIFT":
                     pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.SHIFT, false))
                             ? KeyPress : KeyRelease;
-                    mActivity.onKeySym(KeyEvent.KEYCODE_SHIFT_LEFT, 0, null, 0, pressed);
+                    mActivity.onKey(KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
                     break;
             }
         }, 100);

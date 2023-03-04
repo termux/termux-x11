@@ -338,10 +338,10 @@ public:
             });
     }
 
-    void send_key(xcb_keysym_t keysym, u8 type) {
+    void send_key(xcb_keysym_t keycode, u8 type) {
         if (c.conn)
             post([=] {
-                c.xkb.send_key(keysym, type);
+                c.xkb.send_key(keycode, type);
             });
     }
 
@@ -355,6 +355,7 @@ public:
     void connection_poll_func() {
         try {
             bool need_redraw = false;
+            bool need_reload_keymaps = false;
             xcb_generic_event_t *event;
             // const char *ext;
             xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
@@ -362,8 +363,8 @@ public:
                 if (event->response_type == 0) {
                     c.err = reinterpret_cast<xcb_generic_error_t *>(event);
                     c.handle_error("Error processing XCB events");
-                } else if (event->response_type == XCB_MAPPING_NOTIFY) {
-                    c.xkb.reload_keymaps();
+                } else if (c.xkb.is_xkb_mapping_notify_event(event)) {
+                    need_reload_keymaps = true;
                 } else if (event->response_type == XCB_CONFIGURE_NOTIFY) {
                     auto e = reinterpret_cast<xcb_configure_request_event_t *>(event);
                     s->width_in_pixels = e->width;
@@ -377,6 +378,9 @@ public:
 
             if (need_redraw)
                 refresh_screen();
+            if (need_reload_keymaps)
+                c.xkb.reload_keymaps();
+            free(event);
         } catch (std::exception& e) {
             ALOGE("Failure during processing X events: %s", e.what());
         }
@@ -479,7 +483,7 @@ Java_com_termux_x11_MainActivity_windowChanged(JNIEnv *env, [[maybe_unused]] job
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_onPointerMotion(JNIEnv *env, jobject thiz, jint x, jint y) {
+Java_com_termux_x11_MainActivity_onPointerMotion(JNIEnv *env, [[maybe_unused]] jobject thiz, jint x, jint y) {
     client.cursor.x = x;
     client.cursor.y = y;
     client.move_cursor_rect(env, x, y);
@@ -501,11 +505,11 @@ Java_com_termux_x11_MainActivity_onPointerScroll([[maybe_unused]] JNIEnv *env, [
         bool press_shift = axis == 1; // AXIS_X
         int button = value < 0 ? XCB_BUTTON_INDEX_4 : XCB_BUTTON_INDEX_5;
         if (press_shift)
-            client.send_key(XK_Shift_L, XCB_KEY_PRESS);
+            client.send_key(KEY_LEFTSHIFT, XCB_KEY_PRESS);
         client.send_button(button, XCB_BUTTON_PRESS);
         client.send_button(button, XCB_BUTTON_RELEASE);
         if (press_shift)
-            client.send_key(XK_Shift_L, XCB_KEY_RELEASE);
+            client.send_key(KEY_LEFTSHIFT, XCB_KEY_RELEASE);
     }
 }
 
@@ -519,16 +523,7 @@ Java_com_termux_x11_MainActivity_onPointerButton([[maybe_unused]] JNIEnv *env, [
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_onKeySym([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz,
-                                               jint keycode, jint unicodeChar, jstring str, jint meta_state, jint type) {
-    wchar_t unicode = unicodeChar;
-    mbstate_t ps {};
-
-    /* When event is triggered by software keyboard type is always 0 */
-    if (type) {
-        client.send_key(android_to_keysyms[keycode], type);
-        return;
-    }
-
+                                               jint keycode, jint unicode, jint meta_state) {
     if (unicode && !meta_state) {
         client.send_keysym(xkb_utf32_to_keysym(unicode), meta_state);
         return;
@@ -538,18 +533,12 @@ Java_com_termux_x11_MainActivity_onKeySym([[maybe_unused]] JNIEnv *env, [[maybe_
         client.send_keysym(android_to_keysyms[keycode], meta_state);
         return;
     }
+}
 
-    if (str) {
-        const char *characters = env->GetStringUTFChars(str, nullptr);
-        const char *chars = characters; // mbsrtowcs will set it to nullptr, but we still need to release it
-        if (!chars)
-            return;
-
-        while (mbsrtowcs(&unicode, &chars, 1, &ps) > 0)
-            client.send_keysym(xkb_utf32_to_keysym(unicode), meta_state);
-
-        env->ReleaseStringUTFChars(str, characters);
-    }
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_onKey([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz, jint keycode, jint type) {
+    client.send_key(android_to_linux_keycode[keycode], type);
 }
 
 extern "C"
@@ -578,8 +567,9 @@ Java_com_termux_x11_MainActivity_nativePause([[maybe_unused]] JNIEnv *env, [[may
     fp = fdopen(p[0], "r");
 
     dup2(p[1], 2);
+    dup2(p[1], 1);
     while ((getline(&line, &len, fp)) != -1) {
-        __android_log_write(ANDROID_LOG_VERBOSE, "stderr", line);
+        __android_log_print(ANDROID_LOG_VERBOSE, "stderr", "%s%s", line, (line[len-1] == '\n') ? "" : "\n");
     }
 });
 #endif

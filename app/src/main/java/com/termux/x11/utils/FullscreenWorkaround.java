@@ -20,13 +20,15 @@ public class FullscreenWorkaround {
 
     private FullscreenWorkaround(Activity activity) {
         mActivity = activity;
-        FrameLayout content = (FrameLayout) activity.findViewById(android.R.id.content);
+        FrameLayout content = activity.findViewById(android.R.id.content);
         content.getViewTreeObserver().addOnGlobalLayoutListener(this::possiblyResizeChildOfContent);
     }
 
     private void possiblyResizeChildOfContent() {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(mActivity);
         if (!preferences.getBoolean("fullscreen", false))
+            return;
+        if (!preferences.getBoolean("Reseed", true))
             return;
 
         FrameLayout content = (FrameLayout)  ((FrameLayout) mActivity.findViewById(android.R.id.content)).getChildAt(0);

@@ -240,6 +240,7 @@ public:
         xcb_connection &self;
         xkb_context* context{};
         int core_kbd{};
+        int first_event{};
 
         struct code {
             uint32_t ucs;
@@ -270,8 +271,14 @@ public:
                                              XKB_X11_MIN_MAJOR_XKB_VERSION, XKB_X11_MIN_MINOR_XKB_VERSION,
                                              XKB_X11_SETUP_XKB_EXTENSION_NO_FLAGS, nullptr, nullptr,
                                              nullptr, nullptr))
-
                 throw std::runtime_error("Failed to setup xkb extension");
+
+            {
+                auto reply = xcb(query_extension, 9, "XKEYBOARD");
+                self.handle_error(reply, "Error querying XKEYBOARD extension");
+                first_event = reply->first_event;
+                free(reply);
+            }
 
             enum {
                 required_events =
@@ -377,6 +384,7 @@ public:
                 ALOGE("Code for keysym 0x%X (%s) not found...", keysym, buf);
                 return;
             }
+            ALOGE("Code for keysym 0x%X (%s) is %d...", keysym, buf, code->keycode);
 
             xcb_flush(self.conn);
 
@@ -451,7 +459,7 @@ public:
             xcb_flush(self.conn);
         }
 
-        void send_key(xcb_keysym_t keysym, u8 type) {
+        void send_key(xcb_keysym_t keycode, u8 type) {
             // SurfaceView can only receive Unicode input from a virtual keyboard.
             // Since SurfaceView is not a text editor, it cannot receive Unicode input from a
             // physical keyboard. This is actually beneficial for us as we receive original
@@ -460,24 +468,9 @@ public:
             // environment will determine in which layout the user will be typing.
             // Here we do not change current layout and do not change modifiers because
             // this function should only be triggered by hardware keyboard or extra key bar.
-            char buf[64]{};
-            xkb_keysym_get_name(keysym, buf, sizeof(buf));
-            ALOGV("Sending keysym %s", buf);
-
-            auto code = std::find_if(codes.begin(), codes.end(), [&c = keysym](auto& code) {
-                return code.keysym == c;
-            });
-
-            if (code == codes.end()) {
-                xkb_keysym_get_name(keysym, buf, sizeof(buf));
-                ALOGE("Code for keysym 0x%X (%s) not found...", keysym, buf);
-                return;
-            }
-
-            xcb_flush(self.conn);
-
+            ALOGV("Sending keycode %d", keycode);
             xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
-            xcb_test_fake_input(self.conn, type, code->keycode, XCB_CURRENT_TIME, s->root, 0, 0, 0);
+            xcb_test_fake_input(self.conn, type, keycode + 8, XCB_CURRENT_TIME, s->root, 0, 0, 0);
             xcb_flush(self.conn);
         }
 
@@ -485,6 +478,15 @@ public:
             xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
             xcb_test_fake_input(self.conn, type, button, XCB_CURRENT_TIME, s->root, 0, 0, 0);
             xcb_flush(self.conn);
+        }
+
+        bool is_xkb_mapping_notify_event(xcb_generic_event_t* e) const {
+            union { // NOLINT(cppcoreguidelines-pro-type-member-init)
+                xcb_generic_event_t *event;
+                xcb_ge_event_t *ge;
+            };
+            event = e;
+            return e->response_type == first_event && ge->pad0 == XCB_XKB_NEW_KEYBOARD_NOTIFY;
         }
     } xkb {*this};
 

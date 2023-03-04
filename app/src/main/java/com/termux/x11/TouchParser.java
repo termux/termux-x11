@@ -413,7 +413,7 @@ public class TouchParser {
             if (scrollY > 0)
                 currentTripleFingerScrollValue = 0; // some kind of reset
             if (scrollY < 0)
-                currentTripleFingerScrollValue -= scrollY;
+                currentTripleFingerScrollValue += scrollY;
 
             if (currentTripleFingerScrollValue < -30 || currentTripleFingerScrollValue > 30) {
                 mListener.toggleExtraKeys();

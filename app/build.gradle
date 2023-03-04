@@ -16,8 +16,8 @@ android {
          */
         //noinspection ExpiredTargetSdkVersion,OldTargetApi
         targetSdkVersion 28
-        versionCode 10
-        versionName "1.02.06"
+        versionCode 11
+        versionName "1.02.07"
 
         externalNativeBuild {
             cmake {

@@ -35,6 +35,8 @@ public:
     xcb_generic_error_t* err{}; // not thread-safe, but the whole class should be used in separate thread
     xcb_errors_context_t *err_ctx{};
 
+    std::function<void(std::function<void()>, int delay)> post;
+
     template<typename REPLY>
     always_inline void handle_error(REPLY* reply, std::string description) { // NOLINT(performance-unnecessary-value-param)
         if (err) {
@@ -241,6 +243,7 @@ public:
         xkb_context* context{};
         int core_kbd{};
         int first_event{};
+        int current_scratch_index = 0;
 
         struct code {
             uint32_t ucs;
@@ -251,7 +254,7 @@ public:
         };
 
         struct binding {
-            uint32_t ucs;
+            uint32_t keysym;
             xkb_keycode_t keycode;
             timespec expires;
         };
@@ -336,7 +339,7 @@ public:
                     // in the case if some other app like x11vnc or chrome-remote-desktop rebinded this keycode...
                     if (i.keycode == key) {
                         if (xkb_keymap_num_layouts_for_key(keymap, key) == 0) {
-                            if (i.ucs != 0)
+                            if (i.keysym != 0)
                                 i = {0, i.keycode, now() + ms_to_timespec(200)};
                         } else {
                             count = xkb_keymap_key_get_syms_by_level(keymap, key, 0, 0, &sym);
@@ -371,6 +374,9 @@ public:
         }
 
         void send_keysym(xcb_keysym_t keysym, int meta_state) {
+            u32 modifiers = 0;
+            u32 keycode = 0;
+            u32 layout = 0;
             char buf[64]{};
             xkb_keysym_get_name(keysym, buf, sizeof(buf));
             ALOGV("Sending keysym %s", buf);
@@ -381,28 +387,36 @@ public:
 
             if (code == codes.end()) {
                 xkb_keysym_get_name(keysym, buf, sizeof(buf));
-                ALOGE("Code for keysym 0x%X (%s) not found...", keysym, buf);
-                return;
+                ALOGE("Code for keysym 0x%X (%s) not found, remapping...", keysym, buf);
+
+                keycode = bindings[current_scratch_index].keycode;
+
+                current_scratch_index++;
+                if (current_scratch_index >= bindings.size())
+                    current_scratch_index = 0;
+
+                ALOGE("SCRATCHES SIZE = %d, current_scratch_index = %d", bindings.size(), current_scratch_index);
+
+                xkb_keysym_t keysyms[2] = { keysym, keysym };
+                xcb_change_keyboard_mapping(self.conn, 1, keycode, 2, keysyms);
+                self.post([=] {
+                    // Reset it after 200 ms.
+                    xkb_keysym_t keysyms[1] = { 0 };
+                    xcb_change_keyboard_mapping(self.conn, 1, keycode, 1, keysyms);
+                    ALOGE("Reset keycode %d mapping back to 0", keycode);
+                }, 200);
+            } else {
+                modifiers = code->modifiers;
+                keycode = code->keycode;
+                layout = code->layout;
             }
-            ALOGE("Code for keysym 0x%X (%s) is %d...", keysym, buf, code->keycode);
+
+            ALOGE("Code for keysym 0x%X (%s) is %d...", keysym, buf, keycode);
 
             xcb_flush(self.conn);
 
             xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
-
-            // Since we do not track state of modifiers we should reset them before we finish here.
-            // Getting current modifiers
-            u32 modifiers = code->modifiers;
-//            {
-//                auto reply = xcb(query_pointer, s->root);
-//                if (reply)
-//                    modifiers &= ~reply->mask;
-//
-//                ALOGE("pointer mods %d", reply->mask);
-//                free(reply);
-//            }
-
-            u8 current_group = 0;
+            u8 current_group;
             {
                 auto reply = xcb(xkb_get_state, XCB_XKB_ID_USE_CORE_KBD);
                 current_group = reply->group;
@@ -426,37 +440,33 @@ public:
             auto reply = xcb(get_modifier_mapping);
             self.handle_error("Failed to get keyboard modifiers.");
 
-            for (int mod_index = XCB_MAP_INDEX_SHIFT; mod_index <= XCB_MAP_INDEX_5; mod_index++) {
-                if (modifiers & (1 << mod_index)) {
-                    for (int mod_key = 0; mod_key < reply->keycodes_per_modifier; mod_key++) {
-                        int keycode = xcb_get_modifier_mapping_keycodes(reply)
-                            [mod_index * reply->keycodes_per_modifier + mod_key];
-                        if (keycode)
-                            xcb_test_fake_input(self.conn, XCB_KEY_PRESS, keycode, XCB_CURRENT_TIME,
-                                                s->root, 0, 0, 0);
-                    }
-                }
-            }
+            send_modifiers(reply, modifiers, XCB_KEY_PRESS);
 
-            xcb_xkb_latch_lock_state(self.conn, XCB_XKB_ID_USE_CORE_KBD, 0, 0, 1, code->layout, 0, 0, 0);
-            xcb_test_fake_input(self.conn, XCB_KEY_PRESS, code->keycode, XCB_CURRENT_TIME, s->root, 0, 0, 0);
-            xcb_test_fake_input(self.conn, XCB_KEY_RELEASE, code->keycode, XCB_CURRENT_TIME, s->root, 0, 0, 0);
+            xcb_xkb_latch_lock_state(self.conn, XCB_XKB_ID_USE_CORE_KBD, 0, 0, 1, layout, 0, 0, 0);
+            xcb_test_fake_input(self.conn, XCB_KEY_PRESS, keycode, XCB_CURRENT_TIME, s->root, 0, 0, 0);
+            xcb_test_fake_input(self.conn, XCB_KEY_RELEASE, keycode, XCB_CURRENT_TIME, s->root, 0, 0, 0);
             xcb_xkb_latch_lock_state(self.conn, XCB_XKB_ID_USE_CORE_KBD, 0, 0, 1, current_group, 0, 0, 0);
 
-            for (int mod_index = XCB_MAP_INDEX_SHIFT; mod_index <= XCB_MAP_INDEX_5; mod_index++) {
-                if (modifiers & (1 << mod_index)) {
-                    for (int mod_key = 0; mod_key < reply->keycodes_per_modifier; mod_key++) {
-                        int keycode = xcb_get_modifier_mapping_keycodes(reply)
-                            [mod_index * reply->keycodes_per_modifier + mod_key];
-                        if (keycode)
-                            xcb_test_fake_input(self.conn, XCB_KEY_RELEASE, keycode,
-                                                XCB_CURRENT_TIME, s->root, 0, 0, 0);
-                    }
-                }
-            }
+            send_modifiers(reply, modifiers, XCB_KEY_RELEASE);
 
             free(reply);
             xcb_flush(self.conn);
+        }
+
+        void send_modifiers(xcb_get_modifier_mapping_reply_t* reply, u32 modifiers, u8 type) {
+            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
+
+            for (int mod_index = XCB_MAP_INDEX_SHIFT; mod_index <= XCB_MAP_INDEX_5; mod_index++) {
+                if (modifiers & (1 << mod_index)) {
+                    for (int mod_key = 0; mod_key < reply->keycodes_per_modifier; mod_key++) {
+                        int keycode = xcb_get_modifier_mapping_keycodes(reply)
+                                                [mod_index * reply->keycodes_per_modifier + mod_key];
+                        if (keycode)
+                            xcb_test_fake_input(self.conn, XCB_KEY_PRESS, keycode,
+                                                XCB_CURRENT_TIME,s->root, 0, 0, 0);
+                    }
+                }
+            }
         }
 
         void send_key(xcb_keysym_t keycode, u8 type) {

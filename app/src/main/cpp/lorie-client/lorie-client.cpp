@@ -137,6 +137,7 @@ public:
 
 
     lorie_client() {
+        c.post = [=](std::function<void()> f, int d) { post_delayed(f, d); };
         runner_thread = std::thread([=, this] {
             while(!terminate) {
                 looper.dispatch(1000);

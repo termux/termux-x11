@@ -327,7 +327,7 @@ public:
             reload_keymaps(true);
         }
 
-        void reload_keymaps(bool reload_bindings = false) {
+        void reload_keymaps([[maybe_unused]] bool reload_bindings = false) {
             auto keymap = xkb_x11_keymap_new_from_device(context, self.conn, core_kbd, XKB_KEYMAP_COMPILE_NO_FLAGS);
 
             codes.clear();
@@ -375,7 +375,7 @@ public:
 
         void send_keysym(xcb_keysym_t keysym, int meta_state) {
             u32 modifiers = 0;
-            u32 keycode = 0;
+            u32 keycode;
             u32 layout = 0;
             char buf[64]{};
             xkb_keysym_get_name(keysym, buf, sizeof(buf));
@@ -394,8 +394,6 @@ public:
                 current_scratch_index++;
                 if (current_scratch_index >= bindings.size())
                     current_scratch_index = 0;
-
-                ALOGE("SCRATCHES SIZE = %d, current_scratch_index = %d", bindings.size(), current_scratch_index);
 
                 xkb_keysym_t keysyms[2] = { keysym, keysym };
                 xcb_change_keyboard_mapping(self.conn, 1, keycode, 2, keysyms);

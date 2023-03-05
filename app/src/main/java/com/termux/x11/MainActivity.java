@@ -637,6 +637,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private native void startLogcat(int fd);
 
     static {
-        System.loadLibrary("lorie-client");
+        System.loadLibrary("lorie");
     }
 }

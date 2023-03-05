@@ -21,7 +21,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments "-DWAYLAND_GENERATED_DIR=${waylandOut}"
+                arguments "-DWAYLAND_GENERATED_DIR=${waylandOut}", "-DANDROID_STL=c++_static"
             }
         }
     }
@@ -64,6 +64,8 @@ android {
             // https://github.com/termux/termux-x11/commit/6cdfb75c4451eef63f114a93baef5ba73b7cfd8c#commitcomment-77856313
             useLegacyPackaging false
         }
+
+        exclude 'lib/*/liblocal-socket.so'
     }
 }
 

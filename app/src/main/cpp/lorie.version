@@ -1,0 +1,25 @@
+LORIE {
+  global:
+    Java_com_termux_x11_CmdEntryPoint_spawnCompositor;
+    Java_com_termux_x11_CmdEntryPoint_outputResize;
+    Java_com_termux_x11_CmdEntryPoint_socketExists;
+    Java_com_termux_x11_CmdEntryPoint_exec;
+    Java_com_termux_x11_CmdEntryPoint_connect;
+    Java_com_termux_x11_CmdEntryPoint_stderr;
+    Java_com_termux_x11_CmdEntryPoint_getuid;
+
+    Java_com_termux_x11_MainActivity_init;
+    Java_com_termux_x11_MainActivity_connect;
+    Java_com_termux_x11_MainActivity_cursorChanged;
+    Java_com_termux_x11_MainActivity_windowChanged;
+    Java_com_termux_x11_MainActivity_onPointerMotion;
+    Java_com_termux_x11_MainActivity_onPointerScroll;
+    Java_com_termux_x11_MainActivity_onPointerButton;
+    Java_com_termux_x11_MainActivity_onKeySym;
+    Java_com_termux_x11_MainActivity_onKey;
+    Java_com_termux_x11_MainActivity_nativeResume;
+    Java_com_termux_x11_MainActivity_nativePause;
+    Java_com_termux_x11_MainActivity_startLogcat;
+  local:
+    *;
+};

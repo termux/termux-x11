@@ -10,21 +10,8 @@ find_package(Python3 REQUIRED)
 
 set(WAYLAND_SOURCES connection.c event-loop.c wayland-protocol.c wayland-server.c wayland-shm.c wayland-os.c wayland-util.c)
 list(TRANSFORM WAYLAND_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/wayland/src/)
-add_library(wayland-server SHARED ${WAYLAND_SOURCES})
+add_library(wayland-server STATIC ${WAYLAND_SOURCES})
 target_include_directories(wayland-server PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/wayland ${CMAKE_CURRENT_SOURCE_DIR}/wayland/src)
-
-####################################################################################################
-########################################### LORIE ##################################################
-####################################################################################################
-
-file(GLOB WAYLAND_GENERATED "${WAYLAND_GENERATED_DIR}/*.cpp")
-add_library(lorie SHARED
-        ${CMAKE_CURRENT_SOURCE_DIR}/lorie/compositor.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/lorie/lorie_wayland_server.cpp
-        ${WAYLAND_GENERATED}
-        )
-target_include_directories(lorie PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lorie ${WAYLAND_GENERATED_DIR})
-target_link_libraries(lorie wayland-server "-landroid" "-llog")
 
 # Nothing special here, only generating xcb headers and building xcb...
 
@@ -78,7 +65,7 @@ target_include_directories(xorgproto INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/xorgp
 set(XAU_SOURCES AuDispose.c AuFileName.c AuGetAddr.c AuGetBest.c AuLock.c AuRead.c Autest.c
         AuUnlock.c AuWrite.c include/X11/Xauth.h)
 list(TRANSFORM XAU_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/libXau/)
-add_library(Xau SHARED ${XAU_SOURCES})
+add_library(Xau STATIC ${XAU_SOURCES})
 target_include_directories(Xau PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libXau/include)
 target_link_libraries(Xau xorgproto xcbproto)
 
@@ -90,17 +77,10 @@ set(XCB_SOURCES xcb_auth.c xcb_conn.c xcb_ext.c xcb_in.c xcb_list.c
         xcb_out.c xcb_util.c xcb_xid.c xcb.h xcbext.h xcbint.h xcb_windefs.h)
 list(TRANSFORM XCB_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/)
 set(XCB_SOURCES ${XCB_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
-add_library(xcb SHARED ${XCB_SOURCES} ${XCB_GENERATED})
+add_library(xcb STATIC ${XCB_SOURCES} ${XCB_GENERATED})
 target_include_directories(xcb PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/" "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_compile_options(xcb PRIVATE "-DXCB_QUEUE_BUFFER_SIZE=16384" "-DHAVE_SENDMSG")
 target_link_libraries(xcb Xau)
-
-# Those are stubs and needed to check if termux-built xcb behaves the same way
-# All the functions they should contain are contained in libxcb itself
-add_library(xcb-shm SHARED ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
-add_library(xcb-xfixes SHARED ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
-add_library(xcb-xinput SHARED ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
-add_library(xcb-damage SHARED ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
 
 # TODO: strip unneded symbols to reduce shared library size...
 
@@ -122,7 +102,7 @@ include_directories(
         "${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src"
         "${CMAKE_CURRENT_BINARY_DIR}/generated"
 )
-add_library(xcb-errors
+add_library(xcb-errors STATIC
         "${CMAKE_CURRENT_SOURCE_DIR}/libxcb-errors/src/xcb_errors.c"
         "${CMAKE_CURRENT_BINARY_DIR}/extensions.c"
 )
@@ -133,7 +113,7 @@ target_link_libraries(xcb-errors xcbproto)
 ########################################## LIBXCVT #################################################
 ####################################################################################################
 
-add_library(xcvt "${CMAKE_CURRENT_SOURCE_DIR}/libxcvt/lib/libxcvt.c")
+add_library(xcvt STATIC "${CMAKE_CURRENT_SOURCE_DIR}/libxcvt/lib/libxcvt.c")
 target_include_directories(xcvt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libxcvt/include")
 
 ####################################################################################################
@@ -148,7 +128,7 @@ set(XKBCOMMON_SOURCES atom.c context.c context-priv.c keysym.c keysym-utf.c keym
                       state.c text.c utf8.c utils.c x11/keymap.c x11/state.c x11/util.c)
 list(TRANSFORM XKBCOMMON_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/libxkbcommon/src/)
 set(XKBCOMMON_SOURCES ${XKBCOMMON_SOURCES} ${CMAKE_CURRENT_BINARY_DIR}/config.c)
-add_library(xkbcommon ${XKBCOMMON_SOURCES})
+add_library(xkbcommon STATIC ${XKBCOMMON_SOURCES})
 target_compile_options(xkbcommon PRIVATE
         "-DHAVE_STRNDUP=1" "-DDEFAULT_XKB_LAYOUT=\"us\"" "-DDEFAULT_XKB_MODEL=\"pc105\""
         "-DDEFAULT_XKB_OPTIONS=NULL" "-DDEFAULT_XKB_RULES=\"evdev\"" "-DDEFAULT_XKB_VARIANT=NULL"
@@ -159,21 +139,15 @@ target_include_directories(xkbcommon PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libxkbc
 target_link_libraries(xkbcommon xcbproto)
 
 ####################################################################################################
-#################################### LIBANDROID-SUPPORT ############################################
+########################################### LORIE ##################################################
 ####################################################################################################
 
-set(ANDROID_SUPPORT_MUSL_CTYPE iswalnum.c iswalpha.c iswblank.c iswcntrl.c iswctype.c iswdigit.c
-        iswgraph.c iswlower.c iswprint.c iswpunct.c iswspace.c iswupper.c iswxdigit.c towctrans.c
-        wcswidth.c wctrans.c)
-set(ANDROID_SUPPORT_MUSL_MULTIBYTE internal.c mblen.c mbsnrtowcs.c mbsrtowcs.c)
-list(TRANSFORM ANDROID_SUPPORT_MUSL_CTYPE PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/libandroid-support/src/musl-ctype/)
-list(TRANSFORM ANDROID_SUPPORT_MUSL_MULTIBYTE PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/libandroid-support/src/musl-multibyte/)
-add_library(android-support STATIC ${ANDROID_SUPPORT_MUSL_CTYPE} ${ANDROID_SUPPORT_MUSL_MULTIBYTE})
-
-####################################################################################################
-####################################### LORIE-CLIENT ###############################################
-####################################################################################################
-
-add_library(lorie-client SHARED ${CMAKE_CURRENT_SOURCE_DIR}/lorie-client/lorie-client.cpp)
-target_link_libraries(lorie-client android-support xkbcommon xcbproto xcb xcb-errors xcb-shm
-                                   xcb-xfixes xcb-xinput xcb-damage xcvt "-llog" "-landroid")
+file(GLOB WAYLAND_GENERATED "${WAYLAND_GENERATED_DIR}/*.cpp")
+add_library(lorie SHARED
+        ${CMAKE_CURRENT_SOURCE_DIR}/lorie/compositor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/lorie/lorie-client.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/lorie/lorie_wayland_server.cpp
+        ${WAYLAND_GENERATED})
+target_include_directories(lorie PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lorie ${WAYLAND_GENERATED_DIR})
+target_link_libraries(lorie wayland-server xkbcommon xcbproto xcb xcb-errors xcvt "-llog" "-landroid"
+        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/lorie.version")

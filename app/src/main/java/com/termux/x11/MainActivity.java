@@ -17,6 +17,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -68,9 +69,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private Notification mNotification;
     private final int mNotificationId = 7892;
     NotificationManager mNotificationManager;
-
-    private int screenWidth = 0;
-    private int screenHeight = 0;
 
     public MainActivity() {
         init();
@@ -166,7 +164,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 if (fd != null) {
                     connect(fd.detachFd());
                     toggleExtraKeys(true);
-                    service.outputResize(screenWidth, screenHeight);
+                    Rect r = getLorieView().getHolder().getSurfaceFrame();
+                    service.outputResize(r.width(), r.height());
                 }
                 else
                     handler.postDelayed(this::onReceiveConnection, 500);
@@ -264,19 +263,21 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     public void toggleExtraKeys(boolean visible) {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        boolean enabled = preferences.getBoolean("showAdditionalKbd", true);
-        ViewPager pager = getTerminalToolbarViewPager();
-        ViewGroup parent = (ViewGroup) pager.getParent();
+        runOnUiThread(() -> {
+            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+            boolean enabled = preferences.getBoolean("showAdditionalKbd", true);
+            ViewPager pager = getTerminalToolbarViewPager();
+            ViewGroup parent = (ViewGroup) pager.getParent();
 
-        if (enabled && service != null && visible) {
-            getTerminalToolbarViewPager().bringToFront();
-        } else {
-            parent.removeView(pager);
-            parent.addView(pager, 0);
-        }
+            if (enabled && service != null && visible) {
+                getTerminalToolbarViewPager().bringToFront();
+            } else {
+                parent.removeView(pager);
+                parent.addView(pager, 0);
+            }
 
-        pager.setVisibility(visible ? View.VISIBLE : View.GONE);
+            pager.setVisibility(visible ? View.VISIBLE : View.GONE);
+        });
     }
 
     @Override
@@ -452,8 +453,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     windowChanged(holder.getSurface(), w, h);
                     if (service != null) {
                         try {
-                            screenWidth = w;
-                            screenHeight = h;
                             service.outputResize(w, h);
                         } catch (RemoteException e) {
                             e.printStackTrace();

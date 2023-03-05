@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <sys/eventfd.h>
 #include <sys/socket.h>
+#include <sys/prctl.h>
 #include <android/native_window_jni.h>
 #include <android/looper.h>
 #include <android/log.h>
@@ -116,6 +117,7 @@ extern int blob_size;
 
 #include <linux/ioctl.h>
 #include <linux/un.h>
+#include <cassert>
 
 #define ASHMEM_SET_SIZE _IOW(0x77, 3, size_t)
 static inline int
@@ -283,6 +285,8 @@ void exit(JNIEnv* env, int code) {
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_termux_x11_CmdEntryPoint_exec(JNIEnv *env, [[maybe_unused]] jclass clazz, jobjectArray jargv) {
+    assert(compositor != nullptr);
+
     // execv's argv array is a bit incompatible with Java's String[], so we do some converting here...
     int argc = env->GetArrayLength(jargv) + 2; // Leading executable path and terminating NULL
     char *argv[argc];
@@ -302,11 +306,11 @@ Java_com_termux_x11_CmdEntryPoint_exec(JNIEnv *env, [[maybe_unused]] jclass claz
     int fds[2];
     socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
     fcntl(fds[1], F_SETFD, fcntl(fds[1], F_GETFD) | FD_CLOEXEC);
-    ALooper_addFd(ALooper_prepare(0), fds[1], ALOOPER_POLL_CALLBACK,
-                  ALOOPER_EVENT_INVALID | ALOOPER_EVENT_HANGUP | ALOOPER_EVENT_ERROR,
-                  [](int, int, void* data) {
+    wl_event_loop_add_fd(wl_display_get_event_loop(*compositor), fds[1],
+                         WL_EVENT_HANGUP | WL_EVENT_ERROR, [](int fd, uint32_t, void* env) {
         dprintf(2, "Xwayland died, no need to go on...\n");
-        exit(reinterpret_cast<JNIEnv*>(data), 0);
+        close(fd);
+        ((JNIEnv*)env)->FatalError("Xwayland died, no need to go on...");
         return 0;
     }, env);
 
@@ -317,7 +321,7 @@ Java_com_termux_x11_CmdEntryPoint_exec(JNIEnv *env, [[maybe_unused]] jclass claz
             break;
         case 0: //child
             execvp(argv[0], argv);
-            perror("execvp");
+            perror("Error starting Xwayland (execvp): ");
         default: //parent
             close(fds[0]);
             break;
@@ -347,13 +351,14 @@ Java_com_termux_x11_CmdEntryPoint_connect([[maybe_unused]] JNIEnv *env, [[maybe_
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_termux_x11_CmdEntryPoint_stderr(JNIEnv *env, jclass clazz) {
+Java_com_termux_x11_CmdEntryPoint_stderr(JNIEnv *env, [[maybe_unused]] jclass clazz) {
     const char *debug = getenv("TERMUX_X11_DEBUG");
     if (debug && !strcmp(debug, "1")) {
         int p[2];
         pipe(p);
         fchmod(p[1], 0777);
         if (!fork()) {
+            prctl(PR_SET_PDEATHSIG, SIGHUP);
             close(p[1]);
             FILE *fp = fdopen(p[0], "r");
             size_t len;
@@ -374,6 +379,6 @@ Java_com_termux_x11_CmdEntryPoint_stderr(JNIEnv *env, jclass clazz) {
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_termux_x11_CmdEntryPoint_getuid(JNIEnv *env, jclass clazz) {
-    return getuid();
+Java_com_termux_x11_CmdEntryPoint_getuid([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jclass clazz) {
+    return getuid(); // NOLINT(cppcoreguidelines-narrowing-conversions)
 }

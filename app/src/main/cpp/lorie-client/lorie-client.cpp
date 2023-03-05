@@ -1,6 +1,7 @@
 #include <sys/ioctl.h>
 #include <thread>
 #include <cwchar>
+#include <utility>
 #include <vector>
 #include <functional>
 #include <libxcvt/libxcvt.h>
@@ -137,7 +138,7 @@ public:
 
 
     lorie_client() {
-        c.post = [=](std::function<void()> f, int d) { post_delayed(f, d); };
+        c.post = [=](std::function<void()> f, int d) { post_delayed(std::move(f), d); };
         runner_thread = std::thread([=, this] {
             while(!terminate) {
                 looper.dispatch(1000);
@@ -575,66 +576,23 @@ Java_com_termux_x11_MainActivity_nativePause([[maybe_unused]] JNIEnv *env, [[may
 });
 #endif
 
-static bool sameUid(int pid) {
-    char path[32] = {0};
-    struct stat s = {0};
-    sprintf(path, "/proc/%d", pid);
-    stat(path, &s);
-    return s.st_uid == getuid();
-}
-
-static void killAllLogcats() {
-    DIR* proc;
-    struct dirent* dir_elem;
-    char path[64] = {0}, link[64] = {0};
-    pid_t pid, self = getpid();
-    if ((proc = opendir("/proc")) == nullptr) {
-        ALOGE("opendir: %s", strerror(errno));
-        return;
-    }
-
-    while((dir_elem = readdir(proc)) != nullptr) {
-        if (!(pid = (pid_t) atoi (dir_elem->d_name)) || pid == self || !sameUid(pid)) // NOLINT(cert-err34-c)
-            continue;
-
-        memset(path, 0, sizeof(path));
-        memset(link, 0, sizeof(link));
-        sprintf(path, "/proc/%d/exe", pid);
-        if (readlink(path, link, sizeof(link)) < 0) {
-            ALOGE("readlink %s: %s", path, strerror(errno));
-            continue;
-        }
-        if (strstr(link, "/logcat") != nullptr) {
-            if (kill(pid, SIGKILL) < 0) {
-                ALOGE("kill %d (%s): %s", pid, link, strerror(errno));
-            }
-        }
-    }
-}
-
-void fork(const std::function<void()>& f) {
-    switch(fork()) {
-        case -1: ALOGE("fork: %s", strerror(errno)); return;
-        case 0: f(); return;
-        default: return;
-    }
-}
-
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_startLogcat([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz, jint fd) {
-    killAllLogcats();
+    kill(-1, SIGTERM); // Termux:X11 starts only logcat, so any other process should not be killed.
 
     ALOGV("Starting logcat with output to given fd");
-    fork([]() {
-        execl("/system/bin/logcat", "logcat", "-c", nullptr);
-        ALOGE("exec logcat: %s", strerror(errno));
-    });
+    system("/system/bin/logcat -c");
 
-    fork([fd]() {
-        dup2(fd, 1);
-        dup2(fd, 2);
-        execl("/system/bin/logcat", "logcat", nullptr);
-        ALOGE("exec logcat: %s", strerror(errno));
-    });
+    switch(fork()) {
+        case -1:
+            ALOGE("fork: %s", strerror(errno));
+            return;
+        case 0:
+            dup2(fd, 1);
+            dup2(fd, 2);
+            execl("/system/bin/logcat", "logcat", nullptr);
+            ALOGE("exec logcat: %s", strerror(errno));
+            env->FatalError("Exiting");
+    }
 }

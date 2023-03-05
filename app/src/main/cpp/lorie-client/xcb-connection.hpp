@@ -462,7 +462,7 @@ public:
                         int keycode = xcb_get_modifier_mapping_keycodes(reply)
                                                 [mod_index * reply->keycodes_per_modifier + mod_key];
                         if (keycode)
-                            xcb_test_fake_input(self.conn, XCB_KEY_PRESS, keycode,
+                            xcb_test_fake_input(self.conn, type, keycode,
                                                 XCB_CURRENT_TIME,s->root, 0, 0, 0);
                     }
                 }

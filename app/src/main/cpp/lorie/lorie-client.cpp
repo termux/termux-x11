@@ -32,9 +32,9 @@
 
 #define always_inline inline __attribute__((__always_inline__))
 
+#include "android-keycodes-to-x11-keysyms.h"
 #include "lorie_message_queue.hpp"
 #include "xcb-connection.hpp"
-#include "android-keycodes-to-x11-keysyms.h"
 
 
 // To avoid reopening new segment on every screen resolution

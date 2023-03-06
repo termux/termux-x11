@@ -374,6 +374,9 @@ public:
         }
 
         void send_keysym(xcb_keysym_t keysym, int meta_state) {
+            if (keysym == XK_Linefeed)
+                keysym = XK_Return;
+
             u32 modifiers = 0;
             u32 keycode;
             u32 layout = 0;

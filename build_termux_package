@@ -61,7 +61,7 @@ BUILD_DATE=$(date +%s)
 {
   echo "pkgname = $TERMUX_PKG_NAME"
   echo "pkgbase = $TERMUX_PKG_NAME"
-  echo "pkgver = TERMUX_PKG_FULLVERSION"
+  echo "pkgver = $TERMUX_PKG_FULLVERSION"
   echo "pkgdesc = $(echo "$TERMUX_PKG_DESCRIPTION" | tr '\n' ' ')"
   echo "url = $TERMUX_PKG_HOMEPAGE"
   echo "builddate = $BUILD_DATE"

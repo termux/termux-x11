@@ -150,6 +150,7 @@ public:
     struct {
         ANativeWindow* win;
         u32 &width, &height;
+        u32 real_width, real_height;
 
         i32 shmfd;
         xcb_shm_seg_t shmseg;
@@ -179,7 +180,7 @@ public:
         looper.post(std::move(task), ms_delay);
     }
 
-    void surface_changed(ANativeWindow* win, u32 width, u32 height) {
+    void surface_changed(ANativeWindow* win, u32 width, u32 height, u32 real_width, u32 real_height) {
         ALOGE("Surface: changing surface %p to %p", screen.win, win);
         if (screen.win)
             ANativeWindow_release(screen.win);
@@ -187,8 +188,10 @@ public:
         if (win)
             ANativeWindow_acquire(win);
         screen.win = win;
-        screen.width  = width  > 0 ? width  : screen.width;
-        screen.height = height > 0 ? height : screen.height;
+        screen.width  = width  ?: screen.width;
+        screen.height = height ?: screen.height;
+        screen.real_width  = real_width  ?: screen.real_width;
+        screen.real_height = real_height ?: screen.real_height;
 
         refresh_screen();
 
@@ -503,7 +506,7 @@ Java_com_termux_x11_MainActivity_cursorChanged(JNIEnv *env, [[maybe_unused]] job
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_windowChanged(JNIEnv *env, [[maybe_unused]] jobject thiz, jobject sfc,
-                                               jint width, jint height) {
+                                               jint width, jint height, jint real_width, jint real_height) {
     ANativeWindow *win = sfc ? ANativeWindow_fromSurface(env, sfc) : nullptr;
     if (win)
         ANativeWindow_acquire(win);
@@ -511,7 +514,7 @@ Java_com_termux_x11_MainActivity_windowChanged(JNIEnv *env, [[maybe_unused]] job
     ALOGE("Surface: got new surface %p", win);
 
     // width must be divisible by 8. Xwayland does the same thing.
-    client.post([=] { client.surface_changed(win, width - (width % 8), height); });
+    client.post([=] { client.surface_changed(win, width - (width % 8), height, real_width, real_height); });
 }
 
 extern "C"
@@ -524,8 +527,10 @@ Java_com_termux_x11_MainActivity_onPointerMotion(JNIEnv *env, [[maybe_unused]] j
     if (client.c.conn) {
         // XCB is thread safe, no need to post this to dispatch thread.
         xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(client.c.conn)).data;
-        int translatedX = x * s->width_in_pixels / client.screen.width;
-        int translatedY = y * s->height_in_pixels / client.screen.height;
+        x = x < 0 ? 0 : x;
+        y = y < 0 ? 0 : y;
+        int translatedX = x * s->width_in_pixels / client.screen.real_width;
+        int translatedY = y * s->height_in_pixels / client.screen.real_height;
         xcb_test_fake_input(client.c.conn, XCB_MOTION_NOTIFY, false, XCB_CURRENT_TIME, s->root, translatedX,translatedY ,  0);
         xcb_flush(client.c.conn);
     }
@@ -640,7 +645,8 @@ Java_com_termux_x11_MainActivity_startLogcat([[maybe_unused]] JNIEnv *env, [[may
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_setHorizontalScrollEnabled([[maybe_unused]] JNIEnv *env, jobject thiz,
+Java_com_termux_x11_MainActivity_setHorizontalScrollEnabled([[maybe_unused]] JNIEnv *env,
+                                                            [[maybe_unused]] jobject thiz,
                                                             jboolean enabled) {
     horizontal_scroll_enabled = enabled;
 }

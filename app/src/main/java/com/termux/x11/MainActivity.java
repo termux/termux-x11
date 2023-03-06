@@ -17,6 +17,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.PixelFormat;
+import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
@@ -70,6 +71,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private final int mNotificationId = 7892;
     NotificationManager mNotificationManager;
     private boolean mClientConnected = false;
+    private SurfaceHolder.Callback mLorieViewCallback;
+    private Point mCurrentResolution = new Point(1280, 1024);
 
     public MainActivity() {
         init();
@@ -174,8 +177,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             ParcelFileDescriptor fd = service.getXConnection();
             if (fd != null) {
                 connect(fd.detachFd());
-                Rect r = getLorieView().getHolder().getSurfaceFrame();
-                service.outputResize(r.width(), r.height());
+                SurfaceView lorieView = getLorieView();
+                Rect r = lorieView.getHolder().getSurfaceFrame();
+                mLorieViewCallback.surfaceChanged(lorieView.getHolder(), PixelFormat.RGBA_8888, r.width(), r.height());
             } else
                 handler.postDelayed(this::tryConnect, 500);
         } catch (Exception e) {
@@ -194,10 +198,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         }
 
         setTerminalToolbarView();
-
         onWindowFocusChanged(true);
+        setHorizontalScrollEnabled(preferences.getBoolean("horizontalScroll", false));
 
-        View lorieView = getLorieView();
+        SurfaceView lorieView = getLorieView();
+        Rect r = lorieView.getHolder().getSurfaceFrame();
+        mLorieViewCallback.surfaceChanged(lorieView.getHolder(), PixelFormat.RGBA_8888, r.width(), r.height());
         lorieView.setFocusable(true);
         lorieView.setFocusableInTouchMode(true);
         lorieView.requestFocus();
@@ -424,10 +430,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @SuppressLint("WrongConstant")
     @Override
     public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-        SurfaceView c = v.getRootView().findViewById(R.id.lorieView);
-        SurfaceHolder h = (c != null) ? c.getHolder() : null;
-        if (h != null)
-            handler.postDelayed(() -> windowChanged(h.getSurface(), 0, 0), 100);
+        SurfaceView c = getLorieView();
+        Rect r = c.getHolder().getSurfaceFrame();
+        handler.postDelayed(() -> mLorieViewCallback.surfaceChanged(c.getHolder(), 0, r.width(), r.height()), 100);
         return insets;
     }
 
@@ -439,7 +444,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             view.setOnHoverListener((v, e) -> mTP.onTouchEvent(e));
             view.setOnGenericMotionListener((v, e) -> mTP.onTouchEvent(e));
             view.setOnKeyListener(this);
-            windowChanged(view.getHolder().getSurface(), view.getWidth(), view.getHeight());
 
             cursor.getHolder().addCallback(new SurfaceHolder.Callback() {
                 @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
@@ -454,12 +458,34 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 }
             });
 
-            view.getHolder().addCallback(new SurfaceHolder.Callback() {
+            mLorieViewCallback = new SurfaceHolder.Callback() {
                 @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
                     holder.setFormat(PixelFormat.OPAQUE);
                 }
-                @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int w, int h) {
-                    windowChanged(holder.getSurface(), w, h);
+                @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int width, int height) {
+                    int w = width;
+                    int h = height;
+                    SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
+                    switch(preferences.getString("displayResolutionMode", "native")) {
+                        case "scaled":
+                            int scale = preferences.getInt("displayScale", 100);
+                            w = width  * scale / 100;
+                            h = height * scale / 100;
+                            break;
+                        case "exact":
+                            String[] resolution = preferences.getString("displayResolutionExact", "1024x768").split("x");
+                            w = Integer.parseInt(resolution[0]);
+                            h = Integer.parseInt(resolution[1]);
+                            break;
+                    }
+
+                    if (width < height && w > h) {
+                        int temp = w;
+                        w = h;
+                        h = temp;
+                    }
+
+                    windowChanged(holder.getSurface(), w, h, width, height);
                     if (service != null) {
                         try {
                             service.outputResize(w, h);
@@ -469,9 +495,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     }
                 }
                 @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
-                    windowChanged(null, 0, 0);
+                    windowChanged(null, 0, 0, 0, 0);
                 }
-            });
+            };
+
+            Rect r = view.getHolder().getSurfaceFrame();
+            mLorieViewCallback.surfaceChanged(view.getHolder(), 0, r.width(), r.height());
+
+            view.getHolder().addCallback(mLorieViewCallback);
         }
 
         private boolean isSource(KeyEvent e, int source) {
@@ -639,7 +670,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private native void init();
     private native void connect(int fd);
     private native void cursorChanged(Surface surface);
-    private native void windowChanged(Surface surface, int width, int height);
+    private native void windowChanged(Surface surface, int width, int height, int realWidth, int realHeight);
     public native void onPointerMotion(int x, int y);
     public native void onPointerScroll(int axis, float value);
 

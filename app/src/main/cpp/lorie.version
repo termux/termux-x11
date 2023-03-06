@@ -17,6 +17,7 @@ LORIE {
     Java_com_termux_x11_MainActivity_onPointerButton;
     Java_com_termux_x11_MainActivity_onKeySym;
     Java_com_termux_x11_MainActivity_onKey;
+    Java_com_termux_x11_MainActivity_setHorizontalScrollEnabled;
     Java_com_termux_x11_MainActivity_nativeResume;
     Java_com_termux_x11_MainActivity_nativePause;
     Java_com_termux_x11_MainActivity_startLogcat;

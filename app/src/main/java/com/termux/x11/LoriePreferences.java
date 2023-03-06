@@ -3,15 +3,23 @@ package com.termux.x11;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.preference.Preference;
-import android.preference.PreferenceFragment;
-import android.preference.PreferenceScreen;
+import androidx.preference.Preference;
 import android.provider.Settings;
+
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.PreferenceScreen;
+
+import androidx.preference.Preference.OnPreferenceChangeListener;
+import androidx.preference.SeekBarPreference;
+
 import android.util.Log;
 import android.view.MenuItem;
+
+import java.util.Objects;
 
 public class LoriePreferences extends AppCompatActivity {
 
@@ -23,8 +31,7 @@ public class LoriePreferences extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         loriePreferenceFragment = new LoriePreferenceFragment();
-
-        getFragmentManager().beginTransaction().replace(android.R.id.content, loriePreferenceFragment).commit();
+        getSupportFragmentManager().beginTransaction().replace(android.R.id.content, loriePreferenceFragment).commit();
 
         ActionBar actionBar = getSupportActionBar();
         if (actionBar != null) {
@@ -46,44 +53,69 @@ public class LoriePreferences extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    @SuppressWarnings("deprecation")
-    public static class LoriePreferenceFragment extends PreferenceFragment implements PreferenceScreen.OnPreferenceClickListener, Preference.OnPreferenceChangeListener {
+    public static class LoriePreferenceFragment extends PreferenceFragmentCompat implements OnPreferenceChangeListener {
+        @Override
+        public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+            addPreferencesFromResource(R.xml.preferences);
+        }
+
+        @SuppressWarnings("ConstantConditions")
+        void updatePreferencesLayout() {
+            SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
+            SeekBarPreference scalePreference = findPreference("displayScale");
+            scalePreference.setMin(30);
+            scalePreference.setMax(200);
+            scalePreference.setSeekBarIncrement(10);
+            scalePreference.setShowSeekBarValue(true);
+
+            switch (preferences.getString("displayResolutionMode", "native")) {
+                case "scaled":
+                    findPreference("displayScale").setVisible(true);
+                    findPreference("displayResolutionExact").setVisible(false);
+                    break;
+                case "exact":
+                    findPreference("displayScale").setVisible(false);
+                    findPreference("displayResolutionExact").setVisible(true);
+                    break;
+                default:
+                    findPreference("displayScale").setVisible(false);
+                    findPreference("displayResolutionExact").setVisible(false);
+            }
+        }
 
         @Override
         public void onCreate(final Bundle savedInstanceState)
         {
             super.onCreate(savedInstanceState);
-            addPreferencesFromResource(R.xml.preferences);
+            SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
 
-            String showImeEnabled = Settings.Secure.getString(getActivity().getContentResolver(), SHOW_IME_WITH_HARD_KEYBOARD);
+            String showImeEnabled = Settings.Secure.getString(requireActivity().getContentResolver(), SHOW_IME_WITH_HARD_KEYBOARD);
             if (showImeEnabled == null) showImeEnabled = "0";
-            SharedPreferences.Editor p = getPreferenceManager().getSharedPreferences().edit();
+            SharedPreferences.Editor p = Objects.requireNonNull(preferences).edit();
             p.putBoolean("showIMEWhileExternalConnected", showImeEnabled.equals("1"));
             p.apply();
 
             PreferenceScreen s = getPreferenceScreen();
             for (int i=0; i<s.getPreferenceCount(); i++) {
-                s.getPreference(i).setOnPreferenceClickListener(this);
                 s.getPreference(i).setOnPreferenceChangeListener(this);
             }
-        }
 
-        @Override
-        public boolean onPreferenceClick(Preference preference) {
-            return false;
+            updatePreferencesLayout();
         }
 
         @Override
         public boolean onPreferenceChange(Preference preference, Object newValue) {
             String key = preference.getKey();
             Log.e("Preferences", "changed preference: " + key);
-            if (key.equals("showIMEWhileExternalConnected")) {
+            updatePreferencesLayout();
+
+            if ("showIMEWhileExternalConnected".equals(key)) {
                 boolean enabled = newValue.toString().equals("true");
                 try {
-                    Settings.Secure.putString(getActivity().getContentResolver(), SHOW_IME_WITH_HARD_KEYBOARD, enabled ? "1" : "0");
+                    Settings.Secure.putString(requireActivity().getContentResolver(), SHOW_IME_WITH_HARD_KEYBOARD, enabled ? "1" : "0");
                 } catch (Exception e) {
                     if (e instanceof SecurityException) {
-                        new AlertDialog.Builder(getActivity())
+                        new AlertDialog.Builder(requireActivity())
                                 .setTitle("Permission denied")
                                 .setMessage("Android requires WRITE_SECURE_SETTINGS permission to change this setting.\n" +
                                             "Please, launch this command using ADB:\n" +
@@ -96,9 +128,18 @@ public class LoriePreferences extends AppCompatActivity {
                 }
             }
 
+            if ("displayScale".equals(key)) {
+                int scale = (Integer) newValue;
+                if (scale % 10 != 0) {
+                    scale = Math.round( ( (float) scale ) / 10 ) * 10;
+                    ((SeekBarPreference) preference).setValue(scale);
+                    return false;
+                }
+            }
+
             Intent intent = new Intent(ACTION_PREFERENCES_CHANGED);
             intent.setPackage("com.termux.x11");
-            getContext().sendBroadcast(intent);
+            requireContext().sendBroadcast(intent);
             return true;
         }
     }

@@ -6,12 +6,13 @@ TERMUX_PKG_NAME="termux-x11"
 TERMUX_PKG_HOMEPAGE="https://github.com/termux/termux-x11"
 TERMUX_PKG_DESCRIPTION="Companion package for termux-x11 app"
 TERMUX_PKG_MAINTAINER="Twaik Yont @twaik"
-TERMUX_PKG_REVISION=2
+TERMUX_PKG_REVISION=0
 TERMUX_PKG_VERSION=1.02.07
 TERMUX_PKG_DEPENDS="xwayland"
 
 TERMUX_PKG_FULLVERSION="$TERMUX_PKG_VERSION-$TERMUX_PKG_REVISION"
-TERMUX_ARCH=all
+TERMUX_APT_ARCH=all
+TERMUX_PACMAN_ARCH=all
 
 ### Deploy .deb package
 
@@ -36,7 +37,7 @@ cp shell-loader/build/outputs/apk/debug/shell-loader-debug.apk \
 mkdir -p $CONTROL_DIR
 cat <<EOF > $CONTROL_DIR/control
 Package: $TERMUX_PKG_NAME
-Architecture: $TERMUX_ARCH
+Architecture: $TERMUX_APT_ARCH
 Maintainer: $TERMUX_PKG_MAINTAINER
 Version: $TERMUX_PKG_FULLVERSION
 Homepage: $TERMUX_PKG_HOMEPAGE
@@ -66,7 +67,7 @@ BUILD_DATE=$(date +%s)
   echo "url = $TERMUX_PKG_HOMEPAGE"
   echo "builddate = $BUILD_DATE"
   echo "packager = $TERMUX_PKG_MAINTAINER"
-  echo "arch = $TERMUX_ARCH"
+  echo "arch = $TERMUX_PACMAN_ARCH"
   echo "license = TERMUX_PKG_LICENSE"
   tr ',' '\n' <<< "$TERMUX_PKG_DEPENDS" | sed 's|(||g; s|)||g; s| ||g; s|>>|>|g; s|<<|<|g' | awk '{ printf "depend = " $1; if ( ($1 ~ /</ || $1 ~ />/ || $1 ~ /=/) && $1 !~ /-/ ) printf "-0"; printf "\n" }' | sed 's/|.*//'
 } > $INTERMEDIATES/.PKGINFO
@@ -76,7 +77,7 @@ BUILD_DATE=$(date +%s)
   echo "pkgname = $TERMUX_PKG_NAME"
   echo "pkgbase = $TERMUX_PKG_NAME"
   echo "pkgver = $TERMUX_PKG_FULLVERSION"
-  echo "pkgarch = $TERMUX_ARCH"
+  echo "pkgarch = $TERMUX_PACMAN_ARCH"
   echo "packager = $TERMUX_PKG_MAINTAINER"
   echo "builddate = $BUILD_DATE"
 } > $INTERMEDIATES/.BUILDINFO
@@ -91,5 +92,3 @@ printf '%s\0' data/**/* .BUILDINFO .PKGINFO | bsdtar -cnf - --format=mtree \
 printf '%s\0' data/**/* .BUILDINFO .PKGINFO .MTREE | bsdtar --no-fflags -cnf - --null --files-from - | xz > "$PACMAN_PACKAGE_PATH"
 shopt -u dotglob globstar
 cd -
-
-tar -tvf $PACMAN_PACKAGE_PATH

@@ -76,13 +76,10 @@ target_link_libraries(Xau xorgproto xcbproto)
 set(XCB_SOURCES xcb_auth.c xcb_conn.c xcb_ext.c xcb_in.c xcb_list.c
         xcb_out.c xcb_util.c xcb_xid.c xcb.h xcbext.h xcbint.h xcb_windefs.h)
 list(TRANSFORM XCB_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/)
-set(XCB_SOURCES ${XCB_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/loading_sign.c)
 add_library(xcb STATIC ${XCB_SOURCES} ${XCB_GENERATED})
 target_include_directories(xcb PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/" "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_compile_options(xcb PRIVATE "-DXCB_QUEUE_BUFFER_SIZE=16384" "-DHAVE_SENDMSG")
 target_link_libraries(xcb Xau)
-
-# TODO: strip unneded symbols to reduce shared library size...
 
 ####################################################################################################
 ####################################### LIBXCB-ERRORS ##############################################

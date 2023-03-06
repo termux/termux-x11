@@ -125,12 +125,12 @@ public:
 
     struct {
         ANativeWindow* win;
-        u32 width, height;
+        u32 &width, &height;
 
         i32 shmfd;
         xcb_shm_seg_t shmseg;
         u32 *shmaddr;
-    } screen {};
+    } screen {nullptr, c.randr.width, c.randr.height};
     struct {
         ANativeWindow* win;
         u32 width, height, x, y, xhot, yhot;
@@ -163,10 +163,12 @@ public:
         if (win)
             ANativeWindow_acquire(win);
         screen.win = win;
-        screen.width = width;
-        screen.height = height;
+        screen.width  = width  > 0 ? width  : screen.width;
+        screen.height = height > 0 ? height : screen.height;
 
         refresh_screen();
+
+        c.randr.update_resolution();
     }
 
     void cursor_changed(ANativeWindow* win) {
@@ -241,8 +243,10 @@ public:
     void adopt_connection_fd(int fd) {
         try {
             static int old_fd = -1;
-            if (old_fd != -1)
+            if (old_fd != -1) {
                 looper.remove_fd(old_fd);
+                client_connected_state_changed(false);
+            }
 
             ALOGE("Connecting to fd %d", fd);
             c.init(fd);
@@ -266,7 +270,6 @@ public:
             attach_region();
             refresh_cursor();
 
-
             ALOGE("Adding connection with fd %d to poller", fd);
             u32 events = EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLET | EPOLLHUP | EPOLLNVAL | EPOLLMSG;
             looper.add_fd(fd, events, [&] (u32 mask) {
@@ -275,7 +278,7 @@ public:
                         old_fd = -1;
                         xcb_disconnect(c.conn);
                         c.conn = nullptr;
-                        set_renderer_visibility(false);
+                        client_connected_state_changed(false);
                         ALOGE("Disconnected");
                         return;
                     }
@@ -284,7 +287,7 @@ public:
             });
             old_fd = fd;
 
-            set_renderer_visibility(true);
+            client_connected_state_changed(true);
             refresh_screen();
         } catch (std::exception& e) {
             ALOGE("Failed to adopt X connection socket: %s", e.what());
@@ -396,15 +399,15 @@ public:
 
     JNIEnv* env{};
     jobject thiz{};
-    jmethodID set_renderer_visibility_id{};
+    jmethodID client_connected_state_changed_id{};
     jmethodID move_cursor_rect_id{};
     jmethodID set_cursor_coordinates_id{};
     void init_jni(JavaVM* vm, jobject obj) {
         post([=, this] {
             thiz = obj;
             vm->AttachCurrentThread(&env, nullptr);
-            set_renderer_visibility_id =
-                    env->GetMethodID(env->GetObjectClass(thiz),"setRendererVisibility","(Z)V");
+            client_connected_state_changed_id =
+                    env->GetMethodID(env->GetObjectClass(thiz),"clientConnectedStateChanged","(Z)V");
             move_cursor_rect_id =
                     env->GetMethodID(env->GetObjectClass(thiz),"moveCursorRect","(IIII)V");
             set_cursor_coordinates_id =
@@ -412,13 +415,13 @@ public:
         });
     }
 
-    void set_renderer_visibility(bool visible) const {
-        if (!set_renderer_visibility_id) {
-            ALOGE("Something is wrong, `set_renderer_visibility` is null");
+    [[maybe_unused]] void client_connected_state_changed(bool connected) const {
+        if (!client_connected_state_changed_id) {
+            ALOGE("Something is wrong, `client_connected_state_changed_id` is null");
             return;
         }
 
-        env->CallVoidMethod(thiz, set_renderer_visibility_id, visible);
+        env->CallVoidMethod(thiz, client_connected_state_changed_id, connected);
     }
 
     void move_cursor_rect(JNIEnv* e, int x, int y) const {
@@ -435,8 +438,8 @@ public:
                             cursor.height);
     }
 
-    void set_cursor_coordinates(int x, int y) const {
-        if (!set_renderer_visibility_id) {
+    [[maybe_unused]] void set_cursor_coordinates(int x, int y) const {
+        if (!set_cursor_coordinates_id) {
             ALOGE("Something is wrong, `set_cursor_coordinates_id` is null");
             return;
         }
@@ -480,7 +483,9 @@ Java_com_termux_x11_MainActivity_windowChanged(JNIEnv *env, [[maybe_unused]] job
         ANativeWindow_acquire(win);
 
     ALOGE("Surface: got new surface %p", win);
-    client.post([=] { client.surface_changed(win, width, height); });
+
+    // width must be divisible by 8. Xwayland does the same thing.
+    client.post([=] { client.surface_changed(win, width - (width % 8), height); });
 }
 
 extern "C"
@@ -493,7 +498,9 @@ Java_com_termux_x11_MainActivity_onPointerMotion(JNIEnv *env, [[maybe_unused]] j
     if (client.c.conn) {
         // XCB is thread safe, no need to post this to dispatch thread.
         xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(client.c.conn)).data;
-        xcb_test_fake_input(client.c.conn, XCB_MOTION_NOTIFY, false, XCB_CURRENT_TIME, s->root, x,y,  0);
+        int translatedX = x * s->width_in_pixels / client.screen.width;
+        int translatedY = y * s->height_in_pixels / client.screen.height;
+        xcb_test_fake_input(client.c.conn, XCB_MOTION_NOTIFY, false, XCB_CURRENT_TIME, s->root, translatedX,translatedY ,  0);
         xcb_flush(client.c.conn);
     }
 }
@@ -502,7 +509,6 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_onPointerScroll([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz,
                                                  [[maybe_unused]] jint axis, [[maybe_unused]] jfloat value) {
-    // TODO: implement onPointerScroll()
     if (client.c.conn) {
         bool press_shift = axis == 1; // AXIS_X
         int button = value < 0 ? XCB_BUTTON_INDEX_4 : XCB_BUTTON_INDEX_5;
@@ -557,21 +563,27 @@ Java_com_termux_x11_MainActivity_nativePause([[maybe_unused]] JNIEnv *env, [[may
     client.paused = true;
 }
 
+extern char *__progname; // NOLINT(bugprone-reserved-identifier)
+
 // I need this to catch initialisation errors of libxkbcommon.
 #if 1
 // It is needed to redirect stderr to logcat
-[[maybe_unused]] std::thread stderr_to_logcat_thread([]{ // NOLINT(cert-err58-cpp)
-    FILE *fp;
-    int p[2];
-    size_t len;
-    char* line = nullptr;
-    pipe(p);
-    fp = fdopen(p[0], "r");
+[[maybe_unused]] std::thread stderr_to_logcat_thread([]{ // NOLINT(cert-err58-cpp,cppcoreguidelines-interfaces-global-init)
+    if (!strcmp("com.termux.x11", __progname)) {
+        FILE *fp;
+        int p[2];
+        size_t len;
+        char *line = nullptr;
+        pipe(p);
 
-    dup2(p[1], 2);
-    dup2(p[1], 1);
-    while ((getline(&line, &len, fp)) != -1) {
-        __android_log_print(ANDROID_LOG_VERBOSE, "stderr", "%s%s", line, (line[len-1] == '\n') ? "" : "\n");
+        fp = fdopen(p[0], "r");
+
+        dup2(p[1], 2);
+        dup2(p[1], 1);
+        while ((getline(&line, &len, fp)) != -1) {
+            __android_log_print(ANDROID_LOG_VERBOSE, "stderr", "%s%s", line,
+                                (line[len - 1] == '\n') ? "" : "\n");
+        }
     }
 });
 #endif

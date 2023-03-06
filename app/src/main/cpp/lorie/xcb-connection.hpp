@@ -498,6 +498,153 @@ public:
         }
     } xkb {*this};
 
+    struct {
+        xcb_connection& self;
+        u32 width = 1280, height = 512;
+        const char* temporary_name = "Temporary Termux:X11 resolution";
+        const char* persistent_name = "Termux:X11 resolution";
+
+        xcb_randr_get_screen_resources_current_reply_t* res = nullptr;
+
+        xcb_randr_mode_info_t end {};
+
+        bool refresh() {
+            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
+            free(res);
+            res = xcb(randr_get_screen_resources_current, s->root);
+            self.handle_error(res, "Error getting XRANDR screen resources");
+            return true;
+        }
+
+        xcb_randr_mode_info_t& get_id_for_mode(const char* name) {
+            refresh();
+            char *mode_names = reinterpret_cast<char*>(xcb_randr_get_screen_resources_current_names(res));
+            auto modes = xcb_randr_get_screen_resources_current_modes(res);
+            for (int i = 0; i < xcb_randr_get_screen_resources_current_modes_length(res); ++i) {
+                auto& mode = modes[i];
+                char mode_name[64]{};
+                snprintf(mode_name, mode.name_len+1, "%s", mode_names);
+                mode_names += mode.name_len;
+
+                if (!strcmp(mode_name, name)) {
+                    return mode;
+                }
+            }
+            return end;
+        }
+
+        void create_mode(const char* name, int new_width, int new_height) {
+            bool is_temporary = strcmp(name, temporary_name) == 0;
+            if (!is_temporary && get_id_for_mode(name).name_len)
+                delete_mode(name);
+
+            if (is_temporary && get_id_for_mode(name).name_len)
+                return;
+
+            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
+            xcb_randr_mode_info_t new_mode{};
+            new_mode.width = new_width;
+            new_mode.height = new_height;
+            new_mode.name_len = strlen(name);
+            auto reply = xcb(randr_create_mode, s->root, new_mode, new_mode.name_len, name);
+            self.handle_error(reply, "Error creating XRANDR mode");
+            free(reply);
+
+            if (!refresh()) {
+                std::cout << "Could not refresh screen resources" << std::endl;
+                return;
+            }
+
+            xcb_randr_mode_info_t& mode = get_id_for_mode(name);
+            if (!mode.name_len) {
+                std::cout << "Did not found mode \"" << name << "\"" << std::endl;
+                return;
+            }
+
+            xcb_check(randr_add_output_mode_checked, xcb_randr_get_screen_resources_current_outputs(res)[0], mode.id);
+            self.handle_error("Error adding XRANDR mode to screen");
+        }
+
+        void delete_mode(const char* name) {
+            xcb_randr_mode_info_t& mode = get_id_for_mode(name);
+            if (mode.name_len) {
+                xcb_check(randr_delete_output_mode_checked, xcb_randr_get_screen_resources_current_outputs(res)[0], mode.id);
+                self.handle_error("Error removing XRANDR mode from screen");
+                xcb_check(randr_destroy_mode_checked, mode.id);
+                self.handle_error("Error destroying XRANDR mode");
+                refresh();
+            }
+        }
+
+        void switch_to_mode(const char *name) {
+            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
+            xcb_randr_mode_t mode_id = XCB_NONE;
+            xcb_randr_crtc_t crtc = xcb_randr_get_screen_resources_current_crtcs(res)[0];
+            xcb_randr_output_t* outputs = nullptr;
+            int noutput = 0;
+
+            if (name) {
+                xcb_randr_mode_info_t& mode = get_id_for_mode(name);
+                if (mode.name_len == 0)
+                    return;
+
+                outputs = &xcb_randr_get_screen_resources_current_outputs(res)[0];
+                noutput = 1;
+                mode_id = mode.id;
+                auto info = xcb(randr_get_crtc_info, crtc, res->config_timestamp);
+
+                if (s->width_in_pixels != mode.width || s->height_in_pixels != mode.height) {
+                    xcb_check(randr_set_screen_size, s->root, mode.width, mode.height, int(mode.width  * 25.4 / 96), int(mode.height  * 25.4 / 96));
+                    self.handle_error("Error setting XRANDR screen size");
+                }
+            }
+
+            xcb(randr_set_crtc_config, crtc, XCB_CURRENT_TIME,
+                                res->config_timestamp, 0, 0, mode_id, XCB_RANDR_ROTATION_ROTATE_0, noutput, outputs);
+            self.handle_error("Error setting XRANDR crtc config");
+        };
+
+        void update_resolution() {
+            if (self.conn) {
+                xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
+
+                auto reply = xcb(get_geometry, s->root);
+                s->width_in_pixels = reply->width;
+                s->height_in_pixels = reply->height;
+                free(reply);
+
+                if (s->width_in_pixels == width && s->height_in_pixels == height)
+                    return;
+
+                xcb_check(grab_server_checked);
+                self.handle_error("Failed to grab server");
+                try {
+                    create_mode(temporary_name, width, height);
+                    switch_to_mode(nullptr);
+                    switch_to_mode(temporary_name);
+                    delete_mode(persistent_name);
+                    create_mode(persistent_name, width, height);
+                    switch_to_mode(persistent_name);
+                    delete_mode(temporary_name);
+                } catch (std::runtime_error &e) {
+                    ALOGE("INVOKING RANDR FAILED. REASON: \n %s", e.what());
+                }
+                xcb_check(ungrab_server_checked);
+                self.handle_error("Failed to ungrab server");
+            }
+        }
+
+        void init() {
+            {
+                auto reply = xcb(randr_query_version, 1, 6);
+                self.handle_error(reply, "Error querying RANDR extension");
+                free(reply);
+            }
+
+            update_resolution();
+        }
+    } randr {*this};
+
     void init(int sockfd) {
         xcb_connection_t* new_conn = xcb_connect_to_fd(sockfd, nullptr);
         int conn_err = xcb_connection_has_error(new_conn);
@@ -532,5 +679,6 @@ public:
         input.init();
         fixes.init();
         xkb.init();
+        randr.init();
     }
 };

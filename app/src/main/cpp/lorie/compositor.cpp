@@ -357,20 +357,13 @@ Java_com_termux_x11_CmdEntryPoint_stderr(JNIEnv *env, [[maybe_unused]] jclass cl
         int p[2];
         pipe(p);
         fchmod(p[1], 0777);
-        if (!fork()) {
-            prctl(PR_SET_PDEATHSIG, SIGHUP);
-            close(p[1]);
-            FILE *fp = fdopen(p[0], "r");
-            size_t len;
-            char *line = nullptr;
-
-            while ((getline(&line, &len, fp)) != -1) {
-                printf("com.termux.x11 logcat: %s", line);
-            }
-            exit(env, 0);
-        }
-        close(p[0]);
-
+        std::thread([=] {
+            char buffer[4096];
+            int len = 0;
+            while((len = read(p[0], buffer, 4096)) >=0)
+                write(2, buffer, len);
+            close(p[0]);
+        }).detach();
         return p[1];
     }
 

@@ -10,9 +10,13 @@ import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
 import java.io.DataInputStream;
+import java.io.File;
+import java.io.RandomAccessFile;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.channels.FileLock;
 import java.util.Arrays;
 import java.util.List;
 
@@ -25,6 +29,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     // https://github.com/freedesktop/xorg-xserver/blob/ccdd431cd8f1cabae9d744f0514b6533c438908c/hw/xwayland/xwayland-screen.c#L66
     public static final int DEFAULT_DPI = 96;
 
+    @SuppressWarnings("FieldCanBeLocal")
     @SuppressLint("StaticFieldLeak")
     private static Handler handler;
     private final Context ctx;
@@ -69,6 +74,12 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
      * @param args The command-line arguments
      */
     public static void main(String[] args) {
+        setArgV0("termux-x11");
+        if (!lockInstance("termux-x11.lock")) {
+            System.err.println("termux-x11 is already running. You can kill it with command `pkill -9 Xwayland`");
+            return;
+        }
+
         handler = new Handler();
         handler.post(() -> new CmdEntryPoint(args));
         Looper.loop();
@@ -81,31 +92,27 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
 
     CmdEntryPoint(String[] args) {
         ctx = android.app.ActivityThread.systemMain().getSystemContext();
-        if (socketExists()) {
-            System.err.println("termux-x11 is already running. You can kill it with command `pkill -9 Xwayland`");
-            handler.post(() -> System.exit(0));
-        } else {
-            List<String> a = Arrays.asList(args);
-            try {
-                int dpiIndex = a.lastIndexOf("-dpi");
-                if (dpiIndex != -1 && a.size() >= dpiIndex)
-                    dpi = Integer.parseInt(a.get(dpiIndex + 1));
-            } catch (NumberFormatException ignored) {} // No need to handle it, anyway user will see Xwayland error
 
-            try {
-                for (String arg: a)
-                    if (arg.startsWith(":"))
-                        display = Integer.parseInt(arg.substring(1));
-            } catch (NumberFormatException ignored) {} // No need to handle it, anyway user will see Xwayland error
+        List<String> a = Arrays.asList(args);
+        try {
+            int dpiIndex = a.lastIndexOf("-dpi");
+            if (dpiIndex != -1 && a.size() >= dpiIndex)
+                dpi = Integer.parseInt(a.get(dpiIndex + 1));
+        } catch (NumberFormatException ignored) {} // No need to handle it, anyway user will see Xwayland error
 
-            spawnCompositor(display, dpi);
-            spawnListeningThread();
-            sendBroadcast();
+        try {
+            for (String arg: a)
+                if (arg.startsWith(":"))
+                    display = Integer.parseInt(arg.substring(1));
+        } catch (NumberFormatException ignored) {} // No need to handle it, anyway user will see Xwayland error
 
-            if (!a.contains("--no-xwayland-start")) {
-                System.err.println("Starting Xwayland");
-                exec(args);
-            }
+        spawnCompositor(display, dpi);
+        spawnListeningThread();
+        sendBroadcast();
+
+        if (!a.contains("--no-xwayland-start")) {
+            System.err.println("Starting Xwayland");
+            exec(args);
         }
     }
 
@@ -168,6 +175,55 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
                 Log.e("CmdEntryPoint", "Something went wrong when we requested connection", e);
             }
         }).start();
+    }
+
+    private static boolean lockInstance(@SuppressWarnings("SameParameterValue") final String lockName) {
+        try {
+            final File file = new File(System.getenv("TMPDIR") + "/" + lockName);
+            //noinspection resource
+            final RandomAccessFile randomAccessFile = new RandomAccessFile(file, "rw");
+            final FileLock fileLock = randomAccessFile.getChannel().tryLock();
+            if (fileLock != null) {
+                Runtime.getRuntime().addShutdownHook(new Thread() {
+                    public void run() {
+                        try {
+                            fileLock.release();
+                            randomAccessFile.close();
+                            //noinspection ResultOfMethodCallIgnored
+                            file.delete();
+                        } catch (Exception e) {
+                            System.err.println("Unable to remove lock file: " + lockName);
+                            e.printStackTrace();
+                        }
+                    }
+                });
+                return true;
+            }
+        } catch (Exception e) {
+            System.err.println("Unable to create and/or lock file: " + lockName);
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    private static void setArgV0(@SuppressWarnings("SameParameterValue") String name) {
+        try {
+            //noinspection JavaReflectionMemberAccess
+            Process.class.
+                    getDeclaredMethod("setArgv0", String.class).
+                    invoke(null, name);
+        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+            Log.e("CmdEntryPoint", "Failed to invoke `Process.setArgv0`", e);
+        }
+
+        try {
+            Class.forName("dalvik.system.VMRuntime").
+                    getMethod("setProcessPackageName", String.class).
+                    invoke(null, name);
+        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException |
+                 ClassNotFoundException e) {
+            Log.e("CmdEntryPoint", "Failed to invoke `VMRuntime.setProcessPackageName`", e);
+        }
     }
 
     @Override

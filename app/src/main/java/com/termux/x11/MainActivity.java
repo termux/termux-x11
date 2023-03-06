@@ -69,6 +69,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private Notification mNotification;
     private final int mNotificationId = 7892;
     NotificationManager mNotificationManager;
+    private boolean mClientConnected = false;
 
     public MainActivity() {
         init();
@@ -123,7 +124,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         service = ICmdEntryInterface.Stub.asInterface(b);
                         service.asBinder().linkToDeath(() -> {
                             service = null;
-                            toggleExtraKeys(false);
                             CmdEntryPoint.requestConnection();
                         }, 0);
 
@@ -163,7 +163,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 ParcelFileDescriptor fd = service.getXConnection();
                 if (fd != null) {
                     connect(fd.detachFd());
-                    toggleExtraKeys(true);
                     Rect r = getLorieView().getHolder().getSurfaceFrame();
                     service.outputResize(r.width(), r.height());
                 }
@@ -268,15 +267,16 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             boolean enabled = preferences.getBoolean("showAdditionalKbd", true);
             ViewPager pager = getTerminalToolbarViewPager();
             ViewGroup parent = (ViewGroup) pager.getParent();
+            boolean show = enabled && mClientConnected && visible;
 
-            if (enabled && service != null && visible) {
+            if (show) {
                 getTerminalToolbarViewPager().bringToFront();
             } else {
                 parent.removeView(pager);
                 parent.addView(pager, 0);
             }
 
-            pager.setVisibility(visible ? View.VISIBLE : View.GONE);
+            pager.setVisibility(show ? View.VISIBLE : View.GONE);
         });
     }
 
@@ -583,11 +583,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @SuppressWarnings("unused")
     // It is used in native code
-    void setRendererVisibility(boolean visible) {
+    void clientConnectedStateChanged(boolean connected) {
         runOnUiThread(()-> {
-            findViewById(R.id.stub).setVisibility(visible?View.INVISIBLE:View.VISIBLE);
-            findViewById(R.id.lorieView).setVisibility(visible?View.VISIBLE:View.INVISIBLE);
-            findViewById(R.id.cursorView).setVisibility(visible?View.VISIBLE:View.INVISIBLE);
+            mClientConnected = connected;
+            toggleExtraKeys(connected);
+            findViewById(R.id.stub).setVisibility(connected?View.INVISIBLE:View.VISIBLE);
+            findViewById(R.id.lorieView).setVisibility(connected?View.VISIBLE:View.INVISIBLE);
+            findViewById(R.id.cursorView).setVisibility(connected?View.VISIBLE:View.INVISIBLE);
         });
     }
 
@@ -607,7 +609,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     @SuppressWarnings("unused")
-    // It is used in native code
+        // It is used in native code
     void moveCursorRect(int x, int y, int w, int h) {
         runOnUiThread(()-> {
             SurfaceView v = findViewById(R.id.cursorView);

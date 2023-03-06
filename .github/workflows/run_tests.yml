@@ -16,6 +16,18 @@ jobs:
       uses: actions/checkout@v3
       with:
         submodules: recursive
+        
+    - name: Restore cache
+      uses: actions/cache@v3
+      with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+            
     - name: Execute tests
       run: |
         ./gradlew test --stacktrace

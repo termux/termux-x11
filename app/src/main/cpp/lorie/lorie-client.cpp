@@ -68,6 +68,34 @@ os_create_anonymous_file(size_t size) {
 // For some reason both static_cast and reinterpret_cast returning 0 when casting b.bits.
 static always_inline uint32_t* cast(void* p) { union { void* a; uint32_t* b; } c {p}; return c.b; } // NOLINT(cppcoreguidelines-pro-type-member-init)
 
+// width must be divisible by 8.
+static always_inline void blit_internal(uint32_t* dst, const uint32_t* src, int width) {
+#if !defined(__ARM_NEON__)
+    for (int j = 0; j < width; j++) {
+        uint32_t s = src[j];
+        // Cast BGRA to RGBA
+        dst[j] = (s & 0xFF000000) | ((s & 0x00FF0000) >> 16) | (s & 0x0000FF00) | ((s & 0x000000FF) << 16);
+    }
+#else
+    int simd_pixels = width & ~7; // round down to nearest 8
+    int simd_iterations = simd_pixels >> 3;
+    int col;
+    if(simd_iterations) { // make sure at least 1 iteration
+        __asm__ __volatile__ ("1: \n\t"
+                              // structured load of 8 pixels into d0-d3 (64-bit) NEON registers
+                              "vld4.8 {d0, d1, d2, d3}, [%[source]]! \n\t" // the "!" increments the pointer by number of bytes read
+                              "vswp d0, d2 \n\t" // swap registers d0 and d2 (swaps red and blue, 8 pixels at a time)
+                              "vst4.8 {d0, d1, d2, d3}, [%[dest]]! \n\t" // structured store the 8 pixels back, the "!" increments the pointer by number of bytes written
+                              "subs %[iterations],%[iterations],#1 \n\t"
+                              "bne 1b" // jump to label "1", "b" suffix means the jump is back/behind the current statement
+                              : [source]"+r"(src), [dest] "+r"(dst), [iterations]"+r"(simd_iterations) // output parameters, we list read-write, "+", value as outputs. Read-write so that the auto-increment actually affects the 'src' and 'dst'
+                              :  // no input parameters, they're all read-write so we put them in the output parameters
+                              : "memory", "d0", "d1", "d2", "d3" // clobbered registers
+                              );
+    }
+#endif
+}
+
 static always_inline void blit_exact(ANativeWindow* win, const uint32_t* src, int width, int height) {
     if (!win)
         return;
@@ -95,13 +123,8 @@ static always_inline void blit_exact(ANativeWindow* win, const uint32_t* src, in
 
     uint32_t* dst = cast(b.bits);
     if (src) {
-        for (int i = 0; i < height; i++) {
-            for (int j = 0; j < width; j++) {
-                uint32_t s = src[width * i + j];
-                // Cast BGRA to RGBA
-                dst[b.stride * i + j] = (s & 0xFF000000) | ((s & 0x00FF0000) >> 16) | (s & 0x0000FF00) | ((s & 0x000000FF) << 16);
-            }
-        }
+        for (int i = 0; i < height; i++)
+            blit_internal(&dst[b.stride * i], &src[width * i], width);
     } else
         memset(dst, 0, b.stride*b.height);
 

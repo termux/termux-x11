@@ -159,16 +159,25 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     startLogcat(logcatOutput.detachFd());
                 }
 
-                Log.v("LorieBroadcastReceiver", "Extracting X connection socket.");
-                ParcelFileDescriptor fd = service.getXConnection();
-                if (fd != null) {
-                    connect(fd.detachFd());
-                    Rect r = getLorieView().getHolder().getSurfaceFrame();
-                    service.outputResize(r.width(), r.height());
-                }
-                else
-                    handler.postDelayed(this::onReceiveConnection, 500);
+                tryConnect();
             }
+        } catch (Exception e) {
+            Log.e("MainActivity", "Something went wrong while we were establishing connection", e);
+        }
+    }
+
+    void tryConnect() {
+        if (mClientConnected)
+            return;
+        try {
+            Log.v("LorieBroadcastReceiver", "Extracting X connection socket.");
+            ParcelFileDescriptor fd = service.getXConnection();
+            if (fd != null) {
+                connect(fd.detachFd());
+                Rect r = getLorieView().getHolder().getSurfaceFrame();
+                service.outputResize(r.width(), r.height());
+            } else
+                handler.postDelayed(this::tryConnect, 500);
         } catch (Exception e) {
             Log.e("MainActivity", "Something went wrong while we were establishing connection", e);
         }
@@ -590,6 +599,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             findViewById(R.id.stub).setVisibility(connected?View.INVISIBLE:View.VISIBLE);
             findViewById(R.id.lorieView).setVisibility(connected?View.VISIBLE:View.INVISIBLE);
             findViewById(R.id.cursorView).setVisibility(connected?View.VISIBLE:View.INVISIBLE);
+
+            // We should recover connectin in the case if file descriptor for some reason was broken...
+            if (!connected)
+                tryConnect();
         });
     }
 

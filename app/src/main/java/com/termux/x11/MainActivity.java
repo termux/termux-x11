@@ -650,6 +650,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private native void nativePause();
 
     private native void startLogcat(int fd);
+    private native void setHorizontalScrollEnabled(boolean enabled);
 
     static {
         System.loadLibrary("lorie");

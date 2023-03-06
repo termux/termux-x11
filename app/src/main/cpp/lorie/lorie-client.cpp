@@ -118,6 +118,7 @@ static always_inline void blit_exact(ANativeWindow* win, const uint32_t* src, in
     ret = ANativeWindow_lock(win, &b, &bounds);
     if (ret != 0) {
         ALOGE("Failed to lock");
+        ANativeWindow_release(win);
         return;
     }
 
@@ -471,6 +472,8 @@ public:
     }
 } client; // NOLINT(cert-err58-cpp)
 
+bool horizontal_scroll_enabled = false;
+
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_init(JNIEnv *env, jobject thiz) {
@@ -532,6 +535,9 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_onPointerScroll([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz,
                                                  [[maybe_unused]] jint axis, [[maybe_unused]] jfloat value) {
+    if (axis == 1 && !horizontal_scroll_enabled)
+        return;
+
     if (client.c.conn) {
         bool press_shift = axis == 1; // AXIS_X
         int button = value < 0 ? XCB_BUTTON_INDEX_4 : XCB_BUTTON_INDEX_5;
@@ -630,4 +636,11 @@ Java_com_termux_x11_MainActivity_startLogcat([[maybe_unused]] JNIEnv *env, [[may
             ALOGE("exec logcat: %s", strerror(errno));
             env->FatalError("Exiting");
     }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_setHorizontalScrollEnabled([[maybe_unused]] JNIEnv *env, jobject thiz,
+                                                            jboolean enabled) {
+    horizontal_scroll_enabled = enabled;
 }

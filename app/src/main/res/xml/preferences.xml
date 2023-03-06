@@ -46,7 +46,12 @@
     <CheckBoxPreference
         android:defaultValue="false"
         android:key="dexMetaKeyCapture"
-        android:summary="Allows interception of &quot;Alt+F4&quot;, &quot;Meta+D&quot;, &quot;Meta+E&quot;, -etc. (Samsung Dex only). "
+        android:summary="Samsung Dex only. Allows interception of &quot;Alt+F4&quot;, &quot;Meta+D&quot;, &quot;Meta+E&quot;, -etc. "
         android:title="Intercept system shortcuts" />
+    <CheckBoxPreference
+        android:defaultValue="false"
+        android:key="horizontalScroll"
+        android:summary="Emulate horizontal scroll by sending Shift+Scroll"
+        android:title="Enable horizontal scroll" />
 
 </PreferenceScreen>

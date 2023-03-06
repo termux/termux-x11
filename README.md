@@ -57,71 +57,7 @@ You can fix this in your window manager settings (in the case of xfce4 and lxqt 
 
 ## Using with 3rd party apps
 It is possible to use Termux:X11 with 3rd party apps.
-You should start Termux:X11's activity with providing some additional data.
-
-<details>
-<summary> Code fragment </summary>
-
-```
-import android.os.ParcelFileDescriptor;
-import android.os.RemoteException;
-import com.termux.x11.common.ITermuxX11Internal;
-...
-private final String TermuxX11ComponentName = "com.termux.x11/.TermuxX11StarterReceiver";
-
-private void startTermuxX11() {
-    Service svc = new Service();
-    Bundle bundle = new Bundle();
-    bundle.putBinder("", svc);
-
-    Intent intent = new Intent();
-    intent.putExtra("com.termux.x11.starter", bundle);
-    ComponentName cn = ComponentName.unflattenFromString(TermuxX11ComponentName);
-    if (cn == null)
-        throw new IllegalArgumentException("Bad component name: " + TermuxX11ComponentName);
-
-    intent.setComponent(cn);
-
-    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|
-                Intent.FLAG_ACTIVITY_SINGLE_TOP);
-}
-
-class Service extends ITermuxX11Internal.Stub {
-    @Override
-    public ParcelFileDescriptor getWaylandFD() throws RemoteException {
-        /*
-         * nativeObtainWaylandFd() should create wayland-0
-         * socket in your $XDG_RUNTIME_DIR and return it's
-         * fd. You should not "listen()" this socket.
-         */
-        int fd = nativeObtainWaylandFd();
-        return ParcelFileDescriptor.adoptFd(fd);
-    }
-
-    @Override
-    public ParcelFileDescriptor getLogFD() throws RemoteException {
-        /*
-         * nativeObtainLogFd() should create file that should
-         * contain log. Pay attention that if you choose tty/pty
-         * or fifo file Android will not allow writing it.
-         * You can use `pipe` system call to create pipe.
-         * Do not forget to change it's mode with `fchmod`.
-         */
-        int fd = nativeObtainLogFd();
-        return ParcelFileDescriptor.adoptFd(fd);
-    }
-
-    @Override
-    public void finish() throws RemoteException {
-        /*
-         * Termux:X11 cals this function to to notify calling
-         * process that init stage was completed
-         * successfully.
-         */
-    }
-}
-```
-</details>
+Check how `shell-loader/src/main/java/com/termux/x11/Loader.java` works.
 
 # License
 Released under the [GPLv3 license](https://www.gnu.org/licenses/gpl-3.0.html).

@@ -479,7 +479,7 @@ public:
             // environment will determine in which layout the user will be typing.
             // Here we do not change current layout and do not change modifiers because
             // this function should only be triggered by hardware keyboard or extra key bar.
-            ALOGV("Sending keycode %d", keycode);
+            ALOGV("Sending keycode %d (%s)", keycode, (type==XCB_KEY_PRESS)?"press":((type==XCB_KEY_PRESS)?"release":"unknown"));
             xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
             xcb_test_fake_input(self.conn, type, keycode + 8, XCB_CURRENT_TIME, s->root, 0, 0, 0);
             xcb_flush(self.conn);

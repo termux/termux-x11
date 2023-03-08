@@ -1,10 +1,14 @@
 package com.termux.x11;
 
+import android.app.Dialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
+import android.graphics.Typeface;
 import android.os.Bundle;
+
+import androidx.annotation.NonNull;
+import androidx.fragment.app.DialogFragment;
 import androidx.preference.Preference;
 import android.provider.Settings;
 
@@ -18,8 +22,17 @@ import androidx.preference.PreferenceScreen;
 import androidx.preference.Preference.OnPreferenceChangeListener;
 import androidx.preference.SeekBarPreference;
 
+import android.text.method.LinkMovementMethod;
+import android.text.util.Linkify;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.EditText;
+import android.widget.TextView;
+
+import com.termux.x11.utils.ExtraKeyConfigPreference;
 
 import java.util.Objects;
 
@@ -145,5 +158,60 @@ public class LoriePreferences extends AppCompatActivity {
             requireContext().sendBroadcast(intent);
             return true;
         }
+
+        @Override
+        public void onDisplayPreferenceDialog(@NonNull Preference preference) {
+            if (preference instanceof ExtraKeyConfigPreference) {
+                ExtraKeysConfigFragment f = new ExtraKeysConfigFragment();
+                Bundle b = new Bundle();
+                b.putString(ExtraKeysConfigFragment.KEY, preference.getKey());
+                b.putInt(ExtraKeysConfigFragment.KEY_LAYOUT_RES_ID,  ((ExtraKeyConfigPreference) preference).getDialogLayoutResource());
+
+                f.setArguments(b);
+                f.setTargetFragment(this, 0);
+                assert getFragmentManager() != null;
+                f.show(getFragmentManager(), null);
+            } else super.onDisplayPreferenceDialog(preference);
+        }
+
+        public static class ExtraKeysConfigFragment extends DialogFragment {
+
+            public static final String KEY = "key";
+            public static final String KEY_LAYOUT_RES_ID = "resid";
+
+
+            @Nullable
+            @Override
+            public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+                return inflater.inflate(requireArguments().getInt(KEY_LAYOUT_RES_ID), container, false);
+            }
+
+            @Override
+            public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+                super.onViewCreated(view, savedInstanceState);
+                EditText config = view.findViewById(R.id.extra_keys_config);
+                config.setTypeface(Typeface.MONOSPACE);
+
+                TextView desc = view.findViewById(R.id.extra_keys_config_description);
+                desc.setMovementMethod(LinkMovementMethod.getInstance());
+                Linkify.addLinks(desc, Linkify.WEB_URLS);
+            }
+            @Override
+            public Dialog onCreateDialog(Bundle savedInstanceState) {
+                return new android.app.AlertDialog.Builder(getActivity())
+                        .setView(R.layout.extra_keys_config)
+                        .setTitle("Extra keys config")
+                        .setPositiveButton("OK",
+                                (dialog, whichButton) -> {
+                                    // do something...
+                                }
+                        )
+                        .setNegativeButton("Cancel",
+                                (dialog, whichButton) -> dialog.dismiss()
+                        )
+                        .create();
+            }
+        }
+
     }
 }

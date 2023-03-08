@@ -84,4 +84,9 @@
         android:summary="Emulate horizontal scroll by sending Shift+Scroll"
         android:title="Enable horizontal scroll" />
 
+    <!--com.termux.x11.utils.ExtraKeyConfigPreference
+        android:title="Extra keys config"
+        android:key="extra_keys_config"/-->
+
+
 </PreferenceScreen>

@@ -282,7 +282,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 }
             }, 200);
         }
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     }
 
     public void toggleExtraKeys(boolean visible) {

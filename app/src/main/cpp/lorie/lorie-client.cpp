@@ -43,11 +43,46 @@
 
 #pragma ide diagnostic ignored "ConstantParameter"
 #pragma ide diagnostic ignored "cppcoreguidelines-narrowing-conversions"
+#pragma ide diagnostic ignored "bugprone-reserved-identifier"
+
+static inline int memfd_create(const char *name, unsigned int flags) {
+#ifndef __NR_memfd_create
+#if defined __i386__
+#define __NR_memfd_create 356
+#elif defined __x86_64__
+#define __NR_memfd_create 319
+#elif defined __arm__
+#define __NR_memfd_create 385
+#elif defined __aarch64__
+#define __NR_memfd_create 279
+#endif
+#endif
+#ifdef __NR_memfd_create
+    return syscall(__NR_memfd_create, name, flags);
+#else
+    errno = ENOSYS;
+	return -1;
+#endif
+}
+
 
 static inline int
 os_create_anonymous_file(size_t size) {
     int fd, ret;
     long flags;
+
+
+    fd = memfd_create("xorg", MFD_CLOEXEC|MFD_ALLOW_SEALING);
+    if (fd != -1) {
+        fcntl(fd, F_ADD_SEALS, F_SEAL_SHRINK);
+        if (ftruncate(fd, size) < 0) {
+            close(fd);
+        } else {
+            ALOGE("Using memfd");
+            return fd;
+        }
+    }
+
     fd = open("/dev/ashmem", O_RDWR | O_CLOEXEC);
     if (fd < 0)
         return fd;
@@ -59,6 +94,8 @@ os_create_anonymous_file(size_t size) {
         goto err;
     if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC) == -1)
         goto err;
+
+    ALOGE("Using ashmem");
     return fd;
     err:
     close(fd);

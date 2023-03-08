@@ -37,6 +37,5 @@
     <string name="getting_started_button_text">Getting started</string>
     <string name="preferences_button_text">Preferences</string>
     <string name="extra_keys_config_desc">Here you can set value of extra-keys variable like in Termux app. Read <a href="http://wiki.termux.com/wiki/Touch_Keyboard#Extra_Keys_Row">this</a>.
-    Empty string will set default value.</string>
-    <string name="extra_keys_config_hint">[[\'ESC\',\'/\',\'-\',\'HOME\',\'UP\',\'END\',\'PGUP\'],[\'TAB\',\'CTRL\',\'ALT\',\'LEFT\',\'DOWN\',\'RIGHT\',\'PGDN\']]</string>
+    Put empty string for the default value.</string>
 </resources>

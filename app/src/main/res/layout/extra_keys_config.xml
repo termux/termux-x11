@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="fill_parent"
     android:layout_height="fill_parent"
     android:paddingTop="20dp"
@@ -15,10 +16,11 @@
         android:inputType="textMultiLine"
         android:lines="10"
         android:minLines="5"
-        android:hint="@string/extra_keys_config_hint"
+        android:textSize="16sp"
         android:scrollHorizontally="true"
         android:scrollbars="vertical"
-        android:autofillHints="" />
+        android:autofillHints=""
+        tools:ignore="LabelFor" />
     <TextView
         android:id="@+id/extra_keys_config_description"
         android:text="@string/extra_keys_config_desc"

@@ -1,5 +1,6 @@
 package com.termux.x11;
 
+import android.annotation.SuppressLint;
 import android.app.Dialog;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -8,8 +9,11 @@ import android.graphics.Typeface;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
+import androidx.core.text.HtmlCompat;
 import androidx.fragment.app.DialogFragment;
 import androidx.preference.Preference;
+
+import android.preference.PreferenceManager;
 import android.provider.Settings;
 
 import androidx.annotation.Nullable;
@@ -32,6 +36,7 @@ import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
 import com.termux.x11.utils.ExtraKeyConfigPreference;
 
 import java.util.Objects;
@@ -162,11 +167,6 @@ public class LoriePreferences extends AppCompatActivity {
         public void onDisplayPreferenceDialog(@NonNull Preference preference) {
             if (preference instanceof ExtraKeyConfigPreference) {
                 ExtraKeysConfigFragment f = new ExtraKeysConfigFragment();
-                Bundle b = new Bundle();
-                b.putString(ExtraKeysConfigFragment.KEY, preference.getKey());
-                b.putInt(ExtraKeysConfigFragment.KEY_LAYOUT_RES_ID,  ((ExtraKeyConfigPreference) preference).getDialogLayoutResource());
-
-                f.setArguments(b);
                 f.setTargetFragment(this, 0);
                 assert getFragmentManager() != null;
                 f.show(getFragmentManager(), null);
@@ -175,34 +175,30 @@ public class LoriePreferences extends AppCompatActivity {
 
         public static class ExtraKeysConfigFragment extends DialogFragment {
 
-            public static final String KEY = "key";
-            public static final String KEY_LAYOUT_RES_ID = "resid";
-
-
-            @Nullable
-            @Override
-            public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-                return inflater.inflate(requireArguments().getInt(KEY_LAYOUT_RES_ID), container, false);
-            }
-
-            @Override
-            public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-                super.onViewCreated(view, savedInstanceState);
-                EditText config = view.findViewById(R.id.extra_keys_config);
-                config.setTypeface(Typeface.MONOSPACE);
-
-                TextView desc = view.findViewById(R.id.extra_keys_config_description);
-                desc.setMovementMethod(LinkMovementMethod.getInstance());
-                Linkify.addLinks(desc, Linkify.WEB_URLS);
-            }
+            @NonNull
             @Override
             public Dialog onCreateDialog(Bundle savedInstanceState) {
+                @SuppressLint("InflateParams")
+                View view = getLayoutInflater().inflate(R.layout.extra_keys_config, null, false);
+                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+                EditText config = view.findViewById(R.id.extra_keys_config);
+                config.setTypeface(Typeface.MONOSPACE);
+                config.setText(preferences.getString("extra_keys_config", TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS));
+                TextView desc = view.findViewById(R.id.extra_keys_config_description);
+                desc.setLinksClickable(true);
+                desc.setText(R.string.extra_keys_config_desc);
+                desc.setMovementMethod(LinkMovementMethod.getInstance());
                 return new android.app.AlertDialog.Builder(getActivity())
-                        .setView(R.layout.extra_keys_config)
+                        .setView(view)
                         .setTitle("Extra keys config")
                         .setPositiveButton("OK",
                                 (dialog, whichButton) -> {
-                                    // do something...
+                                    String text = config.getText().toString();
+                                    text = text.length() > 0 ? text : TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS;
+                                    preferences
+                                            .edit()
+                                            .putString("extra_keys_config", text)
+                                            .apply();
                                 }
                         )
                         .setNegativeButton("Cancel",

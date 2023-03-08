@@ -10,6 +10,8 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.KeyCharacterMap;
@@ -27,6 +29,7 @@ import com.termux.shared.termux.extrakeys.ExtraKeysInfo;
 import com.termux.shared.termux.extrakeys.ExtraKeysView;
 import com.termux.shared.termux.extrakeys.SpecialButton;
 import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
+import com.termux.shared.termux.settings.properties.TermuxSharedProperties;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.MainActivity;
 import com.termux.x11.R;
@@ -34,7 +37,8 @@ import com.termux.x11.R;
 import org.json.JSONException;
 
 public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
-
+    @SuppressWarnings("FieldCanBeLocal")
+    private final String LOG_TAG = "TermuxX11ExtraKeys";
     private final View.OnKeyListener mEventListener;
     private final MainActivity mActivity;
     private final ExtraKeysView mExtraKeysView;
@@ -179,12 +183,34 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
      */
     private void setExtraKeys() {
         mExtraKeysInfo = null;
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(mActivity);
+
         try {
-            mExtraKeysInfo = new ExtraKeysInfo(TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS, TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_STYLE, ExtraKeysConstants.CONTROL_CHARS_ALIASES);
-        } catch (JSONException e2) {
-            Logger.showToast(mActivity, "Can't create default extra keys",true);
-            Logger.logStackTraceWithMessage("TermuxX11ExtraKeys", "Could create default extra keys: ", e2);
-            mExtraKeysInfo = null;
+            // The mMap stores the extra key and style string values while loading properties
+            // Check {@link #getExtraKeysInternalPropertyValueFromValue(String)} and
+            // {@link #getExtraKeysStyleInternalPropertyValueFromValue(String)}
+            String extrakeys = preferences.getString("extra_keys_config", TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS);
+            String extraKeysStyle = TermuxPropertyConstants.KEY_EXTRA_KEYS_STYLE;
+
+            ExtraKeysConstants.ExtraKeyDisplayMap extraKeyDisplayMap = ExtraKeysInfo.getCharDisplayMapForStyle(extraKeysStyle);
+            //noinspection ConstantConditions
+            if (ExtraKeysConstants.EXTRA_KEY_DISPLAY_MAPS.DEFAULT_CHAR_DISPLAY.equals(extraKeyDisplayMap) && !TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_STYLE.equals(extraKeysStyle)) {
+                Logger.logError(TermuxSharedProperties.LOG_TAG, "The style \"" + extraKeysStyle + "\" for the key \"" + TermuxPropertyConstants.KEY_EXTRA_KEYS_STYLE + "\" is invalid. Using default style instead.");
+                extraKeysStyle = TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_STYLE;
+            }
+
+            mExtraKeysInfo = new ExtraKeysInfo(extrakeys, extraKeysStyle, ExtraKeysConstants.CONTROL_CHARS_ALIASES);
+        } catch (JSONException e) {
+            Logger.showToast(mActivity, "Could not load and set the \"" + TermuxPropertyConstants.KEY_EXTRA_KEYS + "\" property from the properties file: " + e.toString(), true);
+            Logger.logStackTraceWithMessage(LOG_TAG, "Could not load and set the \"" + TermuxPropertyConstants.KEY_EXTRA_KEYS + "\" property from the properties file: ", e);
+
+            try {
+                mExtraKeysInfo = new ExtraKeysInfo(TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS, TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS_STYLE, ExtraKeysConstants.CONTROL_CHARS_ALIASES);
+            } catch (JSONException e2) {
+                Logger.showToast(mActivity, "Can't create default extra keys",true);
+                Logger.logStackTraceWithMessage(LOG_TAG, "Could create default extra keys: ", e);
+                mExtraKeysInfo = null;
+            }
         }
     }
 

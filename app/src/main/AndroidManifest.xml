@@ -2,14 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     package="com.termux.x11"
-    android:installLocation="internalOnly"
-    >
+    android:installLocation="internalOnly">
 
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
-    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
 
     <application
@@ -18,17 +18,17 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme"
+        android:theme="@style/AppTheme.NoActionBar"
         tools:ignore="GoogleAppIndexingWarning">
         <activity
             android:name=".MainActivity"
-            android:taskAffinity=".MainActivity"
-            android:launchMode="singleInstance"
-            android:supportsPictureInPicture="true"
             android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density"
+            android:exported="true"
+            android:launchMode="singleInstance"
             android:resizeableActivity="true"
-            android:windowSoftInputMode="stateHidden"
-            android:exported="true">
+            android:supportsPictureInPicture="true"
+            android:taskAffinity=".MainActivity"
+            android:windowSoftInputMode="stateHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -36,27 +36,35 @@
             <intent-filter>
                 <category android:name="android.intent.category.SECONDARY_HOME" />
             </intent-filter>
-            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
+
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
         <activity
-            android:theme="@style/Theme.AppCompat.DayNight"
-            android:excludeFromRecents="true"
             android:name=".LoriePreferences"
-            android:taskAffinity=".LoriePreferences"
-            android:supportsPictureInPicture="false"
+            android:excludeFromRecents="true"
+            android:exported="true"
             android:resizeableActivity="true"
-            android:exported="true">
+            android:supportsPictureInPicture="false"
+            android:taskAffinity=".LoriePreferences"
+            android:theme="@style/AppTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </activity>
         <activity
             android:name=".GettingStartedActivity"
+            android:exported="true"
             android:taskAffinity=".GettingStartedActivity"
-            android:theme="@style/Theme.BaseActivity.DayNight.NoActionBar"
-            android:exported="true" />
-	<meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true"/>
-	<meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />
+            android:theme="@style/AppTheme.NoActionBar" />
+
+        <meta-data
+            android:name="com.samsung.android.multidisplay.keep_process_alive"
+            android:value="true" />
+        <meta-data
+            android:name="android.allow_multiple_resumed_activities"
+            android:value="true" />
     </application>
     <queries>
         <package android:name="com.termux" />

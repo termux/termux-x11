@@ -82,4 +82,9 @@
         android:defaultValue="false"
         android:key="clipboardSync" />
 
+    <!--com.termux.x11.utils.ExtraKeyConfigPreference
+        android:title="Extra keys config"
+        android:key="extra_keys_config"/-->
+
+
 </PreferenceScreen>

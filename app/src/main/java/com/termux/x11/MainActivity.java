@@ -11,13 +11,15 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.PixelFormat;
-import android.graphics.Point;
+import android.graphics.PointF;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
@@ -26,6 +28,7 @@ import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.preference.PreferenceManager;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -41,6 +44,7 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
@@ -72,7 +76,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     NotificationManager mNotificationManager;
     private boolean mClientConnected = false;
     private SurfaceHolder.Callback mLorieViewCallback;
-    private Point mCurrentResolution = new Point(1280, 1024);
+    private PointF mDpi;
 
     public MainActivity() {
         init();
@@ -88,6 +92,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
+
+        DisplayMetrics dm = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(dm);
+        mDpi = new PointF(dm.xdpi, dm.ydpi);
 
         //kbd = findViewById(R.id.additionalKbd);
         frm = findViewById(R.id.frame);
@@ -200,6 +208,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         setTerminalToolbarView();
         onWindowFocusChanged(true);
         setHorizontalScrollEnabled(preferences.getBoolean("horizontalScroll", false));
+        setClipboardSyncEnabled(preferences.getBoolean("clipboardSync", false));
 
         SurfaceView lorieView = getLorieView();
         Rect r = lorieView.getHolder().getSurfaceFrame();
@@ -469,8 +478,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     switch(preferences.getString("displayResolutionMode", "native")) {
                         case "scaled":
                             int scale = preferences.getInt("displayScale", 100);
-                            w = width  * scale / 100;
-                            h = height * scale / 100;
+                            w = width  / scale * 100;
+                            h = height / scale * 100;
                             break;
                         case "exact":
                             String[] resolution = preferences.getString("displayResolutionExact", "1024x768").split("x");
@@ -653,16 +662,26 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     @SuppressWarnings("unused")
-        // It is used in native code
+    // It is used in native code
     void moveCursorRect(int x, int y, int w, int h) {
         runOnUiThread(()-> {
             SurfaceView v = findViewById(R.id.cursorView);
+            //int W = (int) (w * mDpi.x / 120);
+            //int H = (int) (h * mDpi.y / 120);
+            //Log.v("cursor", "w " + W + " h " + H + " dpix " + mDpi.x + " dpiy " + mDpi.y);
             FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(w, h);
             params.setMargins(x, y, 0, 0);
 
             v.setLayoutParams(params);
             v.setVisibility(View.VISIBLE);
         });
+    }
+
+    @SuppressWarnings("unused")
+    // It is used in native code
+    void setClipboardText(String text) {
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboard.setPrimaryClip(ClipData.newPlainText("X11 clipboard", text));
     }
 
     public static Handler handler = new Handler();
@@ -682,6 +701,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     private native void startLogcat(int fd);
     private native void setHorizontalScrollEnabled(boolean enabled);
+    private native void setClipboardSyncEnabled(boolean enabled);
 
     static {
         System.loadLibrary("lorie");

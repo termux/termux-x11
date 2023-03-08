@@ -47,7 +47,7 @@ public:
                                    "  Major opcode of failed request:          " + std::to_string(err->major_code) + " (" +
                                    xcb_errors_get_name_for_major_code(err_ctx, err->major_code) + ")\n" +
                                    "  Minor opcode of failed request:          " + std::to_string(err->minor_code) + " (" +
-                                   xcb_errors_get_name_for_minor_code(err_ctx, err->major_code, err->minor_code) + ")\n" +
+                                   (xcb_errors_get_name_for_minor_code(err_ctx, err->major_code, err->minor_code) ?: "Core") + ")\n" +
                                    "  Serial number of failed request:         " + std::to_string(err->sequence) + "\n" +
                                    "  Current serial number in output stream:  " + std::to_string(err->full_sequence);
 
@@ -67,7 +67,7 @@ public:
                                    "  Major opcode of failed request:          " + std::to_string(err->major_code) + " (" +
                                    xcb_errors_get_name_for_major_code(err_ctx, err->major_code) + ")\n" +
                                    "  Minor opcode of failed request:          " + std::to_string(err->minor_code) + " (" +
-                                   xcb_errors_get_name_for_minor_code(err_ctx, err->major_code, err->minor_code) + ")\n" +
+                                   (xcb_errors_get_name_for_minor_code(err_ctx, err->major_code, err->minor_code) ?: "Core") + ")\n" +
                                    "  Serial number of failed request:         " + std::to_string(err->sequence) + "\n" +
                                    "  Current serial number in output stream:  " + std::to_string(err->full_sequence);
             free(err);
@@ -213,13 +213,26 @@ public:
             }
         }
 
-        void select_input(xcb_window_t window, uint32_t mask) {
+        void select_cursor_input(xcb_window_t window, uint32_t mask) {
             xcb_check(xfixes_select_cursor_input, window, mask);
-            self.handle_error("Error querying selecting XFIXES input");
+            self.handle_error("Error querying selecting XFIXES cursor input");
+        }
+
+        void select_selection_input(xcb_window_t window, xcb_atom_t selection, uint32_t mask) {
+            xcb_check(xfixes_select_selection_input, window, selection, mask);
+            self.handle_error("Error querying selecting XFIXES selection input");
         }
 
         bool is_cursor_notify_event(xcb_generic_event_t* e) const {
             return e->response_type == first_event + XCB_XFIXES_CURSOR_NOTIFY;
+        }
+
+        bool is_selection_notify_event(xcb_generic_event_t* e) const {
+            return e->response_type == first_event + XCB_XFIXES_SELECTION_NOTIFY;
+        }
+
+        bool is_selection_response_event(xcb_generic_event_t* e) const {
+            return (e->response_type & ~0x80) == XCB_SELECTION_NOTIFY;
         }
 
          xcb_xfixes_get_cursor_image_reply_t* get_cursor_image() {
@@ -479,7 +492,7 @@ public:
             // environment will determine in which layout the user will be typing.
             // Here we do not change current layout and do not change modifiers because
             // this function should only be triggered by hardware keyboard or extra key bar.
-            ALOGV("Sending keycode %d (%s)", keycode, (type==XCB_KEY_PRESS)?"press":((type==XCB_KEY_PRESS)?"release":"unknown"));
+            ALOGV("Sending keycode %d (%s)", keycode, (type==XCB_KEY_PRESS)?"press":((type==XCB_KEY_RELEASE)?"release":"unknown"));
             xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
             xcb_test_fake_input(self.conn, type, keycode + 8, XCB_CURRENT_TIME, s->root, 0, 0, 0);
             xcb_flush(self.conn);
@@ -503,7 +516,7 @@ public:
 
     struct {
         xcb_connection& self;
-        u32 width = 1280, height = 512;
+        u32 width = 1280, height = 800;
         const char* temporary_name = "Temporary Termux:X11 resolution";
         const char* persistent_name = "Termux:X11 resolution";
 
@@ -594,10 +607,10 @@ public:
                 outputs = &xcb_randr_get_screen_resources_current_outputs(res)[0];
                 noutput = 1;
                 mode_id = mode.id;
-                auto info = xcb(randr_get_crtc_info, crtc, res->config_timestamp);
+//                auto info = xcb(randr_get_crtc_info, crtc, res->config_timestamp);
 
                 if (s->width_in_pixels != mode.width || s->height_in_pixels != mode.height) {
-                    xcb_check(randr_set_screen_size, s->root, mode.width, mode.height, int(mode.width  * 25.4 / 96), int(mode.height  * 25.4 / 96));
+                    xcb_check(randr_set_screen_size_checked, s->root, mode.width, mode.height, int(mode.width  * 25.4 / 96), int(mode.height  * 25.4 / 96));
                     self.handle_error("Error setting XRANDR screen size");
                 }
             }
@@ -608,7 +621,7 @@ public:
         };
 
         void update_resolution() {
-            if (self.conn) {
+            if (self.conn && width && height) {
                 xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
 
                 auto reply = xcb(get_geometry, s->root);
@@ -621,6 +634,7 @@ public:
 
                 xcb_check(grab_server_checked);
                 self.handle_error("Failed to grab server");
+                ALOGE("Trying to set screen size to %dx%d", width, height);
                 try {
                     create_mode(temporary_name, width, height);
                     switch_to_mode(nullptr);
@@ -647,6 +661,35 @@ public:
             update_resolution();
         }
     } randr {*this};
+
+
+    struct {
+        xcb_connection& self;
+        xcb_window_t win;
+        xcb_atom_t prop_sel;
+        xcb_atom_t atom_clipboard;
+
+        void init() {
+            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
+
+            win = xcb_generate_id(self.conn);
+            xcb_check(create_window_checked, 0, win, s->root, 0, 0, 10, 10, 0, XCB_WINDOW_CLASS_INPUT_ONLY, XCB_COPY_FROM_PARENT, XCB_CW_OVERRIDE_REDIRECT, (const uint32_t[]) {true});
+            self.handle_error("Error creating InputOnly window");
+
+            {
+                auto reply = xcb(intern_atom, 0, 9, "CLIPBOARD");
+                self.handle_error(reply, "Error querying \"CLIPBOARD\" atom");
+                atom_clipboard = reply->atom;
+                free(reply);
+            }
+            {
+                auto reply = xcb(intern_atom, false, 15, "TERMUX_X11_CLIP");
+                self.handle_error(reply, "Error interning atom");
+                prop_sel = reply->atom;
+                free(reply);
+            }
+        }
+    } clip {*this};
 
     void init(int sockfd) {
         xcb_connection_t* new_conn = xcb_connect_to_fd(sockfd, nullptr);
@@ -676,6 +719,7 @@ public:
         conn = new_conn;
         xcb_errors_context_new(conn, &err_ctx);
 
+        clip.init();
         shm.init();
         xtest.init();
         damage.init();

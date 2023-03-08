@@ -145,6 +145,9 @@ public:
     bool terminate = false;
     bool paused = false;
 
+    bool horizontal_scroll_enabled = false;
+    bool clipboard_sync_enabled = false;
+
     xcb_connection c;
 
     struct {
@@ -188,14 +191,17 @@ public:
         if (win)
             ANativeWindow_acquire(win);
         screen.win = win;
-        screen.width  = width  ?: screen.width;
-        screen.height = height ?: screen.height;
         screen.real_width  = real_width  ?: screen.real_width;
         screen.real_height = real_height ?: screen.real_height;
 
+        if (screen.width != width || screen.height != height) {
+            screen.width  = width  ?: screen.width;
+            screen.height = height ?: screen.height;
+            c.randr.update_resolution();
+        }
+
         refresh_screen();
 
-        c.randr.update_resolution();
     }
 
     void cursor_changed(ANativeWindow* win) {
@@ -281,7 +287,10 @@ public:
 
             xcb_change_window_attributes(c.conn, scr->root, XCB_CW_EVENT_MASK,
                                          (const int[]) {XCB_EVENT_MASK_STRUCTURE_NOTIFY});
-            c.fixes.select_input(scr->root, XCB_XFIXES_CURSOR_NOTIFY_MASK_DISPLAY_CURSOR);
+            c.fixes.select_cursor_input(scr->root, XCB_XFIXES_CURSOR_NOTIFY_MASK_DISPLAY_CURSOR);
+            c.fixes.select_selection_input(scr->root, c.clip.atom_clipboard, XCB_XFIXES_SELECTION_EVENT_MASK_SET_SELECTION_OWNER);// |
+                                           //XCB_XFIXES_SELECTION_EVENT_MASK_SELECTION_WINDOW_DESTROY |
+                                           //XCB_XFIXES_SELECTION_EVENT_MASK_SELECTION_CLIENT_CLOSE);
             c.damage.create(scr->root, XCB_DAMAGE_REPORT_LEVEL_RAW_RECTANGLES);
             struct {
                 xcb_input_event_mask_t head;
@@ -323,15 +332,15 @@ public:
 
     void refresh_cursor() {
         if (cursor.win && c.conn) {
-            if (false)
-            {
-                xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
-                auto reply = xcb_query_pointer_reply(c.conn, xcb_query_pointer(c.conn, s->root),
-                                                     nullptr);
-                if (reply)
-                    set_cursor_coordinates(reply->root_x, reply->root_y);
-                free(reply);
-            }
+//            if (false)
+//            {
+//                xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
+//                auto reply = xcb_query_pointer_reply(c.conn, xcb_query_pointer(c.conn, s->root),
+//                                                     nullptr);
+//                if (reply)
+//                    set_cursor_coordinates(reply->root_x, reply->root_y);
+//                free(reply);
+//            }
             {
                 auto reply = c.fixes.get_cursor_image();
                 if (reply) {
@@ -394,7 +403,11 @@ public:
             while ((event = xcb_poll_for_event(c.conn))) {
                 if (event->response_type == 0) {
                     c.err = reinterpret_cast<xcb_generic_error_t *>(event);
-                    c.handle_error("Error processing XCB events");
+                    try {
+                        c.handle_error("Error processing XCB events");
+                    } catch (std::runtime_error &e) {
+                        ALOGE("%s", e.what());
+                    }
                 } else if (c.xkb.is_xkb_mapping_notify_event(event)) {
                     need_reload_keymaps = true;
                 } else if (event->response_type == XCB_CONFIGURE_NOTIFY) {
@@ -405,6 +418,30 @@ public:
                     need_redraw = true;
                 } else if (c.fixes.is_cursor_notify_event(event)) {
                     refresh_cursor();
+                } else if (c.fixes.is_selection_notify_event(event)) {
+                    if (clipboard_sync_enabled) {
+                        xcb_convert_selection(c.conn, c.clip.win, c.clip.atom_clipboard,
+                                              XCB_ATOM_STRING, c.clip.prop_sel, XCB_CURRENT_TIME);
+                        xcb_flush(c.conn);
+                    }
+                } else if (c.fixes.is_selection_response_event(event)) {
+                    if (clipboard_sync_enabled) {
+                        ALOGE("We've got selection");
+                        // Get data size end then retrieve it
+                        int data_size;
+                        {
+                            auto cookie = xcb_get_property(c.conn, false,c.clip.win,c.clip.prop_sel,XCB_ATOM_ANY,0, 0);
+                            auto reply = xcb_get_property_reply(c.conn, cookie, nullptr);
+                            data_size = reply->bytes_after;
+                            free(reply);
+                        }
+                        {
+                            auto cookie = xcb_get_property(c.conn, false,c.clip.win,c.clip.prop_sel,XCB_ATOM_ANY,0, data_size);
+                            auto reply = xcb_get_property_reply(c.conn, cookie, nullptr);
+                            set_clipboard_text((const char *) xcb_get_property_value(reply));
+                            free(reply);
+                        }
+                    }
                 }
             }
 
@@ -429,6 +466,7 @@ public:
     jmethodID client_connected_state_changed_id{};
     jmethodID move_cursor_rect_id{};
     jmethodID set_cursor_coordinates_id{};
+    jmethodID set_clipboard_text_id{};
     void init_jni(JavaVM* vm, jobject obj) {
         post([=, this] {
             thiz = obj;
@@ -439,6 +477,8 @@ public:
                     env->GetMethodID(env->GetObjectClass(thiz),"moveCursorRect","(IIII)V");
             set_cursor_coordinates_id =
                     env->GetMethodID(env->GetObjectClass(thiz),"setCursorCoordinates","(II)V");
+            set_clipboard_text_id =
+                    env->GetMethodID(env->GetObjectClass(thiz),"setClipboardText","(Ljava/lang/String;)V");
         });
     }
 
@@ -473,9 +513,16 @@ public:
 
         env->CallVoidMethod(thiz, set_cursor_coordinates_id, x, y);
     }
-} client; // NOLINT(cert-err58-cpp)
 
-bool horizontal_scroll_enabled = false;
+     void set_clipboard_text(const char* text) const {
+        if (!set_clipboard_text_id) {
+            ALOGE("Something is wrong, `set_clipboard_text_id` is null");
+            return;
+        }
+
+        env->CallVoidMethod(thiz, set_clipboard_text_id, env->NewStringUTF(text));
+    }
+} client; // NOLINT(cert-err58-cpp)
 
 extern "C"
 JNIEXPORT void JNICALL
@@ -540,7 +587,7 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_onPointerScroll([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz,
                                                  [[maybe_unused]] jint axis, [[maybe_unused]] jfloat value) {
-    if (axis == 1 && !horizontal_scroll_enabled)
+    if (axis == 1 && !client.horizontal_scroll_enabled)
         return;
 
     if (client.c.conn) {
@@ -648,5 +695,13 @@ JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_setHorizontalScrollEnabled([[maybe_unused]] JNIEnv *env,
                                                             [[maybe_unused]] jobject thiz,
                                                             jboolean enabled) {
-    horizontal_scroll_enabled = enabled;
+    client.horizontal_scroll_enabled = enabled;
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_setClipboardSyncEnabled([[maybe_unused]] JNIEnv *env,
+                                                         [[maybe_unused]] jobject thiz,
+                                                         jboolean enabled) {
+    client.clipboard_sync_enabled = enabled;
 }

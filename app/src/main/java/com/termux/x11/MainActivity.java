@@ -18,6 +18,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.PointF;
 import android.graphics.Rect;
@@ -82,7 +83,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         init();
     }
 
-    @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt"}) @Override
+    @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt"})
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
@@ -90,6 +92,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         preferences.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> onPreferencesChanged());
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
 
@@ -245,7 +249,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         // for some reason, calling setTheme() in onCreate() wasn't working.
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         super.setTheme(externalDisplayRequested || preferences.getBoolean("fullscreen", true) ?
-                R.style.FullScreen_ExternalDisplay : R.style.NoActionBar);
+                R.style.AppTheme_FullScreen_ExternalDisplay : R.style.AppTheme_NoActionBar);
     }
 
     public SurfaceView getLorieView() {
@@ -399,7 +403,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                             | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            decorView.setSystemUiVisibility(0);
+            decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
         }
 
         if (reseed)

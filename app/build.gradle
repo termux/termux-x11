@@ -87,7 +87,7 @@ wayland {
 
 dependencies {
     implementation "androidx.lifecycle:lifecycle-viewmodel:2.5.1"
-    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.5.1"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.0"
     implementation 'com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava'
     implementation 'com.termux.termux-app:termux-shared:2f5a6f7de6'
     implementation 'com.google.android.material:material:1.8.0'

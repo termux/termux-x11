@@ -32,6 +32,9 @@ jobs:
     - name: Build
       run: |
         ./gradlew assembleDebug
+    - name: Install libarchive-tools
+      run: |
+        sudo apt install -y libarchive-tools
     - name: Build companion package
       run: |
         ./build_termux_package

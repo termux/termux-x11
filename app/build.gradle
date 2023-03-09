@@ -16,12 +16,12 @@ android {
          */
         //noinspection ExpiredTargetSdkVersion,OldTargetApi
         targetSdkVersion 28
-        versionCode 10
-        versionName "1.02.06"
+        versionCode 11
+        versionName "1.02.07"
 
         externalNativeBuild {
-            ndkBuild {
-                arguments "WAYLAND_GENERATED=${waylandOut}"
+            cmake {
+                arguments "-DWAYLAND_GENERATED_DIR=${waylandOut}", "-DANDROID_STL=c++_static"
             }
         }
     }
@@ -52,8 +52,8 @@ android {
     }
 
     externalNativeBuild {
-        ndkBuild {
-            path "src/main/jni/Android.mk"
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
         }
     }
 
@@ -64,13 +64,15 @@ android {
             // https://github.com/termux/termux-x11/commit/6cdfb75c4451eef63f114a93baef5ba73b7cfd8c#commitcomment-77856313
             useLegacyPackaging false
         }
+
+        exclude 'lib/*/liblocal-socket.so'
     }
 }
 
 task patchWayland {
     println("Patch can fail here, it is normal if a patch was already applied")
-    ant.patch(patchfile: "${project.projectDir}/src/main/jni/wayland.patch", dir: "${project.projectDir}/src/main/jni/wayland/src", failonerror:false)
-    ant.patch(patchfile: "${project.projectDir}/src/main/jni/wayland2.patch", dir: "${project.projectDir}/src/main/jni/wayland", failonerror:false)
+    ant.patch(patchfile: "${project.projectDir}/src/main/cpp/wayland.patch", dir: "${project.projectDir}/src/main/cpp/wayland/src", failonerror:false)
+    ant.patch(patchfile: "${project.projectDir}/src/main/cpp/wayland2.patch", dir: "${project.projectDir}/src/main/cpp/wayland", failonerror:false)
 }
 
 tasks.matching { it.name.toLowerCase().contains("ndk") && !it.name.toLowerCase().contains("clean") }
@@ -82,18 +84,22 @@ wayland {
     scan "protocol/xdg-shell.xml", "wayland"
 }
 
+
 dependencies {
+    implementation "androidx.lifecycle:lifecycle-viewmodel:2.5.1"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.5.1"
     implementation 'com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava'
-    implementation 'com.termux.termux-app:termux-shared:-SNAPSHOT'
+    implementation 'com.termux.termux-app:termux-shared:2f5a6f7de6'
     implementation 'com.google.android.material:material:1.8.0'
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     //noinspection GradleDependency
     implementation 'androidx.appcompat:appcompat:1.3.1'
+    implementation 'androidx.preference:preference:1.2.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test:runner:1.5.2'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     implementation 'androidx.annotation:annotation:1.5.0'
     implementation 'androidx.drawerlayout:drawerlayout:1.1.1'
-    compileOnly project(':app:stub')
+    compileOnly project(':shell-loader:stub')
 }

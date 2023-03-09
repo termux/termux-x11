@@ -1,5 +1,3 @@
 include ':shell-loader:stub'
 include ':shell-loader'
-include ':app:stub'
 include ':app'
-include ':x11-client-experimental'

@@ -2,14 +2,12 @@ package com.termux.x11;
 
 import android.annotation.SuppressLint;
 import android.app.Dialog;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
-import androidx.core.text.HtmlCompat;
 import androidx.fragment.app.DialogFragment;
 import androidx.preference.Preference;
 
@@ -27,12 +25,9 @@ import androidx.preference.Preference.OnPreferenceChangeListener;
 import androidx.preference.SeekBarPreference;
 
 import android.text.method.LinkMovementMethod;
-import android.text.util.Linkify;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
 
@@ -83,10 +78,14 @@ public class LoriePreferences extends AppCompatActivity {
         void updatePreferencesLayout() {
             SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
             SeekBarPreference scalePreference = findPreference("displayScale");
+            SeekBarPreference dpiPreference = findPreference("dpi");
             scalePreference.setMin(30);
             scalePreference.setMax(200);
             scalePreference.setSeekBarIncrement(10);
             scalePreference.setShowSeekBarValue(true);
+            dpiPreference.setMin(75);
+            dpiPreference.setMax(300);
+            dpiPreference.setShowSeekBarValue(true);
 
             switch (preferences.getString("displayResolutionMode", "native")) {
                 case "scaled":
@@ -138,8 +137,8 @@ public class LoriePreferences extends AppCompatActivity {
                         new AlertDialog.Builder(requireActivity())
                                 .setTitle("Permission denied")
                                 .setMessage("Android requires WRITE_SECURE_SETTINGS permission to change this setting.\n" +
-                                            "Please, launch this command using ADB:\n" +
-                                            "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS")
+                                        "Please, launch this command using ADB:\n" +
+                                        "  adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS")
                                 .setNegativeButton("OK", null)
                                 .create()
                                 .show();
@@ -163,6 +162,7 @@ public class LoriePreferences extends AppCompatActivity {
             return true;
         }
 
+        @SuppressWarnings("deprecation")
         @Override
         public void onDisplayPreferenceDialog(@NonNull Preference preference) {
             if (preference instanceof ExtraKeyConfigPreference) {

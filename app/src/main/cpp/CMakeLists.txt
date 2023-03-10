@@ -4,15 +4,6 @@ set(CMAKE_CXX_STANDARD 20)
 
 find_package(Python3 REQUIRED)
 
-####################################################################################################
-######################################### LIBWAYLAND ###############################################
-####################################################################################################
-
-set(WAYLAND_SOURCES connection.c event-loop.c wayland-protocol.c wayland-server.c wayland-shm.c wayland-os.c wayland-util.c)
-list(TRANSFORM WAYLAND_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/wayland/src/)
-add_library(wayland-server STATIC ${WAYLAND_SOURCES})
-target_include_directories(wayland-server PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/wayland ${CMAKE_CURRENT_SOURCE_DIR}/wayland/src)
-
 # Nothing special here, only generating xcb headers and building xcb...
 
 ####################################################################################################
@@ -139,12 +130,7 @@ target_link_libraries(xkbcommon xcbproto)
 ########################################### LORIE ##################################################
 ####################################################################################################
 
-file(GLOB WAYLAND_GENERATED "${WAYLAND_GENERATED_DIR}/*.cpp")
-add_library(lorie SHARED
-        ${CMAKE_CURRENT_SOURCE_DIR}/lorie/compositor.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/lorie/lorie-client.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/lorie/lorie_wayland_server.cpp
-        ${WAYLAND_GENERATED})
-target_include_directories(lorie PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lorie ${WAYLAND_GENERATED_DIR})
-target_link_libraries(lorie wayland-server xkbcommon xcbproto xcb xcb-errors xcvt "-llog" "-landroid"
+add_library(lorie SHARED ${CMAKE_CURRENT_SOURCE_DIR}/lorie/lorie-client.cpp)
+target_include_directories(lorie PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lorie)
+target_link_libraries(lorie xkbcommon xcbproto xcb xcb-errors xcvt "-llog" "-landroid"
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/lorie.version")

@@ -23,7 +23,10 @@
 #include <xkbcommon/xkbcommon-x11.h>
 #include <dirent.h>
 
+#define DEFAULT_SOCKET_PATH "/data/data/com.termux/files/usr/tmp"
+
 #if 1
+#define CLOGE(fmt, ...) __android_log_print(ANDROID_LOG_ERROR, "CmdEntryPoint", fmt, ## __VA_ARGS__)
 #define ALOGE(fmt, ...) __android_log_print(ANDROID_LOG_ERROR, "LorieX11Client", fmt, ## __VA_ARGS__)
 #define ALOGV(fmt, ...) __android_log_print(ANDROID_LOG_VERBOSE, "LorieX11Client", fmt, ## __VA_ARGS__)
 #else
@@ -189,13 +192,13 @@ public:
 
     struct {
         ANativeWindow* win;
-        u32 &width, &height;
+        u32 &width, &height, &dpi;
         u32 real_width, real_height;
 
         i32 shmfd;
         xcb_shm_seg_t shmseg;
         u32 *shmaddr;
-    } screen {nullptr, c.randr.width, c.randr.height};
+    } screen {nullptr, c.randr.width, c.randr.height, c.randr.dpi};
     struct {
         ANativeWindow* win;
         u32 width, height, x, y, xhot, yhot;
@@ -220,7 +223,7 @@ public:
         looper.post(std::move(task), ms_delay);
     }
 
-    void surface_changed(ANativeWindow* win, u32 width, u32 height, u32 real_width, u32 real_height) {
+    void surface_changed(ANativeWindow* win, u32 width, u32 height, u32 real_width, u32 real_height, u32 dpi) {
         ALOGE("Surface: changing surface %p to %p", screen.win, win);
         if (screen.win)
             ANativeWindow_release(screen.win);
@@ -228,6 +231,7 @@ public:
         if (win)
             ANativeWindow_acquire(win);
         screen.win = win;
+        screen.dpi = dpi ?: screen.dpi;
         screen.real_width  = real_width  ?: screen.real_width;
         screen.real_height = real_height ?: screen.real_height;
 
@@ -238,7 +242,6 @@ public:
         }
 
         refresh_screen();
-
     }
 
     void cursor_changed(ANativeWindow* win) {
@@ -396,15 +399,30 @@ public:
 
     void refresh_screen() {
         if (screen.win && c.conn && !paused) {
+            xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
             try {
-                xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
                 c.shm.get(s->root, 0, 0, s->width_in_pixels, s->height_in_pixels,
                           ~0, // NOLINT(cppcoreguidelines-narrowing-conversions)
                           XCB_IMAGE_FORMAT_Z_PIXMAP, screen.shmseg, 0);
                 blit_exact(screen.win, screen.shmaddr, s->width_in_pixels,
                            s->height_in_pixels);
             } catch (std::runtime_error &err) {
-                ALOGE("Refreshing screen failed: %s", err.what());
+                try {
+                    // For some reason we have out-of-date root window size, so update it.
+                    auto reply = xcb_get_geometry_reply(c.conn, xcb_get_geometry(c.conn, s->root), nullptr);
+                    if (reply) {
+                        s->width_in_pixels = reply->width;
+                        s->height_in_pixels = reply->height;
+                    }
+                    free(reply);
+                    c.shm.get(s->root, 0, 0, s->width_in_pixels, s->height_in_pixels,
+                              ~0, // NOLINT(cppcoreguidelines-narrowing-conversions)
+                              XCB_IMAGE_FORMAT_Z_PIXMAP, screen.shmseg, 0);
+                    blit_exact(screen.win, screen.shmaddr, s->width_in_pixels,
+                               s->height_in_pixels);
+                } catch (std::runtime_error &err) {
+                    ALOGE("Refreshing screen failed: %s", err.what());
+                }
             }
         }
     }
@@ -590,7 +608,7 @@ Java_com_termux_x11_MainActivity_cursorChanged(JNIEnv *env, [[maybe_unused]] job
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_windowChanged(JNIEnv *env, [[maybe_unused]] jobject thiz, jobject sfc,
-                                               jint width, jint height, jint real_width, jint real_height) {
+                                               jint width, jint height, jint real_width, jint real_height, jint dpi) {
     ANativeWindow *win = sfc ? ANativeWindow_fromSurface(env, sfc) : nullptr;
     if (win)
         ANativeWindow_acquire(win);
@@ -598,7 +616,7 @@ Java_com_termux_x11_MainActivity_windowChanged(JNIEnv *env, [[maybe_unused]] job
     ALOGE("Surface: got new surface %p", win);
 
     // width must be divisible by 8. Xwayland does the same thing.
-    client.post([=] { client.surface_changed(win, width - (width % 8), height, real_width, real_height); });
+    client.post([=] { client.surface_changed(win, width - (width % 8), height, real_width, real_height, dpi); });
 }
 
 extern "C"
@@ -611,8 +629,8 @@ Java_com_termux_x11_MainActivity_onPointerMotion(JNIEnv *env, [[maybe_unused]] j
     if (client.c.conn) {
         // XCB is thread safe, no need to post this to dispatch thread.
         xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(client.c.conn)).data;
-        x = x < 0 ? 0 : x;
-        y = y < 0 ? 0 : y;
+        x = x < 0 ? 0 : (x > client.screen.real_width  ? client.screen.real_width  : x);
+        y = y < 0 ? 0 : (y > client.screen.real_height ? client.screen.real_height : y);
         int translatedX = x * s->width_in_pixels / client.screen.real_width;
         int translatedY = y * s->height_in_pixels / client.screen.real_height;
         xcb_test_fake_input(client.c.conn, XCB_MOTION_NOTIFY, false, XCB_CURRENT_TIME, s->root, translatedX,translatedY ,  0);
@@ -737,8 +755,65 @@ Java_com_termux_x11_MainActivity_setHorizontalScrollEnabled([[maybe_unused]] JNI
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_setClipboardSyncEnabled([[maybe_unused]] JNIEnv *env,
-                                                         [[maybe_unused]] jobject thiz,
+Java_com_termux_x11_MainActivity_setClipboardSyncEnabled([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz,
                                                          jboolean enabled) {
     client.clipboard_sync_enabled = enabled;
+}
+
+void exit(JNIEnv* env, int code) {
+    // app_process writes exception to logcat if a process dies with exit() or abort(), so
+    jclass systemClass = env->FindClass("java/lang/System");
+    jmethodID exitMethod = env->GetStaticMethodID(systemClass, "exit", "(I)V");
+    env->CallStaticVoidMethod(systemClass, exitMethod, code);
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_termux_x11_CmdEntryPoint_connect([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jclass clazz) {
+    struct sockaddr_un local { .sun_family=AF_UNIX, .sun_path="/data/data/com.termux/files/usr/tmp/.X11-unix/X0" };
+    int sockfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (sockfd == -1) {
+        perror("socket");
+        return -1;
+    }
+
+    int display = 0;
+    sscanf(getenv("DISPLAY"), ":%d", &display); // NOLINT(cert-err34-c)
+
+    snprintf(local.sun_path, sizeof(local.sun_path), "%s/.X11-unix/X%d",
+             getenv("TMPDIR") ?: DEFAULT_SOCKET_PATH, display);
+
+    if (connect(sockfd, reinterpret_cast<const sockaddr *>(&local), sizeof(local)) < 0) {
+        CLOGE("Failed to connect %s: %s\n", local.sun_path, strerror(errno));
+        return -1;
+    }
+
+    return sockfd;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_termux_x11_CmdEntryPoint_stderr([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jclass clazz) {
+    const char *debug = getenv("TERMUX_X11_DEBUG");
+    if (debug && !strcmp(debug, "1")) {
+        int p[2];
+        pipe(p);
+        fchmod(p[1], 0777);
+        std::thread([=] {
+            char buffer[4096];
+            int len;
+            while((len = read(p[0], buffer, 4096)) >=0)
+                write(2, buffer, len);
+            close(p[0]);
+        }).detach();
+        return p[1];
+    }
+
+    return -1;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_termux_x11_CmdEntryPoint_getuid([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jclass clazz) {
+    return getuid(); // NOLINT(cppcoreguidelines-narrowing-conversions)
 }

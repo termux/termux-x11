@@ -516,7 +516,7 @@ public:
 
     struct {
         xcb_connection& self;
-        u32 width = 1280, height = 800;
+        u32 width = 1280, height = 800, dpi=96;
         const char* temporary_name = "Temporary Termux:X11 resolution";
         const char* persistent_name = "Termux:X11 resolution";
 
@@ -610,7 +610,8 @@ public:
 //                auto info = xcb(randr_get_crtc_info, crtc, res->config_timestamp);
 
                 if (s->width_in_pixels != mode.width || s->height_in_pixels != mode.height) {
-                    xcb_check(randr_set_screen_size_checked, s->root, mode.width, mode.height, int(mode.width  * 25.4 / 96), int(mode.height  * 25.4 / 96));
+                    ALOGE("New physical width: %d, new physical height: %d", int(mode.width * 25.4 / dpi), int(mode.height  * 25.4 / dpi));
+                    xcb_check(randr_set_screen_size_checked, s->root, mode.width, mode.height, int(mode.width * 25.4 / dpi), int(mode.height  * 25.4 / dpi));
                     self.handle_error("Error setting XRANDR screen size");
                 }
             }

@@ -19,14 +19,12 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.PixelFormat;
-import android.graphics.PointF;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
-import android.os.RemoteException;
 import android.preference.PreferenceManager;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -44,7 +42,6 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
@@ -76,7 +73,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     NotificationManager mNotificationManager;
     private boolean mClientConnected = false;
     private SurfaceHolder.Callback mLorieViewCallback;
-    private PointF mDpi;
+//    private PointF mDpi;
 
     public MainActivity() {
         init();
@@ -95,7 +92,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         DisplayMetrics dm = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(dm);
-        mDpi = new PointF(dm.xdpi, dm.ydpi);
+//        mDpi = new PointF(dm.xdpi, dm.ydpi);
 
         //kbd = findViewById(R.id.additionalKbd);
         frm = findViewById(R.id.frame);
@@ -471,13 +468,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     holder.setFormat(PixelFormat.OPAQUE);
                 }
                 @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int width, int height) {
+                    SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
                     int w = width;
                     int h = height;
-                    SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
-                    switch(preferences.getString("displayResolutionMode", "native")) {
+                    int dpi = preferences.getInt("dpi", 96);
+                    switch (preferences.getString("displayResolutionMode", "native")) {
                         case "scaled":
                             int scale = preferences.getInt("displayScale", 100);
-                            w = width  / scale * 100;
+                            w = width / scale * 100;
                             h = height / scale * 100;
                             break;
                         case "exact":
@@ -493,17 +491,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         h = temp;
                     }
 
-                    windowChanged(holder.getSurface(), w, h, width, height);
-                    if (service != null) {
-                        try {
-                            service.outputResize(w, h);
-                        } catch (RemoteException e) {
-                            e.printStackTrace();
-                        }
-                    }
+                    windowChanged(holder.getSurface(), w, h, width, height, dpi);
                 }
                 @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
-                    windowChanged(null, 0, 0, 0, 0);
+                    windowChanged(null, 0, 0, 0, 0, 0);
                 }
             };
 
@@ -688,7 +679,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private native void init();
     private native void connect(int fd);
     private native void cursorChanged(Surface surface);
-    private native void windowChanged(Surface surface, int width, int height, int realWidth, int realHeight);
+    private native void windowChanged(Surface surface, int width, int height, int realWidth, int realHeight, int dpi);
     public native void onPointerMotion(int x, int y);
     public native void onPointerScroll(int axis, float value);
 

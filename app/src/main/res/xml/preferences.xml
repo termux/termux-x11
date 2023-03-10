@@ -14,6 +14,12 @@
         android:entries="@array/touchscreenInputModesEntries"
         android:entryValues="@array/touchscreenInputModesValues" />
 
+    <SeekBarPreference
+        android:title="Pixel density (DPI)"
+        android:key="dpi"
+        android:max="300"
+        android:defaultValue="96" />
+
     <ListPreference
         android:title="Display resolution mode"
         android:key="displayResolutionMode"
@@ -57,13 +63,6 @@
         android:summary="Toggles immersive mode in your device display"
         android:defaultValue="false"
         android:key="fullscreen" />
-
-    <EditTextPreference
-        android:title="Custom XDG_RUNTIME_DIR"
-        android:summary="Set the XDG runtime directory for wayland sockets"
-        android:defaultValue="/data/data/com.termux/files/usr/tmp"
-        android:key="CustXDG"
-        android:dialogMessage="Changes to this preference will apply on app restart" />
 
     <SwitchPreferenceCompat
         android:title="Intercept system shortcuts"

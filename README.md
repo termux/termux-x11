@@ -12,12 +12,13 @@ Termux:X11 uses [XCB](https://xcb.freedesktop.org/) display protocol.
 This repo uses submodules. Use 
 
 ```
-    git clone --recurse-submodules https://github.com/termux/termux-x11 
+git clone --recurse-submodules https://github.com/termux/termux-x11.git
 ```
 or
 ```
-    git clone https://github.com/termux/termux-x11
-    git submodule update --init --recursive
+git clone https://github.com/termux/termux-x11.git
+cd termux-x11/
+git submodule update --init --recursive
 ```
 
 ## How does it work?
@@ -77,9 +78,9 @@ To work with GUI applications, start Xvfb first.
 
 then you can start your desired graphical application by doing:
 ```
-~ $ Xvfb :1 -ac -screen 0 4096x4096x24 &
-~ $ DISPLAY=:1 termux-x11 &
-~ $ env DISPLAY=:1 dbus-launch --exit-with-session startxfce4
+Xvfb :1 -ac -screen 0 4096x4096x24 &
+DISPLAY=:1 termux-x11 &
+env DISPLAY=:1 dbus-launch --exit-with-session startxfce4 &
 ```
 You may replace `xfce4-session` if you use other than Xfce
 

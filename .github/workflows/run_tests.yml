@@ -1,38 +1,59 @@
-name: Unit tests
+name: Unit test
 
 on:
   push:
     branches:
       - master
+      - x11-client-experimental
+    paths-ignore:
+      - "**.md"
+      - "img/**"
   pull_request:
     branches:
       - master
+    paths-ignore:
+      - "**.md"
+      - "img/**"
 
 jobs:
-  testing:
+  unit_test_debug:
+    name: Run Unit test
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+
     steps:
-    - name: Clone repository
-      uses: actions/checkout@v3
-      with:
-        submodules: recursive
-        
-    - name: Restore cache
-      uses: actions/cache@v3
-      with:
+      - name: Cancel previous runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Clone repository
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - name: Restore cache
+        uses: actions/cache@v3
+        with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-
           restore-keys: |
             ${{ runner.os }}-gradle-
-            
-    - name: Execute tests
-      run: |
-        ./gradlew test --stacktrace
-    - name: Android Integration Test
-      uses: ReactiveCircus/android-emulator-runner@v2.27.0
-      with:
+
+      - name: Execute tests
+        run: bash ./gradlew test --stacktrace
+
+      - name: Android Integration Test
+        uses: ReactiveCircus/android-emulator-runner@v2.27.0
+        with:
           api-level: 28
           script: ./gradlew test

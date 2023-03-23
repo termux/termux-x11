@@ -4,7 +4,7 @@ apply from: 'wayland-scanner.gradle'
 def waylandOut = project.buildDir.absolutePath + "/wayland"
 
 android {
-    compileSdkVersion 32
+    compileSdkVersion 33
     defaultConfig {
         applicationId "com.termux.x11"
         minSdkVersion 24

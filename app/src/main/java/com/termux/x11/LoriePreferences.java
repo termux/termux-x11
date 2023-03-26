@@ -11,8 +11,10 @@ import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.core.text.HtmlCompat;
 import androidx.fragment.app.DialogFragment;
+import androidx.preference.EditTextPreference;
 import androidx.preference.Preference;
 
+import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
 
@@ -35,11 +37,13 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
 import com.termux.x11.utils.ExtraKeyConfigPreference;
 
 import java.util.Objects;
+import java.util.regex.PatternSyntaxException;
 
 public class LoriePreferences extends AppCompatActivity {
 
@@ -73,7 +77,7 @@ public class LoriePreferences extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    public static class LoriePreferenceFragment extends PreferenceFragmentCompat implements OnPreferenceChangeListener {
+    public static class LoriePreferenceFragment extends PreferenceFragmentCompat implements OnPreferenceChangeListener, Preference.OnPreferenceClickListener {
         @Override
         public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
             addPreferencesFromResource(R.xml.preferences);
@@ -92,14 +96,22 @@ public class LoriePreferences extends AppCompatActivity {
                 case "scaled":
                     findPreference("displayScale").setVisible(true);
                     findPreference("displayResolutionExact").setVisible(false);
+                    findPreference("displayResolutionCustom").setVisible(false);
                     break;
                 case "exact":
                     findPreference("displayScale").setVisible(false);
                     findPreference("displayResolutionExact").setVisible(true);
+                    findPreference("displayResolutionCustom").setVisible(false);
+                    break;
+                case "custom":
+                    findPreference("displayScale").setVisible(false);
+                    findPreference("displayResolutionExact").setVisible(false);
+                    findPreference("displayResolutionCustom").setVisible(true);
                     break;
                 default:
                     findPreference("displayScale").setVisible(false);
                     findPreference("displayResolutionExact").setVisible(false);
+                    findPreference("displayResolutionCustom").setVisible(false);
             }
         }
 
@@ -118,16 +130,24 @@ public class LoriePreferences extends AppCompatActivity {
             PreferenceScreen s = getPreferenceScreen();
             for (int i=0; i<s.getPreferenceCount(); i++) {
                 s.getPreference(i).setOnPreferenceChangeListener(this);
+                s.getPreference(i).setOnPreferenceClickListener(this);
             }
 
             updatePreferencesLayout();
         }
 
         @Override
+        public boolean onPreferenceClick(@NonNull Preference preference) {
+            updatePreferencesLayout();
+            return false;
+        }
+
+        @SuppressLint("ApplySharedPref")
+        @Override
         public boolean onPreferenceChange(Preference preference, Object newValue) {
             String key = preference.getKey();
             Log.e("Preferences", "changed preference: " + key);
-            updatePreferencesLayout();
+            handler.postDelayed(this::updatePreferencesLayout, 100);
 
             if ("showIMEWhileExternalConnected".equals(key)) {
                 boolean enabled = newValue.toString().equals("true");
@@ -153,6 +173,18 @@ public class LoriePreferences extends AppCompatActivity {
                 if (scale % 10 != 0) {
                     scale = Math.round( ( (float) scale ) / 10 ) * 10;
                     ((SeekBarPreference) preference).setValue(scale);
+                    return false;
+                }
+            }
+
+            if ("displayResolutionCustom".equals(key)) {
+                String value = (String) newValue;
+                try {
+                    String[] resolution = value.split("x");
+                    Integer.parseInt(resolution[0]);
+                    Integer.parseInt(resolution[1]);
+                } catch (NumberFormatException | PatternSyntaxException ignored) {
+                    Toast.makeText(getActivity(), "Wrong resolution format", Toast.LENGTH_SHORT).show();
                     return false;
                 }
             }
@@ -209,4 +241,6 @@ public class LoriePreferences extends AppCompatActivity {
         }
 
     }
+
+    static Handler handler = new Handler();
 }

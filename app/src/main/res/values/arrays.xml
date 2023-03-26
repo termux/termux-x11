@@ -12,6 +12,7 @@
         <item>native</item>
         <item>scaled</item>
         <item>exact</item>
+        <item>custom</item>
     </string-array>
     <string-array name="displayResolution">
         <item>320x200</item>

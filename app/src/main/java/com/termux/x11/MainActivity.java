@@ -50,6 +50,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
+import androidx.preference.EditTextPreference;
 import androidx.viewpager.widget.ViewPager;
 
 import com.termux.x11.utils.FullscreenWorkaround;
@@ -57,6 +58,8 @@ import com.termux.x11.utils.PermissionUtils;
 import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
+
+import java.util.regex.PatternSyntaxException;
 
 
 public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener, TouchParser.OnTouchParseListener {
@@ -475,16 +478,29 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     int h = height;
                     SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
                     switch(preferences.getString("displayResolutionMode", "native")) {
-                        case "scaled":
+                        case "scaled": {
                             int scale = preferences.getInt("displayScale", 100);
-                            w = width  / scale * 100;
+                            w = width / scale * 100;
                             h = height / scale * 100;
                             break;
-                        case "exact":
-                            String[] resolution = preferences.getString("displayResolutionExact", "1024x768").split("x");
+                        }
+                        case "exact": {
+                            String[] resolution = preferences.getString("displayResolutionExact", "1280x1024").split("x");
                             w = Integer.parseInt(resolution[0]);
                             h = Integer.parseInt(resolution[1]);
                             break;
+                        }
+                        case "custom": {
+                            try {
+                                String[] resolution = preferences.getString("displayResolutionCustom", "1280x1024").split("x");
+                                w = Integer.parseInt(resolution[0]);
+                                h = Integer.parseInt(resolution[1]);
+                            } catch (NumberFormatException | PatternSyntaxException ignored) {
+                                w = 1280;
+                                h = 1024;
+                            }
+                            break;
+                        }
                     }
 
                     if (width < height && w > h) {

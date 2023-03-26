@@ -30,9 +30,15 @@
     <ListPreference
         android:title="Display resolution"
         android:key="displayResolutionExact"
-        android:defaultValue="1024x768"
+        android:defaultValue="1280x1024"
         android:entries="@array/displayResolution"
         android:entryValues="@array/displayResolution" />
+
+    <EditTextPreference
+        android:title="Display resolution"
+        android:key="displayResolutionCustom"
+        android:defaultValue="1280x1024"
+        android:summary="Example: 1280x1024" />
     
     <SwitchPreferenceCompat
         android:title="Show IME with external keyboard"

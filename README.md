@@ -44,11 +44,21 @@ You may replace `xfce4-session` if you use other than Xfce
 
 If you're done using Termux:X11 just simply exit it through it's notification drawer by expanding the Termux:X11 notification then "Exit"
 
+### Logs
+If you need to obtain logs from the `com.termux.x11` application,
+set the `TERMUX_X11_DEBUG` environment variable to 1, like this:
+`DISPLAY=:0 TERMUX_X11_DEBUG=1 termux-x11`
+
+The log obtained in this way can be quite long.
+It's better to redirect the output of the command to a file right away.
+
+### Notification
 In Android 13 post notifications was restricted so you should explicitly let Termux:X11 show you notifications.
 <details>
 <summary>Video</summary>
 
-![video](./img/enable-notifications.webm)
+[img_enable-notifications.webm](https://user-images.githubusercontent.com/9674930/227760411-11d440eb-90b8-451e-9024-d5a194d10b16.webm)
+
 </details>
 
 Preferences:

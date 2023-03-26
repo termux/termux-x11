@@ -66,6 +66,13 @@ target_compile_options(ffi PRIVATE "-DHAVE_AS_X86_PCREL" "-DHAVE_AS_ASCII_PSEUDO
 ####################################################################################################
 
 add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/wayland/config.h"
+        COMMAND "touch" "${CMAKE_CURRENT_BINARY_DIR}/wayland/config.h"
+        COMMENT "Generating wayland config header"
+        VERBATIM
+)
+
+add_custom_command(
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-version.h"
         COMMAND "touch" "${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-version.h"
         COMMENT "Generating wayland version header"
@@ -112,6 +119,7 @@ add_custom_command(
         VERBATIM
 )
 
+set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/wayland/config.h" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-version.h" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-server-protocol.c" PROPERTIES GENERATED TRUE)
 set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-server-protocol.h" PROPERTIES GENERATED TRUE)
@@ -122,7 +130,8 @@ set(WAYLAND_SOURCES connection.c event-loop.c wayland-server.c wayland-shm.c way
 list(TRANSFORM WAYLAND_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/wayland/src/)
 add_library(wayland-server STATIC
         ${WAYLAND_SOURCES}
-        ${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-version.h
+        "${CMAKE_CURRENT_BINARY_DIR}/wayland/config.h"
+        "${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-version.h"
         "${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-server-protocol.c"
         "${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-server-protocol.h"
         "${CMAKE_CURRENT_BINARY_DIR}/wayland/xdg-shell-protocol.c"

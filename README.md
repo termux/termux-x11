@@ -13,13 +13,13 @@ Pay attention that it is not a full-fledged Wayland server and it can not handle
 This repo uses submodules. Use 
 
 ```
-    git clone --recurse-submodules https://github.com/termux/termux-x11 
+~ $ git clone --recurse-submodules https://github.com/termux/termux-x11 
 ```
 or
-
 ```
-    git clone https://github.com/termux/termux-x11
-    git submodule update --init --recursive
+~ $ git clone https://github.com/termux/termux-x11
+~ $ cd termux-x11
+~ $ git submodule update --init --recursive
 ```
 
 ## How does it work?
@@ -30,20 +30,64 @@ The wayland sockets is the way for the graphical applications to communicate wit
 ## Setup Instructions
 For this one you must enable the `x11-repo` repository can be done by executing `pkg install x11-repo` command
 
-For X applications to work, you must install Termux-x11 companion package. You can do that by downloading an artifact from [last successful build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml) and installing `*.apk` and `*.deb` files.
+For X applications to work, you must install Termux-x11 companion package. You can do that by downloading an artifact from [last successful build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml) and installing `*.apk` and `*.deb` (if you use termux with `pkg`) or `*.tar.xz` (if you use termux with `pacman`) files.
 
 ## Running Graphical Applications
 to work with GUI applications, start Termux:X11 first. a toast message saying `Service was Created` indicates that it should be ready to use
 
 then you can start your desired graphical application by doing:
 ```
-~ $ export XDG_RUNTIME_DIR=${TMPDIR}
-~ $ termux-x11 :1 &
-~ $ env DISPLAY=:1 xfce4-session
+~ $ XDG_RUNTIME_DIR=${TMPDIR} termux-x11 :1 &
+~ $ env DISPLAY=:1 dbus-launch --exit-with-session xfce4-session
 ```
 You may replace `xfce4-session` if you use other than Xfce
 
 If you're done using Termux:X11 just simply exit it through it's notification drawer by expanding the Termux:X11 notification then "Exit"
+
+In Android 13 post notifications was restricted so you should explicitly let Termux:X11 show you notifications.
+<details>
+<summary>Video</summary>
+
+![video](./img/enable-notifications.webm)
+</details>
+
+Preferences:
+You can access preferences menu three ways:
+<details>
+<summary>By clicking "PREFERENCES" button on main screen when no client connected.</summary>
+
+![image](./img/1.jpg)
+</details>
+<details>
+<summary>By clicking "Preferences" button in notification, if available.</summary>
+
+![image](./img/2.jpg)
+</details>
+<details>
+<summary>By clicking "Preferences" application shortcut (long tap `Termux:X11` icon in launcher). </summary>
+
+![image](./img/3.jpg)
+</details>
+
+## Touch gestures
+### Touchpad emulation mode.
+In touchpad emulation mode you can use the following gestures:
+* Tap for click
+* Double tap for double click
+* Two-finger tap for right click
+* Three-finger tap for middle click
+* Two-finger vertical swipe for vertical scroll
+* Two-finger horizontal swipe for horizontal scroll
+* Three-finger swipe down to show-hide additional keys bar.
+### Mouse emulation mode.
+In touchpad emulation mode you can use the following gestures:
+* Mouse is in click mode as long as you hold finger on a screen.
+* Double tap for double click
+* Two-finger tap for right click
+* Three-finger tap for middle click
+* Two-finger vertical swipe for vertical scroll
+* Two-finger horizontal swipe for horizontal scroll
+* Three-finger swipe down to show-hide additional keys bar.
 
 ## Font or scaling is too big!
 Some apps may have issues with wayland regarding DPI. please see https://wiki.archlinux.org/title/HiDPI on how to override application-specific DPI or scaling.

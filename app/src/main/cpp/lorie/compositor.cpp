@@ -1,105 +1,53 @@
+#include <iostream>
 #include <unistd.h>
-#include <dirent.h>
 #include <fcntl.h>
-#include <jni.h>
 #include <thread>
-#include <cstring>
-#include <cerrno>
-#include <mutex>
-#include <queue>
 #include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/eventfd.h>
 #include <sys/socket.h>
-#include <sys/prctl.h>
-#include <android/native_window_jni.h>
-#include <android/looper.h>
+#include <sys/stat.h>
 #include <android/log.h>
+#include <jni.h>
 
-#include <lorie_wayland_server.hpp>
-#include <wayland-server-protocol.hpp>
-#include <xdg-shell-server-protocol.hpp>
+#include <wayland-server.h>
 
-#define DEFAULT_SOCKET_NAME "termux-x11"
+#include <linux/ioctl.h>
+#include <linux/un.h>
+#include <cassert>
+
+#pragma ide diagnostic ignored "modernize-use-nullptr"
+#pragma ide diagnostic ignored "cert-err58-cpp"
+#pragma ide diagnostic ignored "ConstantParameter"
+#pragma ide diagnostic ignored "EndlessLoop"
+#pragma ide diagnostic ignored "NullDereference"
+#pragma ide diagnostic ignored "ConstantFunctionResult"
+#pragma clang diagnostic ignored "-Wshadow"
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#define DEFAULT_SOCKET_NAME ((char*) "termux-x11")
 #define DEFAULT_SOCKET_PATH "/data/data/com.termux/files/usr/tmp"
 
 #include <android/log.h>
 
-#ifndef LOG_TAG
-#define LOG_TAG "LorieNative"
+#ifndef LOGV
+#define LOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "LorieNative", __VA_ARGS__)
 #endif
 
-#ifndef LOG
-#define LOG(prio, ...) __android_log_print(prio, LOG_TAG, __VA_ARGS__)
+#ifndef LOGE
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "LorieNative", __VA_ARGS__)
 #endif
 
-#define LOGV(...) LOG(ANDROID_LOG_VERBOSE, __VA_ARGS__)
-#define LOGE(...) LOG(ANDROID_LOG_ERROR, __VA_ARGS__)
-
-#pragma ide diagnostic ignored "EndlessLoop"
-#pragma clang diagnostic ignored "-Wshadow"
-
-class lorie_message_queue {
-public:
-    lorie_message_queue() {
-        std::unique_lock<std::mutex> lock(mutex);
-
-        fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-        if (fd == -1) {
-            LOGE("Failed to create socketpair for message queue: %s", strerror(errno));
-            return;
-        }
-    };
-
-    void write(std::function<void()> func) {
-        static uint64_t i = 1;
-        std::unique_lock<std::mutex> lock(mutex);
-        queue.push(std::move(func));
-        ::write(fd, &i, sizeof(uint64_t));
-    };
-
-    static int run(int, uint32_t, void* data) {
-        auto q = reinterpret_cast<lorie_message_queue*>(data);
-        static uint64_t i = 0;
-        std::unique_lock<std::mutex> lock(q->mutex);
-        std::function<void()> fn;
-        ::read(q->fd, &i, sizeof(uint64_t));
-        while(!q->queue.empty()){
-            fn = q->queue.front();
-            q->queue.pop();
-
-            lock.unlock();
-            fn();
-            lock.lock();
-        }
-
-        return 0;
-    };
-
-    int fd;
-private:
-    std::mutex mutex;
-    std::queue<std::function<void()>> queue;
-};
-
-class lorie_compositor: public wayland::display_t {
+class lorie_compositor {
 public:
     explicit lorie_compositor(int dpi);
+    void report_mode(int width, int height, int dpi);
 
-    void report_mode(int width, int height);
-
-    wayland::global_compositor_t global_compositor{this};
-    wayland::global_seat_t global_seat{this};
-    wayland::global_output_t global_output{this};
-    wayland::global_shell_t global_shell{this};
-    wayland::global_xdg_wm_base_t global_xdg_wm_base{this};
-
-    lorie_message_queue queue;
+    wl_display *dpy{};
 
     int dpi;
 };
 
-using namespace wayland;
+static lorie_compositor* compositor{};
+static int display = 0;
+
 
 __asm__ (
         "     .global blob\n"
@@ -141,104 +89,259 @@ os_create_anonymous_file(size_t size) {
     return ret;
 }
 
+struct client_data {
+    wl_resource *touch{};
+    wl_resource *pointer{};
+    wl_resource *output{};
+    wl_resource *shell{};
+} *client_data{};
+
+static inline uint32_t serial(wl_display* dpy) {
+    return wl_display_next_serial(dpy);
+}
+
+static inline uint32_t time() {
+    timespec t = {0};
+    clock_gettime (CLOCK_MONOTONIC, &t);
+    return t.tv_sec * 1000 + t.tv_nsec / 1000000;
+}
+
+int noop_dispatcher(const void*, void *, uint32_t, const wl_message*, wl_argument*) {
+    return 0;
+}
+
+void compositor_bind(wl_client *client, void*, uint32_t version, uint32_t id) {
+    auto comp = wl_resource_create(client, &wl_compositor_interface, std::min(int(version), wl_compositor_interface.version), id);
+    wl_resource_set_dispatcher(comp, [](const void*, void *target, uint32_t opcode, const wl_message*, wl_argument *args) {
+        auto obj = (wl_resource *) target;
+        switch(opcode) { // NOLINT(hicpp-multiway-paths-covered)
+            case 0: { // create_surface
+                auto surface = wl_resource_create(wl_resource_get_client(obj), &wl_surface_interface, wl_surface_interface.version, args[0].n);
+                wl_resource_set_dispatcher(surface, [] (const void*, void *target, uint32_t opcode, const wl_message*, wl_argument *args) {
+                    if (opcode == 0) // destroy
+                        wl_resource_destroy((wl_resource*) target);
+
+                    // We should send frame callback to signal Xwayland that we finished working with buffer.
+                    // We should avoid this because we do not process buffers. Otherways Xwayland will simply send new buffer.
+                    if (opcode == 1 && args[0].o) // attach
+                        wl_buffer_send_release((wl_resource *) args[0].o);
+
+                    return 0;
+                }, &wl_surface_interface, (void *) &wl_surface_interface, nullptr);
+                break;
+            }
+            case 1: { // create_region
+                auto region = wl_resource_create(wl_resource_get_client(obj), &wl_region_interface, wl_region_interface.version, args[0].n);
+                wl_resource_set_dispatcher(region, [] (const void*, void *target, uint32_t opcode, const wl_message*, wl_argument*) {
+                    if (opcode == 0) // destroy
+                        wl_resource_destroy((wl_resource*) target);
+                    return 0;
+                }, &wl_region_interface, (void *) &wl_region_interface, nullptr);
+                break;
+            }
+        }
+        return 0;
+    }, &wl_compositor_interface, (void*) &wl_compositor_interface, nullptr);
+}
+
+void seat_bind(wl_client *client, void*, uint32_t version, uint32_t id) {
+    auto seat = wl_resource_create(client, &wl_seat_interface, std::min(int(version), wl_seat_interface.version), id);
+    wl_resource_set_dispatcher(seat, [](const void*, void *target, uint32_t opcode, const wl_message*, wl_argument *args) {
+        auto obj = (wl_resource *) target;
+        auto client = wl_resource_get_client(obj);
+        switch(opcode) { // NOLINT(hicpp-multiway-paths-covered)
+            case 0: { // get_pointer
+                client_data->pointer = wl_resource_create(client, &wl_pointer_interface, wl_pointer_interface.version, args[0].n);
+                wl_resource_set_dispatcher(client_data->pointer, noop_dispatcher, &wl_pointer_interface, (void*) &wl_pointer_interface, nullptr);
+                break;
+            }
+            case 1: { // get_keyboard
+                auto keyboard = wl_resource_create(client, &wl_keyboard_interface, wl_keyboard_interface.version, args[0].n);
+                wl_resource_set_dispatcher(keyboard, noop_dispatcher, &wl_keyboard_interface, (void*) &wl_keyboard_interface, nullptr);
+
+                int fd = os_create_anonymous_file(blob_size);
+                if (fd == -1) return 0;
+                void *dest = mmap(nullptr, blob_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+                memcpy(dest, blob, blob_size);
+                munmap(dest, blob_size);
+
+                struct stat s = {};
+                fstat(fd, &s);
+
+                wl_keyboard_send_keymap(keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, fd, s.st_size);
+                close (fd);
+                break;
+            }
+            case 2: { // get_touch
+                client_data->touch = wl_resource_create(client, &wl_touch_interface, wl_touch_interface.version, args[0].n);
+                wl_resource_set_dispatcher(client_data->touch, noop_dispatcher, &wl_touch_interface, (void*) &wl_touch_interface, nullptr);
+                break;
+            }
+        }
+        return 0;
+    }, &wl_seat_interface, (void*) &wl_seat_interface, nullptr);
+
+    wl_seat_send_capabilities(seat, WL_SEAT_CAPABILITY_KEYBOARD | WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_TOUCH);
+    wl_seat_send_name(seat, "default");
+}
+
+void output_bind(wl_client *client, void*, uint32_t version, uint32_t id) {
+    client_data->output = wl_resource_create(client, &wl_output_interface, std::min(int(version), wl_output_interface.version), id);
+    wl_resource_set_dispatcher(client_data->output, noop_dispatcher, &wl_compositor_interface, (void*) &wl_compositor_interface, nullptr);
+
+    compositor->report_mode(1280, 1024, compositor->dpi);
+}
+
+void shell_bind(wl_client *client, void*, uint32_t version, uint32_t id) {
+    auto shell = wl_resource_create(client, &wl_shell_interface, std::min(int(version), wl_shell_interface.version), id);
+    wl_resource_set_dispatcher(shell, [](const void*, void *target, uint32_t opcode, const wl_message*, wl_argument *args) {
+        auto obj = (wl_resource *) target;
+        if (opcode == 0) { // get_shell_surface
+            auto shell_surface = wl_resource_create(wl_resource_get_client(obj), &wl_shell_surface_interface, wl_shell_surface_interface.version, args[0].n);
+            wl_resource_set_dispatcher(shell_surface, noop_dispatcher, &wl_shell_surface_interface, (void *) &wl_shell_surface_interface, nullptr);
+            client_data->shell = (wl_resource*) args[1].o;
+            if (client_data->pointer && client_data->shell)
+                wl_pointer_send_enter(client_data->pointer,
+                                      serial(compositor->dpy),
+                                      client_data->shell,
+                                      wl_fixed_from_int(0),
+                                      wl_fixed_from_int(0));
+        }
+        return 0;
+    }, &wl_shell_interface, (void*) &wl_shell_interface, nullptr);
+}
+
+const wl_interface xdg_wm_base_interface = {
+        "xdg_wm_base", 5,
+        4, new const wl_message[] {
+                {"destroy", "", new const wl_interface*[] {}},
+                {"create_positioner", "n", new const wl_interface*[] {0}},
+                {"get_xdg_surface", "no", new const wl_interface*[] {0, 0}},
+                {"pong", "u", new const wl_interface*[] {0}},
+        },
+        1, new const wl_message[] {
+                {"ping", "u", new const wl_interface*[] {0}},
+        }
+};
+const wl_interface xdg_toplevel_interface = {
+        "xdg_toplevel", 5,
+        14, new const wl_message[] {
+                {"destroy", "", new const wl_interface*[] {}},
+                {"set_parent", "?o", new const wl_interface*[] {&xdg_toplevel_interface}},
+                {"set_title", "s", new const wl_interface*[] {0}},
+                {"set_app_id", "s", new const wl_interface*[] {0}},
+                {"show_window_menu", "ouii", new const wl_interface*[] {&wl_seat_interface, 0, 0, 0}},
+                {"move", "ou", new const wl_interface*[] {&wl_seat_interface, 0}},
+                {"resize", "ouu", new const wl_interface*[] {&wl_seat_interface, 0, 0}},
+                {"set_max_size", "ii", new const wl_interface*[] {0, 0}},
+                {"set_min_size", "ii", new const wl_interface*[] {0, 0}},
+                {"set_maximized", "", new const wl_interface*[] {}},
+                {"unset_maximized", "", new const wl_interface*[] {}},
+                {"set_fullscreen", "?o", new const wl_interface*[] {&wl_output_interface}},
+                {"unset_fullscreen", "", new const wl_interface*[] {} },
+                {"set_minimized", "", new const wl_interface*[] {}},
+        },
+        4, new const wl_message[] {
+                { "configure", "iia", new const wl_interface*[] {0, 0, 0}},
+                { "close", "", new const wl_interface*[] {}},
+                { "configure_bounds", "4ii", new const wl_interface*[] {0, 0}},
+                { "wm_capabilities", "5a", new const wl_interface*[] {0}},
+        }
+};
+const wl_interface xdg_surface_interface = {
+        "xdg_surface", 5,
+        5, new const wl_message[] {
+                {"destroy", "", new const wl_interface*[] {}},
+                {"get_toplevel", "n", new const wl_interface*[] {0}},
+                {"get_popup", "n?oo", new const wl_interface*[] {0, 0, 0}},
+                {"set_window_geometry", "iiii", new const wl_interface*[] {0, 0, 0, 0}},
+                {"ack_configure", "u", new const wl_interface*[] {0}},
+        },
+        1, new const wl_message[] {
+                {"configure", "u", new const wl_interface*[] { nullptr,}},
+        }
+};
+
+void wm_base_bind(wl_client *client, void*, uint32_t version, uint32_t id) {
+    auto wm_base = wl_resource_create(client, &xdg_wm_base_interface, std::min(int(version), xdg_wm_base_interface.version), id);
+    wl_resource_set_dispatcher(wm_base, [](const void*, void *target, uint32_t opcode, const wl_message*, wl_argument *args) {
+        auto obj = (wl_resource *) target;
+        if (opcode == 2) { // get_xdg_surface
+            auto xdg_surface = wl_resource_create(wl_resource_get_client(obj), &xdg_surface_interface, xdg_surface_interface.version, args[0].n);
+            wl_resource_set_dispatcher(xdg_surface, [](const void*, void *target, uint32_t opcode, const wl_message*, wl_argument *args) {
+                auto obj = (wl_resource *) target;
+                if (opcode == 1) { // get_toplevel
+                    auto toplevel = wl_resource_create(wl_resource_get_client(obj), &xdg_toplevel_interface, xdg_wm_base_interface.version, args[0].n);
+                    wl_resource_set_dispatcher(toplevel, noop_dispatcher, &xdg_toplevel_interface,(void *) &xdg_toplevel_interface, nullptr);
+                }
+
+                return 0;
+            }, &xdg_surface_interface, (void *) &xdg_surface_interface, nullptr);
+            client_data->shell = (wl_resource*) args[1].o;
+            if (client_data->pointer && client_data->shell)
+                wl_pointer_send_enter(client_data->pointer,
+                                      serial(compositor->dpy),
+                                      client_data->shell,
+                                      wl_fixed_from_int(0),
+                                      wl_fixed_from_int(0));
+        }
+        return 0;
+    }, &xdg_wm_base_interface, (void*) &xdg_wm_base_interface, nullptr);
+}
+
+wl_listener client_destroyed_listener = {{}, [](struct wl_listener *, void *data) {
+    delete client_data;
+    client_data = nullptr;
+}};
+
+wl_listener client_listener = {{}, [](struct wl_listener *, void *data) {
+    auto client = (wl_client*) data;
+    if (client_data != nullptr) {
+        pid_t pid;
+        wl_client_get_credentials(client, &pid, nullptr, nullptr);
+        wl_client_post_implementation_error(client, "You are allowed to connect only one Xwayland client, "
+                                                    "and there is already a connected Xwayland client with PID %d", pid);
+    } else wl_client_add_destroy_listener(client, &client_destroyed_listener);
+
+    client_data = new struct client_data;
+}};
+
 lorie_compositor::lorie_compositor(int dpi): dpi(dpi) {
     // these calls do no overwrite existing values so it is ok.
     setenv("WAYLAND_DISPLAY", DEFAULT_SOCKET_NAME, 0);
     setenv("XDG_RUNTIME_DIR", DEFAULT_SOCKET_PATH, 0);
-
-    // wl_display_add_socket creates socket with name $WAYLAND_DISPLAY in folder $XDG_RUNTIME_DIR
-    wl_display_add_socket(*this, nullptr);
-
-    on_client = [=](client_t* client) {
-        client->on_destroy = [=] {};
-    };
-    global_compositor.on_bind = [=] (client_t*, compositor_t* compositor) {
-        compositor->on_create_region = [](region_t* region) { region->on__destroy = [=] { region->destroy(); }; };
-        compositor->on_create_surface = [=](surface_t* surface) {
-            // We need not to send frame callback. That is a sign for Xwayland to send new buffer
-            surface->on_attach = [=](buffer_t* b, int32_t, int32_t) {
-                // sending WL_BUFFER_RELEASE
-                wl_resource_post_event(*b, 0);
-            };
-            surface->on__destroy = [=] { surface->destroy(); };
-        };
-    };
-    global_seat.on_bind = [=](client_t* client, seat_t* seat) {
-        seat->capabilities (seat_capability::keyboard | seat_capability::pointer);
-        seat->name("default");
-
-        seat->on_get_pointer = [](pointer_t* pointer) { pointer->on_release = [=] { pointer->destroy(); }; };
-        seat->on_get_keyboard = [=](keyboard_t* kbd) {
-            kbd->on_release = [=] { kbd->destroy(); };
-            int fd = os_create_anonymous_file(blob_size);
-            if (fd == -1) return;
-            void *dest = mmap(nullptr, blob_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-            memcpy(dest, blob, blob_size);
-            munmap(dest, blob_size);
-
-            struct stat s = {};
-            fstat(fd, &s);
-
-            kbd->keymap(wayland::keyboard_keymap_format::xkb_v1, fd, s.st_size);
-            close (fd);
-        };
-        seat->on_get_touch = [](touch_t* touch) { touch->on_release = [=] { touch->destroy(); }; };
-    };
-    global_output.on_bind = [=, this](client_t*, output_t* output) {
-        report_mode(800, 600);
-        output->on_release = [=]{ output->destroy(); };
-    };
-    global_shell.on_bind = [](client_t*, shell_t* shell) {
-        shell->on_get_shell_surface = [](shell_surface_t*, surface_t*){};
-    };
-    global_xdg_wm_base.on_bind = [](client_t*, xdg_wm_base_t* wm_base) {
-        wm_base->on_get_xdg_surface = [](xdg_surface_t*, surface_t*) {};
-        wm_base->on__destroy = [=]() { wm_base->destroy(); };
-    };
-
     LOGV("Starting compositor");
-    wl_display_init_shm (*this);
-    wl_event_loop_add_fd(wl_display_get_event_loop(*this), queue.fd,
-                            WL_EVENT_READABLE, &lorie_message_queue::run, &queue);
+    dpy = wl_display_create();
+    // wl_display_add_socket creates socket with name $WAYLAND_DISPLAY in folder $XDG_RUNTIME_DIR
+    wl_display_add_socket(dpy, nullptr);
+    wl_display_add_client_created_listener(dpy, &client_listener);
+    wl_global_create(dpy, &wl_compositor_interface, wl_compositor_interface.version, 0, compositor_bind);
+    wl_global_create(dpy, &wl_seat_interface, wl_seat_interface.version, 0, seat_bind);
+    wl_global_create(dpy, &wl_output_interface, wl_output_interface.version, 0, output_bind);
+    wl_global_create(dpy, &wl_shell_interface, wl_shell_interface.version, 0, shell_bind);
+    wl_global_create(dpy, &xdg_wm_base_interface, xdg_wm_base_interface.version, 0, wm_base_bind);
+
+    wl_display_init_shm (dpy);
 
     // We do not really need to terminate it, user can terminate the whole process.
     std::thread([=]{
-        while (true) {
-            wl_display_flush_clients(*this);
-            wl_event_loop_dispatch(wl_display_get_event_loop(*this), 200);
-        }
+        while (true) wl_display_run(dpy);
     }).detach();
 }
 
-void lorie_compositor::report_mode(int width, int height) {
+void lorie_compositor::report_mode(int width, int height, int dpi) { // NOLINT(readability-convert-member-functions-to-static)
     if (width == 0 || height == 0)
         return;
-    int mm_width  = int(width  * 25.4 / dpi);
-    int mm_height = int(height * 25.4 / dpi);
-    wl_client* client;
-
-    // We do not store any data of clients so just send it to everybody (but only Xwayland is connected);
-    wl_client_for_each(client, wl_display_get_client_list(*this)) {
-        auto data = std::make_tuple(width, height, mm_width, mm_height);
-        // We do not store pointer to that resource, so iterate
-        wl_client_for_each_resource(client, [](wl_resource *r, void *d) {
-            auto [width, height, mm_width, mm_height] = *(reinterpret_cast<decltype(data)*>(d));
-            const wl_interface *output_interface = &wayland::detail::output_interface;
-            if (wl_resource_instance_of(r, output_interface, output_interface)) {
-                auto output = reinterpret_cast<output_t *>(resource_t::get(r));
-                output->geometry(0, 0, mm_width, mm_height, output_subpixel::unknown, "Lorie", "none", output_transform::normal);
-                output->scale(1.0);
-                output->mode(output_mode::current | output_mode::preferred, width, height, 60000);
-                output->done();
-                return WL_ITERATOR_STOP;
-            }
-            return WL_ITERATOR_CONTINUE;
-        }, &data);
+    if (client_data && client_data->output) {
+        int mm_width  = int(width  * 25.4 / dpi);
+        int mm_height = int(height * 25.4 / dpi);
+        wl_output_send_geometry(client_data->output, 0, 0, mm_width, mm_height, 0, "Lorie", "none", 0);
+        wl_output_send_scale(client_data->output, 1.0);
+        wl_output_send_mode(client_data->output, 0x3, width, height, 60000);
+        wl_output_send_done(client_data->output);
+        wl_client_flush(wl_resource_get_client(client_data->output));
     }
 }
-
-static lorie_compositor* compositor{};
-static int display = 0;
 
 extern "C"
 JNIEXPORT void JNICALL
@@ -255,7 +358,7 @@ Java_com_termux_x11_CmdEntryPoint_outputResize([[maybe_unused]] JNIEnv *env,
                                                [[maybe_unused]] jobject thiz,
                                                jint width, jint height) {
     if (compositor)
-        compositor->report_mode(width, height);
+        compositor->report_mode(width, height, compositor->dpi);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -306,7 +409,7 @@ Java_com_termux_x11_CmdEntryPoint_exec(JNIEnv *env, [[maybe_unused]] jclass claz
     int fds[2];
     socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
     fcntl(fds[1], F_SETFD, fcntl(fds[1], F_GETFD) | FD_CLOEXEC);
-    wl_event_loop_add_fd(wl_display_get_event_loop(*compositor), fds[1],
+    wl_event_loop_add_fd(wl_display_get_event_loop(compositor->dpy), fds[1],
                          WL_EVENT_HANGUP | WL_EVENT_ERROR, [](int fd, uint32_t, void* env) {
         dprintf(2, "Xwayland died, no need to go on...\n");
         close(fd);
@@ -351,7 +454,7 @@ Java_com_termux_x11_CmdEntryPoint_connect([[maybe_unused]] JNIEnv *env, [[maybe_
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_termux_x11_CmdEntryPoint_stderr(JNIEnv *env, [[maybe_unused]] jclass clazz) {
+Java_com_termux_x11_CmdEntryPoint_stderr([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jclass clazz) {
     const char *debug = getenv("TERMUX_X11_DEBUG");
     if (debug && !strcmp(debug, "1")) {
         int p[2];
@@ -359,7 +462,7 @@ Java_com_termux_x11_CmdEntryPoint_stderr(JNIEnv *env, [[maybe_unused]] jclass cl
         fchmod(p[1], 0777);
         std::thread([=] {
             char buffer[4096];
-            int len = 0;
+            int len;
             while((len = read(p[0], buffer, 4096)) >=0)
                 write(2, buffer, len);
             close(p[0]);

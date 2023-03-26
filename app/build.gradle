@@ -1,10 +1,7 @@
 apply plugin: 'com.android.application'
-apply from: 'wayland-scanner.gradle'
-
-def waylandOut = project.buildDir.absolutePath + "/wayland"
 
 android {
-    compileSdkVersion 32
+    compileSdkVersion 33
     defaultConfig {
         applicationId "com.termux.x11"
         minSdkVersion 24
@@ -21,7 +18,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments "-DWAYLAND_GENERATED_DIR=${waylandOut}", "-DANDROID_STL=c++_static"
+                arguments "-DANDROID_STL=c++_static"
             }
         }
     }
@@ -78,16 +75,10 @@ task patchWayland {
 tasks.matching { it.name.toLowerCase().contains("ndk") && !it.name.toLowerCase().contains("clean") }
         .all { it.dependsOn(patchWayland) }
 
-wayland {
-    out waylandOut
-    scan "protocol/wayland.xml"
-    scan "protocol/xdg-shell.xml", "wayland"
-}
-
-
 dependencies {
-    implementation "androidx.lifecycle:lifecycle-viewmodel:2.5.1"
-    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.5.1"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.10"
+    implementation "androidx.lifecycle:lifecycle-viewmodel:2.6.1"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.1"
     implementation 'com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava'
     implementation 'com.termux.termux-app:termux-shared:2f5a6f7de6'
     implementation 'com.google.android.material:material:1.8.0'
@@ -99,7 +90,7 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test:runner:1.5.2'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
-    implementation 'androidx.annotation:annotation:1.5.0'
-    implementation 'androidx.drawerlayout:drawerlayout:1.1.1'
+    implementation 'androidx.annotation:annotation:1.6.0'
+    implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
     compileOnly project(':shell-loader:stub')
 }

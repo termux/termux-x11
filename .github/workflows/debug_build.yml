@@ -13,6 +13,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+    - name: Install dependencies
+      run: |
+        sudo apt install -y libarchive-tools libwayland-bin
     - name: Clone repository
       uses: actions/checkout@v3
       with:
@@ -32,9 +35,6 @@ jobs:
     - name: Build
       run: |
         ./gradlew assembleDebug
-    - name: Install libarchive-tools
-      run: |
-        sudo apt install -y libarchive-tools
     - name: Build companion package
       run: |
         ./build_termux_package

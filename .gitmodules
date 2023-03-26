@@ -30,3 +30,9 @@
 	path = app/src/main/cpp/libxkbcommon
 	url = https://github.com/xkbcommon/libxkbcommon
 	ignore = dirty
+[submodule "app/src/main/cpp/libffi"]
+	path = app/src/main/cpp/libffi
+	url = https://android.googlesource.com/platform/external/libffi/
+[submodule "app/src/main/cpp/wayland-protocols"]
+	path = app/src/main/cpp/wayland-protocols
+	url = https://gitlab.freedesktop.org/wayland/wayland-protocols

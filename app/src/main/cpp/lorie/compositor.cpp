@@ -9,6 +9,7 @@
 #include <jni.h>
 
 #include <wayland-server.h>
+#include <xdg-shell-protocol.h>
 
 #include <linux/ioctl.h>
 #include <linux/un.h>
@@ -26,14 +27,8 @@
 #define DEFAULT_SOCKET_PATH "/data/data/com.termux/files/usr/tmp"
 
 #include <android/log.h>
-
-#ifndef LOGV
 #define LOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "LorieNative", __VA_ARGS__)
-#endif
-
-#ifndef LOGE
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "LorieNative", __VA_ARGS__)
-#endif
 
 class lorie_compositor {
 public:
@@ -110,157 +105,119 @@ int noop_dispatcher(const void*, void *, uint32_t, const wl_message*, wl_argumen
     return 0;
 }
 
-void compositor_bind(wl_client *client, void*, uint32_t version, uint32_t id) {
-    auto comp = wl_resource_create(client, &wl_compositor_interface, std::min(int(version), wl_compositor_interface.version), id);
-    wl_resource_set_dispatcher(comp, [](const void*, void *target, uint32_t opcode, const wl_message*, wl_argument *args) {
-        auto obj = (wl_resource *) target;
-        switch(opcode) { // NOLINT(hicpp-multiway-paths-covered)
-            case 0: { // create_surface
-                auto surface = wl_resource_create(wl_resource_get_client(obj), &wl_surface_interface, wl_surface_interface.version, args[0].n);
-                wl_resource_set_dispatcher(surface, [] (const void*, void *target, uint32_t opcode, const wl_message*, wl_argument *args) {
-                    if (opcode == 0) // destroy
-                        wl_resource_destroy((wl_resource*) target);
+void noop() {}
 
-                    // We should send frame callback to signal Xwayland that we finished working with buffer.
-                    // We should avoid this because we do not process buffers. Otherways Xwayland will simply send new buffer.
-                    if (opcode == 1 && args[0].o) // attach
-                        wl_buffer_send_release((wl_resource *) args[0].o);
+struct wl_surface_interface surface_interface = {
+        .destroy = [](wl_client*, wl_resource *resource) {
+            wl_resource_destroy(resource);
+        },
+        .attach = [](wl_client *client, wl_resource*, wl_resource *buffer, int32_t, int32_t) {
+            // We should send frame callback to signal Xwayland that we finished working with buffer.
+            // We should avoid this because we do not process buffers. Otherways Xwayland will simply send new buffer.
+            wl_buffer_send_release(buffer);
+            wl_client_flush(client);
+        },
+        .damage = (decltype(wl_surface_interface::damage)) noop,
+        .frame = (decltype(wl_surface_interface::frame)) noop,
+        .set_opaque_region = (decltype(wl_surface_interface::set_opaque_region)) noop,
+        .set_input_region = (decltype(wl_surface_interface::set_input_region)) noop,
+        .commit = (decltype(wl_surface_interface::commit)) noop,
+        .set_buffer_transform = (decltype(wl_surface_interface::set_buffer_transform)) noop,
+        .set_buffer_scale = (decltype(wl_surface_interface::set_buffer_scale)) noop,
+        .damage_buffer = (decltype(wl_surface_interface::damage_buffer)) noop,
+        .offset = (decltype(wl_surface_interface::offset)) noop,
+};
+struct wl_region_interface region_interface = {
+        .destroy = [](wl_client*, wl_resource *resource) {
+            wl_resource_destroy(resource);
+        },
+        .add = (decltype(wl_region_interface::add)) noop,
+        .subtract = (decltype(wl_region_interface::subtract)) noop,
+};
 
-                    return 0;
-                }, &wl_surface_interface, (void *) &wl_surface_interface, nullptr);
-                break;
-            }
-            case 1: { // create_region
-                auto region = wl_resource_create(wl_resource_get_client(obj), &wl_region_interface, wl_region_interface.version, args[0].n);
-                wl_resource_set_dispatcher(region, [] (const void*, void *target, uint32_t opcode, const wl_message*, wl_argument*) {
-                    if (opcode == 0) // destroy
-                        wl_resource_destroy((wl_resource*) target);
-                    return 0;
-                }, &wl_region_interface, (void *) &wl_region_interface, nullptr);
-                break;
+struct wl_compositor_interface compositor_interface = {
+        .create_surface = [](wl_client *client, wl_resource *resource, uint32_t id) {
+            auto surface = wl_resource_create(client, &wl_surface_interface, wl_surface_interface.version, id);
+            wl_resource_set_implementation(surface, &surface_interface, nullptr, nullptr);
+        },
+        .create_region = [](wl_client *client, wl_resource *resource, uint32_t id) {
+            auto region = wl_resource_create(client, &wl_region_interface, wl_region_interface.version, id);
+            wl_resource_set_implementation(region, &region_interface, nullptr, nullptr);
+        },
+};
+
+struct wl_seat_interface seat_interface = { // NOLINT(cppcoreguidelines-interfaces-global-init)
+        .get_pointer = [](wl_client *client, struct wl_resource *resource, uint32_t id) {
+            client_data->pointer = wl_resource_create(client, &wl_pointer_interface, wl_pointer_interface.version, id);
+            wl_resource_set_dispatcher(client_data->pointer, noop_dispatcher, &wl_pointer_interface, nullptr, nullptr);
+        },
+        .get_keyboard = [](wl_client *client, struct wl_resource *resource, uint32_t id) {
+            auto keyboard = wl_resource_create(client, &wl_keyboard_interface, wl_keyboard_interface.version, id);
+            wl_resource_set_dispatcher(keyboard, noop_dispatcher, &wl_keyboard_interface, (void*) &wl_keyboard_interface, nullptr);
+
+            int fd = os_create_anonymous_file(blob_size);
+            if (fd == -1) return;
+            void *dest = mmap(nullptr, blob_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+            memcpy(dest, blob, blob_size);
+            munmap(dest, blob_size);
+
+            struct stat s = {};
+            fstat(fd, &s);
+
+            wl_keyboard_send_keymap(keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, fd, s.st_size);
+            wl_client_flush(client);
+            close (fd);
+        },
+        .get_touch = [](wl_client *client, struct wl_resource *resource, uint32_t id) {
+            client_data->touch = wl_resource_create(client, &wl_touch_interface, wl_touch_interface.version, id);
+            wl_resource_set_dispatcher(client_data->touch, noop_dispatcher, &wl_touch_interface, nullptr, nullptr);
+        },
+        .release = [](wl_client*, wl_resource *s) {
+            wl_resource_destroy(s);
+        }
+};
+
+struct wl_shell_interface shell_interface = {
+        .get_shell_surface = [] (wl_client *client, wl_resource *resource, uint32_t id, wl_resource *surface) {
+            auto shell_surface = wl_resource_create(client, &wl_shell_surface_interface, wl_shell_surface_interface.version, id);
+            wl_resource_set_dispatcher(shell_surface, noop_dispatcher, &wl_shell_surface_interface, (void *) &wl_shell_surface_interface, nullptr);
+            client_data->shell = surface;
+            if (client_data->pointer && client_data->shell) {
+                wl_pointer_send_enter(client_data->pointer,
+                                      serial(compositor->dpy),
+                                      client_data->shell,
+                                      wl_fixed_from_int(0),
+                                      wl_fixed_from_int(0));
+                wl_client_flush(client);
             }
         }
-        return 0;
-    }, &wl_compositor_interface, (void*) &wl_compositor_interface, nullptr);
+};
+
+void compositor_bind(wl_client *client, void*, uint32_t version, uint32_t id) {
+    auto comp = wl_resource_create(client, &wl_compositor_interface, std::min(int(version), wl_compositor_interface.version), id);
+    wl_resource_set_implementation(comp, &compositor_interface, nullptr, nullptr);
 }
 
 void seat_bind(wl_client *client, void*, uint32_t version, uint32_t id) {
     auto seat = wl_resource_create(client, &wl_seat_interface, std::min(int(version), wl_seat_interface.version), id);
-    wl_resource_set_dispatcher(seat, [](const void*, void *target, uint32_t opcode, const wl_message*, wl_argument *args) {
-        auto obj = (wl_resource *) target;
-        auto client = wl_resource_get_client(obj);
-        switch(opcode) { // NOLINT(hicpp-multiway-paths-covered)
-            case 0: { // get_pointer
-                client_data->pointer = wl_resource_create(client, &wl_pointer_interface, wl_pointer_interface.version, args[0].n);
-                wl_resource_set_dispatcher(client_data->pointer, noop_dispatcher, &wl_pointer_interface, (void*) &wl_pointer_interface, nullptr);
-                break;
-            }
-            case 1: { // get_keyboard
-                auto keyboard = wl_resource_create(client, &wl_keyboard_interface, wl_keyboard_interface.version, args[0].n);
-                wl_resource_set_dispatcher(keyboard, noop_dispatcher, &wl_keyboard_interface, (void*) &wl_keyboard_interface, nullptr);
-
-                int fd = os_create_anonymous_file(blob_size);
-                if (fd == -1) return 0;
-                void *dest = mmap(nullptr, blob_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-                memcpy(dest, blob, blob_size);
-                munmap(dest, blob_size);
-
-                struct stat s = {};
-                fstat(fd, &s);
-
-                wl_keyboard_send_keymap(keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, fd, s.st_size);
-                close (fd);
-                break;
-            }
-            case 2: { // get_touch
-                client_data->touch = wl_resource_create(client, &wl_touch_interface, wl_touch_interface.version, args[0].n);
-                wl_resource_set_dispatcher(client_data->touch, noop_dispatcher, &wl_touch_interface, (void*) &wl_touch_interface, nullptr);
-                break;
-            }
-        }
-        return 0;
-    }, &wl_seat_interface, (void*) &wl_seat_interface, nullptr);
+    wl_resource_set_implementation(seat, &seat_interface, nullptr, nullptr);
 
     wl_seat_send_capabilities(seat, WL_SEAT_CAPABILITY_KEYBOARD | WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_TOUCH);
     wl_seat_send_name(seat, "default");
+    wl_client_flush(client);
 }
 
 void output_bind(wl_client *client, void*, uint32_t version, uint32_t id) {
     client_data->output = wl_resource_create(client, &wl_output_interface, std::min(int(version), wl_output_interface.version), id);
-    wl_resource_set_dispatcher(client_data->output, noop_dispatcher, &wl_compositor_interface, (void*) &wl_compositor_interface, nullptr);
+    wl_resource_set_dispatcher(client_data->output, noop_dispatcher, &wl_compositor_interface, nullptr, nullptr);
 
     compositor->report_mode(1280, 1024, compositor->dpi);
 }
 
 void shell_bind(wl_client *client, void*, uint32_t version, uint32_t id) {
     auto shell = wl_resource_create(client, &wl_shell_interface, std::min(int(version), wl_shell_interface.version), id);
-    wl_resource_set_dispatcher(shell, [](const void*, void *target, uint32_t opcode, const wl_message*, wl_argument *args) {
-        auto obj = (wl_resource *) target;
-        if (opcode == 0) { // get_shell_surface
-            auto shell_surface = wl_resource_create(wl_resource_get_client(obj), &wl_shell_surface_interface, wl_shell_surface_interface.version, args[0].n);
-            wl_resource_set_dispatcher(shell_surface, noop_dispatcher, &wl_shell_surface_interface, (void *) &wl_shell_surface_interface, nullptr);
-            client_data->shell = (wl_resource*) args[1].o;
-            if (client_data->pointer && client_data->shell)
-                wl_pointer_send_enter(client_data->pointer,
-                                      serial(compositor->dpy),
-                                      client_data->shell,
-                                      wl_fixed_from_int(0),
-                                      wl_fixed_from_int(0));
-        }
-        return 0;
-    }, &wl_shell_interface, (void*) &wl_shell_interface, nullptr);
+    wl_resource_set_implementation(shell, &shell_interface, nullptr, nullptr);
 }
-
-const wl_interface xdg_wm_base_interface = {
-        "xdg_wm_base", 5,
-        4, new const wl_message[] {
-                {"destroy", "", new const wl_interface*[] {}},
-                {"create_positioner", "n", new const wl_interface*[] {0}},
-                {"get_xdg_surface", "no", new const wl_interface*[] {0, 0}},
-                {"pong", "u", new const wl_interface*[] {0}},
-        },
-        1, new const wl_message[] {
-                {"ping", "u", new const wl_interface*[] {0}},
-        }
-};
-const wl_interface xdg_toplevel_interface = {
-        "xdg_toplevel", 5,
-        14, new const wl_message[] {
-                {"destroy", "", new const wl_interface*[] {}},
-                {"set_parent", "?o", new const wl_interface*[] {&xdg_toplevel_interface}},
-                {"set_title", "s", new const wl_interface*[] {0}},
-                {"set_app_id", "s", new const wl_interface*[] {0}},
-                {"show_window_menu", "ouii", new const wl_interface*[] {&wl_seat_interface, 0, 0, 0}},
-                {"move", "ou", new const wl_interface*[] {&wl_seat_interface, 0}},
-                {"resize", "ouu", new const wl_interface*[] {&wl_seat_interface, 0, 0}},
-                {"set_max_size", "ii", new const wl_interface*[] {0, 0}},
-                {"set_min_size", "ii", new const wl_interface*[] {0, 0}},
-                {"set_maximized", "", new const wl_interface*[] {}},
-                {"unset_maximized", "", new const wl_interface*[] {}},
-                {"set_fullscreen", "?o", new const wl_interface*[] {&wl_output_interface}},
-                {"unset_fullscreen", "", new const wl_interface*[] {} },
-                {"set_minimized", "", new const wl_interface*[] {}},
-        },
-        4, new const wl_message[] {
-                { "configure", "iia", new const wl_interface*[] {0, 0, 0}},
-                { "close", "", new const wl_interface*[] {}},
-                { "configure_bounds", "4ii", new const wl_interface*[] {0, 0}},
-                { "wm_capabilities", "5a", new const wl_interface*[] {0}},
-        }
-};
-const wl_interface xdg_surface_interface = {
-        "xdg_surface", 5,
-        5, new const wl_message[] {
-                {"destroy", "", new const wl_interface*[] {}},
-                {"get_toplevel", "n", new const wl_interface*[] {0}},
-                {"get_popup", "n?oo", new const wl_interface*[] {0, 0, 0}},
-                {"set_window_geometry", "iiii", new const wl_interface*[] {0, 0, 0, 0}},
-                {"ack_configure", "u", new const wl_interface*[] {0}},
-        },
-        1, new const wl_message[] {
-                {"configure", "u", new const wl_interface*[] { nullptr,}},
-        }
-};
 
 void wm_base_bind(wl_client *client, void*, uint32_t version, uint32_t id) {
     auto wm_base = wl_resource_create(client, &xdg_wm_base_interface, std::min(int(version), xdg_wm_base_interface.version), id);
@@ -278,12 +235,15 @@ void wm_base_bind(wl_client *client, void*, uint32_t version, uint32_t id) {
                 return 0;
             }, &xdg_surface_interface, (void *) &xdg_surface_interface, nullptr);
             client_data->shell = (wl_resource*) args[1].o;
-            if (client_data->pointer && client_data->shell)
+            if (client_data->pointer && client_data->shell) {
                 wl_pointer_send_enter(client_data->pointer,
                                       serial(compositor->dpy),
                                       client_data->shell,
                                       wl_fixed_from_int(0),
                                       wl_fixed_from_int(0));
+
+                wl_client_flush(wl_resource_get_client(client_data->pointer));
+            }
         }
         return 0;
     }, &xdg_wm_base_interface, (void*) &xdg_wm_base_interface, nullptr);
@@ -324,9 +284,7 @@ lorie_compositor::lorie_compositor(int dpi): dpi(dpi) {
     wl_display_init_shm (dpy);
 
     // We do not really need to terminate it, user can terminate the whole process.
-    std::thread([=]{
-        while (true) wl_display_run(dpy);
-    }).detach();
+    std::thread(wl_display_run, dpy).detach();
 }
 
 void lorie_compositor::report_mode(int width, int height, int dpi) { // NOLINT(readability-convert-member-functions-to-static)

@@ -1,17 +1,142 @@
 cmake_minimum_required(VERSION 3.22)
 project(lorie)
 set(CMAKE_CXX_STANDARD 20)
+set(can_use_assembler TRUE)
+enable_language(ASM)
 
 find_package(Python3 REQUIRED)
+
+####################################################################################################
+########################################### LIBFFI #################################################
+####################################################################################################
+
+# libffi is cloned from https://android.googlesource.com/platform/external/libffi/, not from upstream repo
+
+add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/ffi_gen.h"
+        COMMAND "/bin/bash" "${CMAKE_CURRENT_SOURCE_DIR}/libffi/gen_ffi_header.sh"
+            "<" "${CMAKE_CURRENT_SOURCE_DIR}/libffi/include/ffi.h.in"
+            ">" "${CMAKE_CURRENT_BINARY_DIR}/generated/ffi_gen.h"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/libffi/include/ffi.h.in"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated"
+        COMMENT "Generating ffi header"
+        VERBATIM
+)
+set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/generated/ffi_gen.h" PROPERTIES GENERATED TRUE)
+set(FFI_SOURCES
+        closures.c
+        debug.c
+        prep_cif.c
+        raw_api.c
+        types.c)
+
+if (${CMAKE_ANDROID_ARCH_ABI} STREQUAL "armeabi-v7a")
+    set(FFI_SOURCES ${FFI_SOURCES}
+            arm/sysv.S
+            arm/ffi.c)
+    set(FFI_EXPORT_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/libffi/linux-arm)
+elseif(${CMAKE_ANDROID_ARCH_ABI} STREQUAL "arm64-v8a")
+    set(FFI_SOURCES ${FFI_SOURCES}
+            aarch64/sysv.S
+            aarch64/ffi.c)
+    set(FFI_EXPORT_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/libffi/linux-arm64)
+elseif(${CMAKE_ANDROID_ARCH_ABI} STREQUAL "x86")
+    set(FFI_SOURCES ${FFI_SOURCES}
+            x86/sysv.S
+            x86/ffi.c)
+    set(FFI_EXPORT_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/libffi/linux-x86)
+elseif(${CMAKE_ANDROID_ARCH_ABI} STREQUAL "x86_64")
+    set(FFI_SOURCES ${FFI_SOURCES}
+            x86/unix64.S
+            x86/win64.S
+            x86/ffi64.c
+            x86/ffiw64.c)
+    set(FFI_EXPORT_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/libffi/linux-x86_64)
+else()
+    message(SEND_ERROR "ABI ${CMAKE_ANDROID_ARCH_ABI} is not supported")
+endif()
+
+list(TRANSFORM FFI_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/libffi/src/)
+add_library(ffi SHARED ${FFI_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/generated/ffi_gen.h")
+target_include_directories(ffi PUBLIC ${FFI_EXPORT_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/libffi/include)
+target_compile_options(ffi PRIVATE "-DHAVE_AS_X86_PCREL" "-DHAVE_AS_ASCII_PSEUDO_OP")
 
 ####################################################################################################
 ######################################### LIBWAYLAND ###############################################
 ####################################################################################################
 
-set(WAYLAND_SOURCES connection.c event-loop.c wayland-protocol.c wayland-server.c wayland-shm.c wayland-os.c wayland-util.c)
+add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-version.h"
+        COMMAND "touch" "${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-version.h"
+        COMMENT "Generating wayland version header"
+        VERBATIM
+)
+
+add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-server-protocol.c"
+        COMMAND "wayland-scanner" "private-code"
+        "${CMAKE_CURRENT_SOURCE_DIR}/wayland/protocol/wayland.xml"
+        "${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-server-protocol.c"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/wayland/protocol/wayland.xml"
+        COMMENT "Generating wayland core protocol source"
+        VERBATIM
+)
+
+add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-server-protocol.h"
+        COMMAND "wayland-scanner" "server-header"
+        "${CMAKE_CURRENT_SOURCE_DIR}/wayland/protocol/wayland.xml"
+        "${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-server-protocol.h"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/wayland/protocol/wayland.xml"
+        COMMENT "Generating wayland core protocol header"
+        VERBATIM
+)
+
+add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/wayland/xdg-shell-protocol.c"
+        COMMAND "wayland-scanner" "private-code"
+            "${CMAKE_CURRENT_SOURCE_DIR}/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
+            "${CMAKE_CURRENT_BINARY_DIR}/wayland/xdg-shell-protocol.c"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
+        COMMENT "Generating xdg shell protocol source"
+        VERBATIM
+)
+
+add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/wayland/xdg-shell-protocol.h"
+        COMMAND "wayland-scanner" "server-header"
+            "${CMAKE_CURRENT_SOURCE_DIR}/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
+            "${CMAKE_CURRENT_BINARY_DIR}/wayland/xdg-shell-protocol.h"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
+        COMMENT "Generating xdg shell protocol header"
+        VERBATIM
+)
+
+set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-version.h" PROPERTIES GENERATED TRUE)
+set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-server-protocol.c" PROPERTIES GENERATED TRUE)
+set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-server-protocol.h" PROPERTIES GENERATED TRUE)
+set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/wayland/xdg-shell-protocol.c" PROPERTIES GENERATED TRUE)
+set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/wayland/xdg-shell-protocol.h" PROPERTIES GENERATED TRUE)
+
+set(WAYLAND_SOURCES connection.c event-loop.c wayland-server.c wayland-shm.c wayland-os.c wayland-util.c)
 list(TRANSFORM WAYLAND_SOURCES PREPEND ${CMAKE_CURRENT_SOURCE_DIR}/wayland/src/)
-add_library(wayland-server STATIC ${WAYLAND_SOURCES})
-target_include_directories(wayland-server PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/wayland ${CMAKE_CURRENT_SOURCE_DIR}/wayland/src)
+add_library(wayland-server STATIC
+        ${WAYLAND_SOURCES}
+        ${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-version.h
+        "${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-server-protocol.c"
+        "${CMAKE_CURRENT_BINARY_DIR}/wayland/wayland-server-protocol.h"
+        "${CMAKE_CURRENT_BINARY_DIR}/wayland/xdg-shell-protocol.c"
+        "${CMAKE_CURRENT_BINARY_DIR}/wayland/xdg-shell-protocol.h")
+target_link_libraries(wayland-server ffi)
+target_compile_options(wayland-server PUBLIC
+        "-DWAYLAND_VERSION_MAJOR=1"
+        "-DWAYLAND_VERSION_MINOR=21"
+        "-DWAYLAND_VERSION_MICRO=0"
+        "-DWAYLAND_VERSION=\"1.21.0\"")
+target_include_directories(wayland-server PUBLIC
+        ${CMAKE_CURRENT_BINARY_DIR}/wayland
+        ${CMAKE_CURRENT_SOURCE_DIR}/wayland
+        ${CMAKE_CURRENT_SOURCE_DIR}/wayland/src)
 
 # Nothing special here, only generating xcb headers and building xcb...
 

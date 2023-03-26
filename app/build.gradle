@@ -66,16 +66,8 @@ android {
     }
 }
 
-task patchWayland {
-    println("Patch can fail here, it is normal if a patch was already applied")
-    ant.patch(patchfile: "${project.projectDir}/src/main/cpp/wayland.patch", dir: "${project.projectDir}/src/main/cpp/wayland/src", failonerror:false)
-    ant.patch(patchfile: "${project.projectDir}/src/main/cpp/wayland2.patch", dir: "${project.projectDir}/src/main/cpp/wayland", failonerror:false)
-}
-
-tasks.matching { it.name.toLowerCase().contains("ndk") && !it.name.toLowerCase().contains("clean") }
-        .all { it.dependsOn(patchWayland) }
-
 dependencies {
+    //noinspection DifferentStdlibGradleVersion
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.10"
     implementation "androidx.lifecycle:lifecycle-viewmodel:2.6.1"
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.1"

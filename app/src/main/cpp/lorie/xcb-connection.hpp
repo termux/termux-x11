@@ -150,6 +150,7 @@ public:
         }
     } damage {*this};
 
+#if 0
     struct {
         xcb_connection& self;
         i32 opcode{};
@@ -195,6 +196,7 @@ public:
             return ev->response_type == XCB_GE_GENERIC && /* cookie */ ge->pad0 == opcode && ge->event_type == XCB_INPUT_RAW_MOTION;
         }
     } input {*this};
+#endif
 
     struct {
         xcb_connection& self;
@@ -549,6 +551,7 @@ public:
             return end;
         }
 
+#if 0
         void create_mode(const char* name, int new_width, int new_height) {
             bool is_temporary = strcmp(name, temporary_name) == 0;
             if (!is_temporary && get_id_for_mode(name).name_len)
@@ -593,6 +596,7 @@ public:
         }
 
         void switch_to_mode(const char *name) {
+#if 0
             xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
             xcb_randr_mode_t mode_id = XCB_NONE;
             xcb_randr_crtc_t crtc = xcb_randr_get_screen_resources_current_crtcs(res)[0];
@@ -618,9 +622,11 @@ public:
             xcb(randr_set_crtc_config, crtc, XCB_CURRENT_TIME,
                                 res->config_timestamp, 0, 0, mode_id, XCB_RANDR_ROTATION_ROTATE_0, noutput, outputs);
             self.handle_error("Error setting XRANDR crtc config");
+#endif
         };
 
         void update_resolution() {
+#if 0
             if (self.conn && width && height) {
                 xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(self.conn)).data;
 
@@ -649,8 +655,9 @@ public:
                 xcb_check(ungrab_server_checked);
                 self.handle_error("Failed to ungrab server");
             }
+#endif
         }
-
+#endif
         void init() {
             {
                 auto reply = xcb(randr_query_version, 1, 6);
@@ -658,7 +665,7 @@ public:
                 free(reply);
             }
 
-            update_resolution();
+//            update_resolution();
         }
     } randr {*this};
 
@@ -723,7 +730,7 @@ public:
         shm.init();
         xtest.init();
         damage.init();
-        input.init();
+//        input.init();
         fixes.init();
         xkb.init();
         randr.init();

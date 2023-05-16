@@ -1,7 +1,6 @@
 package com.termux.x11;
 
 import static com.termux.x11.CmdEntryPoint.ACTION_START;
-import static com.termux.x11.CmdEntryPoint.requestConnection;
 import static com.termux.x11.LoriePreferences.ACTION_PREFERENCES_CHANGED;
 
 import android.annotation.SuppressLint;
@@ -18,6 +17,10 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.PointF;
 import android.graphics.Rect;
@@ -33,7 +36,6 @@ import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.PointerIcon;
-import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -44,15 +46,18 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
-import androidx.preference.EditTextPreference;
 import androidx.viewpager.widget.ViewPager;
 
+import com.termux.x11.input.Event;
+import com.termux.x11.input.InputEventSender;
+import com.termux.x11.input.InputStub;
+import com.termux.x11.input.RenderStub;
+import com.termux.x11.input.SizeChangedEventParameter;
+import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.FullscreenWorkaround;
 import com.termux.x11.utils.PermissionUtils;
 import com.termux.x11.utils.SamsungDexUtils;
@@ -61,7 +66,7 @@ import com.termux.x11.utils.X11ToolbarViewPager;
 
 import java.util.regex.PatternSyntaxException;
 
-
+@SuppressWarnings({"deprecation", "unused"})
 public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener, TouchParser.OnTouchParseListener {
     static final String ACTION_STOP = "com.termux.x11.ACTION_STOP";
     static final String REQUEST_LAUNCH_EXTERNAL_DISPLAY = "request_launch_external_display";
@@ -69,7 +74,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public static final int KeyRelease = 3; // synchronized with X.h
 
     FrameLayout frm;
-    private TouchParser mTP;
+//    private TouchParser mTP;
+    private TouchInputHandler mTouchHandler;
     private final ServiceEventListener listener = new ServiceEventListener();
     private ICmdEntryInterface service = null;
     public TermuxX11ExtraKeys mExtraKeys;
@@ -79,11 +85,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     NotificationManager mNotificationManager;
     private boolean mClientConnected = false;
     private SurfaceHolder.Callback mLorieViewCallback;
-    private PointF mDpi;
-
-    public MainActivity() {
-        init();
-    }
 
     @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt"}) @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -98,7 +99,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         DisplayMetrics dm = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(dm);
-        mDpi = new PointF(dm.xdpi, dm.ydpi);
 
         //kbd = findViewById(R.id.additionalKbd);
         frm = findViewById(R.id.frame);
@@ -110,23 +110,98 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         });
 
         SurfaceView lorieView = findViewById(R.id.lorieView);
-        SurfaceView cursorView = findViewById(R.id.cursorView);
 
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(1, 1);
-        cursorView.setLayoutParams(params);
+        mTouchHandler = new TouchInputHandler(this, new RenderStub() {
 
-        listener.setAsListenerTo(lorieView, cursorView);
+//        mTP = new TouchParser(lorieView, this);
+            @Override
+            public void showInputFeedback(int feedbackToShow, PointF pos) {
+                Log.d("LorieRenderStub", "showInputFeedback");
+            }
 
-        mTP = new TouchParser(lorieView, this);
+            @Override
+            public void setTransformation(Matrix matrix) {
+                Log.d("LorieRenderStub", "setTransformation");
+            }
+
+            @Override
+            public void moveCursor(PointF pos) {}
+
+            @Override
+            public void swipeUp() {
+
+            }
+
+            @Override
+            public void swipeDown() {
+                toggleExtraKeys();
+            }
+
+            @Override
+            public void setCursorVisibility(boolean visible) {
+                Log.d("LorieRenderStub", "setCursorVisibility");
+            }
+
+            final Event<SizeChangedEventParameter> mOnClientSizeChanged = new Event<>();
+            final Event<SizeChangedEventParameter> mOnHostSizeChanged = new Event<>();
+            final Event<Void> mOnCanvasRendered = new Event<>();
+
+            @Override
+            public Event<SizeChangedEventParameter> onClientSizeChanged() {
+                Log.d("LorieRenderStub", "onClientSizeChanged");
+                return mOnClientSizeChanged;
+            }
+
+            @Override
+            public Event<SizeChangedEventParameter> onHostSizeChanged() {
+                Log.d("LorieRenderStub", "onHostSizeChanged");
+                return mOnHostSizeChanged;
+            }
+
+            @Override
+            public Event<Void> onCanvasRendered() {
+                Log.d("LorieRenderStub", "onCanvasRendered");
+                return mOnCanvasRendered;
+            }
+        }, new InputEventSender(new InputStub() {
+            @Override
+            public void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown) {
+                Log.d("LorieInputStub", "sendMouseEvent");
+                MainActivity.this.sendMouseEvent(x, y, whichButton, buttonDown);
+            }
+
+            @Override
+            public void sendMouseWheelEvent(int deltaX, int deltaY) {
+                Log.d("LorieInputStub", "sendMouseWheelEvent " + deltaX + "x" + deltaY);
+                MainActivity.this.sendMouseEvent(deltaX, deltaY, BUTTON_SCROLL, false);
+            }
+
+            @Override
+            public boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown) {
+                Log.d("LorieInputStub", "sendKeyEvent");
+                return false;
+            }
+
+            @Override
+            public void sendTextEvent(String text) {
+                Log.d("LorieInputStub", "sendTextEvent");
+            }
+
+            @Override
+            public void sendTouchEvent(int eventType, Object[] data) {
+                Log.d("LorieInputStub", "sendTouchEvent");
+            }
+        }));
+//        mTouchHandler.setInputMode(TouchInputHandler.InputMode.SIMULATED_TOUCH);
+        mTouchHandler.setInputMode(TouchInputHandler.InputMode.TRACKPAD);
+        mTouchHandler.handleClientSizeChanged(800, 600);
+
+        listener.setAsListenerTo(lorieView);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
             getWindow().
              getDecorView().
               setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
-
-        IntentFilter filter = new IntentFilter(ACTION_START);
-        filter.addAction(ACTION_PREFERENCES_CHANGED);
-        filter.addAction(ACTION_STOP);
 
         registerReceiver(new BroadcastReceiver() {
             @Override
@@ -151,17 +226,21 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     onPreferencesChanged();
                 }
             }
-        }, filter);
+        }, new IntentFilter(ACTION_START) {{
+            addAction(ACTION_PREFERENCES_CHANGED);
+            addAction(ACTION_STOP);
+        }});
 
         // Taken from Stackoverflow answer https://stackoverflow.com/questions/7417123/android-how-to-adjust-layout-in-full-screen-mode-when-softkeyboard-is-visible/7509285#
         FullscreenWorkaround.assistActivity(this);
         mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         mNotification = buildNotification();
 
-        requestConnection();
+        CmdEntryPoint.requestConnection();
         onPreferencesChanged();
 
         toggleExtraKeys(false);
+//        clientConnectedStateChanged(true);
     }
 
     void onReceiveConnection() {
@@ -191,6 +270,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 SurfaceView lorieView = getLorieView();
                 Rect r = lorieView.getHolder().getSurfaceFrame();
                 mLorieViewCallback.surfaceChanged(lorieView.getHolder(), PixelFormat.RGBA_8888, r.width(), r.height());
+                clientConnectedStateChanged(true);
             } else
                 handler.postDelayed(this::tryConnect, 500);
         } catch (Exception e) {
@@ -201,8 +281,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     void onPreferencesChanged() {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
-        int mode = Integer.parseInt(preferences.getString("touchMode", "1"));
-        mTP.setMode(mode);
+//        int mode = Integer.parseInt(preferences.getString("touchMode", "1"));
+//        mTP.setMode(mode);
 
         if (preferences.getBoolean("dexMetaKeyCapture", false)) {
             SamsungDexUtils.dexMetaKeyCapture(this, false);
@@ -210,12 +290,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         setTerminalToolbarView();
         onWindowFocusChanged(true);
-        setHorizontalScrollEnabled(preferences.getBoolean("horizontalScroll", false));
-        setClipboardSyncEnabled(preferences.getBoolean("clipboardSync", false));
+//        setClipboardSyncEnabled(preferences.getBoolean("clipboardSync", false));
 
         SurfaceView lorieView = getLorieView();
-        Rect r = lorieView.getHolder().getSurfaceFrame();
-        mLorieViewCallback.surfaceChanged(lorieView.getHolder(), PixelFormat.RGBA_8888, r.width(), r.height());
         lorieView.setFocusable(true);
         lorieView.setFocusableInTouchMode(true);
         lorieView.requestFocus();
@@ -224,7 +301,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @Override
     public void onResume() {
         super.onResume();
-        nativeResume();
+//        nativeResume();
 
         mNotificationManager.notify(mNotificationId, mNotification);
 
@@ -237,7 +314,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         mNotificationManager.cancel(mNotificationId);
 
         // We do not really need to draw while application is in background.
-        nativePause();
+//        nativePause();
         super.onPause();
     }
 
@@ -347,7 +424,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 .build();
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private String getNotificationChannel(NotificationManager notificationManager){
         String channelId = getResources().getString(R.string.app_name);
         String channelName = getResources().getString(R.string.app_name);
@@ -433,9 +509,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         toggleExtraKeys(!isInPictureInPictureMode);
 
         frm.setPadding(0, 0, 0, 0);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
-        }
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
     }
 
     @SuppressLint("WrongConstant")
@@ -450,33 +524,24 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @SuppressWarnings("SameParameterValue")
     private class ServiceEventListener implements View.OnKeyListener {
         @SuppressLint({"WrongConstant", "ClickableViewAccessibility"})
-        private void setAsListenerTo(SurfaceView view, SurfaceView cursor) {
-            view.setOnTouchListener((v, e) -> mTP.onTouchEvent(e));
-            view.setOnHoverListener((v, e) -> mTP.onTouchEvent(e));
-            view.setOnGenericMotionListener((v, e) -> mTP.onTouchEvent(e));
+        private void setAsListenerTo(SurfaceView view) {
+//            view.setOnTouchListener((v, e) -> mTP.onTouchEvent(e));
+//            view.setOnHoverListener((v, e) -> mTP.onTouchEvent(e));
+//            view.setOnGenericMotionListener((v, e) -> mTP.onTouchEvent(e));
+            view.setOnTouchListener((v, e) -> mTouchHandler.handleTouchEvent(e));
+            view.setOnHoverListener((v, e) -> mTouchHandler.handleTouchEvent(e));
+            view.setOnGenericMotionListener((v, e) -> mTouchHandler.handleTouchEvent(e));
             view.setOnKeyListener(this);
-
-            cursor.getHolder().addCallback(new SurfaceHolder.Callback() {
-                @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
-                    cursor.getHolder().setFormat(PixelFormat.TRANSLUCENT);
-                }
-                @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int w, int h) {
-                    cursor.getHolder().setFormat(PixelFormat.TRANSLUCENT);
-                    cursorChanged(holder.getSurface());
-                }
-                @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
-                    cursorChanged(null);
-                }
-            });
 
             mLorieViewCallback = new SurfaceHolder.Callback() {
                 @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
                     holder.setFormat(PixelFormat.OPAQUE);
                 }
                 @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int width, int height) {
+                    SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
                     int w = width;
                     int h = height;
-                    SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
+                    int dpi = Integer.parseInt(preferences.getString("displayDensity", "120"));
                     switch(preferences.getString("displayResolutionMode", "native")) {
                         case "scaled": {
                             int scale = preferences.getInt("displayScale", 100);
@@ -509,17 +574,27 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         h = temp;
                     }
 
-                    windowChanged(holder.getSurface(), w, h, width, height);
+                    mTouchHandler.handleClientSizeChanged(width, height);
+                    mTouchHandler.handleHostSizeChanged(w, h);
+
+                    sendWindowChange(w, h, dpi);
+
                     if (service != null) {
                         try {
-                            service.outputResize(w, h);
+                            service.windowChanged(holder.getSurface());
                         } catch (RemoteException e) {
                             e.printStackTrace();
                         }
                     }
                 }
                 @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
-                    windowChanged(null, 0, 0, 0, 0);
+                    if (service != null) {
+                        try {
+                            service.windowChanged(holder.getSurface());
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+                    }
                 }
             };
 
@@ -576,16 +651,16 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
              * will not return 0 symbol for non-English keyboard layouts, keycode also will be set to 0,
              * action will be set to KeyEvent.ACTION_MULTIPLE and the symbol data can only be retrieved
              * by calling the KeyEvent::getCharacters() method.
-             *
+
              * For special keys like Tab and Return, both the key code and Unicode symbol are set in
              * the KeyEvent object. However, this is not the case for all keys, so to determine whether
              * a key is special or not, we will rely only on the keycode value.
-             *
+
              * Android sends emulated Shift key press event along with some key events.
              * Since we cannot determine the event source from JNI, we ignore the emulated Shift
              * key press in JNI. In this case, it becomes much easier to handle Shift key press events
              * coming from a physical keyboard or ExtraKeysView.
-             *
+
              * To avoid handling modifier states we will simply ignore modifier keys and
              * ACTION_DOWN if they come from soft keyboard.
              *
@@ -645,7 +720,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
     }
 
-    @SuppressWarnings("unused")
+    @SuppressWarnings("SameParameterValue")
     // It is used in native code
     void clientConnectedStateChanged(boolean connected) {
         runOnUiThread(()-> {
@@ -653,46 +728,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             toggleExtraKeys(connected);
             findViewById(R.id.stub).setVisibility(connected?View.INVISIBLE:View.VISIBLE);
             findViewById(R.id.lorieView).setVisibility(connected?View.VISIBLE:View.INVISIBLE);
-            findViewById(R.id.cursorView).setVisibility(connected?View.VISIBLE:View.INVISIBLE);
 
-            // We should recover connectin in the case if file descriptor for some reason was broken...
+            // We should recover connection in the case if file descriptor for some reason was broken...
             if (!connected)
                 tryConnect();
         });
     }
 
-    @SuppressWarnings("unused")
-    // It is used in native code
-    void setCursorVisibility(boolean visible) {
-        View cursor = findViewById(R.id.cursorView);
-        int visibility = visible?View.VISIBLE:View.INVISIBLE;
-        if (cursor.getVisibility() != visibility)
-            runOnUiThread(()-> findViewById(R.id.cursorView).setVisibility(visibility));
-    }
-
-    @SuppressWarnings("unused")
-    // It is used in native code
-    void setCursorCoordinates(int x, int y) {
-        mTP.setCursorCoordinates(x, y);
-    }
-
-    @SuppressWarnings("unused")
-    // It is used in native code
-    void moveCursorRect(int x, int y, int w, int h) {
-        runOnUiThread(()-> {
-            SurfaceView v = findViewById(R.id.cursorView);
-            //int W = (int) (w * mDpi.x / 120);
-            //int H = (int) (h * mDpi.y / 120);
-            //Log.v("cursor", "w " + W + " h " + H + " dpix " + mDpi.x + " dpiy " + mDpi.y);
-            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(w, h);
-            params.setMargins(x, y, 0, 0);
-
-            v.setLayoutParams(params);
-            v.setVisibility(View.VISIBLE);
-        });
-    }
-
-    @SuppressWarnings("unused")
     // It is used in native code
     void setClipboardText(String text) {
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
@@ -701,24 +743,44 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     public static Handler handler = new Handler();
 
-    private native void init();
     private native void connect(int fd);
-    private native void cursorChanged(Surface surface);
-    private native void windowChanged(Surface surface, int width, int height, int realWidth, int realHeight);
-    public native void onPointerMotion(int x, int y);
-    public native void onPointerScroll(int axis, float value);
-
-    public native void onPointerButton(int button, int type);
-    public native void onKeySym(int keyCode, int unicode, int metaState);
-    public native void onKey(int keyCode, int type);
-    private native void nativeResume();
-    private native void nativePause();
-
     private native void startLogcat(int fd);
-    private native void setHorizontalScrollEnabled(boolean enabled);
-    private native void setClipboardSyncEnabled(boolean enabled);
+    private native void sendWindowChange(int width, int height, int dpi);
+    private native void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown);
+
+//    private native void init();
+//    public native void onPointerMotion(int x, int y);
+//    public native void onPointerScroll(int axis, float value);
+//    public native void onPointerButton(int button, int type);
+//    public native void onKeySym(int keyCode, int unicode, int metaState);
+//    public native void onKey(int keyCode, int type);
+//
+//    private native void setClipboardSyncEnabled(boolean enabled);
+
+    @Override
+    public void onPointerButton(int button, int state) {
+
+    }
+
+    @Override
+    public void onPointerMotion(int x, int y) {
+
+    }
+
+    @Override
+    public void onPointerScroll(int axis, float value) {
+
+    }
+
+    public void onKey(int keyCode, int type) {
+
+    }
+
+    public void onKeySym(int keyCode, int unicode, int metaState) {
+
+    }
 
     static {
-        System.loadLibrary("lorie");
+        System.loadLibrary("Xlorie");
     }
 }

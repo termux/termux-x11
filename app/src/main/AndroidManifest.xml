@@ -2,8 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     package="com.termux.x11"
-    android:installLocation="internalOnly"
-    >
+    android:installLocation="internalOnly">
 
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -19,6 +18,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
+        android:hardwareAccelerated="true"
         tools:ignore="GoogleAppIndexingWarning">
         <activity
             android:name=".MainActivity"
@@ -55,8 +55,21 @@
             android:taskAffinity=".GettingStartedActivity"
             android:theme="@style/Theme.BaseActivity.DayNight.NoActionBar"
             android:exported="true" />
-	<meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true"/>
-	<meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />
+	    <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true"/>
+	    <meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />
+
+        <!-- These two entries are needed only to start X server with Android studio debugger -->
+        <service
+            android:name="com.termux.x11.CmdEntryPoint$ForegroundService"
+            android:enabled="true"
+            android:exported="true"
+            tools:ignore="ExportedService"
+            android:process=":loader" />
+        <activity
+            android:name="com.termux.x11.CmdEntryPoint$FakeLoader"
+            android:exported="true"
+            android:theme="@android:style/Theme.Dialog"
+            android:process=":loader" />
     </application>
     <queries>
         <package android:name="com.termux" />

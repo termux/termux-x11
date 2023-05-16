@@ -39,6 +39,11 @@
         android:key="displayResolutionCustom"
         android:defaultValue="1280x1024"
         android:summary="Example: 1280x1024" />
+
+    <EditTextPreference
+        android:title="Display density (DPI)"
+        android:key="displayDensity"
+        android:defaultValue="120"/>
     
     <SwitchPreferenceCompat
         android:title="Show IME with external keyboard"

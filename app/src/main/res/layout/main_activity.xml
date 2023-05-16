@@ -22,14 +22,6 @@
 			android:layout_height="match_parent"
 			android:visibility="visible" />
 
-		<SurfaceView
-			android:id="@+id/cursorView"
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content"
-			android:layout_gravity="left|top"
-			android:visibility="invisible"
-			tools:ignore="RtlHardcoded" />
-
 		<LinearLayout
 			android:id="@+id/stub"
 			android:layout_width="match_parent"
@@ -46,7 +38,8 @@
 				android:minWidth="100sp"
 				android:minHeight="100sp"
 				android:scaleType="fitCenter"
-				app:srcCompat="@drawable/ic_x11_icon" />
+				app:srcCompat="@drawable/ic_x11_icon"
+				android:contentDescription="X Logo" />
 
 			<Space
 				android:layout_width="match_parent"

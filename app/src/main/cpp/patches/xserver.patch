@@ -1,0 +1,80 @@
+diff --git a/dix/main.c b/dix/main.c
+index bfc8add..db68158 100644
+--- a/dix/main.c
++++ b/dix/main.c
+@@ -351,6 +351,9 @@ dix_main(int argc, char *argv[], char *envp[])
+             break;
+         }
+ 
++        if (!ddxReset())
++            break;
++
+         free(ConnectionInfo);
+         ConnectionInfo = NULL;
+     }
+diff --git a/include/os.h b/include/os.h
+index bb3348b..30831fa 100644
+--- a/include/os.h
++++ b/include/os.h
+@@ -559,6 +559,8 @@ enum ExitCode {
+ 
+ extern _X_EXPORT void
+ ddxGiveUp(enum ExitCode error);
++extern _X_EXPORT Bool
++ddxReset(void);
+ extern _X_EXPORT void
+ ddxInputThreadInit(void);
+ extern _X_EXPORT int
+diff --git a/os/osinit.c b/os/osinit.c
+index 8575319..8f87c1b 100644
+--- a/os/osinit.c
++++ b/os/osinit.c
+@@ -170,7 +170,7 @@ OsInit(void)
+ #endif
+ 
+     if (!been_here) {
+-#if !defined(WIN32) || defined(__CYGWIN__)
++#if !defined(WIN32) || defined(__CYGWIN__) || !defined(__ANDROID__)
+         struct sigaction act, oact;
+         int i;
+ 
+diff --git a/os/utils.c b/os/utils.c
+index 92a66e8..a2e490d 100644
+--- a/os/utils.c
++++ b/os/utils.c
+@@ -212,6 +212,8 @@ OsSignal(int sig, OsSigHandlerPtr handler)
+ {
+ #if defined(WIN32) && !defined(__CYGWIN__)
+     return signal(sig, handler);
++#elif defined(__ANDROID__)
++    return SIG_DFL;
+ #else
+     struct sigaction act, oact;
+ 
+@@ -232,7 +234,7 @@ OsSignal(int sig, OsSigHandlerPtr handler)
+  * server at a time.  This keeps the servers from stomping on each other
+  * if the user forgets to give them different display numbers.
+  */
+-#define LOCK_DIR "/tmp"
++#define LOCK_DIR (getenv("TMPDIR") ?: "/tmp")
+ #define LOCK_TMP_PREFIX "/.tX"
+ #define LOCK_PREFIX "/.X"
+ #define LOCK_SUFFIX "-lock"
+@@ -324,7 +326,7 @@ LockServer(void)
+     i = 0;
+     haslock = 0;
+     while ((!haslock) && (i++ < 3)) {
+-        haslock = (link(tmp, LockFile) == 0);
++        haslock = (rename(tmp, LockFile) == 0);
+         if (haslock) {
+             /*
+              * We're done.
+@@ -1475,7 +1477,7 @@ Popen(const char *command, const char *type)
+             }
+             close(pdes[1]);
+         }
+-        execl("/bin/sh", "sh", "-c", command, (char *) NULL);
++        execl_xkbcomp("/bin/sh", "sh", "-c", command, (char *) NULL);
+         _exit(127);
+     }
+ 

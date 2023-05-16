@@ -39,11 +39,15 @@
 
 // To avoid reopening new segment on every screen resolution
 // change we can open it only once with some maximal size
-#define DEFAULT_SHMSEG_LENGTH 8192*8192*4
+//#define DEFAULT_SHMSEG_LENGTH (8192*8192*4)
 
+#pragma clang diagnostic ignored "-Wunknown-pragmas"
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+#pragma ide diagnostic ignored "OCUnusedGlobalDeclarationInspection"
 #pragma ide diagnostic ignored "ConstantParameter"
 #pragma ide diagnostic ignored "cppcoreguidelines-narrowing-conversions"
 #pragma ide diagnostic ignored "bugprone-reserved-identifier"
+/*
 
 static inline int memfd_create(const char *name, unsigned int flags) {
 #ifndef __NR_memfd_create
@@ -65,7 +69,6 @@ static inline int memfd_create(const char *name, unsigned int flags) {
 #endif
 }
 
-
 static inline int
 os_create_anonymous_file(size_t size) {
     int fd, ret;
@@ -86,7 +89,7 @@ os_create_anonymous_file(size_t size) {
     fd = open("/dev/ashmem", O_RDWR | O_CLOEXEC);
     if (fd < 0)
         return fd;
-    ret = ioctl(fd, /** ASHMEM_SET_SIZE */ _IOW(0x77, 3, size_t), size);
+    ret = ioctl(fd, ** ASHMEM_SET_SIZE / _IOW(0x77, 3, size_t), size);
     if (ret < 0)
         goto err;
     flags = fcntl(fd, F_GETFD);
@@ -101,8 +104,9 @@ os_create_anonymous_file(size_t size) {
     close(fd);
     return ret;
 }
+*/
 
-// For some reason both static_cast and reinterpret_cast returning 0 when casting b.bits.
+/*// For some reason both static_cast and reinterpret_cast returning 0 when casting b.bits.
 static always_inline uint32_t* cast(void* p) { union { void* a; uint32_t* b; } c {p}; return c.b; } // NOLINT(cppcoreguidelines-pro-type-member-init)
 
 // width must be divisible by 8.
@@ -131,8 +135,9 @@ static always_inline void blit_internal(uint32_t* dst, const uint32_t* src, int 
                               );
     }
 #endif
-}
+}*/
 
+/*
 static always_inline void blit_exact(ANativeWindow* win, const uint32_t* src, int width, int height) {
     if (!win)
         return;
@@ -174,6 +179,7 @@ static always_inline void blit_exact(ANativeWindow* win, const uint32_t* src, in
 
     ANativeWindow_release(win);
 }
+*/
 
 class lorie_client {
 public:
@@ -204,7 +210,7 @@ public:
 
     lorie_client() {
         c.post = [=](std::function<void()> f, int d) { post_delayed(std::move(f), d); };
-        runner_thread = std::thread([=, this] {
+        runner_thread = std::thread([=] {
             while(!terminate) {
                 looper.dispatch(1000);
             }
@@ -220,7 +226,7 @@ public:
         looper.post(std::move(task), ms_delay);
     }
 
-    void surface_changed(ANativeWindow* win, u32 width, u32 height, u32 real_width, u32 real_height) {
+/*    void surface_changed(ANativeWindow* win, u32 width, u32 height, u32 real_width, u32 real_height) {
         ALOGE("Surface: changing surface %p to %p", screen.win, win);
         if (screen.win)
             ANativeWindow_release(screen.win);
@@ -231,16 +237,17 @@ public:
         screen.real_width  = real_width  ?: screen.real_width;
         screen.real_height = real_height ?: screen.real_height;
 
-        if (screen.width != width || screen.height != height) {
-            screen.width  = width  ?: screen.width;
-            screen.height = height ?: screen.height;
-            c.randr.update_resolution();
-        }
+//        if (screen.width != width || screen.height != height) {
+//            screen.width  = width  ?: screen.width;
+//            screen.height = height ?: screen.height;
+//            c.randr.update_resolution();
+//        }
 
-        refresh_screen();
+//        refresh_screen();
 
-    }
+    }*/
 
+/*
     void cursor_changed(ANativeWindow* win) {
         if (cursor.win)
             ANativeWindow_release(cursor.win);
@@ -249,10 +256,11 @@ public:
             ANativeWindow_acquire(win);
         cursor.win = win;
 
-        refresh_cursor();
+//        refresh_cursor();
     }
+*/
 
-    void attach_region() {
+   /* void attach_region() {
         if (screen.shmaddr)
             munmap(screen.shmaddr, DEFAULT_SHMSEG_LENGTH);
         if (screen.shmfd)
@@ -308,7 +316,7 @@ public:
                 }
             }
         }
-    }
+    }*/
 
     void adopt_connection_fd(int fd) {
         try {
@@ -329,19 +337,19 @@ public:
                                            //XCB_XFIXES_SELECTION_EVENT_MASK_SELECTION_WINDOW_DESTROY |
                                            //XCB_XFIXES_SELECTION_EVENT_MASK_SELECTION_CLIENT_CLOSE);
             c.damage.create(scr->root, XCB_DAMAGE_REPORT_LEVEL_RAW_RECTANGLES);
-            struct {
-                xcb_input_event_mask_t head;
-                xcb_input_xi_event_mask_t mask;
-            } mask{};
-            mask.head.deviceid = c.input.client_pointer_id();
-            mask.head.mask_len = sizeof(mask.mask) / sizeof(uint32_t);
-            mask.mask = XCB_INPUT_XI_EVENT_MASK_RAW_MOTION;
-            c.input.select_events(scr->root, 1, &mask.head);
+//            struct {
+//                xcb_input_event_mask_t head;
+//                xcb_input_xi_event_mask_t mask;
+//            } mask{};
+//            mask.head.deviceid = c.input.client_pointer_id();
+//            mask.head.mask_len = sizeof(mask.mask) / sizeof(uint32_t);
+//            mask.mask = XCB_INPUT_XI_EVENT_MASK_RAW_MOTION;
+//            c.input.select_events(scr->root, 1, &mask.head);
 
             screen.shmseg = xcb_generate_id(c.conn);
 
-            attach_region();
-            refresh_cursor();
+//            attach_region();
+//            refresh_cursor();
 
             ALOGE("Adding connection with fd %d to poller", fd);
             u32 events = EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLET | EPOLLHUP | EPOLLNVAL | EPOLLMSG;
@@ -367,32 +375,32 @@ public:
         }
     }
 
-    void refresh_cursor() {
-        if (cursor.win && c.conn) {
-//            if (false)
+//    void refresh_cursor() {
+//        if (cursor.win && c.conn) {
+////            if (false)
+////            {
+////                xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
+////                auto reply = xcb_query_pointer_reply(c.conn, xcb_query_pointer(c.conn, s->root),
+////                                                     nullptr);
+////                if (reply)
+////                    set_cursor_coordinates(reply->root_x, reply->root_y);
+////                free(reply);
+////            }
 //            {
-//                xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(c.conn)).data;
-//                auto reply = xcb_query_pointer_reply(c.conn, xcb_query_pointer(c.conn, s->root),
-//                                                     nullptr);
-//                if (reply)
-//                    set_cursor_coordinates(reply->root_x, reply->root_y);
+//                auto reply = c.fixes.get_cursor_image();
+//                if (reply) {
+//                    cursor.width = reply->width;
+//                    cursor.height = reply->height;
+//                    cursor.xhot = reply->xhot;
+//                    cursor.yhot = reply->yhot;
+//                    u32 *image = xcb_xfixes_get_cursor_image_cursor_image(reply);
+//                    blit_exact(cursor.win, image, reply->width, reply->height);
+////                    move_cursor_rect(env, cursor.x, cursor.y);
+//                }
 //                free(reply);
 //            }
-            {
-                auto reply = c.fixes.get_cursor_image();
-                if (reply) {
-                    cursor.width = reply->width;
-                    cursor.height = reply->height;
-                    cursor.xhot = reply->xhot;
-                    cursor.yhot = reply->yhot;
-                    u32 *image = xcb_xfixes_get_cursor_image_cursor_image(reply);
-                    blit_exact(cursor.win, image, reply->width, reply->height);
-                    move_cursor_rect(env, cursor.x, cursor.y);
-                }
-                free(reply);
-            }
-        }
-    }
+//        }
+//    }
 
     void refresh_screen() {
         if (screen.win && c.conn && !paused) {
@@ -401,8 +409,8 @@ public:
                 c.shm.get(s->root, 0, 0, s->width_in_pixels, s->height_in_pixels,
                           ~0, // NOLINT(cppcoreguidelines-narrowing-conversions)
                           XCB_IMAGE_FORMAT_Z_PIXMAP, screen.shmseg, 0);
-                blit_exact(screen.win, screen.shmaddr, s->width_in_pixels,
-                           s->height_in_pixels);
+//                blit_exact(screen.win, screen.shmaddr, s->width_in_pixels,
+//                           s->height_in_pixels);
             } catch (std::runtime_error &err) {
                 ALOGE("Refreshing screen failed: %s", err.what());
             }
@@ -454,7 +462,7 @@ public:
                 } else if (c.damage.is_damage_notify_event(event)) {
                     need_redraw = true;
                 } else if (c.fixes.is_cursor_notify_event(event)) {
-                    refresh_cursor();
+//                    refresh_cursor();
                 } else if (c.fixes.is_selection_notify_event(event)) {
                     if (clipboard_sync_enabled) {
                         xcb_convert_selection(c.conn, c.clip.win, c.clip.atom_clipboard,
@@ -493,7 +501,7 @@ public:
     }
 
     ~lorie_client() {
-        looper.post([=, this] { terminate = true; });
+        looper.post([=] { terminate = true; });
         if (runner_thread.joinable())
             runner_thread.join();
     }
@@ -501,19 +509,13 @@ public:
     JNIEnv* env{};
     jobject thiz{};
     jmethodID client_connected_state_changed_id{};
-    jmethodID move_cursor_rect_id{};
-    jmethodID set_cursor_coordinates_id{};
     jmethodID set_clipboard_text_id{};
     void init_jni(JavaVM* vm, jobject obj) {
-        post([=, this] {
+        post([=] {
             thiz = obj;
             vm->AttachCurrentThread(&env, nullptr);
             client_connected_state_changed_id =
                     env->GetMethodID(env->GetObjectClass(thiz),"clientConnectedStateChanged","(Z)V");
-            move_cursor_rect_id =
-                    env->GetMethodID(env->GetObjectClass(thiz),"moveCursorRect","(IIII)V");
-            set_cursor_coordinates_id =
-                    env->GetMethodID(env->GetObjectClass(thiz),"setCursorCoordinates","(II)V");
             set_clipboard_text_id =
                     env->GetMethodID(env->GetObjectClass(thiz),"setClipboardText","(Ljava/lang/String;)V");
         });
@@ -528,29 +530,6 @@ public:
         env->CallVoidMethod(thiz, client_connected_state_changed_id, connected);
     }
 
-    void move_cursor_rect(JNIEnv* e, int x, int y) const {
-        if (!move_cursor_rect_id) {
-            ALOGE("Something is wrong, `set_renderer_visibility` is null");
-            return;
-        }
-
-        e->CallVoidMethod(thiz,
-                            move_cursor_rect_id,
-                            x - cursor.xhot,
-                            y - cursor.yhot,
-                            cursor.width,
-                            cursor.height);
-    }
-
-    [[maybe_unused]] void set_cursor_coordinates(int x, int y) const {
-        if (!set_cursor_coordinates_id) {
-            ALOGE("Something is wrong, `set_cursor_coordinates_id` is null");
-            return;
-        }
-
-        env->CallVoidMethod(thiz, set_cursor_coordinates_id, x, y);
-    }
-
      void set_clipboard_text(const char* text) const {
         if (!set_clipboard_text_id) {
             ALOGE("Something is wrong, `set_clipboard_text_id` is null");
@@ -561,11 +540,12 @@ public:
     }
 } client; // NOLINT(cert-err58-cpp)
 
+JavaVM *vm = nullptr;
+
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_init(JNIEnv *env, jobject thiz) {
     // Of course I could do that from JNI_OnLoad, but anyway I need to register `thiz` as class instance;
-    JavaVM *vm;
     env->GetJavaVM(&vm);
     client.init_jni(vm, env->NewGlobalRef(thiz));
 }
@@ -576,37 +556,37 @@ Java_com_termux_x11_MainActivity_connect([[maybe_unused]] JNIEnv *env, [[maybe_u
     client.post([fd] { client.adopt_connection_fd(fd); });
 }
 
-extern "C"
+/*extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_cursorChanged(JNIEnv *env, [[maybe_unused]] jobject thiz, jobject sfc) {
-    ANativeWindow *win = sfc ? ANativeWindow_fromSurface(env, sfc) : nullptr;
+*//*    ANativeWindow *win = sfc ? ANativeWindow_fromSurface(env, sfc) : nullptr;
     if (win)
         ANativeWindow_acquire(win);
 
     ALOGE("Cursor: got new surface %p", win);
-    client.post([=] { client.cursor_changed(win); });
+    client.post([=] { client.cursor_changed(win); });*//*
 }
 
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_windowChanged(JNIEnv *env, [[maybe_unused]] jobject thiz, jobject sfc,
                                                jint width, jint height, jint real_width, jint real_height) {
-    ANativeWindow *win = sfc ? ANativeWindow_fromSurface(env, sfc) : nullptr;
-    if (win)
-        ANativeWindow_acquire(win);
-
-    ALOGE("Surface: got new surface %p", win);
+//    ANativeWindow *win = sfc ? ANativeWindow_fromSurface(env, sfc) : nullptr;
+//    if (win)
+//        ANativeWindow_acquire(win);
+//
+//    ALOGE("Surface: got new surface %p", win);
 
     // width must be divisible by 8. Xwayland does the same thing.
-    client.post([=] { client.surface_changed(win, width - (width % 8), height, real_width, real_height); });
-}
+    //client.post([=] { client.surface_changed(win, width - (width % 8), height, real_width, real_height); });
+}*/
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_onPointerMotion(JNIEnv *env, [[maybe_unused]] jobject thiz, jint x, jint y) {
+Java_com_termux_x11_MainActivity_onPointerMotion([[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz, jint x, jint y) {
     client.cursor.x = x;
     client.cursor.y = y;
-    client.move_cursor_rect(env, x, y);
+//    client.move_cursor_rect(env, x, y);
 
     if (client.c.conn) {
         // XCB is thread safe, no need to post this to dispatch thread.
@@ -725,14 +705,6 @@ Java_com_termux_x11_MainActivity_startLogcat([[maybe_unused]] JNIEnv *env, [[may
             ALOGE("exec logcat: %s", strerror(errno));
             env->FatalError("Exiting");
     }
-}
-
-extern "C"
-JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_setHorizontalScrollEnabled([[maybe_unused]] JNIEnv *env,
-                                                            [[maybe_unused]] jobject thiz,
-                                                            jboolean enabled) {
-    client.horizontal_scroll_enabled = enabled;
 }
 
 extern "C"

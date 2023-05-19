@@ -9,6 +9,7 @@ import android.graphics.PointF;
 import android.view.MotionEvent;
 
 import java.util.LinkedList;
+import java.util.Objects;
 import java.util.Queue;
 
 /**
@@ -34,7 +35,7 @@ public class TouchInputStrategy implements InputStrategyInterface {
      * prevent a live memory leak where the queue grows unbounded during a local gesture (such as
      * someone panning the local canvas continuously for several seconds/minutes).
      */
-    private Queue<MotionEvent> mQueuedEvents;
+    private final Queue<MotionEvent> mQueuedEvents = new LinkedList<>();
 
     /**
      * Indicates that the events received should be treated as part of an active remote gesture.
@@ -54,7 +55,6 @@ public class TouchInputStrategy implements InputStrategyInterface {
         Preconditions.notNull(injector);
         mRenderData = renderData;
         mInjector = injector;
-        mQueuedEvents = new LinkedList<MotionEvent>();
 
         mRenderData.drawCursor = false;
     }
@@ -76,7 +76,7 @@ public class TouchInputStrategy implements InputStrategyInterface {
 
                 // Grab the first queued event which should be the initial ACTION_DOWN event.
                 MotionEvent downEvent = mQueuedEvents.peek();
-                assert downEvent.getActionMasked() == MotionEvent.ACTION_DOWN;
+                assert Objects.requireNonNull(downEvent).getActionMasked() == MotionEvent.ACTION_DOWN;
 
                 mInjector.sendMouseClick(new PointF(downEvent.getX(), downEvent.getY()), InputStub.BUTTON_RIGHT);
                 clearQueuedEvents();
@@ -157,14 +157,15 @@ public class TouchInputStrategy implements InputStrategyInterface {
                 if (mInRemoteGesture) {
                     mInjector.sendTouchEvent(event);
                     event.recycle();
-                } else {
+                } else
                     mQueuedEvents.add(event);
-                }
                 break;
 
             default:
                 break;
         }
+
+        injectQueuedEvents();
     }
 
     @Override

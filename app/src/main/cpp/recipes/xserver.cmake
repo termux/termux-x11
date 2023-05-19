@@ -146,7 +146,9 @@ file(GENERATE
 #define XKM_OUTPUT_DIR (getenv(\"TMPDIR\") ?: \"/tmp\")
 ")
 
-set(inc ${CMAKE_CURRENT_BINARY_DIR}
+set(inc "${CMAKE_CURRENT_BINARY_DIR}"
+        "${CMAKE_CURRENT_BINARY_DIR}/epoxy"
+        "libepoxy/include"
         "mesa/include"
         "libxfont/include"
         "pixman/pixman"
@@ -387,9 +389,22 @@ add_library(xserver_glxvnd STATIC ${GLXVND_SOURCES})
 target_include_directories(xserver_glxvnd PRIVATE ${inc})
 target_compile_options(xserver_glxvnd PRIVATE ${compile_options})
 
+set(GLAMOR_SOURCES
+        addtraps.c composite_glyphs.c compositerects.c copy.c core.c dash.c fbo.c font.c glyphblt.c
+        gradient.c image.c largepixmap.c lines.c picture.c pixmap.c points.c prepare.c program.c
+        rects.c render.c segs.c spans.c sync.c text.c transfer.c transform.c trapezoid.c triangles.c
+        utils.c vbo.c window.c xv.c)
+list(TRANSFORM GLAMOR_SOURCES PREPEND "xserver/glamor/glamor_")
+set(GLAMOR_SOURCES ${GLAMOR_SOURCES} "xserver/glamor/glamor.c" "lorie/glamor.c")
+add_library(xserver_glamor STATIC ${GLAMOR_SOURCES})
+target_include_directories(xserver_glamor PRIVATE ${inc})
+target_compile_options(xserver_glamor PRIVATE ${compile_options})
+target_link_libraries(xserver_glamor PUBLIC epoxy)
+
+
 set(XSERVER_LIBS)
 foreach (part glx glxvnd fb mi dix composite damageext dbe randr miext_damage render present xext
-              miext_sync xfixes xi xkb record xi_stubs xkb_stubs os dri3)
+              miext_sync xfixes xi xkb record xi_stubs xkb_stubs os dri3 glamor)
     set(XSERVER_LIBS ${XSERVER_LIBS} xserver_${part})
 endforeach ()
 

@@ -85,14 +85,6 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static void requestConnection() {
         System.err.println("Requesting connection...");
         new Thread(() -> { // New thread is needed to avoid android.os.NetworkOnMainThreadException
-//            try (MulticastSocket socket = new MulticastSocket()) {
-//                InetAddress group = InetAddress.getByName("230.0.0.0");
-//                socket.joinGroup(group);
-//                byte[] buffer = "Hello".getBytes();
-//                DatagramPacket packet = new DatagramPacket(MAGIC, MAGIC.length, group, PORT);
-//                socket.send(packet);
-//                socket.leaveGroup(group);
-//            } catch (IOException e) { throw new RuntimeException(e); }
             try (DatagramSocket socket = new DatagramSocket()) {
                 InetAddress group = InetAddress.getByName("230.0.0.0");
                 DatagramPacket packet = new DatagramPacket(MAGIC, MAGIC.length, group, PORT);

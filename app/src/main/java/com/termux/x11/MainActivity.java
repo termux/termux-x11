@@ -17,10 +17,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
-import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Matrix;
-import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.PointF;
 import android.graphics.Rect;
@@ -52,11 +49,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
 import androidx.viewpager.widget.ViewPager;
 
-import com.termux.x11.input.Event;
 import com.termux.x11.input.InputEventSender;
 import com.termux.x11.input.InputStub;
 import com.termux.x11.input.RenderStub;
-import com.termux.x11.input.SizeChangedEventParameter;
 import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.FullscreenWorkaround;
 import com.termux.x11.utils.PermissionUtils;
@@ -67,14 +62,13 @@ import com.termux.x11.utils.X11ToolbarViewPager;
 import java.util.regex.PatternSyntaxException;
 
 @SuppressWarnings({"deprecation", "unused"})
-public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener, TouchParser.OnTouchParseListener {
+public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener {
     static final String ACTION_STOP = "com.termux.x11.ACTION_STOP";
     static final String REQUEST_LAUNCH_EXTERNAL_DISPLAY = "request_launch_external_display";
     public static final int KeyPress = 2; // synchronized with X.h
     public static final int KeyRelease = 3; // synchronized with X.h
 
     FrameLayout frm;
-//    private TouchParser mTP;
     private TouchInputHandler mTouchHandler;
     private final ServiceEventListener listener = new ServiceEventListener();
     private ICmdEntryInterface service = null;
@@ -100,7 +94,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         DisplayMetrics dm = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(dm);
 
-        //kbd = findViewById(R.id.additionalKbd);
         frm = findViewById(R.id.frame);
         Button preferencesButton = findViewById(R.id.preferences_button);
         preferencesButton.setOnClickListener((l) -> {
@@ -111,68 +104,26 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         SurfaceView lorieView = findViewById(R.id.lorieView);
 
+
         mTouchHandler = new TouchInputHandler(this, new RenderStub() {
-
-//        mTP = new TouchParser(lorieView, this);
-            @Override
-            public void showInputFeedback(int feedbackToShow, PointF pos) {
-                Log.d("LorieRenderStub", "showInputFeedback");
-            }
-
-            @Override
-            public void setTransformation(Matrix matrix) {
-                Log.d("LorieRenderStub", "setTransformation");
-            }
-
-            @Override
-            public void moveCursor(PointF pos) {}
-
-            @Override
-            public void swipeUp() {
-
-            }
-
-            @Override
-            public void swipeDown() {
+            @Override public void showInputFeedback(int feedbackToShow, PointF pos) {}
+            @Override public void setCursorVisibility(boolean visible) {}
+            @Override public void setTransformation(Matrix matrix) {}
+            @Override public void moveCursor(PointF pos) {}
+            @Override public void swipeUp() {}
+            @Override public void swipeDown() {
                 toggleExtraKeys();
-            }
-
-            @Override
-            public void setCursorVisibility(boolean visible) {
-                Log.d("LorieRenderStub", "setCursorVisibility");
-            }
-
-            final Event<SizeChangedEventParameter> mOnClientSizeChanged = new Event<>();
-            final Event<SizeChangedEventParameter> mOnHostSizeChanged = new Event<>();
-            final Event<Void> mOnCanvasRendered = new Event<>();
-
-            @Override
-            public Event<SizeChangedEventParameter> onClientSizeChanged() {
-                Log.d("LorieRenderStub", "onClientSizeChanged");
-                return mOnClientSizeChanged;
-            }
-
-            @Override
-            public Event<SizeChangedEventParameter> onHostSizeChanged() {
-                Log.d("LorieRenderStub", "onHostSizeChanged");
-                return mOnHostSizeChanged;
-            }
-
-            @Override
-            public Event<Void> onCanvasRendered() {
-                Log.d("LorieRenderStub", "onCanvasRendered");
-                return mOnCanvasRendered;
             }
         }, new InputEventSender(new InputStub() {
             @Override
             public void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown) {
-                Log.d("LorieInputStub", "sendMouseEvent");
+//                Log.d("LorieInputStub", "sendMouseEvent");
                 MainActivity.this.sendMouseEvent(x, y, whichButton, buttonDown);
             }
 
             @Override
             public void sendMouseWheelEvent(int deltaX, int deltaY) {
-                Log.d("LorieInputStub", "sendMouseWheelEvent " + deltaX + "x" + deltaY);
+//                Log.d("LorieInputStub", "sendMouseWheelEvent " + deltaX + "x" + deltaY);
                 MainActivity.this.sendMouseEvent(deltaX, deltaY, BUTTON_SCROLL, false);
             }
 
@@ -188,12 +139,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
 
             @Override
-            public void sendTouchEvent(int eventType, Object[] data) {
-                Log.d("LorieInputStub", "sendTouchEvent");
+            public void sendTouchEvent(int action, int id, int x, int y) {
+                MainActivity.this.sendTouchEvent(action, id, x, y);
             }
         }));
-//        mTouchHandler.setInputMode(TouchInputHandler.InputMode.SIMULATED_TOUCH);
-        mTouchHandler.setInputMode(TouchInputHandler.InputMode.TRACKPAD);
         mTouchHandler.handleClientSizeChanged(800, 600);
 
         listener.setAsListenerTo(lorieView);
@@ -214,6 +163,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         service.asBinder().linkToDeath(() -> {
                             service = null;
                             CmdEntryPoint.requestConnection();
+                            getLorieView().getHolder().setFormat(PixelFormat.TRANSPARENT);
+                            getLorieView().getHolder().setFormat(PixelFormat.OPAQUE);
                         }, 0);
 
                         onReceiveConnection();
@@ -240,7 +191,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         onPreferencesChanged();
 
         toggleExtraKeys(false);
-//        clientConnectedStateChanged(true);
     }
 
     void onReceiveConnection() {
@@ -281,8 +231,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     void onPreferencesChanged() {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
-//        int mode = Integer.parseInt(preferences.getString("touchMode", "1"));
-//        mTP.setMode(mode);
+        int mode = Integer.parseInt(preferences.getString("touchMode", "1"));
+        mTouchHandler.setInputMode(mode);
 
         if (preferences.getBoolean("dexMetaKeyCapture", false)) {
             SamsungDexUtils.dexMetaKeyCapture(this, false);
@@ -301,7 +251,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @Override
     public void onResume() {
         super.onResume();
-//        nativeResume();
 
         mNotificationManager.notify(mNotificationId, mNotification);
 
@@ -312,9 +261,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @Override
     public void onPause() {
         mNotificationManager.cancel(mNotificationId);
-
-        // We do not really need to draw while application is in background.
-//        nativePause();
         super.onPause();
     }
 
@@ -383,7 +329,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         });
     }
 
-    @Override
     public void toggleExtraKeys() {
         int visibility = getTerminalToolbarViewPager().getVisibility();
         toggleExtraKeys(visibility != View.VISIBLE);
@@ -525,9 +470,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private class ServiceEventListener implements View.OnKeyListener {
         @SuppressLint({"WrongConstant", "ClickableViewAccessibility"})
         private void setAsListenerTo(SurfaceView view) {
-//            view.setOnTouchListener((v, e) -> mTP.onTouchEvent(e));
-//            view.setOnHoverListener((v, e) -> mTP.onTouchEvent(e));
-//            view.setOnGenericMotionListener((v, e) -> mTP.onTouchEvent(e));
             view.setOnTouchListener((v, e) -> mTouchHandler.handleTouchEvent(e));
             view.setOnHoverListener((v, e) -> mTouchHandler.handleTouchEvent(e));
             view.setOnGenericMotionListener((v, e) -> mTouchHandler.handleTouchEvent(e));
@@ -574,8 +516,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         h = temp;
                     }
 
-                    mTouchHandler.handleClientSizeChanged(width, height);
-                    mTouchHandler.handleHostSizeChanged(w, h);
+                    mTouchHandler.handleHostSizeChanged(width, height);
+                    mTouchHandler.handleClientSizeChanged(w, h);
 
                     sendWindowChange(w, h, dpi);
 
@@ -622,7 +564,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             if (keyCode == KeyEvent.KEYCODE_BACK) {
                 if (isSource(e, InputDevice.SOURCE_MOUSE) &&
                         rightPressed != (e.getAction() == KeyEvent.ACTION_DOWN)) {
-                    onPointerButton(TouchParser.BTN_RIGHT, (e.getAction() == KeyEvent.ACTION_DOWN) ? TouchParser.ACTION_DOWN : TouchParser.ACTION_UP);
+                    sendMouseEvent(-1, -1, 3, e.getAction() == KeyEvent.ACTION_DOWN);
                     rightPressed = (e.getAction() == KeyEvent.ACTION_DOWN);
                 } else if (e.getAction() == KeyEvent.ACTION_UP) {
                     toggleKeyboardVisibility(MainActivity.this);
@@ -634,7 +576,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             if (keyCode == KeyEvent.KEYCODE_MENU &&
                     isSource(e, InputDevice.SOURCE_MOUSE) &&
                     middlePressed != (e.getAction() == KeyEvent.ACTION_DOWN)) {
-                onPointerButton(TouchParser.BTN_MIDDLE, (e.getAction() == KeyEvent.ACTION_DOWN) ? TouchParser.ACTION_DOWN : TouchParser.ACTION_UP);
+                sendMouseEvent(-1, -1, 2, e.getAction() == KeyEvent.ACTION_DOWN);
                 middlePressed = (e.getAction() == KeyEvent.ACTION_DOWN);
                 return true;
             }
@@ -747,6 +689,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private native void startLogcat(int fd);
     private native void sendWindowChange(int width, int height, int dpi);
     private native void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown);
+    private native void sendTouchEvent(int action, int id, int x, int y);
 
 //    private native void init();
 //    public native void onPointerMotion(int x, int y);
@@ -756,21 +699,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 //    public native void onKey(int keyCode, int type);
 //
 //    private native void setClipboardSyncEnabled(boolean enabled);
-
-    @Override
-    public void onPointerButton(int button, int state) {
-
-    }
-
-    @Override
-    public void onPointerMotion(int x, int y) {
-
-    }
-
-    @Override
-    public void onPointerScroll(int axis, float value) {
-
-    }
 
     public void onKey(int keyCode, int type) {
 

@@ -27,11 +27,6 @@ public interface RenderStub {
         int LONG_TRACKPAD_ANIMATION = 3;
     }
 
-//    /**
-//     * Resets the stub with |view|. The stub should avoid holding strong reference to |view|.
-//     */
-//    void setDesktopView(DesktopView view);
-
     /** Triggers a brief animation to indicate the existence and location of an input event. */
     void showInputFeedback(@InputFeedbackType int feedbackToShow, PointF pos);
 
@@ -61,17 +56,4 @@ public interface RenderStub {
      * which requires repainting.
      */
     void setCursorVisibility(boolean visible);
-
-    /** An {@link Event} triggered when the client size is changed. */
-    Event<SizeChangedEventParameter> onClientSizeChanged();
-
-    /**
-     * An {@link Event} triggered when the size of the host desktop is changed.
-     */
-    Event<SizeChangedEventParameter> onHostSizeChanged();
-
-    /**
-     * An {@link} triggered when a frame has been rendered.
-     */
-    Event<Void> onCanvasRendered();
 }

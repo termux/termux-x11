@@ -20,113 +20,70 @@
 // We can not link both mesa's GL and Android's GLES without interfering.
 // That is the only way to do this without creating linker namespaces.
 
-static EGLDisplay (*$eglGetDisplay)(EGLNativeDisplayType nativeDisplay) = NULL;
-static EGLint (*$eglGetError)(void) = NULL;
-static EGLBoolean (*$eglInitialize)(EGLDisplay dpy, EGLint *major, EGLint *minor) = NULL;
-static EGLBoolean (*$eglChooseConfig)(EGLDisplay dpy, const EGLint *attrib_list, EGLConfig *configs, EGLint config_size, EGLint *num_config) = NULL;
-static EGLBoolean (*$eglBindAPI)(EGLenum api) = NULL;
-static EGLContext (*$eglCreateContext)(EGLDisplay dpy, EGLConfig config, EGLContext share_list, const EGLint *attrib_list) = NULL;
-static EGLBoolean (*$eglMakeCurrent)(EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx) = NULL;
-static EGLBoolean (*$eglDestroySurface)(EGLDisplay dpy, EGLSurface surface) = NULL;
-static EGLClientBuffer (*$eglGetNativeClientBufferANDROID)(const struct AHardwareBuffer *buffer);
-static EGLImageKHR (*$eglCreateImageKHR)(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list);
-static EGLBoolean (*$eglDestroyImageKHR)(EGLDisplay dpy, EGLImageKHR image);
-static EGLSurface (*$eglCreateWindowSurface)(EGLDisplay dpy, EGLConfig config, EGLNativeWindowType window, const EGLint *attrib_list) = NULL;
-static EGLBoolean (*$eglSwapBuffers)(EGLDisplay dpy, EGLSurface surface) = NULL;
+#define eglFunctions(a, m)             \
+m(a, eglGetDisplay)                    \
+m(a, eglGetError)                      \
+m(a, eglInitialize)                    \
+m(a, eglChooseConfig)                  \
+m(a, eglBindAPI)                       \
+m(a, eglCreateContext)                 \
+m(a, eglMakeCurrent)                   \
+m(a, eglSwapInterval)                  \
+m(a, eglDestroySurface)                \
+m(a, eglGetNativeClientBufferANDROID)  \
+m(a, eglCreateImageKHR)                \
+m(a, eglDestroyImageKHR)               \
+m(a, eglCreateWindowSurface)           \
+m(a, eglSwapBuffers)
 
-static GLenum (*$glGetError)(void);
-static GLuint (*$glCreateShader)(GLenum type) = NULL;
-static void (*$glShaderSource)(GLuint shader, GLsizei count, const GLchar *const*string, const GLint *length) = NULL;
-static void (*$glCompileShader)(GLuint shader) = NULL;
-static void (*$glGetShaderiv)(GLuint shader, GLenum pname, GLint *params) = NULL;
-static void (*$glGetShaderInfoLog)(GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog) = NULL;
-static void (*$glDeleteShader)(GLuint shader) = NULL;
-static GLuint (*$glCreateProgram)(void) = NULL;
-static void (*$glAttachShader)(GLuint program, GLuint shader) = NULL;
-static void (*$glLinkProgram)(GLuint program) = NULL;
-static void (*$glGetProgramiv)(GLuint program, GLenum pname, GLint *params) = NULL;
-static void (*$glGetProgramInfoLog)(GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog) = NULL;
-static void (*$glDeleteProgram)(GLuint program) = NULL;
-static void (*$glActiveTexture)(GLenum texture) = NULL;
-static void (*$glUseProgram)(GLuint program) = NULL;
-static void (*$glBindTexture)(GLenum target, GLuint texture) = NULL;
-static void (*$glVertexAttribPointer)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer) = NULL;
-static void (*$glEnableVertexAttribArray)(GLuint index) = NULL;
-static void (*$glDrawArrays)(GLenum mode, GLint first, GLsizei count) = NULL;
-static void (*$glEnable)(GLenum cap) = NULL;
-static void (*$glBlendFunc)(GLenum sfactor, GLenum dfactor) = NULL;
-static void (*$glDisable)(GLenum cap) = NULL;
-static GLint (*$glGetAttribLocation)(GLuint program, const GLchar *name) = NULL;
-static void (*$glGenTextures)(GLsizei n, GLuint *textures) = NULL;
-static void (*$glViewport)(GLint x, GLint y, GLsizei width, GLsizei height) = NULL;
-static void (*$glClearColor)(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha) = NULL;
-static void (*$glClear)(GLbitfield mask) = NULL;
-static void (*$glTexParameteri)(GLenum target, GLenum pname, GLint param) = NULL;
-static void (*$glTexImage2D)(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels) = NULL;
-static void (*$glTexSubImage2D)(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *pixels) = NULL;
-static void (*$glEGLImageTargetTexture2DOES)(GLenum target, GLeglImageOES image) = NULL;
+#define glFunctions(a, m)              \
+m(a, glGetError)                       \
+m(a, glCreateShader)                   \
+m(a, glShaderSource)                   \
+m(a, glCompileShader)                  \
+m(a, glGetShaderiv)                    \
+m(a, glGetShaderInfoLog)               \
+m(a, glDeleteShader)                   \
+m(a, glCreateProgram)                  \
+m(a, glAttachShader)                   \
+m(a, glLinkProgram)                    \
+m(a, glGetProgramiv)                   \
+m(a, glGetProgramInfoLog)              \
+m(a, glDeleteProgram)                  \
+m(a, glActiveTexture)                  \
+m(a, glUseProgram)                     \
+m(a, glBindTexture)                    \
+m(a, glVertexAttribPointer)            \
+m(a, glEnableVertexAttribArray)        \
+m(a, glDrawArrays)                     \
+m(a, glEnable)                         \
+m(a, glBlendFunc)                      \
+m(a, glDisable)                        \
+m(a, glGetAttribLocation)              \
+m(a, glGenTextures)                    \
+m(a, glViewport)                       \
+m(a, glClearColor)                     \
+m(a, glClear)                          \
+m(a, glTexParameteri)                  \
+m(a, glTexImage2D)                     \
+m(a, glTexSubImage2D)                  \
+m(a, glEGLImageTargetTexture2DOES)
 
-#define SYMBOL(lib, name) $ ## name = dlsym(lib, #name)
+#define defineFuncPointer(a, name) static __typeof__(name)* $##name = NULL;
+#define SYMBOL(lib, name) $ ## name = dlsym(lib, #name);
+
+eglFunctions(0, defineFuncPointer)
+glFunctions(0, defineFuncPointer)
+
 static void init(void) {
     void *libEGL, *libGLESv2;
     if ($eglGetDisplay)
         return;
     libEGL = dlopen("libEGL.so", RTLD_NOW);
-    SYMBOL(libEGL, eglGetDisplay);
-    SYMBOL(libEGL, eglGetError);
-    SYMBOL(libEGL, eglInitialize);
-    SYMBOL(libEGL, eglChooseConfig);
-    SYMBOL(libEGL, eglBindAPI);
-    SYMBOL(libEGL, eglCreateContext);
-    SYMBOL(libEGL, eglMakeCurrent);
-    SYMBOL(libEGL, eglDestroySurface);
-    SYMBOL(libEGL, eglGetNativeClientBufferANDROID);
-    SYMBOL(libEGL, eglCreateImageKHR);
-    SYMBOL(libEGL, eglDestroyImageKHR);
-    SYMBOL(libEGL, eglCreateWindowSurface);
-    SYMBOL(libEGL, eglSwapBuffers);
-
     libGLESv2 = dlopen("libGLESv2.so", RTLD_NOW);
-    SYMBOL(libGLESv2, glGetError);
-    SYMBOL(libGLESv2, glCreateShader);
-    SYMBOL(libGLESv2, glShaderSource);
-    SYMBOL(libGLESv2, glCompileShader);
-    SYMBOL(libGLESv2, glGetShaderiv);
-    SYMBOL(libGLESv2, glGetShaderInfoLog);
-    SYMBOL(libGLESv2, glDeleteShader);
-    SYMBOL(libGLESv2, glCreateProgram);
-    SYMBOL(libGLESv2, glAttachShader);
-    SYMBOL(libGLESv2, glLinkProgram);
-    SYMBOL(libGLESv2, glGetProgramiv);
-    SYMBOL(libGLESv2, glGetProgramInfoLog);
-    SYMBOL(libGLESv2, glDeleteProgram);
-    SYMBOL(libGLESv2, glActiveTexture);
-    SYMBOL(libGLESv2, glUseProgram);
-    SYMBOL(libGLESv2, glBindTexture);
-    SYMBOL(libGLESv2, glVertexAttribPointer);
-    SYMBOL(libGLESv2, glEnableVertexAttribArray);
-    SYMBOL(libGLESv2, glDrawArrays);
-    SYMBOL(libGLESv2, glEnable);
-    SYMBOL(libGLESv2, glBlendFunc);
-    SYMBOL(libGLESv2, glDisable);
-    SYMBOL(libGLESv2, glGetAttribLocation);
-    SYMBOL(libGLESv2, glActiveTexture);
-    SYMBOL(libGLESv2, glGenTextures);
-    SYMBOL(libGLESv2, glViewport);
-    SYMBOL(libGLESv2, glClearColor);
-    SYMBOL(libGLESv2, glClear);
-    SYMBOL(libGLESv2, glTexParameteri);
-    SYMBOL(libGLESv2, glTexImage2D);
-    SYMBOL(libGLESv2, glTexSubImage2D);
-    SYMBOL(libGLESv2, glEGLImageTargetTexture2DOES);
-}
 
-// We need some stub to avoid segfaulting
-static void voidMessage(maybe_unused MessageType type, maybe_unused int verb, maybe_unused const char *format, ...) {}
-
-static renderer_message_func_type logMessage = voidMessage;
-void renderer_message_func(renderer_message_func_type function) {
-    logMessage = function;
+    eglFunctions(libEGL, SYMBOL)
+    glFunctions(libGLESv2, SYMBOL)
 }
 
 //#define log(...) logMessage(X_ERROR, -1, __VA_ARGS__)
@@ -182,7 +139,6 @@ static void checkGlError(int line) {
         log("Exagear-renderer: GLES %d ERROR: %s.\n", line, desc);
         return;
     }
-    //LOGE("Last op on line %d was successfull", line);
 }
 
 #define checkGlError() checkGlError(__LINE__)
@@ -359,15 +315,19 @@ void renderer_set_window(EGLNativeWindowType window) {
         return;
     }
 
+    $eglSwapInterval(egl_display, 0);
+
     if (win && ctx && ANativeWindow_getWidth(win) && ANativeWindow_getHeight(win))
         $glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win)); checkGlError();
 
     log("Exagear-renderer: new surface applied: %p\n", sfc);
 
+    if (!sfc)
+        return;
+
     $glClearColor(1.f, 0.f, 0.f, 0.0f); checkGlError();
     $glClear(GL_COLOR_BUFFER_BIT); checkGlError();
     renderer_redraw();
-    $eglSwapBuffers(egl_display, sfc);
 }
 
 maybe_unused void renderer_upload(int w, int h, void* data) {
@@ -428,6 +388,9 @@ static void draw_cursor(void);
 float ia = 0;
 
 void renderer_redraw(void) {
+    if (!sfc)
+        return;
+
     draw(display.id,  -1.f, -1.f, 1.f, 1.f);
     draw_cursor();
     $eglSwapBuffers(egl_display, sfc); checkGlError();
@@ -512,10 +475,10 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1) {
 
 maybe_unused static void draw_cursor(void) {
     float x, y, w, h;
-    x = 2 * (cursor.x - cursor.xhot) / display.width - 1;
-    y = 2 * (cursor.y - cursor.yhot) / display.height - 1;
-    w = 2 * cursor.width / display.width;
-    h = 2 * cursor.height / display.height;
+    x = 2.f * (cursor.x - cursor.xhot) / display.width - 1.f;
+    y = 2.f * (cursor.y - cursor.yhot) / display.height - 1.f;
+    w = 2.f * cursor.width / display.width;
+    h = 2.f * cursor.height / display.height;
     $glEnable(GL_BLEND); checkGlError();
     $glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); checkGlError();
     draw(cursor.id, x, y, x + w, y + h);

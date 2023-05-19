@@ -38,6 +38,6 @@ public interface InputStub {
      */
     void sendTextEvent(String text);
 
-    /** Sends a set of {@link TouchEventData}. */
-    void sendTouchEvent(int eventType, /*TouchEventData*/ Object[] data);
+    /** Sends an event, not flushing connection. */
+    void sendTouchEvent(int action, int pointerId, int x, int y);
 }

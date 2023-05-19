@@ -13,6 +13,7 @@
 #include "tx11.h"
 
 extern DeviceIntPtr vfbPointer, vfbKeyboard;
+extern ScreenPtr pScreenPtr;
 
 static int dispatch(ClientPtr client) {
     xReq* req = (xReq*) client->requestBuffer;
@@ -20,8 +21,6 @@ static int dispatch(ClientPtr client) {
 
     if (!client->local)
         return BadMatch;
-    __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "new request: %d len: %d", req->data, client->req_len);
-    __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "size: %lu %lu %lu", sizeof(xcb_tx11_screen_size_change_request_t), sizeof(xcb_tx11_screen_size_change_request_t) >> 2, (sizeof(xcb_tx11_screen_size_change_request_t) & 3));
 
     valuator_mask_zero(&mask);
     __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
@@ -52,10 +51,31 @@ static int dispatch(ClientPtr client) {
         }
         case XCB_TX11_TOUCH_EVENT: {
             REQUEST(xcb_tx11_touch_event_request_t)
+            double x, y;
+            DDXTouchPointInfoPtr touch = TouchFindByDDXID(vfbPointer, stuff->id, FALSE);
 
-            valuator_mask_set_double(&mask, 0, stuff->x);
-            valuator_mask_set_double(&mask, 1, stuff->y);
-            QueueTouchEvents(vfbPointer, XI_TouchBegin, stuff->id, 0, &mask);
+            if (stuff->x < 0)
+                stuff->x = 0;
+            if (stuff->y < 0)
+                stuff->y = 0;
+
+            x = (float) stuff->x * 0xFFFF / pScreenPtr->GetScreenPixmap(pScreenPtr)->drawable.width;
+            y = (float) stuff->y * 0xFFFF / pScreenPtr->GetScreenPixmap(pScreenPtr)->drawable.height;
+
+            // Avoid duplicating events
+            if (touch && touch->active) {
+                double oldx, oldy;
+                if (stuff->type == XI_TouchUpdate &&
+                    valuator_mask_fetch_double(touch->valuators, 0, &oldx) &&
+                    valuator_mask_fetch_double(touch->valuators, 1, &oldy) &&
+                    oldx == x && oldy == y)
+                    return Success;
+            }
+
+            __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "touch event: %d %d %d %d", stuff->type, stuff->id, stuff->x, stuff->y);
+            valuator_mask_set_double(&mask, 0, x);
+            valuator_mask_set_double(&mask, 1, y);
+            QueueTouchEvents(vfbPointer, stuff->type, stuff->id, 0, &mask);
             return Success;
         }
         case XCB_TX11_MOUSE_EVENT: {
@@ -63,10 +83,9 @@ static int dispatch(ClientPtr client) {
 
             switch(stuff->detail) {
                 case 0: // BUTTON_UNDEFINED
-                    // That is absolute mouse motion
+                    // That is an absolute mouse motion
                     valuator_mask_set(&mask, 0, stuff->x);
                     valuator_mask_set(&mask, 1, stuff->y);
-                    printf("motion x %d y %d\n", stuff->x, stuff->y);
                     QueuePointerEvents(vfbPointer, MotionNotify, 0, POINTER_ABSOLUTE | POINTER_SCREEN, &mask);
                     break;
                 case 1: // BUTTON_LEFT
@@ -89,21 +108,6 @@ static int dispatch(ClientPtr client) {
             }
             return Success;
         }
-//        case XCB_TX11_POINTER_MOTION_DELTA: {
-//            REQUEST(xcb_tx11_pointer_motion_delta_request_t)
-//
-//            valuator_mask_set_unaccelerated(&mask, 0, stuff->dx, stuff->dy);
-//            valuator_mask_set_unaccelerated(&mask, 1, stuff->dy, stuff->dy);
-//            QueuePointerEvents(vfbPointer, MotionNotify, 0, POINTER_RELATIVE, &mask);
-//            return Success;
-//        }
-//        case XCB_TX11_POINTER_SCROLL: {
-//            REQUEST(xcb_tx11_pointer_scroll_request_t)
-//
-//            valuator_mask_set(&mask, stuff->axis, stuff->value);
-//            QueuePointerEvents(vfbPointer, MotionNotify, 0, POINTER_RELATIVE, &mask);
-//            return Success;
-//        }
         case XCB_TX11_KEY: {
             REQUEST(xcb_tx11_key_request_t)
 

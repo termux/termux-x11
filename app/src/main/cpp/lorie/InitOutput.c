@@ -68,7 +68,6 @@ from The Open Group.
 
 #define MAX_FPS 120
 
-void tx11_protocol_init(void);
 extern DeviceIntPtr vfbPointer, vfbKeyboard;
 
 typedef struct {
@@ -79,7 +78,6 @@ typedef struct {
 
     DamagePtr pDamage;
     OsTimerPtr pTimer;
-    ScreenPtr pScreen;
 
     RROutputPtr output;
     RRCrtcPtr crtc;
@@ -90,6 +88,7 @@ typedef struct {
     Bool locked;
     ARect r;
 } vfbScreenInfo, *vfbScreenInfoPtr;
+ScreenPtr pScreenPtr;
 
 static vfbScreenInfo vfbScreen = {
         .width = 1280,
@@ -288,7 +287,7 @@ vfbCloseScreen(ScreenPtr pScreen) {
 
     pvfb->output = NULL;
     pvfb->crtc = NULL;
-    pvfb->pScreen = NULL;
+    pScreenPtr = NULL;
 
     return pScreen->CloseScreen(pScreen);
 }
@@ -397,7 +396,7 @@ vfbScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     int dpi = monitorResolution;
     int ret;
 
-    pvfb->pScreen = pScreen;
+    pScreenPtr = pScreen;
 
     if (dpi == 0)
         dpi = 100;
@@ -452,7 +451,7 @@ vfbScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
 }                               /* end vfbScreenInit */
 
 void vfbChangeWindow(struct ANativeWindow* win) {
-    ScreenPtr pScreen = pvfb->pScreen;
+    ScreenPtr pScreen = pScreenPtr;
     RegionRec reg;
     BoxRec box = { .x1 = 0, .y1 = 0, .x2 = pScreen->root->drawable.width, .y2 = pScreen->root->drawable.height};
     pvfb->win = win;
@@ -467,11 +466,12 @@ void vfbChangeWindow(struct ANativeWindow* win) {
 }
 
 void vfbConfigureNotify(int width, int height, int dpi) {
-    ScreenPtr pScreen = pvfb->pScreen;
+    ScreenPtr pScreen = pScreenPtr;
     if (pvfb->output && width && height) {
         CARD32 mmWidth, mmHeight;
         RRModePtr mode = vfbCvt(width, height);
         if (!dpi) dpi = 96;
+        monitorResolution = dpi;
         mmWidth = ((double) (mode->mode.width))*25.4/dpi;
         mmHeight = ((double) (mode->mode.width))*25.4/dpi;
         RROutputSetModes(pvfb->output, &mode, 1, 0);
@@ -500,7 +500,7 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
 
     egw_init();
     renderer_init();
-    renderer_message_func(LogMessageVerb);
+//    renderer_message_func(LogMessageVerb);
     xorgGlxCreateVendor();
     tx11_protocol_init();
 

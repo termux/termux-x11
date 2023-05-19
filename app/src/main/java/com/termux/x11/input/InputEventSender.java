@@ -7,9 +7,6 @@ package com.termux.x11.input;
 import android.graphics.PointF;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
-
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -18,9 +15,9 @@ import java.util.TreeSet;
  * remote host machine. This class uses a {@link InputStub} to do the real injections.
  */
 public final class InputEventSender {
-    private static final int[] CTRL_ALT_DEL = {
-            KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_FORWARD_DEL,
-    };
+    private static final int XI_TouchBegin = 18;
+    private static final int XI_TouchUpdate = 19;
+    private static final int XI_TouchEnd = 20;
 
     private final InputStub mInjector;
 
@@ -73,6 +70,29 @@ public final class InputEventSender {
     }
 
     /**
+     * Converts an Android MotionEvent masked action value into the corresponding
+     * native touch event value.
+     */
+    public static int eventTypeFromMaskedAction(int action) {
+        switch (action) {
+            case MotionEvent.ACTION_DOWN:
+            case MotionEvent.ACTION_POINTER_DOWN:
+                return XI_TouchBegin;
+
+            case MotionEvent.ACTION_MOVE:
+                return XI_TouchUpdate;
+
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_POINTER_UP:
+            case MotionEvent.ACTION_CANCEL:
+                return XI_TouchEnd;
+
+            default:
+                return -1;
+        }
+    }
+
+    /**
      * Extracts the touch point data from a MotionEvent, converts each point into a marshallable
      * object and passes the set of points to the JNI layer to be transmitted to the remote host.
      *
@@ -81,46 +101,45 @@ public final class InputEventSender {
      *              function.
      */
     public void sendTouchEvent(MotionEvent event) {
-//        int action = event.getActionMasked();
-//        int touchEventType = 0; //TouchEventData.eventTypeFromMaskedAction(action);
+        int action = event.getActionMasked();
+        int touchEventType = eventTypeFromMaskedAction(action);
 //        List</*TouchEventData*/ Object> touchEventList = new ArrayList<>();
 
-//        if (action == MotionEvent.ACTION_MOVE) {
+        if (action == MotionEvent.ACTION_MOVE) {
             // In order to process all of the events associated with an ACTION_MOVE event, we need
             // to walk the list of historical events in order and add each event to our list, then
             // retrieve the current move event data.
-//            int pointerCount = event.getPointerCount();
+            int pointerCount = event.getPointerCount();
 //            int historySize = event.getHistorySize();
 //            for (int h = 0; h < historySize; ++h) {
 //                for (int p = 0; p < pointerCount; ++p) {
-//                    touchEventList.add(new TouchEventData(event.getPointerId(p),
-//                            event.getHistoricalX(p, h), event.getHistoricalY(p, h),
-//                            event.getHistoricalSize(p, h), event.getHistoricalSize(p, h),
-//                            event.getHistoricalOrientation(p, h),
-//                            event.getHistoricalPressure(p, h)));
+//                    mInjector.sendTouchEvent(event.getPointerId(p),
+//                            (int) event.getHistoricalX(p, h), (int) event.getHistoricalY(p, h));
 //                }
 //            }
 
-//            for (int p = 0; p < pointerCount; p++) {
-//                touchEventList.add(new TouchEventData(event.getPointerId(p), event.getX(p),
-//                        event.getY(p), event.getSize(p), event.getSize(p), event.getOrientation(p),
-//                        event.getPressure(p)));
-//            }
-//        } else {
+            for (int p = 0; p < pointerCount; p++)
+                mInjector.sendTouchEvent(touchEventType, event.getPointerId(p), (int) event.getX(p), (int) event.getY(p));
+        } else {
             // For all other events, we only want to grab the current/active pointer.  The event
             // contains a list of every active pointer but passing all of of these to the host can
             // cause confusion on the remote OS side and result in broken touch gestures.
-//            int activePointerIndex = event.getActionIndex();
+            int activePointerIndex = event.getActionIndex();
+            int id = event.getPointerId(activePointerIndex);
+            int x = (int) event.getX(activePointerIndex);
+            int y = (int) event.getY(activePointerIndex);
+            mInjector.sendTouchEvent(touchEventType, id, x, y);
 //            touchEventList.add(new TouchEventData(event.getPointerId(activePointerIndex),
 //                    event.getX(activePointerIndex), event.getY(activePointerIndex),
 //                    event.getSize(activePointerIndex), event.getSize(activePointerIndex),
 //                    event.getOrientation(activePointerIndex),
 //                    event.getPressure(activePointerIndex)));
-//        }
-//
+        }
+
 //        if (!touchEventList.isEmpty()) {
 //            mInjector.sendTouchEvent(touchEventType, touchEventList.toArray(new TouchEventData[0]));
 //        }
+            mInjector.sendTouchEvent(-1, 0, 0, 0);
     }
 
     /**
@@ -192,41 +211,5 @@ public final class InputEventSender {
                 // We try to send all other key codes to the host directly.
                 return mInjector.sendKeyEvent(0, keyCode, pressed);
         }
-    }
-
-    public void sendKeyDown(int keyCode) {
-        mInjector.sendKeyEvent(0, keyCode, true);
-    }
-
-    public void sendKeyUp(int keyCode) {
-        mInjector.sendKeyEvent(0, keyCode, false);
-    }
-
-    /**
-     * Sends key combinations such as Ctrl-Alt-Del. This injects a key-down event for every key in
-     * the list, and then injects the corresponding key-up events. If null or an empty |keyCodes|
-     * is passed, nothing will be injected.
-     */
-    public void sendKeysPress(int[] keyCodes) {
-        if (keyCodes != null && keyCodes.length > 0) {
-            for (int keyCode : keyCodes) {
-                sendKeyDown(keyCode);
-            }
-            for (int keyCode : keyCodes) {
-                sendKeyUp(keyCode);
-            }
-        }
-    }
-
-    public void sendCtrlAltDel() {
-        sendKeysPress(CTRL_ALT_DEL);
-    }
-
-    public static class NullStub implements InputStub {
-        @Override public void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown) {}
-        @Override public void sendMouseWheelEvent(int deltaX, int deltaY) {}
-        @Override public boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown) { return false; }
-        @Override public void sendTextEvent(String text) {}
-        @Override public void sendTouchEvent(int eventType, Object[] data) {}
     }
 }

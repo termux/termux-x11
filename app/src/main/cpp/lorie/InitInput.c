@@ -39,8 +39,7 @@ from The Open Group.
 DeviceIntPtr vfbPointer, vfbKeyboard;
 
 void
-ProcessInputEvents(void)
-{
+ProcessInputEvents(void) {
     mieqProcessInputEvents();
 }
 
@@ -70,10 +69,10 @@ vfbKeybdProc(DeviceIntPtr pDevice, int onoff) {
 }
 
 static int
-vfbMouseProc(DeviceIntPtr pDevice, int onoff)
-{
+vfbMouseProc(DeviceIntPtr pDevice, int onoff) {
+#define NAXES 6
 #define NBUTTONS 7
-#define NAXES 4
+#define NTOUCHPOINTS 10
     DevicePtr pDev = (DevicePtr) pDevice;
 
     switch (onoff) {
@@ -93,15 +92,20 @@ vfbMouseProc(DeviceIntPtr pDevice, int onoff)
         btn_labels[5] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_LEFT);
         btn_labels[6] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_RIGHT);
 
-        if (!InitButtonClassDeviceStruct(pDevice, NBUTTONS, btn_labels, map))
-            return BadValue;
-
         axes_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X);
         axes_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
         axes_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_HWHEEL);
         axes_labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_WHEEL);
+        axes_labels[4] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X);
+        axes_labels[5] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y);
 
-        if (!InitValuatorClassDeviceStruct(pDevice, NAXES, axes_labels,GetMotionHistorySize(), Absolute))
+        if (!InitButtonClassDeviceStruct(pDevice, NBUTTONS, btn_labels, map))
+            return BadValue;
+
+        if (!InitValuatorClassDeviceStruct(pDevice, NAXES, axes_labels, GetMotionHistorySize(), Absolute))
+            return BadValue;
+
+        if (!InitTouchClassDeviceStruct(pDevice, NTOUCHPOINTS, XIDirectTouch, 2))
             return BadValue;
 
         /* Valuators */
@@ -109,6 +113,8 @@ vfbMouseProc(DeviceIntPtr pDevice, int onoff)
         InitValuatorAxisStruct(pDevice, 1, axes_labels[1], 0, 0xFFFF, 10000, 0, 10000, Absolute);
         InitValuatorAxisStruct(pDevice, 2, axes_labels[2], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative);
         InitValuatorAxisStruct(pDevice, 3, axes_labels[3], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative);
+        InitValuatorAxisStruct(pDevice, 4, axes_labels[4], 0, 0xFFFF, 10000, 0, 10000, Absolute);
+        InitValuatorAxisStruct(pDevice, 5, axes_labels[5], 0, 0xFFFF, 10000, 0, 10000, Absolute);
 
         SetScrollValuator(pDevice, 2, SCROLL_TYPE_HORIZONTAL, 1.0, SCROLL_FLAG_NONE);
         SetScrollValuator(pDevice, 3, SCROLL_TYPE_VERTICAL, 1.0, SCROLL_FLAG_PREFERRED);
@@ -135,16 +141,11 @@ vfbMouseProc(DeviceIntPtr pDevice, int onoff)
 }
 
 void
-InitInput(unused int argc, unused char *argv[])
-{
-    Atom xiclass;
-
+InitInput(unused int argc, unused char *argv[]) {
     vfbPointer = AddInputDevice(serverClient, vfbMouseProc, TRUE);
     vfbKeyboard = AddInputDevice(serverClient, vfbKeybdProc, TRUE);
-    xiclass = MakeAtom(XI_MOUSE, sizeof(XI_MOUSE) - 1, TRUE);
-    AssignTypeAndName(vfbPointer, xiclass, "Xvfb mouse");
-    xiclass = MakeAtom(XI_KEYBOARD, sizeof(XI_KEYBOARD) - 1, TRUE);
-    AssignTypeAndName(vfbKeyboard, xiclass, "Xvfb keyboard");
+    AssignTypeAndName(vfbPointer, MakeAtom(XI_MOUSE, sizeof(XI_MOUSE) - 1, TRUE), "Xvfb pointer");
+    AssignTypeAndName(vfbKeyboard, MakeAtom(XI_KEYBOARD, sizeof(XI_KEYBOARD) - 1, TRUE), "Xvfb keyboard");
     (void) mieqInit();
 }
 

@@ -32,6 +32,8 @@ extern "C" {
 
     extern volatile char isItTimeToYield;
     extern volatile char dispatchException;
+    extern void TimerCancel(void* timer);
+    extern void* TimerSet(void*, int, uint32_t, uint32_t(*) (void*, uint32_t, void*), void*);
 
     extern char *__progname; // NOLINT(bugprone-reserved-identifier)
 }
@@ -283,7 +285,10 @@ Java_com_termux_x11_CmdEntryPoint_getXConnection(JNIEnv *env, maybe_unused jobje
 
     socketpair(AF_UNIX, SOCK_STREAM, 0, client);
     __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
-    AddClientOnOpenFD(client[1]);
+    TimerSet(nullptr, 0, 1, [] (void* timer, uint32_t time, void* arg) -> uint32_t {
+        AddClientOnOpenFD((int) (int64_t) arg);
+        return 0;
+    }, (void*) (int64_t) client[1]);
     __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
 
     return env->CallStaticObjectMethod(ParcelFileDescriptorClass, adoptFd, client[0]);
@@ -368,8 +373,20 @@ Java_com_termux_x11_MainActivity_sendMouseEvent(JNIEnv *env, jobject thiz, jint 
                                                 jint which_button, jboolean button_down) {
     if (conn) {
         __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client", "Sending mouse event: %d %d %d %d", x, y, which_button, button_down);
-        xcb_tx11_mouse_event(conn, x, y, which_button, button_down);
+        xcb_tx11_mouse_event(conn, x, y, which_button, button_down); // NOLINT(cppcoreguidelines-narrowing-conversions)
         xcb_flush(conn);
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_sendTouchEvent(JNIEnv *env, jobject thiz, jint action, jint id,
+                                                jint x, jint y) {
+    if (conn) {
+        if (action >= 0) {
+            __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client","Sending touch event: %d %d %d %d", action, id, x, y);
+            xcb_tx11_touch_event(conn, action, id, x, y); // NOLINT(cppcoreguidelines-narrowing-conversions)
+        } else xcb_flush(conn);
     }
 }
 
@@ -398,13 +415,9 @@ void abort() {
 extern "C"
 void exit(int code) {
     JNIEnv* env;
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
     vm->AttachCurrentThread(&env, nullptr);
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
     env->FatalError("exited");
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
     env->CallStaticVoidMethod(system_cls, exit_mid, code);
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
     while(true)
         sleep(1);
 }

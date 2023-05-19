@@ -10,7 +10,7 @@
     <ListPreference
         android:title="Touchscreen input mode"
         android:key="touchMode"
-        android:defaultValue="1"
+        android:defaultValue="0"
         android:entries="@array/touchscreenInputModesEntries"
         android:entryValues="@array/touchscreenInputModesValues" />
 
@@ -69,24 +69,11 @@
         android:defaultValue="false"
         android:key="fullscreen" />
 
-    <EditTextPreference
-        android:title="Custom XDG_RUNTIME_DIR"
-        android:summary="Set the XDG runtime directory for wayland sockets"
-        android:defaultValue="/data/data/com.termux/files/usr/tmp"
-        android:key="CustXDG"
-        android:dialogMessage="Changes to this preference will apply on app restart" />
-
     <SwitchPreferenceCompat
         android:title="Intercept system shortcuts"
         android:summary="Samsung Dex only. Allows interception of &quot;Alt+F4&quot;, &quot;Meta+D&quot;, &quot;Meta+E&quot;, -etc. "
         android:defaultValue="false"
         android:key="dexMetaKeyCapture"/>
-
-    <SwitchPreferenceCompat
-        android:title="Enable horizontal scroll"
-        android:summary="Emulate horizontal scroll by sending Shift+Scroll"
-        android:defaultValue="false"
-        android:key="horizontalScroll" />
 
     <SwitchPreferenceCompat
         android:title="Automatic uploading clipboard to Android"
@@ -96,6 +83,4 @@
     <com.termux.x11.utils.ExtraKeyConfigPreference
         android:title="Extra keys config"
         android:key="extra_keys_config"/>
-
-
 </PreferenceScreen>

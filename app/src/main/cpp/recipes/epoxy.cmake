@@ -41,4 +41,4 @@ add_library(epoxy STATIC
         "${CMAKE_CURRENT_BINARY_DIR}/epoxy/gl_generated.h"
         "${CMAKE_CURRENT_BINARY_DIR}/epoxy/egl_generated_dispatch.c"
         "${CMAKE_CURRENT_BINARY_DIR}/epoxy/egl_generated.h")
-target_include_directories(epoxy PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/epoxy" "libepoxy/src" "libepoxy/include")
+target_include_directories(epoxy PUBLIC "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/epoxy" "libepoxy/src" "libepoxy/include")

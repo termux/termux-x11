@@ -104,7 +104,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         SurfaceView lorieView = findViewById(R.id.lorieView);
 
-
         mTouchHandler = new TouchInputHandler(this, new RenderStub() {
             @Override public void showInputFeedback(int feedbackToShow, PointF pos) {}
             @Override public void setCursorVisibility(boolean visible) {}
@@ -117,30 +116,31 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         }, new InputEventSender(new InputStub() {
             @Override
             public void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown) {
-//                Log.d("LorieInputStub", "sendMouseEvent");
                 MainActivity.this.sendMouseEvent(x, y, whichButton, buttonDown);
             }
 
             @Override
             public void sendMouseWheelEvent(int deltaX, int deltaY) {
-//                Log.d("LorieInputStub", "sendMouseWheelEvent " + deltaX + "x" + deltaY);
                 MainActivity.this.sendMouseEvent(deltaX, deltaY, BUTTON_SCROLL, false);
             }
 
             @Override
-            public boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown) {
+            public void sendTouchEvent(int action, int id, int x, int y) {
+                MainActivity.this.sendTouchEvent(action, id, x, y);
+            }
+
+            @Override
+            public boolean sendKeyEvent(int keyCode, boolean keyDown) {
                 Log.d("LorieInputStub", "sendKeyEvent");
+                MainActivity.this.sendKeyEvent(keyCode, keyDown);
                 return false;
             }
 
             @Override
             public void sendTextEvent(String text) {
                 Log.d("LorieInputStub", "sendTextEvent");
-            }
-
-            @Override
-            public void sendTouchEvent(int action, int id, int x, int y) {
-                MainActivity.this.sendTouchEvent(action, id, x, y);
+                if (text != null)
+                    text.codePoints().forEach(MainActivity.this::sendUnicodeEvent);
             }
         }));
         mTouchHandler.handleClientSizeChanged(800, 600);
@@ -163,8 +163,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         service.asBinder().linkToDeath(() -> {
                             service = null;
                             CmdEntryPoint.requestConnection();
-                            getLorieView().getHolder().setFormat(PixelFormat.TRANSPARENT);
-                            getLorieView().getHolder().setFormat(PixelFormat.OPAQUE);
+
+                            Log.v("Lorie", "Disconnected");
+                            runOnUiThread(() -> {
+                                int visibility = getLorieView().getVisibility();
+                                getLorieView().setVisibility(View.GONE);
+                                getLorieView().setVisibility(visibility);
+                                mClientConnected = false;
+                            });
                         }, 0);
 
                         onReceiveConnection();
@@ -196,7 +202,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     void onReceiveConnection() {
         try {
             if (service != null && service.asBinder().isBinderAlive()) {
-                Log.v("LorieBroadcastReceiver", "Extracting X connection socket.");
+                Log.v("LorieBroadcastReceiver", "Extracting logcat fd.");
                 ParcelFileDescriptor logcatOutput = service.getLogcatOutput();
                 if (logcatOutput != null) {
                     startLogcat(logcatOutput.detachFd());
@@ -289,7 +295,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private void setTerminalToolbarView() {
         final ViewPager terminalToolbarViewPager = getTerminalToolbarViewPager();
 
-        terminalToolbarViewPager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, listener));
+        terminalToolbarViewPager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mTouchHandler.sendKeyEvent(e)));
         terminalToolbarViewPager.addOnPageChangeListener(new X11ToolbarViewPager.OnPageChangeListener(this, terminalToolbarViewPager));
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
@@ -467,13 +473,38 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     @SuppressWarnings("SameParameterValue")
-    private class ServiceEventListener implements View.OnKeyListener {
+    private class ServiceEventListener {
         @SuppressLint({"WrongConstant", "ClickableViewAccessibility"})
         private void setAsListenerTo(SurfaceView view) {
             view.setOnTouchListener((v, e) -> mTouchHandler.handleTouchEvent(e));
             view.setOnHoverListener((v, e) -> mTouchHandler.handleTouchEvent(e));
             view.setOnGenericMotionListener((v, e) -> mTouchHandler.handleTouchEvent(e));
-            view.setOnKeyListener(this);
+            view.setOnKeyListener((v, k, e) -> {
+                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
+
+                Log.e("KEY", " " + e);
+                // Ignoring Android's autorepeat.
+                if (e.getRepeatCount() > 0)
+                    return true;
+
+                if (k == KeyEvent.KEYCODE_VOLUME_DOWN && preferences.getBoolean("hideEKOnVolDown", false)) {
+                    if (e.getAction() == KeyEvent.ACTION_UP) {
+                        toggleExtraKeys();
+                        findViewById(R.id.lorieView).requestFocus();
+                    }
+                    return true;
+                }
+
+                if (k == KeyEvent.KEYCODE_BACK && (e.getSource() & InputDevice.SOURCE_MOUSE) != InputDevice.SOURCE_MOUSE) {
+                    if (e.getAction() == KeyEvent.ACTION_UP) {
+                        toggleKeyboardVisibility(MainActivity.this);
+                        findViewById(R.id.lorieView).requestFocus();
+                    }
+                    return true;
+                }
+
+                return mTouchHandler.sendKeyEvent(e);
+            });
 
             mLorieViewCallback = new SurfaceHolder.Callback() {
                 @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
@@ -545,111 +576,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
             view.getHolder().addCallback(mLorieViewCallback);
         }
-
-        private boolean isSource(KeyEvent e, int source) {
-            return (e.getSource() & source) == source;
-        }
-
-        private boolean rightPressed = false; // Prevent right button press event from being repeated
-        private boolean middlePressed = false; // Prevent middle button press event from being repeated
-        @SuppressWarnings("DanglingJavadoc")
-        @Override
-        public boolean onKey(View v, int keyCode, KeyEvent e) {
-            Log.e("KEY", " " + e);
-            // Ignoring Android's autorepeat.
-            if (e.getRepeatCount() > 0)
-                return true;
-
-
-            if (keyCode == KeyEvent.KEYCODE_BACK) {
-                if (isSource(e, InputDevice.SOURCE_MOUSE) &&
-                        rightPressed != (e.getAction() == KeyEvent.ACTION_DOWN)) {
-                    sendMouseEvent(-1, -1, 3, e.getAction() == KeyEvent.ACTION_DOWN);
-                    rightPressed = (e.getAction() == KeyEvent.ACTION_DOWN);
-                } else if (e.getAction() == KeyEvent.ACTION_UP) {
-                    toggleKeyboardVisibility(MainActivity.this);
-                    findViewById(R.id.lorieView).requestFocus();
-                }
-                return true;
-            }
-
-            if (keyCode == KeyEvent.KEYCODE_MENU &&
-                    isSource(e, InputDevice.SOURCE_MOUSE) &&
-                    middlePressed != (e.getAction() == KeyEvent.ACTION_DOWN)) {
-                sendMouseEvent(-1, -1, 2, e.getAction() == KeyEvent.ACTION_DOWN);
-                middlePressed = (e.getAction() == KeyEvent.ACTION_DOWN);
-                return true;
-            }
-
-            /**
-             * A KeyEvent is generated in Android when the user interacts with the device's
-             * physical keyboard or software keyboard. If the KeyEvent is generated by a physical key,
-             * or a software key that has a corresponding physical key, it will contain a key code.
-             * If the key that is pressed generates a symbol, such as a letter or number,
-             * the symbol can be retrieved by calling the KeyEvent::getUnicodeChar() method.
-             * If the physical key requires the user to press the Shift key to enter the symbol,
-             * the software keyboard will emulate the Shift key press.
-             * However, in the case of a non-English keyboard layout, KeyEvent::getUnicodeChar()
-             * will not return 0 symbol for non-English keyboard layouts, keycode also will be set to 0,
-             * action will be set to KeyEvent.ACTION_MULTIPLE and the symbol data can only be retrieved
-             * by calling the KeyEvent::getCharacters() method.
-
-             * For special keys like Tab and Return, both the key code and Unicode symbol are set in
-             * the KeyEvent object. However, this is not the case for all keys, so to determine whether
-             * a key is special or not, we will rely only on the keycode value.
-
-             * Android sends emulated Shift key press event along with some key events.
-             * Since we cannot determine the event source from JNI, we ignore the emulated Shift
-             * key press in JNI. In this case, it becomes much easier to handle Shift key press events
-             * coming from a physical keyboard or ExtraKeysView.
-
-             * To avoid handling modifier states we will simply ignore modifier keys and
-             * ACTION_DOWN if they come from soft keyboard.
-             *
-             */
-            if (e.getDevice() == null || e.getDevice().isVirtual()) {
-                if (e.getAction() == KeyEvent.ACTION_UP || e.getAction() == KeyEvent.ACTION_MULTIPLE) {
-                    switch (keyCode) {
-                        case KeyEvent.KEYCODE_SHIFT_LEFT:
-                        case KeyEvent.KEYCODE_SHIFT_RIGHT:
-                        case KeyEvent.KEYCODE_ALT_LEFT:
-                        case KeyEvent.KEYCODE_ALT_RIGHT:
-                        case KeyEvent.KEYCODE_CTRL_LEFT:
-                        case KeyEvent.KEYCODE_CTRL_RIGHT:
-                        case KeyEvent.KEYCODE_META_LEFT:
-                        case KeyEvent.KEYCODE_META_RIGHT:
-                            break;
-                        default: {
-                            int unicode = e.getUnicodeChar();
-                            if (unicode != 0 && e.getMetaState() == 0) {
-                                onKeySym(0, unicode, 0);
-                                return true;
-                            }
-
-                            if (keyCode != 0) {
-                                onKeySym(keyCode, unicode, 0);
-                            }
-
-                            if (e.getCharacters() != null)
-                                e.getCharacters().codePoints().forEach(codePoint -> onKeySym(0, codePoint, 0));
-                        }
-                    }
-                }
-            } else
-            /**
-             * Android does not send us non-latin symbols from physical keyboard
-             * so we can trust those events and not emulate typing.
-             */
-                switch(e.getAction()) {
-                    case KeyEvent.ACTION_DOWN:
-                        MainActivity.this.onKey(keyCode, KeyPress);
-                        break;
-                    case KeyEvent.ACTION_UP:
-                        MainActivity.this.onKey(keyCode, KeyRelease);
-                        break;
-                }
-            return true;
-        }
     }
 
     /**
@@ -690,23 +616,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private native void sendWindowChange(int width, int height, int dpi);
     private native void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown);
     private native void sendTouchEvent(int action, int id, int x, int y);
-
-//    private native void init();
-//    public native void onPointerMotion(int x, int y);
-//    public native void onPointerScroll(int axis, float value);
-//    public native void onPointerButton(int button, int type);
-//    public native void onKeySym(int keyCode, int unicode, int metaState);
-//    public native void onKey(int keyCode, int type);
-//
-//    private native void setClipboardSyncEnabled(boolean enabled);
-
-    public void onKey(int keyCode, int type) {
-
-    }
-
-    public void onKeySym(int keyCode, int unicode, int metaState) {
-
-    }
+    public native void sendKeyEvent(int keyCode, boolean keyDown);
+    public native void sendUnicodeEvent(int unicode);
 
     static {
         System.loadLibrary("Xlorie");

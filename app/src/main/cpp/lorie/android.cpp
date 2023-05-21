@@ -56,115 +56,8 @@ static char* progname() {
     return progname;
 }
 
-bool readyForConnections = false;
-std::condition_variable cv;
-std::mutex cv_m;
-
 extern "C"
 void NotifyDdx(void) {
-    readyForConnections = true;
-    cv.notify_one();
-}
-
-extern "C"
-JNIEXPORT void JNICALL maybe_unused
-Java_com_eltechs_axs_xserver_RealXServer_start(unused JNIEnv *env, unused jclass clazz) {
-    char root[128] = {0}, tmpdir[128] = {0}, lib[128] = {0}, path[1024] = {0};
-
-    asprintf((char **)(&XkbBaseDirectory), "/data/data/%s/files/usr/share/X11/xkb", progname());
-    sprintf(path, "/data/data/%s/lib:%s", progname(), getenv("PATH")?:"/system/bin");
-    sprintf(root, "/data/data/%s/files", progname());
-    sprintf(tmpdir, "/data/data/%s/files/", progname());
-    sprintf(lib, "/data/data/%s/lib", progname());
-
-    char apk[1024], cmd[1024];
-    wai_getModulePath(apk, 1024, nullptr);
-    if (strstr(apk, "!/lib"))
-        strstr(apk, "!/lib")[0] = 0;
-    sprintf(cmd, "unzip -d /data/data/com.termux.x11/files/ %s assets/xkb.tar", apk);
-    system(cmd);
-    system("mv /data/data/com.termux.x11/files/assets/xkb.tar /data/data/com.termux.x11/files/assets/xkb.tar.gz");
-    system("mkdir -p /data/data/com.termux.x11/files/usr/share/X11/");
-    system("tar -xf /data/data/com.termux.x11/files/assets/xkb.tar.gz -C /data/data/com.termux.x11/files/usr/share/X11/");
-    setenv("XKB_CONFIG_ROOT", "/data/data/com.termux.x11/files/usr/share/X11/xkb", 1);
-
-    LogSetParameter(2, 10);
-    setenv("HOME", root, 1);
-    setenv("TMPDIR", tmpdir, 1);
-    setenv("XKB_CONFIG_ROOT", XkbBaseDirectory, 1);
-    setenv("PATH", path, 1);
-    setenv("LIBGL_DRIVERS_PATH", lib, 1);
-
-    if (access(XkbBaseDirectory, F_OK) != 0) {
-        __android_log_print(ANDROID_LOG_ERROR, "XegwNative", "%s is unaccessible: %s\n", XkbBaseDirectory, strerror(errno));
-        printf("%s is unaccessible: %s\n", XkbBaseDirectory, strerror(errno));
-        return;
-    }
-
-    std::thread([] {
-        char* envp[] = { nullptr };
-        char *argv[] = { (char*) "Xegw",  (char*) ":12", (char*) "-ac", (char*) "-listen", (char*) "tcp", (char*) "-listen", (char*) "unix", nullptr };
-        dix_main(7, argv, envp);
-    }).detach();
-
-    std::unique_lock<std::mutex> lk(cv_m);
-    cv.wait(lk, []{ return readyForConnections; });
-}
-
-extern "C"
-JNIEXPORT void JNICALL maybe_unused
-Java_com_eltechs_axs_xserver_RealXServer_stop(unused JNIEnv *env, unused jclass clazz) {
-    std::thread([] {
-        isItTimeToYield = 1;
-        dispatchException |= DE_RESET;
-        dispatchException |= DE_STOP;
-    }).detach();
-}
-
-extern "C"
-JNIEXPORT void JNICALL maybe_unused
-Java_com_eltechs_axs_xserver_RealXServer_windowChanged(JNIEnv *env, unused jclass clazz, jobject surface, jint width, jint height) {
-    ANativeWindow* win = surface ? ANativeWindow_fromSurface(env, surface) : nullptr;
-    if (win)
-        ANativeWindow_acquire(win);
-    __android_log_print(ANDROID_LOG_INFO, "XegwNative", "window change: %p", win);
-
-    looper.post([=] {
-        vfbChangeWindow(win);
-        vfbConfigureNotify(width, height, 96);
-    });
-}
-
-extern "C"
-JNIEXPORT void JNICALL maybe_unused
-Java_com_eltechs_axs_xserver_RealXServer_keySym(unused JNIEnv *env, unused jclass clazz, jint keysym) {
-    __android_log_print(ANDROID_LOG_INFO, "XegwNative", "keySym keysym %d: unimplemented", keysym);
-}
-
-extern "C"
-JNIEXPORT void JNICALL maybe_unused
-Java_com_eltechs_axs_xserver_RealXServer_key(unused JNIEnv *env, unused jclass clazz, jint key, jint state) {
-//    key = android_to_linux_keycode[key]+8;
-    __android_log_print(ANDROID_LOG_INFO, "XegwNative", "key key %d state %d", key, state);
-    looper.post([=] {
-//        vfbKeyNotify(key, state);
-    });
-}
-
-extern "C"
-JNIEXPORT void JNICALL maybe_unused
-Java_com_eltechs_axs_xserver_RealXServer_motion(unused JNIEnv *env, unused jclass clazz, maybe_unused jint x, maybe_unused jint y) {
-}
-
-extern "C"
-JNIEXPORT void JNICALL maybe_unused
-Java_com_eltechs_axs_xserver_RealXServer_click(unused JNIEnv *env, unused jclass clazz, maybe_unused jint button, maybe_unused jint state) {
-}
-
-extern "C"
-JNIEXPORT void JNICALL maybe_unused
-Java_com_eltechs_axs_xserver_RealXServer_scroll(unused JNIEnv *env, unused jclass clazz, jint axis, jint value) {
-    __android_log_print(ANDROID_LOG_INFO, "XegwNative", "scroll axis %d value %d: unimplemented", axis, value);
 }
 
 extern "C"
@@ -358,8 +251,7 @@ Java_com_termux_x11_MainActivity_startLogcat(maybe_unused JNIEnv *env, maybe_unu
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_sendWindowChange(JNIEnv *env, jobject thiz, jint width,
-                                                  jint height, jint dpi) {
+Java_com_termux_x11_MainActivity_sendWindowChange(maybe_unused JNIEnv *env, maybe_unused jobject thiz, jint width, jint height, jint dpi) {
     if (conn) {
         __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client", "Sending window changed: %d %d %d", width, height, dpi);
         xcb_tx11_screen_size_change(conn, width, height, dpi);
@@ -369,8 +261,7 @@ Java_com_termux_x11_MainActivity_sendWindowChange(JNIEnv *env, jobject thiz, jin
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_sendMouseEvent(JNIEnv *env, jobject thiz, jint x, jint y,
-                                                jint which_button, jboolean button_down) {
+Java_com_termux_x11_MainActivity_sendMouseEvent(maybe_unused JNIEnv *env, maybe_unused jobject thiz, jint x, jint y, jint which_button, jboolean button_down) {
     if (conn) {
         __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client", "Sending mouse event: %d %d %d %d", x, y, which_button, button_down);
         xcb_tx11_mouse_event(conn, x, y, which_button, button_down); // NOLINT(cppcoreguidelines-narrowing-conversions)
@@ -380,13 +271,32 @@ Java_com_termux_x11_MainActivity_sendMouseEvent(JNIEnv *env, jobject thiz, jint 
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_sendTouchEvent(JNIEnv *env, jobject thiz, jint action, jint id,
-                                                jint x, jint y) {
+Java_com_termux_x11_MainActivity_sendTouchEvent(maybe_unused JNIEnv *env, maybe_unused jobject thiz, jint action, jint id, jint x, jint y) {
     if (conn) {
         if (action >= 0) {
             __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client","Sending touch event: %d %d %d %d", action, id, x, y);
             xcb_tx11_touch_event(conn, action, id, x, y); // NOLINT(cppcoreguidelines-narrowing-conversions)
         } else xcb_flush(conn);
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_sendKeyEvent(maybe_unused JNIEnv *env, maybe_unused jobject thiz, jint key_code, jboolean key_down) {
+    if (conn) {
+        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client","Sending key event: %d %d %s", key_code, android_to_linux_keycode[key_code] + 8, key_down ? "true" : "false");
+        xcb_tx11_key_event(conn, android_to_linux_keycode[key_code] + 8, key_down);
+        xcb_flush(conn);
+    }
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_sendUnicodeEvent(maybe_unused JNIEnv *env, maybe_unused jobject thiz, jint unicode) {
+    if (conn) {
+        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client","Sending unicode event: %d", unicode);
+        xcb_tx11_unicode_event(conn, unicode);
+        xcb_flush(conn);
     }
 }
 

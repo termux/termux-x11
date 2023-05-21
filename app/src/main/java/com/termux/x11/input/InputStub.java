@@ -30,7 +30,7 @@ public interface InputStub {
      * converted to a known usb key code. Nothing will be sent to remote host, if this function
      * returns false.
      */
-    boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
+    boolean sendKeyEvent(int keyCode, boolean keyDown);
 
     /**
      * Sends a string literal. This function is useful to handle outputs from Android input

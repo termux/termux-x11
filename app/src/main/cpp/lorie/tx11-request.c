@@ -11,9 +11,12 @@
 #include <android/log.h>
 #include "egw.h"
 #include "tx11.h"
+#include "xkbcommon/xkbcommon.h"
 
 extern DeviceIntPtr vfbPointer, vfbKeyboard;
 extern ScreenPtr pScreenPtr;
+
+void vfbKeysymKeyboardEvent(KeySym keysym, int down);
 
 static int dispatch(ClientPtr client) {
     xReq* req = (xReq*) client->requestBuffer;
@@ -108,20 +111,18 @@ static int dispatch(ClientPtr client) {
             }
             return Success;
         }
-        case XCB_TX11_KEY: {
-            REQUEST(xcb_tx11_key_request_t)
-
-            swaps(&stuff->keyCode);
-            swaps(&stuff->unicode);
-            swaps(&stuff->metaState);
-//            QueueKeyboardEvents(vfbKeyboard, state ? KeyPress : KeyRelease, key);
+        case XCB_TX11_KEY_EVENT: {
+            REQUEST(xcb_tx11_key_event_request_t)
+            QueueKeyboardEvents(vfbKeyboard, stuff->state ? KeyPress : KeyRelease, stuff->keycode);
             return Success;
         }
-        case XCB_TX11_KEYSYM: {
-            REQUEST(xcb_tx11_keysym_request_t)
-
-            swaps(&stuff->keyCode);
-            swaps(&stuff->type);
+        case XCB_TX11_UNICODE_EVENT: {
+            REQUEST(xcb_tx11_unicode_event_request_t)
+            char name[128];
+            xkb_keysym_get_name(xkb_utf32_to_keysym(stuff->unicode), name, 128);
+            printf("Trying to input keysym %d %s\n", xkb_utf32_to_keysym(stuff->unicode), name);
+            vfbKeysymKeyboardEvent(xkb_utf32_to_keysym(stuff->unicode), TRUE);
+            vfbKeysymKeyboardEvent(xkb_utf32_to_keysym(stuff->unicode), FALSE);
             return Success;
         }
         default:

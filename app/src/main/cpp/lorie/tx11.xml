@@ -51,14 +51,12 @@
     <field type="CARD8" name="down" />
   </request>
 
-  <request name="Key" opcode="4">
-    <field type="CARD16" name="keyCode" />
-    <field type="CARD16" name="unicode" />
-    <field type="CARD16" name="metaState" />
+  <request name="KeyEvent" opcode="4">
+    <field type="CARD16" name="keycode" />
+    <field type="CARD8" name="state" />
   </request>
 
-  <request name="Keysym" opcode="5">
-    <field type="CARD16" name="keyCode" />
-    <field type="CARD16" name="type" />
+  <request name="UnicodeEvent" opcode="5">
+    <field type="CARD16" name="unicode" />
   </request>
 </xcb>

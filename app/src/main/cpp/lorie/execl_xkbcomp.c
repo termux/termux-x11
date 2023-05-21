@@ -108,7 +108,7 @@ int execl_xkbcomp(const char * path, const char * arg, ...) {
     setenv("LD_LIBEXEC", ldlibexec, 1);
 
     dprintf(2, "executing xkbcomp...\n");
-    dprintf(2, "ldlibpath %s\n", dirname(lib));
+    dprintf(2, "ldlibpath %s (%d)\n", dirname(lib), getpid());
     dprintf(2, "ldpreload %s\n", ldpreload);
     dprintf(2, "ldlibexec %s\n", ldlibexec);
 

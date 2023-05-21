@@ -11,6 +11,7 @@ import android.graphics.PointF;
 import android.graphics.Rect;
 import android.util.Log;
 import android.view.GestureDetector;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.ViewConfiguration;
@@ -575,6 +576,11 @@ public class TouchInputHandler {
             return mappedPoints[0] < -EPSILON || mappedPoints[0] > imageWidth
                     || mappedPoints[1] < -EPSILON || mappedPoints[1] > imageHeight;
         }
+    }
+
+
+    public boolean sendKeyEvent(KeyEvent event) {
+        return mInjector.sendKeyEvent(event);
     }
 
     private class HardwareMouseListener {

@@ -58,7 +58,6 @@ from The Open Group.
 #include "randrstr.h"
 #include "damagestr.h"
 #include "cursorstr.h"
-#include "resolutions.h"
 
 #include "renderer.h"
 #include "inpututils.h"
@@ -456,6 +455,7 @@ void vfbChangeWindow(struct ANativeWindow* win) {
     BoxRec box = { .x1 = 0, .y1 = 0, .x2 = pScreen->root->drawable.width, .y2 = pScreen->root->drawable.height};
     pvfb->win = win;
     renderer_set_window(win);
+    renderer_set_buffer(pvfb->buf);
 
     if (win) {
         RegionInit(&reg, &box, 1);
@@ -500,7 +500,6 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
 
     egw_init();
     renderer_init();
-//    renderer_message_func(LogMessageVerb);
     xorgGlxCreateVendor();
     tx11_protocol_init();
 

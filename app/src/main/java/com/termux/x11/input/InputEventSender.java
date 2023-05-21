@@ -188,28 +188,28 @@ public final class InputEventSender {
             // third-party keyboards that may still generate these events. See
             // https://source.android.com/devices/input/keyboard-devices.html#legacy-unsupported-keys
             case KeyEvent.KEYCODE_AT:
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_2, pressed);
+                mInjector.sendKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
+                mInjector.sendKeyEvent(KeyEvent.KEYCODE_2, pressed);
                 return true;
 
             case KeyEvent.KEYCODE_POUND:
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_3, pressed);
+                mInjector.sendKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
+                mInjector.sendKeyEvent(KeyEvent.KEYCODE_3, pressed);
                 return true;
 
             case KeyEvent.KEYCODE_STAR:
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_8, pressed);
+                mInjector.sendKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
+                mInjector.sendKeyEvent(KeyEvent.KEYCODE_8, pressed);
                 return true;
 
             case KeyEvent.KEYCODE_PLUS:
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_EQUALS, pressed);
+                mInjector.sendKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
+                mInjector.sendKeyEvent(KeyEvent.KEYCODE_EQUALS, pressed);
                 return true;
 
             default:
                 // We try to send all other key codes to the host directly.
-                return mInjector.sendKeyEvent(0, keyCode, pressed);
+                return mInjector.sendKeyEvent(keyCode, pressed);
         }
     }
 }

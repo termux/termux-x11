@@ -1,5 +1,7 @@
 package com.termux.x11;
 
+import static android.view.KeyEvent.KEYCODE_META_LEFT;
+import static android.view.KeyEvent.KEYCODE_META_RIGHT;
 import static com.termux.x11.CmdEntryPoint.ACTION_START;
 import static com.termux.x11.LoriePreferences.ACTION_PREFERENCES_CHANGED;
 
@@ -28,6 +30,7 @@ import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.preference.PreferenceManager;
+import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.InputDevice;
@@ -45,6 +48,7 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
 import androidx.viewpager.widget.ViewPager;
@@ -54,6 +58,7 @@ import com.termux.x11.input.InputStub;
 import com.termux.x11.input.RenderStub;
 import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.FullscreenWorkaround;
+import com.termux.x11.utils.KeyInterceptor;
 import com.termux.x11.utils.PermissionUtils;
 import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
@@ -80,6 +85,19 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     NotificationManager mNotificationManager;
     private boolean mClientConnected = false;
     private SurfaceHolder.Callback mLorieViewCallback;
+    private View.OnKeyListener mLorieKeyListener;
+    private boolean filterOutWinKey = false;
+
+    @SuppressLint("StaticFieldLeak")
+    private static MainActivity instance;
+
+    public MainActivity() {
+        instance = this;
+    }
+
+    public static MainActivity getInstance() {
+        return instance;
+    }
 
     @Override @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt"})
     protected void onCreate(Bundle savedInstanceState) {
@@ -236,15 +254,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     void onPreferencesChanged() {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        SharedPreferences p = PreferenceManager.getDefaultSharedPreferences(this);
 
-        int mode = Integer.parseInt(preferences.getString("touchMode", "1"));
+        int mode = Integer.parseInt(p.getString("touchMode", "1"));
         mInputHandler.setInputMode(mode);
-        mInputHandler.setPreferScancodes(preferences.getBoolean("preferScancodes", false));
+        mInputHandler.setPreferScancodes(p.getBoolean("preferScancodes", false));
 
-        if (preferences.getBoolean("dexMetaKeyCapture", false)) {
-            SamsungDexUtils.dexMetaKeyCapture(this, false);
-        }
+        SamsungDexUtils.dexMetaKeyCapture(this, p.getBoolean("dexMetaKeyCapture", false));
 
         setTerminalToolbarView();
         onWindowFocusChanged(true);
@@ -255,6 +271,28 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         lorieView.setFocusableInTouchMode(true);
         lorieView.requestFocus();
         mLorieViewCallback.surfaceChanged(lorieView.getHolder(), PixelFormat.RGBA_8888, lorieView.getWidth(), lorieView.getHeight());
+
+        filterOutWinKey = p.getBoolean("filterOutWinkey", false);
+        if (p.getBoolean("enableAccessibilityServiceAutomatically", false)) {
+            try {
+                Settings.Secure.putString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, "com.termux.x11/.utils.KeyInterceptor");
+                Settings.Secure.putString(getContentResolver(), Settings.Secure.ACCESSIBILITY_ENABLED, "1");
+            } catch (SecurityException e) {
+                new AlertDialog.Builder(this)
+                        .setTitle("Permission denied")
+                        .setMessage("Android requires WRITE_SECURE_SETTINGS permission to start accessibility service automatically.\n" +
+                                "Please, launch this command using ADB:\n" +
+                                "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS")
+                        .setNegativeButton("OK", null)
+                        .create()
+                        .show();
+
+                SharedPreferences.Editor edit = p.edit();
+                edit.putBoolean("enableAccessibilityServiceAutomatically", false);
+                edit.commit();
+            }
+        } else
+            KeyInterceptor.shutdown();
     }
 
     @Override
@@ -348,6 +386,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public void toggleExtraKeys() {
         int visibility = getTerminalToolbarViewPager().getVisibility();
         toggleExtraKeys(visibility != View.VISIBLE, true);
+    }
+
+    public boolean handleKey(KeyEvent e) {
+        if (filterOutWinKey && (e.getKeyCode() == KEYCODE_META_LEFT || e.getKeyCode() == KEYCODE_META_RIGHT || e.isMetaPressed()))
+            return false;
+        mLorieKeyListener.onKey(null, e.getKeyCode(), e);
+        return true;
     }
 
     @SuppressLint("ObsoleteSdkInt")
@@ -489,7 +534,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             view.setOnTouchListener((v, e) -> mInputHandler.handleTouchEvent(e));
             view.setOnHoverListener((v, e) -> mInputHandler.handleTouchEvent(e));
             view.setOnGenericMotionListener((v, e) -> mInputHandler.handleTouchEvent(e));
-            view.setOnKeyListener((v, k, e) -> {
+
+            mLorieKeyListener = (v, k, e) -> {
                 SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
 
                 Log.e("KEY", " " + e + " characters " + e.getCharacters() + " " + e.getUnicodeChar());
@@ -511,7 +557,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 }
 
                 return mInputHandler.sendKeyEvent(e);
-            });
+            };
+
+            view.setOnKeyListener(mLorieKeyListener);
 
             mLorieViewCallback = new SurfaceHolder.Callback() {
                 @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {

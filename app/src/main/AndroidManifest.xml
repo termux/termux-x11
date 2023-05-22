@@ -3,7 +3,6 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:installLocation="internalOnly">
 
-    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
@@ -56,6 +55,20 @@
             android:exported="true" />
 	    <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true"/>
 	    <meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />
+
+        <service android:name=".utils.KeyInterceptor"
+            android:exported="true"
+            android:label="Termux:X11 KeyInterceptor"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
     </application>
     <queries>
         <package android:name="com.termux" />

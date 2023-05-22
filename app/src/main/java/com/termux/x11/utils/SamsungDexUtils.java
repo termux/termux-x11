@@ -7,6 +7,15 @@ import java.lang.reflect.Method;
 
 public class SamsungDexUtils {
     private static final String TAG = SamsungDexUtils.class.getSimpleName();
+    static public boolean available() {
+        try {
+            Class<?> semWindowManager = Class.forName("com.samsung.android.view.SemWindowManager");
+            semWindowManager.getMethod("getInstance");
+            semWindowManager.getDeclaredMethod("requestMetaKeyEvent", android.content.ComponentName.class, boolean.class);
+            return true;
+        } catch (Exception ignored) {}
+        return false;
+    }
     static public void dexMetaKeyCapture(Activity activity, boolean enable) {
         try {
             Class<?> semWindowManager = Class.forName("com.samsung.android.view.SemWindowManager");

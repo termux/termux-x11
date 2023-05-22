@@ -331,10 +331,8 @@ public class TouchInputHandler {
             mInputStrategy = new TouchInputStrategy(mRenderData, mInjector);
         } else if (inputMode == InputMode.SIMULATED_TOUCH) {
             mInputStrategy = new SimulatedTouchInputStrategy(mRenderData, mInjector, mContext);
-        } else if (inputMode == InputMode.TRACKPAD) {
-            mInputStrategy = new TrackpadInputStrategy(mRenderData, mInjector);
         } else {
-           assert false : "Unreached";
+            mInputStrategy = new TrackpadInputStrategy(mRenderData, mInjector);
         }
     }
 

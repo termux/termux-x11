@@ -1,5 +1,8 @@
 package com.termux.x11;
 
+import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
+import static android.content.pm.PackageManager.PERMISSION_GRANTED;
+
 import android.annotation.SuppressLint;
 import android.app.Dialog;
 import android.content.Intent;
@@ -35,6 +38,8 @@ import android.widget.Toast;
 
 import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
 import com.termux.x11.utils.ExtraKeyConfigPreference;
+import com.termux.x11.utils.KeyInterceptor;
+import com.termux.x11.utils.SamsungDexUtils;
 
 import java.util.Objects;
 import java.util.regex.PatternSyntaxException;
@@ -80,14 +85,16 @@ public class LoriePreferences extends AppCompatActivity {
 
         @SuppressWarnings("ConstantConditions")
         void updatePreferencesLayout() {
-            SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
+            SharedPreferences p = getPreferenceManager().getSharedPreferences();
+            if (!SamsungDexUtils.available())
+                findPreference("dexMetaKeyCapture").setVisible(false);
             SeekBarPreference scalePreference = findPreference("displayScale");
             scalePreference.setMin(30);
             scalePreference.setMax(200);
             scalePreference.setSeekBarIncrement(10);
             scalePreference.setShowSeekBarValue(true);
 
-            switch (preferences.getString("displayResolutionMode", "native")) {
+            switch (p.getString("displayResolutionMode", "native")) {
                 case "scaled":
                     findPreference("displayScale").setVisible(true);
                     findPreference("displayResolutionExact").setVisible(false);
@@ -108,6 +115,10 @@ public class LoriePreferences extends AppCompatActivity {
                     findPreference("displayResolutionExact").setVisible(false);
                     findPreference("displayResolutionCustom").setVisible(false);
             }
+
+            findPreference("dexMetaKeyCapture").setVisible(!p.getBoolean("enableAccessibilityServiceAutomatically", false));
+            findPreference("enableAccessibilityServiceAutomatically").setVisible(!p.getBoolean("dexMetaKeyCapture", false));
+            findPreference("filterOutWinkey").setVisible(p.getBoolean("enableAccessibilityServiceAutomatically", false));
         }
 
         @Override
@@ -137,6 +148,11 @@ public class LoriePreferences extends AppCompatActivity {
 
         @Override
         public boolean onPreferenceClick(@NonNull Preference preference) {
+            if ("enableAccessibilityService".equals(preference.getKey())) {
+                Intent intent = new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                startActivityForResult(intent, 0);
+            }
+
             updatePreferencesLayout();
             return false;
         }
@@ -207,9 +223,28 @@ public class LoriePreferences extends AppCompatActivity {
                 edit.commit();
             }
 
+            if ("enableAccessibilityServiceAutomatically".equals(key)) {
+                Boolean value = (Boolean) newValue;
+                if (!value)
+                    KeyInterceptor.shutdown();
+                if (requireContext().checkSelfPermission(WRITE_SECURE_SETTINGS) != PERMISSION_GRANTED) {
+                    new AlertDialog.Builder(requireContext())
+                            .setTitle("Permission denied")
+                            .setMessage("Android requires WRITE_SECURE_SETTINGS permission to start accessibility service automatically.\n" +
+                                    "Please, launch this command using ADB:\n" +
+                                    "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS")
+                            .setNegativeButton("OK", null)
+                            .create()
+                            .show();
+                    return false;
+                }
+            }
+
             Intent intent = new Intent(ACTION_PREFERENCES_CHANGED);
             intent.setPackage("com.termux.x11");
             requireContext().sendBroadcast(intent);
+
+            handler.postAtTime(this::updatePreferencesLayout, 100);
             return true;
         }
 

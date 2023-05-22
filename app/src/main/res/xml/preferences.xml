@@ -85,6 +85,23 @@
             android:defaultValue="false"
             android:key="dexMetaKeyCapture"/>
 
+        <Preference
+            android:title="Enable Accessibility service for intercepting system shortcuts manually."
+            android:summary="Open Accessibility settings."
+            android:key="enableAccessibilityService" />
+
+        <SwitchPreferenceCompat
+            android:title="Enable Accessibility service for intercepting system shortcuts automatically."
+            android:summary="Requires android.permission.WRITE_SECURE_SETTINGS permission."
+            android:defaultValue="false"
+            android:key="enableAccessibilityServiceAutomatically"/>
+
+        <SwitchPreferenceCompat
+            android:title="Filter out intercepted Win (Meta/Mod4) key."
+            android:summary="Allows you to use Dex shortcuts while intercepting."
+            android:defaultValue="false"
+            android:key="filterOutWinkey"/>
+
         <SwitchPreferenceCompat
             android:title="Hide extra keys bar on Volume Down key press"
             android:defaultValue="false"

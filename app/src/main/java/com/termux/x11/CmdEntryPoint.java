@@ -1,17 +1,10 @@
 package com.termux.x11;
 
 import android.annotation.SuppressLint;
-import android.app.Activity;
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
-import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.IBinder;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.view.Surface;
@@ -100,37 +93,5 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
 
     static {
         System.loadLibrary("Xlorie");
-    }
-
-    /** That class is only needed to test X server with Android Studio debugger */
-    public static class FakeLoader extends Activity {
-        protected void onCreate(Bundle savedInstanceState) {
-            super.onCreate(savedInstanceState);
-            startForegroundService(new Intent(this, ForegroundService.class));
-            finish();
-        }
-    }
-
-    /** That class is only needed to test X server with Android Studio debugger */
-    public static class ForegroundService extends Service {
-        public int onStartCommand(Intent intent, int flags, int startId) {
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            manager.createNotificationChannel(new NotificationChannel("Channel", "Channel", NotificationManager.IMPORTANCE_NONE));
-            startForeground(1, new Notification.Builder(this, "Channel")
-                    .setContentIntent(PendingIntent.getActivity(this, 0, new Intent(), PendingIntent.FLAG_IMMUTABLE))
-                    .setContentTitle("Foreground Service").
-                    build());
-
-            CmdEntryPoint.ctx = this;
-            new Thread(() -> {
-                Looper.prepare();
-                CmdEntryPoint.main(new String[] { ":1", "-listen", "tcp", "-ac" });
-            }).start();
-            return START_NOT_STICKY;
-        }
-
-        public IBinder onBind(Intent intent) {
-            return null;
-        }
     }
 }

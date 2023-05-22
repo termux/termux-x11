@@ -56,19 +56,6 @@
             android:exported="true" />
 	    <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true"/>
 	    <meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />
-
-        <!-- These two entries are needed only to start X server with Android studio debugger -->
-        <service
-            android:name="com.termux.x11.CmdEntryPoint$ForegroundService"
-            android:enabled="true"
-            android:exported="true"
-            tools:ignore="ExportedService"
-            android:process=":loader" />
-        <activity
-            android:name="com.termux.x11.CmdEntryPoint$FakeLoader"
-            android:exported="true"
-            android:theme="@android:style/Theme.Dialog"
-            android:process=":loader" />
     </application>
     <queries>
         <package android:name="com.termux" />

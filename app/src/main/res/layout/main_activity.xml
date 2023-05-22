@@ -39,7 +39,8 @@
 				android:minHeight="100sp"
 				android:scaleType="fitCenter"
 				app:srcCompat="@drawable/ic_x11_icon"
-				android:contentDescription="X Logo" />
+				android:contentDescription="X Logo"
+				tools:ignore="HardcodedText" />
 
 			<Space
 				android:layout_width="match_parent"

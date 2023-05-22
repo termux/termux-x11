@@ -21,6 +21,8 @@ public final class InputEventSender {
 
     private final InputStub mInjector;
 
+    public boolean preferScancodes = false;
+
     /** Set of pressed keys for which we've sent TextEvent. */
     private final Set<Integer> mPressedTextKeys;
 
@@ -166,20 +168,23 @@ public final class InputEventSender {
         // For Enter getUnicodeChar() returns 10 (line feed), but we still
         // want to send it as KeyEvent.
         int unicode = keyCode != KeyEvent.KEYCODE_ENTER ? event.getUnicodeChar() : 0;
+        int scancode = preferScancodes ? event.getScanCode(): 0;
 
-        boolean no_modifiers =
-                !event.isAltPressed() && !event.isCtrlPressed() && !event.isMetaPressed();
+        if (!preferScancodes) {
+            boolean no_modifiers =
+                    !event.isAltPressed() && !event.isCtrlPressed() && !event.isMetaPressed();
 
-        if (pressed && unicode != 0 && no_modifiers) {
-            mPressedTextKeys.add(keyCode);
-            int[] codePoints = {unicode};
-            mInjector.sendTextEvent(new String(codePoints, 0, 1));
-            return true;
-        }
+            if (pressed && unicode != 0 && no_modifiers) {
+                mPressedTextKeys.add(keyCode);
+                int[] codePoints = {unicode};
+                mInjector.sendTextEvent(new String(codePoints, 0, 1));
+                return true;
+            }
 
-        if (!pressed && mPressedTextKeys.contains(keyCode)) {
-            mPressedTextKeys.remove(keyCode);
-            return true;
+            if (!pressed && mPressedTextKeys.contains(keyCode)) {
+                mPressedTextKeys.remove(keyCode);
+                return true;
+            }
         }
 
         switch (keyCode) {
@@ -188,28 +193,32 @@ public final class InputEventSender {
             // third-party keyboards that may still generate these events. See
             // https://source.android.com/devices/input/keyboard-devices.html#legacy-unsupported-keys
             case KeyEvent.KEYCODE_AT:
-                mInjector.sendKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
-                mInjector.sendKeyEvent(KeyEvent.KEYCODE_2, pressed);
+                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
+                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_2, pressed);
                 return true;
 
             case KeyEvent.KEYCODE_POUND:
-                mInjector.sendKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
-                mInjector.sendKeyEvent(KeyEvent.KEYCODE_3, pressed);
+                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
+                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_3, pressed);
                 return true;
 
             case KeyEvent.KEYCODE_STAR:
-                mInjector.sendKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
-                mInjector.sendKeyEvent(KeyEvent.KEYCODE_8, pressed);
+                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
+                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_8, pressed);
                 return true;
 
             case KeyEvent.KEYCODE_PLUS:
-                mInjector.sendKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
-                mInjector.sendKeyEvent(KeyEvent.KEYCODE_EQUALS, pressed);
+                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
+                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_EQUALS, pressed);
                 return true;
 
             default:
+                // Ignoring Android's autorepeat.
+                if (event.getRepeatCount() > 0)
+                    return true;
+
                 // We try to send all other key codes to the host directly.
-                return mInjector.sendKeyEvent(keyCode, pressed);
+                return mInjector.sendKeyEvent(scancode, keyCode, pressed);
         }
     }
 }

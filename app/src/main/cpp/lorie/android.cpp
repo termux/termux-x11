@@ -11,20 +11,20 @@
 #include <xcb.h>
 #include <linux/un.h>
 #include <libgen.h>
-#include "lorie_looper.hpp"
 #include "renderer.h"
-#include "egw.h"
+#include "lorie.h"
 #include "android-to-linux-keycodes.h"
 #include "whereami.h"
 #include "tx11.h"
-
-lorie_looper looper;
 
 #define DE_RESET     1
 #define DE_TERMINATE 2
 #define DE_PRIORITYCHANGE 4     /* set when a client's priority changes */
 
 extern "C" {
+    extern int dix_main(int argc, char *argv[], char *envp[]);
+    extern const char *LogInit(const char *fname, const char *backup);
+    extern int SetNotifyFd(int fd, void (*notify)(int,int,void*), int mask, void *data);
     extern int AddClientOnOpenFD(int fd);
     extern void AutoResetServer(int sig);
     extern int LogSetParameter(int param, int value);
@@ -36,12 +36,6 @@ extern "C" {
     extern void* TimerSet(void*, int, uint32_t, uint32_t(*) (void*, uint32_t, void*), void*);
 
     extern char *__progname; // NOLINT(bugprone-reserved-identifier)
-}
-
-void egw_init(void) {
-    SetNotifyFd(looper.getfd(), [](int,int,void*) {
-        looper.dispatch(0);
-    }, 1, nullptr);
 }
 
 static char* progname() {
@@ -151,38 +145,31 @@ Java_com_termux_x11_CmdEntryPoint_start(maybe_unused JNIEnv *env, maybe_unused j
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_termux_x11_CmdEntryPoint_windowChanged(maybe_unused JNIEnv *env, maybe_unused jobject thiz, jobject surface) {
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
     ANativeWindow* win = surface ? ANativeWindow_fromSurface(env, surface) : nullptr;
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
     if (win)
         ANativeWindow_acquire(win);
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
-    __android_log_print(ANDROID_LOG_INFO, "XegwNative", "window change: %p", win);
+    __android_log_print(ANDROID_LOG_INFO, "XlorieNative", "window change: %p", win);
 
-    looper.post([=] {
-        __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
-        vfbChangeWindow(win);
-    });
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
+    TimerSet(nullptr, 0, 1, [] (void* timer, uint32_t time, void* arg) -> uint32_t {
+        lorieChangeWindow((struct ANativeWindow *) arg);
+        TimerCancel(timer);
+        return 0;
+    }, (void*) win);
 }
 
 extern "C"
 JNIEXPORT jobject JNICALL
 Java_com_termux_x11_CmdEntryPoint_getXConnection(JNIEnv *env, maybe_unused jobject thiz) {
     int client[2];
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
     jclass ParcelFileDescriptorClass = env->FindClass("android/os/ParcelFileDescriptor");
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
     jmethodID adoptFd = env->GetStaticMethodID(ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
 
     socketpair(AF_UNIX, SOCK_STREAM, 0, client);
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
     TimerSet(nullptr, 0, 1, [] (void* timer, uint32_t time, void* arg) -> uint32_t {
         AddClientOnOpenFD((int) (int64_t) arg);
+        TimerCancel(timer);
         return 0;
     }, (void*) (int64_t) client[1]);
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
 
     return env->CallStaticObjectMethod(ParcelFileDescriptorClass, adoptFd, client[0]);
 }
@@ -282,10 +269,11 @@ Java_com_termux_x11_MainActivity_sendTouchEvent(maybe_unused JNIEnv *env, maybe_
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_sendKeyEvent(maybe_unused JNIEnv *env, maybe_unused jobject thiz, jint key_code, jboolean key_down) {
+Java_com_termux_x11_MainActivity_sendKeyEvent(maybe_unused JNIEnv *env, maybe_unused jobject thiz, jint scan_code, jint key_code, jboolean key_down) {
     if (conn) {
-        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client","Sending key event: %d %d %s", key_code, android_to_linux_keycode[key_code] + 8, key_down ? "true" : "false");
-        xcb_tx11_key_event(conn, android_to_linux_keycode[key_code] + 8, key_down);
+        int code = (scan_code) ?: android_to_linux_keycode[key_code];
+        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client","Sending key event: %d %d %d %s", scan_code, key_code, code, key_down ? "press" : "release");
+        xcb_tx11_key_event(conn, code + 8, key_down);
         xcb_flush(conn);
     }
 }

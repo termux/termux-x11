@@ -61,13 +61,13 @@ from The Open Group.
 
 #include "renderer.h"
 #include "inpututils.h"
-#include "egw.h"
+#include "lorie.h"
 
 #define unused __attribute__((unused))
 
 #define MAX_FPS 120
 
-extern DeviceIntPtr vfbPointer, vfbKeyboard;
+extern DeviceIntPtr loriePointer, lorieKeyboard;
 
 typedef struct {
     int width;
@@ -86,15 +86,15 @@ typedef struct {
     Bool cursorMoved;
     Bool locked;
     ARect r;
-} vfbScreenInfo, *vfbScreenInfoPtr;
+} lorieScreenInfo, *lorieScreenInfoPtr;
 ScreenPtr pScreenPtr;
 
-static vfbScreenInfo vfbScreen = {
+static lorieScreenInfo lorieScreen = {
         .width = 1280,
         .height = 1024,
 };
 
-vfbScreenInfoPtr pvfb = &vfbScreen;
+lorieScreenInfoPtr pvfb = &lorieScreen;
 
 static Bool TrueNoop() { return TRUE; }
 static Bool FalseNoop() { return FALSE; }
@@ -117,7 +117,7 @@ OsVendorInit(void) {
 
 void
 OsVendorFatalError(unused const char *f, unused va_list args) {
-    __android_log_vprint(ANDROID_LOG_ERROR, "Xegw", f, args);
+    __android_log_vprint(ANDROID_LOG_ERROR, "Xlorie", f, args);
 }
 
 #if defined(DDXBEFORERESET)
@@ -136,7 +136,7 @@ ddxInputThreadInit(void) {}
 void ddxUseMsg(void) {}
 int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) { return 0; }
 
-static RRModePtr vfbCvt(int width, int height) {
+static RRModePtr lorieCvt(int width, int height) {
     struct libxcvt_mode_info *info;
     char name[128];
     xRRModeInfo modeinfo = {0};
@@ -162,12 +162,12 @@ static RRModePtr vfbCvt(int width, int height) {
     return mode;
 }
 
-static void vfbMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
+static void lorievfbMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
     renderer_set_cursor_coordinates(x, y);
     pvfb->cursorMoved = TRUE;
 }
 
-static void vfbSetCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, CursorPtr pCurs, int x0, int y0) {
+static void lorieSetCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, CursorPtr pCurs, int x0, int y0) {
     CursorBitsPtr bits = pCurs ? pCurs->bits : NULL;
     if (pCurs && bits) {
         if (bits->argb)
@@ -201,25 +201,25 @@ static void vfbSetCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, Cursor
     } else
         renderer_update_cursor(0, 0, 0, 0, NULL);
 
-    vfbMoveCursor(NULL, NULL, x0, y0);
+    lorievfbMoveCursor(NULL, NULL, x0, y0);
 }
 
-static miPointerSpriteFuncRec vfbPointerSpriteFuncs = {
+static miPointerSpriteFuncRec loriePointerSpriteFuncs = {
     .RealizeCursor = TrueNoop,
     .UnrealizeCursor = TrueNoop,
-    .SetCursor = vfbSetCursor,
-    .MoveCursor = vfbMoveCursor,
+    .SetCursor = lorieSetCursor,
+    .MoveCursor = lorievfbMoveCursor,
     .DeviceCursorInitialize = TrueNoop,
     .DeviceCursorCleanup = VoidNoop
 };
 
-static miPointerScreenFuncRec vfbPointerCursorFuncs = {
+static miPointerScreenFuncRec loriePointerCursorFuncs = {
     .CursorOffScreen = FalseNoop,
     .CrossScreen = VoidNoop,
     .WarpCursor = miPointerWarpCursor
 };
 
-static CARD32 vfbTimerCallback(unused OsTimerPtr timer, unused CARD32 time, void *arg) {
+static CARD32 lorieTimerCallback(unused OsTimerPtr timer, unused CARD32 time, void *arg) {
     if (pvfb->win && pvfb->buf && RegionNotEmpty(DamageRegion(pvfb->pDamage))) {
         ScreenPtr pScreen = (ScreenPtr) arg;
         int usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_RARELY;
@@ -233,7 +233,7 @@ static CARD32 vfbTimerCallback(unused OsTimerPtr timer, unused CARD32 time, void
         pvfb->locked = AHardwareBuffer_lock(pvfb->buf, usage, -1, NULL, &data) == 0;
         if (pvfb->locked) {
             pScreen->ModifyPixmapHeader(pScreen->GetScreenPixmap(pScreen), -1, -1, -1, -1, -1, data);
-            DamageEmpty(vfbScreen.pDamage);
+            DamageEmpty(lorieScreen.pDamage);
         }
     } else if (pvfb->cursorMoved)
         renderer_redraw();
@@ -243,7 +243,7 @@ static CARD32 vfbTimerCallback(unused OsTimerPtr timer, unused CARD32 time, void
     return 1000/MAX_FPS;
 }
 
-static Bool vfbCreateScreenResources(ScreenPtr pScreen) {
+static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     Bool ret;
     pScreen->CreateScreenResources = pvfb->createScreenResources;
 
@@ -256,14 +256,14 @@ static Bool vfbCreateScreenResources(ScreenPtr pScreen) {
         FatalError("Couldn't setup damage\n");
 
     DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->pDamage);
-    pvfb->pTimer = TimerSet(NULL, 0, 1000/MAX_FPS, vfbTimerCallback, pScreen);
+    pvfb->pTimer = TimerSet(NULL, 0, 1000 / MAX_FPS, lorieTimerCallback, pScreen);
     renderer_set_buffer(pvfb->buf);
 
     return TRUE;
 }
 
 static Bool
-vfbCloseScreen(ScreenPtr pScreen) {
+lorieCloseScreen(ScreenPtr pScreen) {
     pScreen->CloseScreen = pvfb->closeScreen;
 
     if (pvfb->win && pvfb->locked) {
@@ -292,13 +292,13 @@ vfbCloseScreen(ScreenPtr pScreen) {
 }
 
 static Bool
-vfbRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, CARD32 mmWidth, CARD32 mmHeight) {
+lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, CARD32 mmWidth, CARD32 mmHeight) {
     AHardwareBuffer_Desc desc = {};
     void* data;
 
     if (width != pvfb->width || height != pvfb->height) {
         SetRootClip(pScreen, ROOT_CLIP_NONE);
-        DamageEmpty(vfbScreen.pDamage);
+        DamageEmpty(lorieScreen.pDamage);
         pScreen->ResizeWindow(pScreen->root, 0, 0, width, height, NULL);
 
         if (pvfb->buf) {
@@ -336,19 +336,19 @@ vfbRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, CARD32 mmWidt
 }
 
 static Bool
-vfbRRCrtcSet(unused ScreenPtr pScreen, RRCrtcPtr crtc, RRModePtr mode, int x, int y,
-             Rotation rotation, int numOutput, RROutputPtr *outputs) {
+lorieRRCrtcSet(unused ScreenPtr pScreen, RRCrtcPtr crtc, RRModePtr mode, int x, int y,
+               Rotation rotation, int numOutput, RROutputPtr *outputs) {
   return RRCrtcNotify(crtc, mode, x, y, rotation, NULL, numOutput, outputs);
 }
 
 static Bool
-vfbRRGetInfo(unused ScreenPtr pScreen, Rotation *rotations) {
+lorieRRGetInfo(unused ScreenPtr pScreen, Rotation *rotations) {
     *rotations = RR_Rotate_0;
     return TRUE;
 }
 
 static Bool
-vfbRandRInit(ScreenPtr pScreen) {
+lorieRandRInit(ScreenPtr pScreen) {
     rrScrPrivPtr pScrPriv;
 #if RANDR_12_INTERFACE
     RRModePtr mode;
@@ -357,14 +357,14 @@ vfbRandRInit(ScreenPtr pScreen) {
     if (!RRScreenInit(pScreen))
        return FALSE;
     pScrPriv = rrGetScrPriv(pScreen);
-    pScrPriv->rrGetInfo = vfbRRGetInfo;
+    pScrPriv->rrGetInfo = lorieRRGetInfo;
 #if RANDR_12_INTERFACE
-    pScrPriv->rrCrtcSet = vfbRRCrtcSet;
-    pScrPriv->rrScreenSetSize = vfbRRScreenSetSize;
+    pScrPriv->rrCrtcSet = lorieRRCrtcSet;
+    pScrPriv->rrScreenSetSize = lorieRRScreenSetSize;
 
     RRScreenSetSizeRange(pScreen, 1, 1, 32767, 32767);
 
-    mode = vfbCvt(pScreen->width, pScreen->height);
+    mode = lorieCvt(pScreen->width, pScreen->height);
     if (!mode)
        return FALSE;
 
@@ -389,7 +389,7 @@ vfbRandRInit(ScreenPtr pScreen) {
 }
 
 static Bool
-vfbScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
+lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     AHardwareBuffer_Desc desc = {};
     void* data;
     int dpi = monitorResolution;
@@ -424,11 +424,10 @@ vfbScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     if (!ret)
         return FALSE;
 
-    if (!vfbRandRInit(pScreen))
+    if (!lorieRandRInit(pScreen))
        return FALSE;
 
-//    miDCInitialize(pScreen, &vfbPointerCursorFuncs);
-    miPointerInitialize(pScreen, &vfbPointerSpriteFuncs, &vfbPointerCursorFuncs, TRUE);
+    miPointerInitialize(pScreen, &loriePointerSpriteFuncs, &loriePointerCursorFuncs, TRUE);
 
     pScreen->blackPixel = 0;
     pScreen->whitePixel = 1;
@@ -441,15 +440,15 @@ vfbScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     miSetZeroLineBias(pScreen, 0);
 
     pvfb->createScreenResources = pScreen->CreateScreenResources;
-    pScreen->CreateScreenResources = vfbCreateScreenResources;
+    pScreen->CreateScreenResources = lorieCreateScreenResources;
 
     pvfb->closeScreen = pScreen->CloseScreen;
-    pScreen->CloseScreen = vfbCloseScreen;
+    pScreen->CloseScreen = lorieCloseScreen;
 
     return TRUE;
-}                               /* end vfbScreenInit */
+}                               /* end lorieScreenInit */
 
-void vfbChangeWindow(struct ANativeWindow* win) {
+void lorieChangeWindow(struct ANativeWindow* win) {
     ScreenPtr pScreen = pScreenPtr;
     RegionRec reg;
     BoxRec box = { .x1 = 0, .y1 = 0, .x2 = pScreen->root->drawable.width, .y2 = pScreen->root->drawable.height};
@@ -465,11 +464,11 @@ void vfbChangeWindow(struct ANativeWindow* win) {
     }
 }
 
-void vfbConfigureNotify(int width, int height, int dpi) {
+void lorieConfigureNotify(int width, int height, int dpi) {
     ScreenPtr pScreen = pScreenPtr;
     if (pvfb->output && width && height) {
         CARD32 mmWidth, mmHeight;
-        RRModePtr mode = vfbCvt(width, height);
+        RRModePtr mode = lorieCvt(width, height);
         if (!dpi) dpi = 96;
         monitorResolution = dpi;
         mmWidth = ((double) (mode->mode.width))*25.4/dpi;
@@ -498,12 +497,11 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     screen_info->bitmapBitOrder = BITMAP_BIT_ORDER;
     screen_info->numPixmapFormats = ARRAY_SIZE(depths);
 
-    egw_init();
     renderer_init();
     xorgGlxCreateVendor();
     tx11_protocol_init();
 
-    if (-1 == AddScreen(vfbScreenInit, argc, argv)) {
+    if (-1 == AddScreen(lorieScreenInit, argc, argv)) {
         FatalError("Couldn't add screen %d\n", i);
     }
 }

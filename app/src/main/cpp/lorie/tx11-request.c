@@ -9,14 +9,14 @@
 #include <inpututils.h>
 #include <randrstr.h>
 #include <android/log.h>
-#include "egw.h"
+#include "lorie.h"
 #include "tx11.h"
 #include "xkbcommon/xkbcommon.h"
 
-extern DeviceIntPtr vfbPointer, vfbKeyboard;
+extern DeviceIntPtr lorieMouse, lorieTouch, lorieKeyboard;
 extern ScreenPtr pScreenPtr;
 
-void vfbKeysymKeyboardEvent(KeySym keysym, int down);
+void lorieKeysymKeyboardEvent(KeySym keysym, int down);
 
 static int dispatch(ClientPtr client) {
     xReq* req = (xReq*) client->requestBuffer;
@@ -49,13 +49,13 @@ static int dispatch(ClientPtr client) {
             REQUEST(xcb_tx11_screen_size_change_request_t)
 
             __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "window changed: %d %d %d", stuff->width, stuff->height, stuff->dpi);
-            vfbConfigureNotify(stuff->width, stuff->height,stuff->dpi);
+            lorieConfigureNotify(stuff->width, stuff->height, stuff->dpi);
             return Success;
         }
         case XCB_TX11_TOUCH_EVENT: {
             REQUEST(xcb_tx11_touch_event_request_t)
             double x, y;
-            DDXTouchPointInfoPtr touch = TouchFindByDDXID(vfbPointer, stuff->id, FALSE);
+            DDXTouchPointInfoPtr touch = TouchFindByDDXID(lorieTouch, stuff->id, FALSE);
 
             if (stuff->x < 0)
                 stuff->x = 0;
@@ -78,7 +78,7 @@ static int dispatch(ClientPtr client) {
             __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "touch event: %d %d %d %d", stuff->type, stuff->id, stuff->x, stuff->y);
             valuator_mask_set_double(&mask, 0, x);
             valuator_mask_set_double(&mask, 1, y);
-            QueueTouchEvents(vfbPointer, stuff->type, stuff->id, 0, &mask);
+            QueueTouchEvents(lorieTouch, stuff->type, stuff->id, 0, &mask);
             return Success;
         }
         case XCB_TX11_MOUSE_EVENT: {
@@ -89,23 +89,23 @@ static int dispatch(ClientPtr client) {
                     // That is an absolute mouse motion
                     valuator_mask_set(&mask, 0, stuff->x);
                     valuator_mask_set(&mask, 1, stuff->y);
-                    QueuePointerEvents(vfbPointer, MotionNotify, 0, POINTER_ABSOLUTE | POINTER_SCREEN, &mask);
+                    QueuePointerEvents(lorieMouse, MotionNotify, 0, POINTER_ABSOLUTE | POINTER_SCREEN, &mask);
                     break;
                 case 1: // BUTTON_LEFT
                 case 2: // BUTTON_MIDDLE
                 case 3: // BUTTON_RIGHT
-                    QueuePointerEvents(vfbPointer,stuff->down ? ButtonPress : ButtonRelease, stuff->detail, 0, &mask);
+                    QueuePointerEvents(lorieMouse, stuff->down ? ButtonPress : ButtonRelease, stuff->detail, 0, &mask);
                     break;
                 case 4: // BUTTON_SCROLL
                     if (stuff->x) {
                         valuator_mask_zero(&mask);
                         valuator_mask_set(&mask, 2, stuff->x);
-                        QueuePointerEvents(vfbPointer, MotionNotify, 0, POINTER_RELATIVE, &mask);
+                        QueuePointerEvents(lorieMouse, MotionNotify, 0, POINTER_RELATIVE, &mask);
                     }
                     if (stuff->y) {
                         valuator_mask_zero(&mask);
                         valuator_mask_set(&mask, 3, stuff->y);
-                        QueuePointerEvents(vfbPointer, MotionNotify, 0, POINTER_RELATIVE, &mask);
+                        QueuePointerEvents(lorieMouse, MotionNotify, 0, POINTER_RELATIVE, &mask);
                     }
                     break;
             }
@@ -113,7 +113,7 @@ static int dispatch(ClientPtr client) {
         }
         case XCB_TX11_KEY_EVENT: {
             REQUEST(xcb_tx11_key_event_request_t)
-            QueueKeyboardEvents(vfbKeyboard, stuff->state ? KeyPress : KeyRelease, stuff->keycode);
+            QueueKeyboardEvents(lorieKeyboard, stuff->state ? KeyPress : KeyRelease, stuff->keycode);
             return Success;
         }
         case XCB_TX11_UNICODE_EVENT: {
@@ -121,8 +121,8 @@ static int dispatch(ClientPtr client) {
             char name[128];
             xkb_keysym_get_name(xkb_utf32_to_keysym(stuff->unicode), name, 128);
             printf("Trying to input keysym %d %s\n", xkb_utf32_to_keysym(stuff->unicode), name);
-            vfbKeysymKeyboardEvent(xkb_utf32_to_keysym(stuff->unicode), TRUE);
-            vfbKeysymKeyboardEvent(xkb_utf32_to_keysym(stuff->unicode), FALSE);
+            lorieKeysymKeyboardEvent(xkb_utf32_to_keysym(stuff->unicode), TRUE);
+            lorieKeysymKeyboardEvent(xkb_utf32_to_keysym(stuff->unicode), FALSE);
             return Success;
         }
         default:

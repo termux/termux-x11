@@ -36,7 +36,7 @@ from The Open Group.
 #include "xserver-properties.h"
 #include "exevents.h"
 #define unused __attribute__((unused))
-DeviceIntPtr vfbPointer, vfbKeyboard;
+DeviceIntPtr lorieMouse, lorieTouch, lorieKeyboard;
 
 void
 ProcessInputEvents(void) {
@@ -47,7 +47,7 @@ void
 DDXRingBell(unused int volume, unused int pitch, unused int duration) {}
 
 static int
-vfbKeybdProc(DeviceIntPtr pDevice, int onoff) {
+lorieKeybdProc(DeviceIntPtr pDevice, int onoff) {
     DevicePtr pDev = (DevicePtr) pDevice;
 
     switch (onoff) {
@@ -69,10 +69,9 @@ vfbKeybdProc(DeviceIntPtr pDevice, int onoff) {
 }
 
 static int
-vfbMouseProc(DeviceIntPtr pDevice, int onoff) {
+lorieMouseProc(DeviceIntPtr pDevice, int onoff) {
 #define NAXES 6
 #define NBUTTONS 7
-#define NTOUCHPOINTS 10
     DevicePtr pDev = (DevicePtr) pDevice;
 
     switch (onoff) {
@@ -96,8 +95,6 @@ vfbMouseProc(DeviceIntPtr pDevice, int onoff) {
         axes_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
         axes_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_HWHEEL);
         axes_labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_WHEEL);
-        axes_labels[4] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X);
-        axes_labels[5] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y);
 
         if (!InitButtonClassDeviceStruct(pDevice, NBUTTONS, btn_labels, map))
             return BadValue;
@@ -105,16 +102,11 @@ vfbMouseProc(DeviceIntPtr pDevice, int onoff) {
         if (!InitValuatorClassDeviceStruct(pDevice, NAXES, axes_labels, GetMotionHistorySize(), Absolute))
             return BadValue;
 
-        if (!InitTouchClassDeviceStruct(pDevice, NTOUCHPOINTS, XIDirectTouch, 2))
-            return BadValue;
-
         /* Valuators */
         InitValuatorAxisStruct(pDevice, 0, axes_labels[0], 0, 0xFFFF, 10000, 0, 10000, Absolute);
         InitValuatorAxisStruct(pDevice, 1, axes_labels[1], 0, 0xFFFF, 10000, 0, 10000, Absolute);
         InitValuatorAxisStruct(pDevice, 2, axes_labels[2], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative);
         InitValuatorAxisStruct(pDevice, 3, axes_labels[3], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative);
-        InitValuatorAxisStruct(pDevice, 4, axes_labels[4], 0, 0xFFFF, 10000, 0, 10000, Absolute);
-        InitValuatorAxisStruct(pDevice, 5, axes_labels[5], 0, 0xFFFF, 10000, 0, 10000, Absolute);
 
         SetScrollValuator(pDevice, 2, SCROLL_TYPE_HORIZONTAL, 1.0, SCROLL_FLAG_NONE);
         SetScrollValuator(pDevice, 3, SCROLL_TYPE_VERTICAL, 1.0, SCROLL_FLAG_PREFERRED);
@@ -140,12 +132,67 @@ vfbMouseProc(DeviceIntPtr pDevice, int onoff) {
 #undef NAXES
 }
 
+static int
+lorieTouchProc(DeviceIntPtr device, int what)
+{
+#define NTOUCHPOINTS 20
+#define NBUTTONS 1
+#define NAXES 2
+    Atom btn_labels[NBUTTONS] = { 0 };
+    Atom axes_labels[NAXES] = { 0 };
+    BYTE map[NBUTTONS + 1] = { 0 };
+
+    switch (what) {
+        case DEVICE_INIT:
+            device->public.on = FALSE;
+
+            axes_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X);
+            axes_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y);
+
+            if (!InitValuatorClassDeviceStruct(device, NAXES, axes_labels, GetMotionHistorySize(), Absolute))
+                return BadValue;
+
+            if (!InitButtonClassDeviceStruct(device, NBUTTONS, btn_labels, map))
+                return BadValue;
+
+            if (!InitTouchClassDeviceStruct(device, NTOUCHPOINTS, XIDirectTouch, NAXES))
+                return BadValue;
+
+            /* Valuators */
+            InitValuatorAxisStruct(device, 0, axes_labels[0], 0, 0xFFFF, 10000, 0, 10000, Absolute);
+            InitValuatorAxisStruct(device, 1, axes_labels[1], 0, 0xFFFF, 10000, 0, 10000, Absolute);
+
+            if (!InitPtrFeedbackClassDeviceStruct(device, (PtrCtrlProcPtr) NoopDDA))
+                return BadValue;
+
+            return Success;
+
+        case DEVICE_ON:
+            device->public.on = TRUE;
+            return Success;
+
+        case DEVICE_OFF:
+        case DEVICE_CLOSE:
+            device->public.on = FALSE;
+            return Success;
+        default:
+            return BadMatch;
+    }
+
+    return BadMatch;
+#undef NAXES
+#undef NBUTTONS
+#undef NTOUCHPOINTS
+}
+
 void
 InitInput(unused int argc, unused char *argv[]) {
-    vfbPointer = AddInputDevice(serverClient, vfbMouseProc, TRUE);
-    vfbKeyboard = AddInputDevice(serverClient, vfbKeybdProc, TRUE);
-    AssignTypeAndName(vfbPointer, MakeAtom(XI_MOUSE, sizeof(XI_MOUSE) - 1, TRUE), "Xvfb pointer");
-    AssignTypeAndName(vfbKeyboard, MakeAtom(XI_KEYBOARD, sizeof(XI_KEYBOARD) - 1, TRUE), "Xvfb keyboard");
+    lorieMouse = AddInputDevice(serverClient, lorieMouseProc, TRUE);
+    lorieTouch = AddInputDevice(serverClient, lorieTouchProc, TRUE);
+    lorieKeyboard = AddInputDevice(serverClient, lorieKeybdProc, TRUE);
+    AssignTypeAndName(lorieMouse, MakeAtom(XI_MOUSE, sizeof(XI_MOUSE) - 1, TRUE), "Xvfb mouse");
+    AssignTypeAndName(lorieTouch, MakeAtom(XI_MOUSE, sizeof(XI_MOUSE) - 1, TRUE), "Xvfb touch");
+    AssignTypeAndName(lorieKeyboard, MakeAtom(XI_KEYBOARD, sizeof(XI_KEYBOARD) - 1, TRUE), "Xvfb keyboard");
     (void) mieqInit();
 }
 

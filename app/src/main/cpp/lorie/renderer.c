@@ -115,7 +115,7 @@ static void eglCheckError(int line) {
     }
 
     if (desc)
-        log("Exagear-renderer: egl error on line %d: %s\n", line, desc);
+        log("Xlorie: egl error on line %d: %s\n", line, desc);
 }
 
 static void checkGlError(int line) {
@@ -136,7 +136,7 @@ static void checkGlError(int line) {
                 continue;
 #undef E
         }
-        log("Exagear-renderer: GLES %d ERROR: %s.\n", line, desc);
+        log("Xlorie: GLES %d ERROR: %s.\n", line, desc);
         return;
     }
 }
@@ -201,19 +201,19 @@ int renderer_init(void) {
     egl_display = $eglGetDisplay(EGL_DEFAULT_DISPLAY);
     eglCheckError(__LINE__);
     if (egl_display == EGL_NO_DISPLAY) {
-        log("Exagear-renderer: Got no EGL display.\n");
+        log("Xlorie: Got no EGL display.\n");
         return 0;
     }
 
     if ($eglInitialize(egl_display, &major, &minor) != EGL_TRUE) {
-        log("Exagear-renderer: Unable to initialize EGL\n");
+        log("Xlorie: Unable to initialize EGL\n");
         return 0;
     }
-    log("Exagear-renderer: Initialized EGL version %d.%d\n", major, minor);
+    log("Xlorie: Initialized EGL version %d.%d\n", major, minor);
     eglCheckError(__LINE__);
 
     if ($eglChooseConfig(egl_display, configAttribs, &cfg, 1, &numConfigs) != EGL_TRUE) {
-        log("Exagear-renderer: eglChooseConfig failed.\n");
+        log("Xlorie: eglChooseConfig failed.\n");
         eglCheckError(__LINE__);
         return 0;
     }
@@ -224,13 +224,13 @@ int renderer_init(void) {
     ctx = $eglCreateContext(egl_display, cfg, NULL, ctxattribs);
     eglCheckError(__LINE__);
     if (ctx == EGL_NO_CONTEXT) {
-        log("Exagear-renderer: eglCreateContext failed.\n");
+        log("Xlorie: eglCreateContext failed.\n");
         eglCheckError(__LINE__);
         return 0;
     }
 
     if ($eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx) != EGL_TRUE) {
-        log("Exagear-renderer: eglMakeCurrent failed.\n");
+        log("Xlorie: eglMakeCurrent failed.\n");
         eglCheckError(__LINE__);
         return 0;
     }
@@ -238,7 +238,7 @@ int renderer_init(void) {
 
     g_texture_program = create_program(vertex_shader, fragment_shader);
     if (!g_texture_program) {
-        log("Exagear-renderer: GLESv2: Unable to create shader program.\n");
+        log("Xlorie: GLESv2: Unable to create shader program.\n");
         eglCheckError(__LINE__);
         return 1;
     }
@@ -257,7 +257,7 @@ void renderer_set_buffer(AHardwareBuffer* buffer) {
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     EGLClientBuffer clientBuffer;
     AHardwareBuffer_Desc desc;
-    __android_log_print(ANDROID_LOG_DEBUG, "XegwTest2", "renderer_set_buffer0");
+    __android_log_print(ANDROID_LOG_DEBUG, "XlorieTest2", "renderer_set_buffer0");
     if (image)
         $eglDestroyImageKHR(egl_display, image);
 
@@ -277,22 +277,22 @@ void renderer_set_buffer(AHardwareBuffer* buffer) {
     $glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image); checkGlError();
     renderer_redraw();
 
-    __android_log_print(ANDROID_LOG_DEBUG, "XegwTest2", "renderer_set_buffer %d %d", desc.width, desc.height);
+    __android_log_print(ANDROID_LOG_DEBUG, "XlorieTest2", "renderer_set_buffer %d %d", desc.width, desc.height);
 }
 
 void renderer_set_window(EGLNativeWindowType window) {
-    __android_log_print(ANDROID_LOG_DEBUG, "XegwTest2", "renderer_set_window %p %d %d", window, win ? ANativeWindow_getWidth(win) : 0, win ? ANativeWindow_getHeight(win) : 0);
+    __android_log_print(ANDROID_LOG_DEBUG, "XlorieTest2", "renderer_set_window %p %d %d", window, win ? ANativeWindow_getWidth(win) : 0, win ? ANativeWindow_getHeight(win) : 0);
     if (win == window)
         return;
 
     if (sfc != EGL_NO_SURFACE) {
         if ($eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE) {
-            log("Exagear-renderer: eglMakeCurrent (EGL_NO_SURFACE) failed.\n");
+            log("Xlorie: eglMakeCurrent (EGL_NO_SURFACE) failed.\n");
             eglCheckError(__LINE__);
             return;
         }
         if ($eglDestroySurface(egl_display, sfc) != EGL_TRUE) {
-            log("Exagear-renderer: eglDestoySurface failed.\n");
+            log("Xlorie: eglDestoySurface failed.\n");
             eglCheckError(__LINE__);
             return;
         }
@@ -304,13 +304,13 @@ void renderer_set_window(EGLNativeWindowType window) {
 
     sfc = $eglCreateWindowSurface(egl_display, cfg, win, NULL);
     if (sfc == EGL_NO_SURFACE) {
-        log("Exagear-renderer: eglCreateWindowSurface failed.\n");
+        log("Xlorie: eglCreateWindowSurface failed.\n");
         eglCheckError(__LINE__);
         return;
     }
 
     if ($eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE) {
-        log("Exagear-renderer: eglMakeCurrent failed.\n");
+        log("Xlorie: eglMakeCurrent failed.\n");
         eglCheckError(__LINE__);
         return;
     }
@@ -320,7 +320,7 @@ void renderer_set_window(EGLNativeWindowType window) {
     if (win && ctx && ANativeWindow_getWidth(win) && ANativeWindow_getHeight(win))
         $glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win)); checkGlError();
 
-    log("Exagear-renderer: new surface applied: %p\n", sfc);
+    log("Xlorie: new surface applied: %p\n", sfc);
 
     if (!sfc)
         return;
@@ -362,7 +362,7 @@ maybe_unused void renderer_update_rects(int width, maybe_unused int height, pixm
 }
 
 void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data) {
-    log("Exagear-renderer: updating cursor\n");
+    log("Xlorie: updating cursor\n");
     cursor.width = (float) w;
     cursor.height = (float) h;
     cursor.xhot = (float) xhot;
@@ -410,7 +410,7 @@ static GLuint load_shader(GLenum shaderType, const char* pSource) {
                 char* buf = (char*) malloc(infoLen);
                 if (buf) {
                     $glGetShaderInfoLog(shader, infoLen, NULL, buf); checkGlError();
-                    log("Exagear-renderer: Could not compile shader %d:\n%s\n", shaderType, buf);
+                    log("Xlorie: Could not compile shader %d:\n%s\n", shaderType, buf);
                     free(buf);
                 }
                 $glDeleteShader(shader); checkGlError();
@@ -443,7 +443,7 @@ static GLuint create_program(const char* p_vertex_source, const char* p_fragment
                 char* buf = (char*) malloc(bufLength);
                 if (buf) {
                     $glGetProgramInfoLog(program, bufLength, NULL, buf); checkGlError();
-                    log("Exagear-renderer: Could not link program:\n%s\n", buf);
+                    log("Xlorie: Could not link program:\n%s\n", buf);
                     free(buf);
                 }
             }

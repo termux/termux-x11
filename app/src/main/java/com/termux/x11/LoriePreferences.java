@@ -20,7 +20,7 @@ import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.PreferenceFragmentCompat;
-import androidx.preference.PreferenceScreen;
+import androidx.preference.PreferenceGroup;
 
 import androidx.preference.Preference.OnPreferenceChangeListener;
 import androidx.preference.SeekBarPreference;
@@ -111,8 +111,7 @@ public class LoriePreferences extends AppCompatActivity {
         }
 
         @Override
-        public void onCreate(final Bundle savedInstanceState)
-        {
+        public void onCreate(final Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
             SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
 
@@ -122,13 +121,18 @@ public class LoriePreferences extends AppCompatActivity {
             p.putBoolean("showIMEWhileExternalConnected", showImeEnabled.equals("1"));
             p.apply();
 
-            PreferenceScreen s = getPreferenceScreen();
-            for (int i=0; i<s.getPreferenceCount(); i++) {
-                s.getPreference(i).setOnPreferenceChangeListener(this);
-                s.getPreference(i).setOnPreferenceClickListener(this);
-            }
-
+            setListeners(getPreferenceScreen());
             updatePreferencesLayout();
+        }
+
+        void setListeners(PreferenceGroup g) {
+            for (int i=0; i < g.getPreferenceCount(); i++) {
+                g.getPreference(i).setOnPreferenceChangeListener(this);
+                g.getPreference(i).setOnPreferenceClickListener(this);
+
+                if (g.getPreference(i) instanceof PreferenceGroup)
+                    setListeners((PreferenceGroup) g.getPreference(i));
+            }
         }
 
         @Override
@@ -194,6 +198,13 @@ public class LoriePreferences extends AppCompatActivity {
                     Toast.makeText(getActivity(), "Wrong resolution format", Toast.LENGTH_SHORT).show();
                     return false;
                 }
+            }
+
+            if ("showAdditionalKbd".equals(key)) {
+                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(requireContext());
+                SharedPreferences.Editor edit = preferences.edit();
+                edit.putBoolean("additionalKbdVisible", true);
+                edit.commit();
             }
 
             Intent intent = new Intent(ACTION_PREFERENCES_CHANGED);

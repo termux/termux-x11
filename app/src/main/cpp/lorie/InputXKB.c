@@ -23,6 +23,7 @@
 #pragma ide diagnostic ignored "ConstantParameter"
 #pragma ide diagnostic ignored "misc-no-recursion"
 #pragma ide diagnostic ignored "OCDFAInspection"
+#pragma clang diagnostic ignored "-Wdeclaration-after-statement"
 
 #ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
@@ -38,6 +39,7 @@
 #include "mi.h"
 
 #include <X11/keysym.h>
+#include <selection.h>
 
 #ifndef KEYBOARD_OR_FLOAT
 #define KEYBOARD_OR_FLOAT MASTER_KEYBOARD
@@ -45,13 +47,13 @@
 
 #define unused __attribute__((__unused__))
 
-extern DeviceIntPtr vfbKeyboard;
+extern DeviceIntPtr lorieKeyboard;
 
 static const KeyCode fakeKeys[] = {
     92, 203, 204, 205, 206, 207
     };
 
-static KeySym pressedKeys[256];
+static KeySym pressedKeys[256] = {0};
 
 /* altKeysym is a table of alternative keysyms which have the same meaning. */
 
@@ -102,8 +104,8 @@ static struct altKeysym_t {
 		{ XK_ISO_Level3_Shift,	XK_Mode_switch },
 };
 
-void vfbKeysymKeyboardEvent(KeySym keysym, int down);
-KeyCode vfbKeysymToKeycode(KeySym keysym, unsigned state, unsigned *new_state);
+void lorieKeysymKeyboardEvent(KeySym keysym, int down);
+KeyCode lorieKeysymToKeycode(KeySym keysym, unsigned state, unsigned *new_state);
 
 /* Stolen from libX11 */
 static Bool
@@ -251,31 +253,31 @@ static unsigned XkbKeyEffectiveGroup(XkbDescPtr xkb, KeyCode key, unsigned int m
 	return effectiveGroup;
 }
 
-static unsigned vfbGetKeyboardState(void) {
+static unsigned lorieGetKeyboardState(void) {
 	DeviceIntPtr master;
 
-	master = GetMaster(vfbKeyboard, KEYBOARD_OR_FLOAT);
+	master = GetMaster(lorieKeyboard, KEYBOARD_OR_FLOAT);
 	return XkbStateFieldFromRec(&master->key->xkbInfo->state);
 }
 
-static unsigned vfbGetLevelThreeMask(void) {
+static unsigned lorieGetLevelThreeMask(void) {
 	unsigned state;
 	KeyCode keycode;
 	XkbDescPtr xkb;
 	XkbAction *act;
 
 	/* Group state is still important */
-	state = vfbGetKeyboardState();
+	state = lorieGetKeyboardState();
 	state &= ~0xff;
 
-	keycode = vfbKeysymToKeycode(XK_ISO_Level3_Shift, state, NULL);
+	keycode = lorieKeysymToKeycode(XK_ISO_Level3_Shift, state, NULL);
 	if (keycode == 0) {
-		keycode = vfbKeysymToKeycode(XK_Mode_switch, state, NULL);
+		keycode = lorieKeysymToKeycode(XK_Mode_switch, state, NULL);
 		if (keycode == 0)
 			return 0;
 	}
 
-	xkb = GetMaster(vfbKeyboard, KEYBOARD_OR_FLOAT)->key->xkbInfo->desc;
+	xkb = GetMaster(lorieKeyboard, KEYBOARD_OR_FLOAT)->key->xkbInfo->desc;
 
 	act = XkbKeyActionPtr(xkb, keycode, state);
 	if (act == NULL)
@@ -289,17 +291,17 @@ static unsigned vfbGetLevelThreeMask(void) {
 		return act->mods.mask;
 }
 
-static KeyCode vfbPressShift(void) {
+static KeyCode loriePressShift(void) {
 	unsigned state;
 
 	XkbDescPtr xkb;
 	unsigned int key;
 
-	state = vfbGetKeyboardState();
+	state = lorieGetKeyboardState();
 	if (state & ShiftMask)
 		return 0;
 
-	xkb = GetMaster(vfbKeyboard, KEYBOARD_OR_FLOAT)->key->xkbInfo->desc;
+	xkb = GetMaster(lorieKeyboard, KEYBOARD_OR_FLOAT)->key->xkbInfo->desc;
 	for (key = xkb->min_key_code; key <= xkb->max_key_code; key++) {
 		XkbAction *act;
 		unsigned char mask;
@@ -323,7 +325,7 @@ static KeyCode vfbPressShift(void) {
 	return 0;
 }
 
-static size_t vfbReleaseShift(KeyCode *keys, size_t maxKeys) {
+static size_t lorieReleaseShift(KeyCode *keys, size_t maxKeys) {
 	size_t count;
 
 	unsigned state;
@@ -332,13 +334,13 @@ static size_t vfbReleaseShift(KeyCode *keys, size_t maxKeys) {
 	XkbDescPtr xkb;
 	unsigned int key;
 
-	state = vfbGetKeyboardState();
+	state = lorieGetKeyboardState();
 	if (!(state & ShiftMask))
 		return 0;
 
 	count = 0;
 
-	master = GetMaster(vfbKeyboard, KEYBOARD_OR_FLOAT);
+	master = GetMaster(lorieKeyboard, KEYBOARD_OR_FLOAT);
 	xkb = master->key->xkbInfo->desc;
 	for (key = xkb->min_key_code; key <= xkb->max_key_code; key++) {
 		XkbAction *act;
@@ -371,29 +373,29 @@ static size_t vfbReleaseShift(KeyCode *keys, size_t maxKeys) {
 	return count;
 }
 
-static KeyCode vfbPressLevelThree(void) {
+static KeyCode loriePressLevelThree(void) {
 	unsigned state, mask;
 
 	KeyCode keycode;
 	XkbDescPtr xkb;
 	XkbAction *act;
 
-	mask = vfbGetLevelThreeMask();
+	mask = lorieGetLevelThreeMask();
 	if (mask == 0)
 		return 0;
 
-	state = vfbGetKeyboardState();
+	state = lorieGetKeyboardState();
 	if (state & mask)
 		return 0;
 
-	keycode = vfbKeysymToKeycode(XK_ISO_Level3_Shift, state, NULL);
+	keycode = lorieKeysymToKeycode(XK_ISO_Level3_Shift, state, NULL);
 	if (keycode == 0) {
-		keycode = vfbKeysymToKeycode(XK_Mode_switch, state, NULL);
+		keycode = lorieKeysymToKeycode(XK_Mode_switch, state, NULL);
 		if (keycode == 0)
 			return 0;
 	}
 
-	xkb = GetMaster(vfbKeyboard, KEYBOARD_OR_FLOAT)->key->xkbInfo->desc;
+	xkb = GetMaster(lorieKeyboard, KEYBOARD_OR_FLOAT)->key->xkbInfo->desc;
 
 	act = XkbKeyActionPtr(xkb, keycode, state);
 	if (act == NULL)
@@ -404,7 +406,7 @@ static KeyCode vfbPressLevelThree(void) {
 	return keycode;
 }
 
-static size_t vfbReleaseLevelThree(KeyCode *keys, size_t maxKeys) {
+static size_t lorieReleaseLevelThree(KeyCode *keys, size_t maxKeys) {
 	size_t count;
 
 	unsigned state, mask;
@@ -413,17 +415,17 @@ static size_t vfbReleaseLevelThree(KeyCode *keys, size_t maxKeys) {
 	XkbDescPtr xkb;
 	unsigned int key;
 
-	mask = vfbGetLevelThreeMask();
+	mask = lorieGetLevelThreeMask();
 	if (mask == 0)
 		return 0;
 
-	state = vfbGetKeyboardState();
+	state = lorieGetKeyboardState();
 	if (!(state & mask))
 		return 0;
 
 	count = 0;
 
-	master = GetMaster(vfbKeyboard, KEYBOARD_OR_FLOAT);
+	master = GetMaster(lorieKeyboard, KEYBOARD_OR_FLOAT);
 	xkb = master->key->xkbInfo->desc;
 	for (key = xkb->min_key_code; key <= xkb->max_key_code; key++) {
 		XkbAction *act;
@@ -456,7 +458,7 @@ static size_t vfbReleaseLevelThree(KeyCode *keys, size_t maxKeys) {
 	return count;
 }
 
-KeyCode vfbKeysymToKeycode(KeySym keysym, unsigned state, unsigned *new_state) {
+KeyCode lorieKeysymToKeycode(KeySym keysym, unsigned state, unsigned *new_state) {
 	XkbDescPtr xkb;
 	unsigned int key; // KeyCode has insufficient range for the loop
 	KeyCode fallback;
@@ -467,7 +469,7 @@ KeyCode vfbKeysymToKeycode(KeySym keysym, unsigned state, unsigned *new_state) {
 		*new_state = state;
 
 	fallback = 0;
-	xkb = GetMaster(vfbKeyboard, KEYBOARD_OR_FLOAT)->key->xkbInfo->desc;
+	xkb = GetMaster(lorieKeyboard, KEYBOARD_OR_FLOAT)->key->xkbInfo->desc;
 	for (key = xkb->min_key_code; key <= xkb->max_key_code; key++) {
 		unsigned int state_out;
 		KeySym dummy;
@@ -497,16 +499,14 @@ KeyCode vfbKeysymToKeycode(KeySym keysym, unsigned state, unsigned *new_state) {
 		 * applications can be confused by these normally
 		 * unused keys.
 		 */
-		for (fakeIdx = 0;
-		     fakeIdx < sizeof(fakeKeys)/sizeof(fakeKeys[0]);
-		     fakeIdx++) {
+		for (fakeIdx = 0; fakeIdx < ARRAY_SIZE(fakeKeys); fakeIdx++) {
 			if (key == fakeKeys[fakeIdx]) {
 				if (fallback == 0)
 					fallback = key;
 				break;
 			}
 		}
-		if (fakeIdx < sizeof(fakeKeys)/sizeof(fakeKeys[0]))
+		if (fakeIdx < ARRAY_SIZE(fakeKeys))
 			continue;
 
 		return key;
@@ -519,33 +519,32 @@ KeyCode vfbKeysymToKeycode(KeySym keysym, unsigned state, unsigned *new_state) {
 	if (new_state == NULL)
 		return 0;
 
-	*new_state = (state & ~ShiftMask) |
-	             ((state & ShiftMask) ? 0 : ShiftMask);
-	key = vfbKeysymToKeycode(keysym, *new_state, NULL);
+	*new_state = (state & ~ShiftMask) | ((state & ShiftMask) ? 0 : ShiftMask);
+	key = lorieKeysymToKeycode(keysym, *new_state, NULL);
 	if (key != 0)
 		return key;
 
-	level_three_mask = vfbGetLevelThreeMask();
+	level_three_mask = lorieGetLevelThreeMask();
 	if (level_three_mask == 0)
 		return 0;
 
 	*new_state = (state & ~level_three_mask) | 
 	             ((state & level_three_mask) ? 0 : level_three_mask);
-	key = vfbKeysymToKeycode(keysym, *new_state, NULL);
+	key = lorieKeysymToKeycode(keysym, *new_state, NULL);
 	if (key != 0)
 		return key;
 
 	*new_state = (state & ~(ShiftMask | level_three_mask)) | 
 	             ((state & ShiftMask) ? 0 : ShiftMask) |
 	             ((state & level_three_mask) ? 0 : level_three_mask);
-	key = vfbKeysymToKeycode(keysym, *new_state, NULL);
+	key = lorieKeysymToKeycode(keysym, *new_state, NULL);
 	if (key != 0)
 		return key;
 
 	return 0;
 }
 
-static int vfbIsAffectedByNumLock(KeyCode keycode) {
+static int lorieIsAffectedByNumLock(KeyCode keycode) {
 	unsigned state;
 
 	KeyCode numlock_keycode;
@@ -557,7 +556,7 @@ static int vfbIsAffectedByNumLock(KeyCode keycode) {
 	XkbKeyTypeRec *type;
 
 	/* Group state is still important */
-	state = vfbGetKeyboardState();
+	state = lorieGetKeyboardState();
 	state &= ~0xff;
 
 	/*
@@ -565,11 +564,11 @@ static int vfbIsAffectedByNumLock(KeyCode keycode) {
 	 * or following the keysym Num_Lock is the best approach. We
 	 * try the latter.
 	 */
-	numlock_keycode = vfbKeysymToKeycode(XK_Num_Lock, state, NULL);
+	numlock_keycode = lorieKeysymToKeycode(XK_Num_Lock, state, NULL);
 	if (numlock_keycode == 0)
 		return 0;
 
-	xkb = GetMaster(vfbKeyboard, KEYBOARD_OR_FLOAT)->key->xkbInfo->desc;
+	xkb = GetMaster(lorieKeyboard, KEYBOARD_OR_FLOAT)->key->xkbInfo->desc;
 
 	act = XkbKeyActionPtr(xkb, numlock_keycode, state);
 	if (act == NULL)
@@ -589,7 +588,7 @@ static int vfbIsAffectedByNumLock(KeyCode keycode) {
 	return 1;
 }
 
-static KeyCode vfbAddKeysym(KeySym keysym, unused unsigned state) {
+static KeyCode lorieAddKeysym(KeySym keysym, unused unsigned state) {
 	DeviceIntPtr master;
 	XkbDescPtr xkb;
 	unsigned int key;
@@ -601,15 +600,13 @@ static KeyCode vfbAddKeysym(KeySym keysym, unused unsigned state) {
 	KeySym *syms;
 	KeySym upper, lower;
 
-	master = GetMaster(vfbKeyboard, KEYBOARD_OR_FLOAT);
+	master = GetMaster(lorieKeyboard, KEYBOARD_OR_FLOAT);
 	xkb = master->key->xkbInfo->desc;
-	for (key = xkb->max_key_code; key >= xkb->min_key_code; key--) {
-		if (XkbKeyNumGroups(xkb, key) == 0)
-			break;
-	}
 
-	if (key < xkb->min_key_code)
-		return 0;
+	static int curFakeKeyIdx = 0;
+	key = fakeKeys[curFakeKeyIdx++];
+	if (curFakeKeyIdx >= ARRAY_SIZE(fakeKeys))
+		curFakeKeyIdx = 0;
 
 	memset(&changes, 0, sizeof(changes));
 	memset(&cause, 0, sizeof(cause));
@@ -632,28 +629,14 @@ static KeyCode vfbAddKeysym(KeySym keysym, unused unsigned state) {
 		changes.names.num_keys = 1;
 	}
 
-	/* FIXME: Verify that ONE_LEVEL/ALPHABETIC isn't screwed up */
-
-	/*
-	 * For keysyms that are affected by Lock, we are better off
-	 * using ALPHABETIC rather than ONE_LEVEL as the latter
-	 * generally cannot produce lower case when Lock is active.
-	 */
 	XkbConvertCase(keysym, &lower, &upper);
-	if (upper == lower)
-		types[XkbGroup1Index] = XkbOneLevelIndex;
-	else
-		types[XkbGroup1Index] = XkbAlphabeticIndex;
+	types[XkbGroup1Index] = XkbAlphabeticIndex;
 
 	XkbChangeTypesOfKey(xkb, (int) key, 1, XkbGroup1Mask, types, &changes.map);
 
 	syms = XkbKeySymsPtr(xkb, key);
-	if (upper == lower)
-		syms[0] = keysym;
-	else {
-		syms[0] = lower;
-		syms[1] = upper;
-	}
+	syms[0] = lower;
+	syms[1] = upper;
 
 	changes.map.changed |= XkbKeySymsMask;
 	changes.map.first_key_sym = key;
@@ -665,14 +648,14 @@ static KeyCode vfbAddKeysym(KeySym keysym, unused unsigned state) {
 }
 
 /*
- * vfbKeysymKeyboardEvent() - work out the best keycode corresponding
+ * lorieKeysymKeyboardEvent() - work out the best keycode corresponding
  * to the keysym sent by the viewer. This is basically impossible in
  * the general case, but we make a best effort by assuming that all
  * useful keysyms can be reached using just the Shift and
  * Level 3 (AltGr) modifiers. For core keyboards this is basically
  * always true, and should be true for most sane, western XKB layouts.
  */
-void vfbKeysymKeyboardEvent(KeySym keysym, int down) {
+void lorieKeysymKeyboardEvent(KeySym keysym, int down) {
     int i;
     unsigned state, new_state;
     KeyCode keycode;
@@ -690,7 +673,7 @@ void vfbKeysymKeyboardEvent(KeySym keysym, int down) {
         for (i = 0;i < 256;i++) {
             if (pressedKeys[i] == keysym) {
                 pressedKeys[i] = NoSymbol;
-                QueueKeyboardEvents(vfbKeyboard, KeyRelease, i); // "keycode"
+                QueueKeyboardEvents(lorieKeyboard, KeyRelease, i); // "keycode"
                 mieqProcessInputEvents();
                 return;
             }
@@ -700,7 +683,7 @@ void vfbKeysymKeyboardEvent(KeySym keysym, int down) {
          * This can happen quite often as we ignore some
          * key presses.
          */
-		LogMessageVerb(X_DEBUG, -1, "Unexpected release of keysym 0x%x", keysym);
+        LogMessageVerb(X_DEBUG, -1, "Unexpected release of keysym 0x%x\n", keysym);
         return;
     }
 
@@ -712,33 +695,9 @@ void vfbKeysymKeyboardEvent(KeySym keysym, int down) {
      */
     mieqProcessInputEvents();
 
-    state = vfbGetKeyboardState();
+    state = lorieGetKeyboardState();
 
-    keycode = vfbKeysymToKeycode(keysym, state, &new_state);
-
-    /*
-     * Shift+Alt is often mapped to Meta, so try that rather than
-     * allocating a new entry, faking shift, or using the dummy
-     * key entries that many layouts have.
-     */
-    if ((state & ShiftMask) &&
-        ((keysym == XK_Alt_L) || (keysym == XK_Alt_R))) {
-        KeyCode alt, meta;
-
-        if (keysym == XK_Alt_L) {
-            alt = vfbKeysymToKeycode(XK_Alt_L, state & ~ShiftMask, NULL);
-            meta = vfbKeysymToKeycode(XK_Meta_L, state, NULL);
-        } else {
-            alt = vfbKeysymToKeycode(XK_Alt_R, state & ~ShiftMask, NULL);
-            meta = vfbKeysymToKeycode(XK_Meta_R, state, NULL);
-        }
-
-        if ((meta != 0) && (alt == meta)) {
-			LogMessageVerb(X_ERROR, -1, "Replacing Shift+Alt with Shift+Meta");
-            keycode = meta;
-            new_state = state;
-        }
-    }
+    keycode = lorieKeysymToKeycode(keysym, state, &new_state);
 
     /* Try some equivalent keysyms if we couldn't find a perfect match */
     if (keycode == 0) {
@@ -752,7 +711,7 @@ void vfbKeysymKeyboardEvent(KeySym keysym, int down) {
             else
                 continue;
 
-            keycode = vfbKeysymToKeycode(altsym, state, &new_state);
+            keycode = lorieKeysymToKeycode(altsym, state, &new_state);
             if (keycode != 0)
                 break;
         }
@@ -760,13 +719,13 @@ void vfbKeysymKeyboardEvent(KeySym keysym, int down) {
 
     /* No matches. Will have to add a new entry... */
     if (keycode == 0) {
-        keycode = vfbAddKeysym(keysym, state);
+        keycode = lorieAddKeysym(keysym, state);
         if (keycode == 0) {
-			LogMessageVerb(X_ERROR, -1, "Failure adding new keysym 0x%x", keysym);
+                LogMessageVerb(X_ERROR, -1, "Failure adding new keysym 0x%x\n", keysym);
             return;
         }
 
-		LogMessageVerb(X_INFO, -1, "Added unknown keysym 0x%x to keycode %d",
+        LogMessageVerb(X_INFO, -1, "Added unknown keysym 0x%x to keycode %d\n",
                  keysym, keycode);
 
         /*
@@ -774,9 +733,9 @@ void vfbKeysymKeyboardEvent(KeySym keysym, int down) {
          * the actual result might still require some state
          * changes.
          */
-        keycode = vfbKeysymToKeycode(keysym, state, &new_state);
+        keycode = lorieKeysymToKeycode(keysym, state, &new_state);
         if (keycode == 0) {
-			LogMessageVerb(X_ERROR, -1, "Newly added keysym 0x%x cannot be generated", keysym);
+            LogMessageVerb(X_ERROR, -1, "Newly added keysym 0x%x cannot be generated\n", keysym);
             return;
         }
     }
@@ -792,11 +751,11 @@ void vfbKeysymKeyboardEvent(KeySym keysym, int down) {
      * can avoid faking shift) so we try to avoid the fake shifts
      * if we can use an alternative keysym.
      */
-    if (((state & ShiftMask) != (new_state & ShiftMask)) && vfbIsAffectedByNumLock(keycode)) {
+    if (((state & ShiftMask) != (new_state & ShiftMask)) && lorieIsAffectedByNumLock(keycode)) {
         KeyCode keycode2;
         unsigned new_state2;
 
-		LogMessageVerb(X_DEBUG, -1, "Finding alternative to keysym 0x%x to avoid fake shift for numpad", keysym);
+        LogMessageVerb(X_DEBUG, -1, "Finding alternative to keysym 0x%x to avoid fake shift for numpad\n", keysym);
 
         for (i = 0;i < sizeof(altKeysym)/sizeof(altKeysym[0]);i++) {
             KeySym altsym;
@@ -808,19 +767,19 @@ void vfbKeysymKeyboardEvent(KeySym keysym, int down) {
             else
                 continue;
 
-            keycode2 = vfbKeysymToKeycode(altsym, state, &new_state2);
+            keycode2 = lorieKeysymToKeycode(altsym, state, &new_state2);
             if (keycode2 == 0)
                 continue;
 
             if (((state & ShiftMask) != (new_state2 & ShiftMask)) &&
-                vfbIsAffectedByNumLock(keycode2))
+					lorieIsAffectedByNumLock(keycode2))
                 continue;
 
             break;
         }
 
         if (i == sizeof(altKeysym)/sizeof(altKeysym[0]))
-			LogMessageVerb(X_DEBUG, -1, "No alternative keysym found");
+            LogMessageVerb(X_DEBUG, -1, "No alternative keysym found\n");
         else {
             keycode = keycode2;
             new_state = new_state2;
@@ -848,7 +807,7 @@ void vfbKeysymKeyboardEvent(KeySym keysym, int down) {
      * so we need to know what the mask is for level 3 shifts.
      */
     if ((new_state & ~ShiftMask) != (state & ~ShiftMask))
-        level_three_mask = vfbGetLevelThreeMask();
+        level_three_mask = lorieGetLevelThreeMask();
     else
         level_three_mask = 0;
 
@@ -857,48 +816,48 @@ void vfbKeysymKeyboardEvent(KeySym keysym, int down) {
 
     /* Need a fake press or release of shift? */
     if (!(state & ShiftMask) && (new_state & ShiftMask)) {
-        shift_press = vfbPressShift();
+        shift_press = loriePressShift();
         if (shift_press == 0) {
-			LogMessageVerb(X_ERROR, -1, "Unable to find a modifier key for Shift");
+            LogMessageVerb(X_ERROR, -1, "Unable to find a modifier key for Shift\n");
             return;
         }
 
-        QueueKeyboardEvents(vfbKeyboard, KeyPress, shift_press); // "temp shift"
+        QueueKeyboardEvents(lorieKeyboard, KeyPress, shift_press); // "temp shift"
     } else if ((state & ShiftMask) && !(new_state & ShiftMask)) {
-        shift_release_count = vfbReleaseShift(shift_release,
+        shift_release_count = lorieReleaseShift(shift_release,
                                               sizeof(shift_release)/sizeof(*shift_release));
         if (shift_release_count == 0) {
-			LogMessageVerb(X_ERROR, -1, "Unable to find the modifier key(s) for releasing Shift");
+            LogMessageVerb(X_ERROR, -1, "Unable to find the modifier key(s) for releasing Shift\n");
             return;
         }
 
         for (i = 0;i < shift_release_count;i++)
-            QueueKeyboardEvents(vfbKeyboard, KeyRelease, shift_release[i]); // "temp shift"
+            QueueKeyboardEvents(lorieKeyboard, KeyRelease, shift_release[i]); // "temp shift"
     }
 
     /* Need a fake press or release of level three shift? */
     if (!(state & level_three_mask) && (new_state & level_three_mask)) {
-        level_three_press = vfbPressLevelThree();
+        level_three_press = loriePressLevelThree();
         if (level_three_press == 0) {
-			LogMessageVerb(X_ERROR, -1, "Unable to find a modifier key for ISO_Level3_Shift/Mode_Switch");
+            LogMessageVerb(X_ERROR, -1, "Unable to find a modifier key for ISO_Level3_Shift/Mode_Switch\n");
             return;
         }
 
-        QueueKeyboardEvents(vfbKeyboard, KeyPress, level_three_press); // "temp level 3 shift"
+        QueueKeyboardEvents(lorieKeyboard, KeyPress, level_three_press); // "temp level 3 shift"
     } else if ((state & level_three_mask) && !(new_state & level_three_mask)) {
-        level_three_release_count = vfbReleaseLevelThree(level_three_release,
+        level_three_release_count = lorieReleaseLevelThree(level_three_release,
                                                          sizeof(level_three_release)/sizeof(*level_three_release));
         if (level_three_release_count == 0) {
-			LogMessageVerb(X_ERROR, -1, "Unable to find the modifier key(s) for releasing ISO_Level3_Shift/Mode_Switch");
+            LogMessageVerb(X_ERROR, -1, "Unable to find the modifier key(s) for releasing ISO_Level3_Shift/Mode_Switch\n");
             return;
         }
 
         for (i = 0;i < level_three_release_count;i++)
-            QueueKeyboardEvents(vfbKeyboard, KeyRelease, level_three_release[i]); // "temp level 3 shift"
+            QueueKeyboardEvents(lorieKeyboard, KeyRelease, level_three_release[i]); // "temp level 3 shift"
     }
 
     /* Now press the actual key */
-    QueueKeyboardEvents(vfbKeyboard, KeyPress, keycode); // "keycode"
+    QueueKeyboardEvents(lorieKeyboard, KeyPress, keycode); // "keycode"
 
     /* And store the mapping so that we can do a proper release later */
     for (i = 0;i < 256;i++) {
@@ -914,18 +873,18 @@ void vfbKeysymKeyboardEvent(KeySym keysym, int down) {
 
     /* Undo any fake level three shift */
     if (level_three_press != 0)
-        QueueKeyboardEvents(vfbKeyboard, KeyRelease, level_three_press); // "temp level 3 shift"
+        QueueKeyboardEvents(lorieKeyboard, KeyRelease, level_three_press); // "temp level 3 shift"
     else if (level_three_release_count != 0) {
         for (i = 0;i < level_three_release_count;i++)
-			QueueKeyboardEvents(vfbKeyboard, KeyPress, level_three_release[i]); // "temp level 3 shift"
+			QueueKeyboardEvents(lorieKeyboard, KeyPress, level_three_release[i]); // "temp level 3 shift"
     }
 
     /* Undo any fake shift */
     if (shift_press != 0)
-		QueueKeyboardEvents(vfbKeyboard, KeyRelease, shift_press); // "temp shift"
+		QueueKeyboardEvents(lorieKeyboard, KeyRelease, shift_press); // "temp shift"
     else if (shift_release_count != 0) {
         for (i = 0;i < shift_release_count;i++)
-			QueueKeyboardEvents(vfbKeyboard, KeyPress, shift_release[i]); // "temp shift"
+			QueueKeyboardEvents(lorieKeyboard, KeyPress, shift_release[i]); // "temp shift"
     }
 
     /*

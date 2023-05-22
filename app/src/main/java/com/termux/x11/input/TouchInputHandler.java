@@ -9,7 +9,6 @@ import android.content.Context;
 import android.graphics.Matrix;
 import android.graphics.PointF;
 import android.graphics.Rect;
-import android.util.Log;
 import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -264,11 +263,14 @@ public class TouchInputHandler {
     }
 
     public boolean handleTouchEvent(MotionEvent event) {
-        Log.d("TouchListener", "Motion tool" + event.getToolType(event.getActionIndex()));
         if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_MOUSE)
             return mHMListener.onTouch(event);
 
         if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER) {
+            // Dex touchpad sends events as finger, but it should be considered as a mouse.
+            if (event.getAction() == MotionEvent.ACTION_HOVER_MOVE)
+                return mHMListener.onTouch(event);
+
             // Give the underlying input strategy a chance to observe the current motion event before
             // passing it to the gesture detectors.  This allows the input strategy to react to the
             // event or save the payload for use in recreating the gesture remotely.
@@ -334,6 +336,10 @@ public class TouchInputHandler {
         } else {
            assert false : "Unreached";
         }
+    }
+
+    public void setPreferScancodes(boolean enabled) {
+        mInjector.preferScancodes = enabled;
     }
 
     private void moveCursorByOffset(float deltaX, float deltaY) {

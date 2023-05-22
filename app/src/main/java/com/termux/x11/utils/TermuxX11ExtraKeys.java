@@ -89,25 +89,25 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     protected void onTerminalExtraKeyButtonClick(@SuppressWarnings("unused") View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, @SuppressWarnings("unused") boolean fnDown) {
         if (this.ctrlDown != ctrlDown) {
             this.ctrlDown = ctrlDown;
-            mActivity.sendKeyEvent(KeyEvent.KEYCODE_CTRL_LEFT, ctrlDown);
+            mActivity.sendKeyEvent(0, KeyEvent.KEYCODE_CTRL_LEFT, ctrlDown);
         }
 
         if (this.altDown != altDown) {
             this.altDown = altDown;
-            mActivity.sendKeyEvent(KeyEvent.KEYCODE_ALT_LEFT, altDown);
+            mActivity.sendKeyEvent(0, KeyEvent.KEYCODE_ALT_LEFT, altDown);
         }
 
         if (this.shiftDown != shiftDown) {
             this.shiftDown = shiftDown;
-            mActivity.sendKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, shiftDown);
+            mActivity.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, shiftDown);
         }
 
         if (PRIMARY_KEY_CODES_FOR_STRINGS.containsKey(key)) {
             Integer keyCode = PRIMARY_KEY_CODES_FOR_STRINGS.get(key);
             if (keyCode == null) return;
 
-            mActivity.sendKeyEvent(keyCode, true);
-            mActivity.sendKeyEvent(keyCode, false);
+            mActivity.sendKeyEvent(0, keyCode, true);
+            mActivity.sendKeyEvent(0, keyCode, false);
         } else {
             // not a control char
             key.codePoints().forEach(mActivity::sendUnicodeEvent);
@@ -121,15 +121,15 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
             switch (buttonInfo.getKey()) {
                 case "CTRL":
                     pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.CTRL, false));
-                    mActivity.sendKeyEvent(KeyEvent.KEYCODE_CTRL_LEFT, pressed);
+                    mActivity.sendKeyEvent(0, KeyEvent.KEYCODE_CTRL_LEFT, pressed);
                     break;
                 case "ALT":
                     pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.ALT, false));
-                    mActivity.sendKeyEvent(KeyEvent.KEYCODE_ALT_LEFT, pressed);
+                    mActivity.sendKeyEvent(0, KeyEvent.KEYCODE_ALT_LEFT, pressed);
                     break;
                 case "SHIFT":
                     pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.SHIFT, false));
-                    mActivity.sendKeyEvent(KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
+                    mActivity.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
                     break;
             }
         }, 100);

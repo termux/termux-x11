@@ -134,13 +134,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
         }, new InputEventSender(new InputStub() {
             @Override
-            public void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown) {
-                MainActivity.this.sendMouseEvent(x, y, whichButton, buttonDown);
+            public void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown, boolean relative) {
+                MainActivity.this.sendMouseEvent(x, y, whichButton, buttonDown, relative);
             }
 
             @Override
             public void sendMouseWheelEvent(int deltaX, int deltaY) {
-                MainActivity.this.sendMouseEvent(deltaX, deltaY, BUTTON_SCROLL, false);
+                MainActivity.this.sendMouseEvent(deltaX, deltaY, BUTTON_SCROLL, false, true);
             }
 
             @Override
@@ -255,10 +255,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     void onPreferencesChanged() {
         SharedPreferences p = PreferenceManager.getDefaultSharedPreferences(this);
+        SurfaceView lorieView = getLorieView();
 
         int mode = Integer.parseInt(p.getString("touchMode", "1"));
         mInputHandler.setInputMode(mode);
         mInputHandler.setPreferScancodes(p.getBoolean("preferScancodes", false));
+        mInputHandler.setPointerCaptureEnabled(p.getBoolean("pointerCapture", false));
+        if (!p.getBoolean("pointerCapture", false) && lorieView.hasPointerCapture())
+            lorieView.releasePointerCapture();
 
         SamsungDexUtils.dexMetaKeyCapture(this, p.getBoolean("dexMetaKeyCapture", false));
 
@@ -266,7 +270,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         onWindowFocusChanged(true);
 //        setClipboardSyncEnabled(preferences.getBoolean("clipboardSync", false));
 
-        SurfaceView lorieView = getLorieView();
         lorieView.setFocusable(true);
         lorieView.setFocusableInTouchMode(true);
         lorieView.requestFocus();
@@ -336,7 +339,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private void setTerminalToolbarView() {
         final ViewPager terminalToolbarViewPager = getTerminalToolbarViewPager();
 
-        terminalToolbarViewPager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(e)));
+        terminalToolbarViewPager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(getLorieView(), e)));
         terminalToolbarViewPager.addOnPageChangeListener(new X11ToolbarViewPager.OnPageChangeListener(this, terminalToolbarViewPager));
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
@@ -531,15 +534,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private class ServiceEventListener {
         @SuppressLint({"WrongConstant", "ClickableViewAccessibility"})
         private void setAsListenerTo(SurfaceView view) {
-            view.setOnTouchListener((v, e) -> mInputHandler.handleTouchEvent(e));
-            view.setOnHoverListener((v, e) -> mInputHandler.handleTouchEvent(e));
-            view.setOnGenericMotionListener((v, e) -> mInputHandler.handleTouchEvent(e));
+            view.setOnTouchListener((v, e) -> mInputHandler.handleTouchEvent(v, e));
+            view.setOnHoverListener((v, e) -> mInputHandler.handleTouchEvent(v, e));
+            view.setOnGenericMotionListener((v, e) -> mInputHandler.handleTouchEvent(v, e));
+            view.setOnCapturedPointerListener((v, e) -> mInputHandler.handleCapturedEvent(e));
 
             mLorieKeyListener = (v, k, e) -> {
                 SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
-
-                Log.e("KEY", " " + e + " characters " + e.getCharacters() + " " + e.getUnicodeChar());
-
                 if (k == KeyEvent.KEYCODE_VOLUME_DOWN && preferences.getBoolean("hideEKOnVolDown", false)) {
                     if (e.getAction() == KeyEvent.ACTION_UP) {
                         toggleExtraKeys();
@@ -556,7 +557,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     return true;
                 }
 
-                return mInputHandler.sendKeyEvent(e);
+                return mInputHandler.sendKeyEvent(v, e);
             };
 
             view.setOnKeyListener(mLorieKeyListener);
@@ -671,7 +672,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private native void connect(int fd);
     private native void startLogcat(int fd);
     private native void sendWindowChange(int width, int height, int dpi);
-    private native void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown);
+    private native void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown, boolean relative);
     private native void sendTouchEvent(int action, int id, int x, int y);
     public native void sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
     public native void sendUnicodeEvent(int unicode);

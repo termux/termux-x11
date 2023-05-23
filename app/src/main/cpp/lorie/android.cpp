@@ -248,10 +248,11 @@ Java_com_termux_x11_MainActivity_sendWindowChange(maybe_unused JNIEnv *env, mayb
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_sendMouseEvent(maybe_unused JNIEnv *env, maybe_unused jobject thiz, jint x, jint y, jint which_button, jboolean button_down) {
+Java_com_termux_x11_MainActivity_sendMouseEvent(maybe_unused JNIEnv *env, maybe_unused jobject thiz,
+                                                jint x, jint y, jint which_button, jboolean button_down, jboolean relative) {
     if (conn) {
-        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client", "Sending mouse event: %d %d %d %d", x, y, which_button, button_down);
-        xcb_tx11_mouse_event(conn, x, y, which_button, button_down); // NOLINT(cppcoreguidelines-narrowing-conversions)
+        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client", "Sending mouse event: %d %d %d %d %d", x, y, which_button, button_down, relative);
+        xcb_tx11_mouse_event(conn, x, y, which_button, button_down, relative); // NOLINT(cppcoreguidelines-narrowing-conversions)
         xcb_flush(conn);
     }
 }

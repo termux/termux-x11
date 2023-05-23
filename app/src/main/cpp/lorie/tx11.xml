@@ -49,6 +49,7 @@
     <field type="INT16" name="y" />
     <field type="CARD8" name="detail" />
     <field type="CARD8" name="down" />
+    <field type="CARD8" name="relative" />
   </request>
 
   <request name="KeyEvent" opcode="4">

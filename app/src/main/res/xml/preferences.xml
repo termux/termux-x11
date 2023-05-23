@@ -68,6 +68,11 @@
             android:key="showAdditionalKbd" />
 
         <SwitchPreferenceCompat
+            android:title="Hide additional keyboard on Volume Down key press"
+            android:defaultValue="false"
+            android:key="hideEKOnVolDown" />
+
+        <SwitchPreferenceCompat
             android:title="Show IME with external keyboard"
             android:summary="Show software keyboard while hardware keyboard is connected"
             android:defaultValue="false"
@@ -85,6 +90,12 @@
             android:defaultValue="false"
             android:key="dexMetaKeyCapture"/>
 
+        <SwitchPreferenceCompat
+            android:title="Capture external mouse when possible"
+            android:summary="Intercept all hardware mouse events. Pointer is back to Android after pressing Escape key."
+            android:defaultValue="false"
+            android:key="pointerCapture"/>
+
         <Preference
             android:title="Enable Accessibility service for intercepting system shortcuts manually."
             android:summary="Open Accessibility settings."
@@ -101,11 +112,6 @@
             android:summary="Allows you to use Dex shortcuts while intercepting."
             android:defaultValue="false"
             android:key="filterOutWinkey"/>
-
-        <SwitchPreferenceCompat
-            android:title="Hide extra keys bar on Volume Down key press"
-            android:defaultValue="false"
-            android:key="hideEKOnVolDown" />
 
         <com.termux.x11.utils.ExtraKeyConfigPreference
             android:title="Extra keys config"

@@ -7,6 +7,8 @@ package com.termux.x11.input;
 import android.graphics.PointF;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.View;
+
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -22,6 +24,7 @@ public final class InputEventSender {
     private final InputStub mInjector;
 
     public boolean preferScancodes = false;
+    public boolean pointerCapture = false;
 
     /** Set of pressed keys for which we've sent TextEvent. */
     private final Set<Integer> mPressedTextKeys;
@@ -32,20 +35,20 @@ public final class InputEventSender {
         mPressedTextKeys = new TreeSet<>();
     }
 
-    public void sendMouseEvent(PointF pos, int button, boolean down) {
+    public void sendMouseEvent(PointF pos, int button, boolean down, boolean relative) {
         Preconditions.isTrue(button == InputStub.BUTTON_UNDEFINED
                 || button == InputStub.BUTTON_LEFT
                 || button == InputStub.BUTTON_MIDDLE
                 || button == InputStub.BUTTON_RIGHT);
-        mInjector.sendMouseEvent((int) pos.x, (int) pos.y, button, down);
+        mInjector.sendMouseEvent((int) pos.x, (int) pos.y, button, down, relative);
     }
 
     public void sendMouseDown(PointF pos, int button) {
-        sendMouseEvent(pos, button, true);
+        sendMouseEvent(pos, button, true, false);
     }
 
     public void sendMouseUp(PointF pos, int button) {
-        sendMouseEvent(pos, button, false);
+        sendMouseEvent(pos, button, false, false);
     }
 
     public void sendMouseClick(PointF pos, int button) {
@@ -149,7 +152,7 @@ public final class InputEventSender {
      * key-events or text-events. This contains some logic for handling some special keys, and
      * avoids sending a key-up event for a key that was previously injected as a text-event.
      */
-    public boolean sendKeyEvent(KeyEvent event) {
+    public boolean sendKeyEvent(View view, KeyEvent event) {
         int keyCode = event.getKeyCode();
         boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
 
@@ -216,6 +219,9 @@ public final class InputEventSender {
                 // Ignoring Android's autorepeat.
                 if (event.getRepeatCount() > 0)
                     return true;
+
+                if (pointerCapture && keyCode == KeyEvent.KEYCODE_ESCAPE && !pressed)
+                    view.releasePointerCapture();
 
                 // We try to send all other key codes to the host directly.
                 return mInjector.sendKeyEvent(scancode, keyCode, pressed);

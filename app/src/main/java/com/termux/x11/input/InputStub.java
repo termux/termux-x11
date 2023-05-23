@@ -20,7 +20,7 @@ public interface InputStub {
     int BUTTON_SCROLL = 4;
 
     /** Sends a mouse event. */
-    void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown);
+    void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown, boolean relative);
 
     /** Sends a mouse wheel event. */
     void sendMouseWheelEvent(int deltaX, int deltaY);

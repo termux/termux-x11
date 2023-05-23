@@ -36,7 +36,8 @@ from The Open Group.
 #include "xserver-properties.h"
 #include "exevents.h"
 #define unused __attribute__((unused))
-DeviceIntPtr lorieMouse, lorieTouch, lorieKeyboard;
+
+unused DeviceIntPtr lorieMouse, lorieMouseRelative, lorieTouch, lorieKeyboard;
 
 void
 ProcessInputEvents(void) {
@@ -68,35 +69,49 @@ lorieKeybdProc(DeviceIntPtr pDevice, int onoff) {
     return Success;
 }
 
+static Bool
+lorieInitPointerButtons(DeviceIntPtr device)
+{
+#define NBUTTONS 10
+    BYTE map[NBUTTONS + 1];
+    int i;
+    Atom btn_labels[NBUTTONS] = { 0 };
+
+    for (i = 1; i <= NBUTTONS; i++)
+        map[i] = i;
+
+    btn_labels[0] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_LEFT);
+    btn_labels[1] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_MIDDLE);
+    btn_labels[2] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_RIGHT);
+    btn_labels[3] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_UP);
+    btn_labels[4] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_DOWN);
+    btn_labels[5] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_LEFT);
+    btn_labels[6] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_RIGHT);
+    /* don't know about the rest */
+
+    if (!InitButtonClassDeviceStruct(device, NBUTTONS, btn_labels, map))
+        return FALSE;
+
+    return TRUE;
+#undef NBUTTONS
+}
+
 static int
 lorieMouseProc(DeviceIntPtr pDevice, int onoff) {
-#define NAXES 6
+#define NAXES 4
 #define NBUTTONS 7
     DevicePtr pDev = (DevicePtr) pDevice;
 
     switch (onoff) {
     case DEVICE_INIT: {
-        BYTE map[NBUTTONS + 1];
-        Atom btn_labels[NBUTTONS] = { 0 };
         Atom axes_labels[NAXES] = { 0 };
-        int i;
-        for (i = 1; i <= NBUTTONS; i++)
-            map[i] = i;
-
-        btn_labels[0] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_LEFT);
-        btn_labels[1] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_MIDDLE);
-        btn_labels[2] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_RIGHT);
-        btn_labels[3] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_UP);
-        btn_labels[4] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_DOWN);
-        btn_labels[5] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_LEFT);
-        btn_labels[6] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_RIGHT);
 
         axes_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X);
         axes_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
         axes_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_HWHEEL);
         axes_labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_WHEEL);
 
-        if (!InitButtonClassDeviceStruct(pDevice, NBUTTONS, btn_labels, map))
+        if (!lorieInitPointerButtons(pDevice))
             return BadValue;
 
         if (!InitValuatorClassDeviceStruct(pDevice, NAXES, axes_labels, GetMotionHistorySize(), Absolute))
@@ -129,6 +144,54 @@ lorieMouseProc(DeviceIntPtr pDevice, int onoff) {
     return Success;
 
 #undef NBUTTONS
+#undef NAXES
+}
+
+unused static int
+lorieMouseRelativeProc(DeviceIntPtr device, int what)
+{
+#define NAXES 2
+    Atom axes_labels[NAXES] = { 0 };
+
+    switch (what) {
+        case DEVICE_INIT:
+            device->public.on = FALSE;
+
+            axes_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_X);
+            axes_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_Y);
+
+            /*
+             * We'll never send buttons, but XGetPointerMapping might in certain
+             * situations make the client think we have no buttons.
+             */
+            if (!lorieInitPointerButtons(device))
+                return BadValue;
+
+            if (!InitValuatorClassDeviceStruct(device, NAXES, axes_labels, GetMotionHistorySize(), Relative))
+                return BadValue;
+
+            /* Valuators */
+            InitValuatorAxisStruct(device, 0, axes_labels[0], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative);
+            InitValuatorAxisStruct(device, 1, axes_labels[1], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative);
+
+            if (!InitPtrFeedbackClassDeviceStruct(device, (PtrCtrlProcPtr) NoopDDA))
+                return BadValue;
+
+            return Success;
+
+        case DEVICE_ON:
+            device->public.on = TRUE;
+            return Success;
+
+        case DEVICE_OFF:
+        case DEVICE_CLOSE:
+            device->public.on = FALSE;
+            return Success;
+        default:
+            return BadMatch;
+    }
+
+    return BadMatch;
 #undef NAXES
 }
 
@@ -178,8 +241,6 @@ lorieTouchProc(DeviceIntPtr device, int what)
         default:
             return BadMatch;
     }
-
-    return BadMatch;
 #undef NAXES
 #undef NBUTTONS
 #undef NTOUCHPOINTS
@@ -188,10 +249,12 @@ lorieTouchProc(DeviceIntPtr device, int what)
 void
 InitInput(unused int argc, unused char *argv[]) {
     lorieMouse = AddInputDevice(serverClient, lorieMouseProc, TRUE);
+//    lorieMouseRelative = AddInputDevice(serverClient, lorieMouseRelativeProc, TRUE);
     lorieTouch = AddInputDevice(serverClient, lorieTouchProc, TRUE);
     lorieKeyboard = AddInputDevice(serverClient, lorieKeybdProc, TRUE);
     AssignTypeAndName(lorieMouse, MakeAtom(XI_MOUSE, sizeof(XI_MOUSE) - 1, TRUE), "Xvfb mouse");
-    AssignTypeAndName(lorieTouch, MakeAtom(XI_MOUSE, sizeof(XI_MOUSE) - 1, TRUE), "Xvfb touch");
+//    AssignTypeAndName(lorieMouseRelative, MakeAtom(XI_MOUSE, sizeof(XI_MOUSE) - 1, TRUE), "Xvfb relative mouse");
+    AssignTypeAndName(lorieTouch, MakeAtom(XI_TOUCHSCREEN, sizeof(XI_TOUCHSCREEN) - 1, TRUE), "Xvfb touch");
     AssignTypeAndName(lorieKeyboard, MakeAtom(XI_KEYBOARD, sizeof(XI_KEYBOARD) - 1, TRUE), "Xvfb keyboard");
     (void) mieqInit();
 }

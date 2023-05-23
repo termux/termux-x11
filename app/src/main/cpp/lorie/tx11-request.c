@@ -13,7 +13,8 @@
 #include "tx11.h"
 #include "xkbcommon/xkbcommon.h"
 
-extern DeviceIntPtr lorieMouse, lorieTouch, lorieKeyboard;
+__attribute__((__unused__))
+extern DeviceIntPtr lorieMouse, lorieMouseRelative, lorieTouch, lorieKeyboard;
 extern ScreenPtr pScreenPtr;
 
 void lorieKeysymKeyboardEvent(KeySym keysym, int down);
@@ -84,12 +85,20 @@ static int dispatch(ClientPtr client) {
         case XCB_TX11_MOUSE_EVENT: {
             REQUEST(xcb_tx11_mouse_event_request_t)
 
+            int flags;
             switch(stuff->detail) {
                 case 0: // BUTTON_UNDEFINED
-                    // That is an absolute mouse motion
-                    valuator_mask_set(&mask, 0, stuff->x);
-                    valuator_mask_set(&mask, 1, stuff->y);
-                    QueuePointerEvents(lorieMouse, MotionNotify, 0, POINTER_ABSOLUTE | POINTER_SCREEN, &mask);
+                    if (stuff->relative) {
+//                        flags = POINTER_RELATIVE | POINTER_NORAW;
+//                        valuator_mask_set_unaccelerated(&mask, 0, stuff->x, stuff->x);
+//                        valuator_mask_set_unaccelerated(&mask, 1, stuff->y, stuff->y);
+//                        QueuePointerEvents(lorieMouseRelative, MotionNotify, 0, flags, &mask);
+                    } else {
+                        flags = POINTER_ABSOLUTE | POINTER_SCREEN | POINTER_NORAW;
+                        valuator_mask_set(&mask, 0, stuff->x);
+                        valuator_mask_set(&mask, 1, stuff->y);
+                        QueuePointerEvents(lorieMouse, MotionNotify, 0, flags, &mask);
+                    }
                     break;
                 case 1: // BUTTON_LEFT
                 case 2: // BUTTON_MIDDLE

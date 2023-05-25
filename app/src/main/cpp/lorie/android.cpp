@@ -72,65 +72,39 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, jclass, jobjectArray args) 
         env->ReleaseStringUTFChars(js, pjc);
     }
 
-    if (strstr(progname(), "com.termux")) {
-        char root[128] = {0}, tmpdir[128] = {0}, lib[128] = {0}, apk[1024] = {0}, cmd[1024] = {0};
-
-        asprintf((char **)(&XkbBaseDirectory), "/data/data/%s/files/usr/share/X11/xkb", progname());
-        sprintf(root, "/data/data/%s/files", progname());
-        sprintf(tmpdir, "/data/data/%s/files/", progname());
-        sprintf(lib, "/data/data/%s/lib", progname());
-
-        wai_getModulePath(apk, 1024, nullptr);
-        if (strstr(apk, "!/lib"))
-            strstr(apk, "!/lib")[0] = 0;
-        sprintf(cmd, "unzip -d /data/data/com.termux.x11/files/ %s assets/xkb.tar", apk);
-        system(cmd);
-        system("mv /data/data/com.termux.x11/files/assets/xkb.tar /data/data/com.termux.x11/files/assets/xkb.tar.gz");
-        system("mkdir -p /data/data/com.termux.x11/files/usr/share/X11/");
-        system("tar -xf /data/data/com.termux.x11/files/assets/xkb.tar.gz -C /data/data/com.termux.x11/files/usr/share/X11/");
-        setenv("XKB_CONFIG_ROOT", "/data/data/com.termux.x11/files/usr/share/X11/xkb", 1);
-
-        LogSetParameter(2, 10);
-        setenv("HOME", root, 1);
-        setenv("TMPDIR", tmpdir, 1);
-        setenv("XKB_CONFIG_ROOT", XkbBaseDirectory, 1);
-        setenv("LIBGL_DRIVERS_PATH", lib, 1);
-    } else {
-        char lib[128] = {0};
-        if (!getenv("TMPDIR")) {
-            if (access("/tmp", F_OK) == 0)
-                setenv("TMPDIR", "/tmp", 1);
-            else if (access("/data/data/com.termux/files/usr/tmp", F_OK) == 0)
-                setenv("TMPDIR", "/data/data/com.termux/files/usr/tmp", 1);
-        }
-
-        if (!getenv("TMPDIR")) {
-            char* error = (char*) "$TMPDIR is not set. Normally it is pointing to /tmp of a container.";
-            __android_log_print(ANDROID_LOG_ERROR, "LorieNative", "%s", error);
-            dprintf(2, "%s\n", error);
-            return JNI_FALSE;
-        }
-
-        if (!getenv("XKB_CONFIG_ROOT")) {
-            if (access("/usr/share/X11/xkb", F_OK) == 0)
-                setenv("XKB_CONFIG_ROOT", "/usr/share/X11/xkb", 1);
-            else if (access("/data/data/com.termux/files/usr/share/X11/xkb", F_OK) == 0)
-                setenv("XKB_CONFIG_ROOT", "/data/data/com.termux/files/usr/share/X11/xkb", 1);
-
-            XkbBaseDirectory = getenv("XKB_CONFIG_ROOT");
-        }
-
-        if (!getenv("XKB_CONFIG_ROOT")) {
-            char* error = (char*) "$XKB_CONFIG_ROOT is not set. Normally it is pointing to /usr/share/X11/xkb of a container.";
-            __android_log_print(ANDROID_LOG_ERROR, "LorieNative", "%s", error);
-            dprintf(2, "%s\n", error);
-            return JNI_FALSE;
-        }
-
-        wai_getModulePath(lib, sizeof(lib), nullptr);
-        setenv("LIBGL_DRIVERS_PATH", dirname(lib), 1);
+    char lib[128] = {0};
+    if (!getenv("TMPDIR")) {
+        if (access("/tmp", F_OK) == 0)
+            setenv("TMPDIR", "/tmp", 1);
+        else if (access("/data/data/com.termux/files/usr/tmp", F_OK) == 0)
+            setenv("TMPDIR", "/data/data/com.termux/files/usr/tmp", 1);
     }
 
+    if (!getenv("TMPDIR")) {
+        char* error = (char*) "$TMPDIR is not set. Normally it is pointing to /tmp of a container.";
+        __android_log_print(ANDROID_LOG_ERROR, "LorieNative", "%s", error);
+        dprintf(2, "%s\n", error);
+        return JNI_FALSE;
+    }
+
+    if (!getenv("XKB_CONFIG_ROOT")) {
+        if (access("/usr/share/X11/xkb", F_OK) == 0)
+            setenv("XKB_CONFIG_ROOT", "/usr/share/X11/xkb", 1);
+        else if (access("/data/data/com.termux/files/usr/share/X11/xkb", F_OK) == 0)
+            setenv("XKB_CONFIG_ROOT", "/data/data/com.termux/files/usr/share/X11/xkb", 1);
+    }
+
+    if (!getenv("XKB_CONFIG_ROOT")) {
+        char* error = (char*) "$XKB_CONFIG_ROOT is not set. Normally it is pointing to /usr/share/X11/xkb of a container.";
+        __android_log_print(ANDROID_LOG_ERROR, "LorieNative", "%s", error);
+        dprintf(2, "%s\n", error);
+        return JNI_FALSE;
+    }
+
+    wai_getModulePath(lib, sizeof(lib), nullptr);
+    setenv("LIBGL_DRIVERS_PATH", dirname(lib), 1);
+
+    XkbBaseDirectory = getenv("XKB_CONFIG_ROOT");
     if (access(XkbBaseDirectory, F_OK) != 0) {
         __android_log_print(ANDROID_LOG_ERROR, "LorieNative", "%s is unaccessible: %s\n", XkbBaseDirectory, strerror(errno));
         printf("%s is unaccessible: %s\n", XkbBaseDirectory, strerror(errno));

@@ -725,7 +725,7 @@ void lorieKeysymKeyboardEvent(KeySym keysym, int down) {
             return;
         }
 
-        LogMessageVerb(X_INFO, -1, "Added unknown keysym 0x%x to keycode %d\n",
+        LogMessageVerb(X_INFO, 0, "Added unknown keysym 0x%x to keycode %d\n",
                  keysym, keycode);
 
         /*
@@ -755,7 +755,7 @@ void lorieKeysymKeyboardEvent(KeySym keysym, int down) {
         KeyCode keycode2;
         unsigned new_state2;
 
-        LogMessageVerb(X_DEBUG, -1, "Finding alternative to keysym 0x%x to avoid fake shift for numpad\n", keysym);
+        LogMessageVerb(X_DEBUG, 0, "Finding alternative to keysym 0x%x to avoid fake shift for numpad\n", keysym);
 
         for (i = 0;i < sizeof(altKeysym)/sizeof(altKeysym[0]);i++) {
             KeySym altsym;
@@ -779,7 +779,7 @@ void lorieKeysymKeyboardEvent(KeySym keysym, int down) {
         }
 
         if (i == sizeof(altKeysym)/sizeof(altKeysym[0]))
-            LogMessageVerb(X_DEBUG, -1, "No alternative keysym found\n");
+            LogMessageVerb(X_DEBUG, 0, "No alternative keysym found\n");
         else {
             keycode = keycode2;
             new_state = new_state2;

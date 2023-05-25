@@ -129,7 +129,7 @@ static int dispatch(ClientPtr client) {
             REQUEST(xcb_tx11_unicode_event_request_t)
             char name[128];
             xkb_keysym_get_name(xkb_utf32_to_keysym(stuff->unicode), name, 128);
-            printf("Trying to input keysym %d %s\n", xkb_utf32_to_keysym(stuff->unicode), name);
+            __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d %s\n", xkb_utf32_to_keysym(stuff->unicode), name);
             lorieKeysymKeyboardEvent(xkb_utf32_to_keysym(stuff->unicode), TRUE);
             lorieKeysymKeyboardEvent(xkb_utf32_to_keysym(stuff->unicode), FALSE);
             return Success;

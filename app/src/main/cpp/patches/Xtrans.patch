@@ -39,3 +39,56 @@ index b06579c..bb5238b 100644
  #endif /* ICE_t */
  
  
+diff --git a/Xtransutil.c b/Xtransutil.c
+index 63f0fc3..a9620a6 100644
+--- a/Xtransutil.c
++++ b/Xtransutil.c
+@@ -478,27 +478,6 @@ trans_mkdir(const char *path, int mode)
+ 	}
+ 	/* Dir doesn't exist. Try to create it */
+ 
+-#if !defined(WIN32) && !defined(__CYGWIN__)
+-	/*
+-	 * 'sticky' bit requested: assume application makes
+-	 * certain security implications. If effective user ID
+-	 * is != 0: fail as we may not be able to meet them.
+-	 */
+-	if (geteuid() != 0) {
+-	    if (mode & 01000) {
+-		prmsg(1, "mkdir: ERROR: euid != 0,"
+-		      "directory %s will not be created.\n",
+-		      path);
+-#ifdef FAIL_HARD
+-		return -1;
+-#endif
+-	    } else {
+-		prmsg(1, "mkdir: Cannot create %s with root ownership\n",
+-		      path);
+-	    }
+-	}
+-#endif
+-
+ #ifndef WIN32
+ 	if (mkdir(path, mode) == 0) {
+ 	    if (chmod(path, mode)) {
+@@ -597,20 +576,6 @@ trans_mkdir(const char *path, int mode)
+ 	    }
+ #endif
+ 
+-	    if (updateOwner && !updatedOwner) {
+-#ifdef FAIL_HARD
+-		if (status & FAIL_IF_NOT_ROOT) {
+-		    prmsg(1, "mkdir: ERROR: Owner of %s must be set to root\n",
+-			  path);
+-		    return -1;
+-		}
+-#endif
+-#if !defined(__APPLE_CC__) && !defined(__CYGWIN__)
+-		prmsg(1, "mkdir: Owner of %s should be set to root\n",
+-		      path);
+-#endif
+-	    }
+-
+ 	    if (updateMode && !updatedMode) {
+ #ifdef FAIL_HARD
+ 		if (status & FAIL_IF_NOMODE) {

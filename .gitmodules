@@ -128,7 +128,7 @@
 	ignore = dirty
 [submodule "app/src/main/cpp/libtool"]
 	path = app/src/main/cpp/libtool
-	url = https://git.savannah.gnu.org/git/libtool.git
+	url = https://github.com/autotools-mirror/libtool
 	ignore = dirty
 [submodule "app/src/main/cpp/ogg"]
 	path = app/src/main/cpp/ogg

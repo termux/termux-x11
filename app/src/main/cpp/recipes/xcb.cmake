@@ -8,7 +8,7 @@ execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink
 
 set (XCB_GENERATED)
 set(codegen "${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/c_client.py")
-set(site-packages "xcbproto")
+set(site-packages "${CMAKE_CURRENT_SOURCE_DIR}/xcbproto")
 file(GLOB xcbprotos "xcbproto/src/*.xml")
 
 add_library(xcbproto INTERFACE)

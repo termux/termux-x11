@@ -52,12 +52,6 @@ public class TouchInputHandler {
     /** Used to disambiguate a 2-finger gesture as a swipe or a pinch. */
     private final SwipePinchDetector mSwipePinchDetector;
 
-    // Used for processing cursor & scroller fling animations.
-    // May consider using a List of AnimationJob if we have more than two animation jobs in
-    // the future.
-    private final FlingAnimationJob mCursorAnimationJob;
-    private final FlingAnimationJob mScrollAnimationJob;
-
     private InputStrategyInterface mInputStrategy;
     private final InputEventSender mInjector;
     private final Context mContext;
@@ -93,18 +87,6 @@ public class TouchInputHandler {
     private boolean mSuppressCursorMovement;
 
     /**
-     * Set to true to suppress the fling animation at the end of a gesture, for example, when
-     * dragging whilst a button is held down.
-     */
-    private boolean mSuppressFling;
-
-    /**
-     * Set to true when 2-finger fling (scroll gesture with final velocity) is detected to trigger
-     * a scrolling animation.
-     */
-    private boolean mScrollFling;
-
-    /**
      * Set to true when 3-finger swipe gesture is complete, so that further movement doesn't
      * trigger more swipe actions.
      */
@@ -115,41 +97,6 @@ public class TouchInputHandler {
      * is performing a drag operation.
      */
     private boolean mIsDragging;
-
-//    private final Event.ParameterCallback<Boolean, Void> mProcessAnimationCallback;
-
-    /**
-     * This class implements fling animation for cursor
-     */
-    private class CursorAnimationJob extends FlingAnimationJob {
-        public CursorAnimationJob(Context context) {
-            super(context);
-        }
-
-        @Override
-        protected void processAction(float deltaX, float deltaY) {
-            float[] delta = {deltaX, deltaY};
-            Matrix canvasToImage = new Matrix();
-            mRenderData.transform.invert(canvasToImage);
-            canvasToImage.mapVectors(delta);
-
-            moveCursorByOffset(-delta[0], -delta[1]);
-        }
-    }
-
-    /**
-     * This class implements fling animation for scrolling
-     */
-    private class ScrollAnimationJob extends FlingAnimationJob {
-        public ScrollAnimationJob(Context context) {
-            super(context);
-        }
-
-        @Override
-        protected void processAction(float deltaX, float deltaY) {
-            mInputStrategy.onScroll(-deltaX, -deltaY);
-        }
-    }
 
     /**
      * This class provides a NULL implementation which will be used until a real input
@@ -231,37 +178,12 @@ public class TouchInputHandler {
         mEdgeSlopInPx = ViewConfiguration.get(/*desktop*/ ctx).getScaledEdgeSlop();
 
         mInputStrategy = new NullInputStrategy();
-
-        mCursorAnimationJob = new CursorAnimationJob(/*desktop*/ ctx);
-        mScrollAnimationJob = new ScrollAnimationJob(/*desktop*/ ctx);
-
-//        mProcessAnimationCallback = p -> processAnimation();
-    }
-
-//    /**
-//     * Steps forward the animation.
-//     * @return true if the animation is not finished yet.
-//     */
-//    private boolean processAnimation() {
-//        return mCursorAnimationJob.processAnimation() || mScrollAnimationJob.processAnimation();
-//    }
-
-    /**
-     * Start stepping animation when onCanvasRendered is triggered.
-     */
-    private void startAnimation() {
-//        mRenderStub.onCanvasRendered().addSelfRemovable(mProcessAnimationCallback);
-    }
-
-    /**
-     * Abort all animations.
-     */
-    private void abortAnimation() {
-        mCursorAnimationJob.abortAnimation();
-        mScrollAnimationJob.abortAnimation();
     }
 
     public boolean handleTouchEvent(View view, MotionEvent event) {
+        if (!view.isFocused() && event.getAction() == MotionEvent.ACTION_DOWN)
+            view.requestFocus();
+
         if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_MOUSE)
             return mHMListener.onTouch(view, event);
 
@@ -277,16 +199,14 @@ public class TouchInputHandler {
 
             // Avoid short-circuit logic evaluation - ensure all gesture detectors see all events so
             // that they generate correct notifications.
-            boolean handled = mScroller.onTouchEvent(event);
-            handled |= mZoomer.onTouchEvent(event);
-            handled |= mTapDetector.onTouchEvent(event);
+            mScroller.onTouchEvent(event);
+            mZoomer.onTouchEvent(event);
+            mTapDetector.onTouchEvent(event);
             mSwipePinchDetector.onTouchEvent(event);
 
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    abortAnimation();
                     mSuppressCursorMovement = false;
-                    mSuppressFling = false;
                     mSwipeCompleted = false;
                     mIsDragging = false;
                     break;
@@ -298,7 +218,7 @@ public class TouchInputHandler {
                 default:
                     break;
             }
-            return handled;
+            return true;
         }
 
         return false;
@@ -340,14 +260,14 @@ public class TouchInputHandler {
     public void handleClientSizeChanged(int w, int h) {
         mRenderData.screenWidth = w;
         mRenderData.screenHeight = h;
-        mPanGestureBounds = new Rect(mEdgeSlopInPx, mEdgeSlopInPx, w - mEdgeSlopInPx, h - mEdgeSlopInPx);
 
         resetTransformation();
     }
 
-    public void handleHostSizeChanged(int width, int height) {
-        mRenderData.imageWidth = width;
-        mRenderData.imageHeight = height;
+    public void handleHostSizeChanged(int w, int h) {
+        mRenderData.imageWidth = w;
+        mRenderData.imageHeight = h;
+        mPanGestureBounds = new Rect(mEdgeSlopInPx, mEdgeSlopInPx, w - mEdgeSlopInPx, h - mEdgeSlopInPx);
 
         resetTransformation();
     }
@@ -409,7 +329,6 @@ public class TouchInputHandler {
             return false;
 
         mSuppressCursorMovement = true;
-        mSuppressFling = true;
         mSwipeCompleted = true;
         return true;
     }
@@ -474,7 +393,6 @@ public class TouchInputHandler {
 
                 // Prevent the cursor being moved or flung by the gesture.
                 mSuppressCursorMovement = true;
-                mScrollFling = true;
                 return true;
             }
 
@@ -495,34 +413,6 @@ public class TouchInputHandler {
                 // direct input mode.
                 moveCursorToScreenPoint(e2.getX(), e2.getY());
             }
-            return true;
-        }
-
-        /**
-         * Called when a fling gesture is recognized.
-         */
-        @Override
-        public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-            if (mSuppressFling) {
-                return false;
-            }
-
-            if (mScrollFling) {
-                mScrollAnimationJob.startAnimation(velocityX, velocityY);
-                startAnimation();
-                mScrollFling = false;
-                return true;
-            }
-
-            if (mSuppressCursorMovement) {
-                return false;
-            }
-
-            // If cursor movement is suppressed, fling also needs to be suppressed, as the
-            // gesture-detector will still generate onFling() notifications based on movement of
-            // the fingers, which would result in unwanted cursor movement.
-            mCursorAnimationJob.startAnimation(velocityX, velocityY);
-            startAnimation();
             return true;
         }
 
@@ -583,9 +473,8 @@ public class TouchInputHandler {
             }
 
             if (!mInputStrategy.isIndirectInputMode()) {
-                if (screenPointLiesOutsideImageBoundary(x, y)) {
+                if (screenPointLiesOutsideImageBoundary(x, y))
                     return;
-                }
                 moveCursorToScreenPoint(x, y);
             }
 
@@ -593,7 +482,6 @@ public class TouchInputHandler {
                 PointF pos = mRenderData.getCursorPosition();
 
                 mRenderStub.showInputFeedback(mInputStrategy.getLongPressFeedbackType(), pos);
-                mSuppressFling = true;
                 mIsDragging = true;
             }
         }

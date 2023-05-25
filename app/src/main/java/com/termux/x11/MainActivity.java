@@ -1,7 +1,8 @@
 package com.termux.x11;
 
-import static android.view.KeyEvent.KEYCODE_META_LEFT;
-import static android.view.KeyEvent.KEYCODE_META_RIGHT;
+import static android.os.Build.VERSION.SDK_INT;
+import static android.view.KeyEvent.*;
+import static android.view.WindowManager.LayoutParams.*;
 import static com.termux.x11.CmdEntryPoint.ACTION_START;
 import static com.termux.x11.LoriePreferences.ACTION_PREFERENCES_CHANGED;
 
@@ -18,12 +19,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.graphics.PointF;
 import android.graphics.Rect;
-import android.os.Build;
+import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -42,7 +44,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowInsets;
-import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -74,6 +75,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public static final int KeyPress = 2; // synchronized with X.h
     public static final int KeyRelease = 3; // synchronized with X.h
 
+    public static Handler handler = new Handler();
     FrameLayout frm;
     private TouchInputHandler mInputHandler;
     private final ServiceEventListener listener = new ServiceEventListener();
@@ -106,7 +108,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         preferences.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> onPreferencesChanged());
 
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        getWindow().addFlags(FLAG_KEEP_SCREEN_ON);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
 
@@ -150,7 +152,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
             @Override
             public boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown) {
-                Log.d("LorieInputStub", "sendKeyEvent");
                 MainActivity.this.sendKeyEvent(scanCode, keyCode, keyDown);
                 return false;
             }
@@ -166,7 +167,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         listener.setAsListenerTo(lorieView);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
+        if (SDK_INT >= VERSION_CODES.N)
             getWindow().
              getDecorView().
               setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
@@ -188,7 +189,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                                 int visibility = getLorieView().getVisibility();
                                 getLorieView().setVisibility(View.GONE);
                                 getLorieView().setVisibility(visibility);
-                                mClientConnected = false;
+                                clientConnectedStateChanged(false);
                             });
                         }, 0);
 
@@ -199,7 +200,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 } else if (ACTION_STOP.equals(intent.getAction())) {
                     finishAffinity();
                 } else if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction())) {
-                    onPreferencesChanged();
+                    recreate();
+//                    onPreferencesChanged();
                 }
             }
         }, new IntentFilter(ACTION_START) {{
@@ -211,11 +213,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         FullscreenWorkaround.assistActivity(this);
         mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         mNotification = buildNotification();
+        mNotificationManager.notify(mNotificationId, mNotification);
 
         CmdEntryPoint.requestConnection();
         onPreferencesChanged();
 
         toggleExtraKeys(false, false);
+        checkXEvents();
     }
 
     void onReceiveConnection() {
@@ -296,6 +300,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
         } else
             KeyInterceptor.shutdown();
+
+        int requestedOrientation = p.getBoolean("forceLandscape", false) ?
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        if (getRequestedOrientation() != requestedOrientation)
+            setRequestedOrientation(requestedOrientation);
+
+        setClipboardSyncEnabled(p.getBoolean("clipboardSync", false));
     }
 
     @Override
@@ -401,24 +412,24 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @SuppressLint("ObsoleteSdkInt")
     Notification buildNotification() {
         Intent notificationIntent = new Intent(this, MainActivity.class);
-        notificationIntent.putExtra("foo_bar_extra_key", "foo_bar_extra_value");
+        notificationIntent.putExtra("key", "value");
         notificationIntent.setAction(Long.toString(System.currentTimeMillis()));
 
         Intent exitIntent = new Intent(ACTION_STOP);
         exitIntent.setPackage(getPackageName());
 
         Intent preferencesIntent = new Intent(this, LoriePreferences.class);
-        preferencesIntent.setAction("0");
+        preferencesIntent.setAction(Intent.ACTION_MAIN);
 
         PendingIntent pIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         PendingIntent pExitIntent = PendingIntent.getBroadcast(this, 0, exitIntent, PendingIntent.FLAG_IMMUTABLE);
         PendingIntent pPreferencesIntent = PendingIntent.getActivity(this, 0, preferencesIntent, PendingIntent.FLAG_IMMUTABLE);
 
         int priority = Notification.PRIORITY_HIGH;
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N)
+        if (SDK_INT >= VERSION_CODES.N)
             priority = NotificationManager.IMPORTANCE_HIGH;
         NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        String channelId = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? getNotificationChannel(notificationManager) : "";
+        String channelId = SDK_INT >= VERSION_CODES.O ? getNotificationChannel(notificationManager) : "";
         return new NotificationCompat.Builder(this, channelId)
                 .setContentTitle("Termux:X11")
                 .setSmallIcon(R.drawable.ic_x11_icon)
@@ -466,17 +477,22 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        SharedPreferences p = PreferenceManager.getDefaultSharedPreferences(this);
         Window window = getWindow();
         View decorView = window.getDecorView();
-        boolean fullscreen = preferences.getBoolean("fullscreen", false);
-        boolean reseed = preferences.getBoolean("Reseed", true);
+        boolean fullscreen = p.getBoolean("fullscreen", false);
+        boolean reseed = p.getBoolean("Reseed", true);
 
         fullscreen = fullscreen || getIntent().getBooleanExtra(REQUEST_LAUNCH_EXTERNAL_DISPLAY, false);
 
+        int requestedOrientation = p.getBoolean("forceLandscape", false) ?
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        if (getRequestedOrientation() != requestedOrientation)
+            setRequestedOrientation(requestedOrientation);
+
         if (hasFocus && fullscreen) {
-            window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                    WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            window.setFlags(FLAG_FULLSCREEN,
+                    FLAG_FULLSCREEN);
             decorView.setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                             | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
@@ -485,18 +501,26 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                             | View.SYSTEM_UI_FLAG_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         } else {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            window.clearFlags(FLAG_FULLSCREEN);
             decorView.setSystemUiVisibility(0);
         }
 
-        if (reseed)
-            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        else
-            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN|
-                    WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
+        if (SDK_INT >= VERSION_CODES.P) {
+            if (p.getBoolean("hideCutout", false))
+                getWindow().getAttributes().layoutInDisplayCutoutMode = (SDK_INT >= VERSION_CODES.R) ?
+                    LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS :
+                    LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            else
+                getWindow().getAttributes().layoutInDisplayCutoutMode = LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT;
+        }
 
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        if (prefs.getBoolean("dexMetaKeyCapture", false)) {
+        if (reseed)
+            window.setSoftInputMode(SOFT_INPUT_ADJUST_RESIZE);
+        else
+            window.setSoftInputMode(SOFT_INPUT_ADJUST_PAN|
+                    SOFT_INPUT_STATE_HIDDEN);
+
+        if (p.getBoolean("dexMetaKeyCapture", false)) {
             SamsungDexUtils.dexMetaKeyCapture(this, hasFocus);
         }
     }
@@ -667,10 +691,15 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         clipboard.setPrimaryClip(ClipData.newPlainText("X11 clipboard", text));
     }
 
-    public static Handler handler = new Handler();
+    private void checkXEvents() {
+        handleXEvents();
+        handler.postDelayed(this::checkXEvents, 300);
+    }
 
     private native void connect(int fd);
+    private native void handleXEvents();
     private native void startLogcat(int fd);
+    private native void setClipboardSyncEnabled(boolean enabled);
     private native void sendWindowChange(int width, int height, int dpi);
     private native void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown, boolean relative);
     private native void sendTouchEvent(int action, int id, int x, int y);

@@ -31,7 +31,7 @@
         <EditTextPreference
             android:title="Display density (DPI)"
             android:key="displayDensity"
-            android:defaultValue="120"/>
+            android:defaultValue="120" />
 
         <SwitchPreferenceCompat
             android:title="Reseed Screen While Soft Keyboard is open"
@@ -50,6 +50,16 @@
             android:summary="Toggles immersive mode in your device display"
             android:defaultValue="false"
             android:key="fullscreen" />
+
+        <SwitchPreferenceCompat
+            android:title="Force landscape orientation"
+            android:defaultValue="false"
+            android:key="forceLandscape" />
+
+        <SwitchPreferenceCompat
+            android:title="Hide display cutout (if any)"
+            android:defaultValue="false"
+            android:key="hideCutout" />
 
     </PreferenceCategory>
     <PreferenceCategory android:key="input" android:title="Input">
@@ -74,7 +84,7 @@
 
         <SwitchPreferenceCompat
             android:title="Show IME with external keyboard"
-            android:summary="Show software keyboard while hardware keyboard is connected"
+            android:summary="Show software keyboard while hardware keyboard is connected. Requires WRITE_SECURE_SETTINGS permission."
             android:defaultValue="false"
             android:key="showIMEWhileExternalConnected" />
 
@@ -88,13 +98,13 @@
             android:title="Intercept system shortcuts"
             android:summary="Samsung Dex only. Allows interception of &quot;Alt+F4&quot;, &quot;Meta+D&quot;, &quot;Meta+E&quot;, -etc. "
             android:defaultValue="false"
-            android:key="dexMetaKeyCapture"/>
+            android:key="dexMetaKeyCapture" />
 
         <SwitchPreferenceCompat
             android:title="Capture external mouse when possible"
             android:summary="Intercept all hardware mouse events. Pointer is back to Android after pressing Escape key."
             android:defaultValue="false"
-            android:key="pointerCapture"/>
+            android:key="pointerCapture" />
 
         <Preference
             android:title="Enable Accessibility service for intercepting system shortcuts manually."
@@ -103,19 +113,19 @@
 
         <SwitchPreferenceCompat
             android:title="Enable Accessibility service for intercepting system shortcuts automatically."
-            android:summary="Requires android.permission.WRITE_SECURE_SETTINGS permission."
+            android:summary="Requires WRITE_SECURE_SETTINGS permission."
             android:defaultValue="false"
-            android:key="enableAccessibilityServiceAutomatically"/>
+            android:key="enableAccessibilityServiceAutomatically" />
 
         <SwitchPreferenceCompat
             android:title="Filter out intercepted Win (Meta/Mod4) key."
             android:summary="Allows you to use Dex shortcuts while intercepting."
             android:defaultValue="false"
-            android:key="filterOutWinkey"/>
+            android:key="filterOutWinkey" />
 
         <com.termux.x11.utils.ExtraKeyConfigPreference
             android:title="Extra keys config"
-            android:key="extra_keys_config"/>
+            android:key="extra_keys_config" />
 
     </PreferenceCategory>
 

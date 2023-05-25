@@ -310,7 +310,10 @@ lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, CARD32 mmWi
         desc.height = height;
         desc.layers = 1;
         desc.usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN;
-        desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
+        desc.format = 5; // Corresponds to HAL_PIXEL_FORMAT_BGRA_8888
+
+        // I could use this, but in this case I must swap colours in shader.
+        // desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
 
         AHardwareBuffer_allocate(&desc, &pvfb->buf);
         renderer_set_buffer(pvfb->buf);

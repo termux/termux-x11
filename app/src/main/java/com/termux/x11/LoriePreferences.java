@@ -8,6 +8,7 @@ import android.app.Dialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
@@ -120,6 +121,9 @@ public class LoriePreferences extends AppCompatActivity {
             findPreference("dexMetaKeyCapture").setEnabled(!p.getBoolean("enableAccessibilityServiceAutomatically", false));
             findPreference("enableAccessibilityServiceAutomatically").setEnabled(!p.getBoolean("dexMetaKeyCapture", false));
             findPreference("filterOutWinkey").setEnabled(p.getBoolean("enableAccessibilityServiceAutomatically", false));
+
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P)
+                findPreference("hideCutout").setVisible(false);
         }
 
         @Override
@@ -141,6 +145,7 @@ public class LoriePreferences extends AppCompatActivity {
             for (int i=0; i < g.getPreferenceCount(); i++) {
                 g.getPreference(i).setOnPreferenceChangeListener(this);
                 g.getPreference(i).setOnPreferenceClickListener(this);
+                g.getPreference(i).setSingleLineTitle(false);
 
                 if (g.getPreference(i) instanceof PreferenceGroup)
                     setListeners((PreferenceGroup) g.getPreference(i));

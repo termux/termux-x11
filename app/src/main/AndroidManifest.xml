@@ -45,6 +45,7 @@
             android:resizeableActivity="true"
             android:exported="true">
             <intent-filter>
+                <action android:name="android.intent.action.APPLICATION_PREFERENCES" />
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </activity>
@@ -53,7 +54,7 @@
             android:taskAffinity=".GettingStartedActivity"
             android:theme="@style/Theme.BaseActivity.DayNight.NoActionBar"
             android:exported="true" />
-	    <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true"/>
+	    <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="false"/>
 	    <meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />
 
         <service android:name=".utils.KeyInterceptor"

@@ -401,6 +401,15 @@ target_include_directories(xserver_glamor PRIVATE ${inc})
 target_compile_options(xserver_glamor PRIVATE ${compile_options})
 target_link_libraries(xserver_glamor PUBLIC epoxy)
 
+set(EXA_SOURCES
+        classic.c migration_classic.c driver.c mixed.c migration_mixed.c accel.c glyphs.c offscreen.c
+        render.c unaccel.c)
+list(TRANSFORM EXA_SOURCES PREPEND "xserver/exa/exa_")
+set(EXA_SOURCES ${EXA_SOURCES} "xserver/exa/exa.c")
+add_library(xserver_exa STATIC ${EXA_SOURCES})
+target_include_directories(xserver_exa PRIVATE ${inc})
+target_compile_options(xserver_exa PRIVATE ${compile_options})
+
 
 set(XSERVER_LIBS)
 foreach (part glx glxvnd fb mi dix composite damageext dbe randr miext_damage render present xext
@@ -409,7 +418,7 @@ foreach (part glx glxvnd fb mi dix composite damageext dbe randr miext_damage re
 endforeach ()
 
 #set(XSERVER_LIBS ${XSERVER_LIBS} tirpc xcb-errors xcb xkbcommon Xdmcp Xau pixman Xfont2 Xtrans freetype fontenc GL)
-set(XSERVER_LIBS ${XSERVER_LIBS} tirpc xcb Xdmcp Xau pixman Xfont2 Xtrans freetype fontenc GL)
+set(XSERVER_LIBS ${XSERVER_LIBS} tirpc xcb Xdmcp Xau pixman Xfont2 Xtrans xcb-errors freetype fontenc GL)
 
 add_custom_command(
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/tx11.c" "${CMAKE_CURRENT_BINARY_DIR}/tx11.h"

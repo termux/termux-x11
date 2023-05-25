@@ -90,7 +90,7 @@
 #cmakedefine HAVE_SYS_SYSMACROS_H
 
 #cmakedefine HAVE_ARC4RANDOM_BUF
-//#cmakedefine HAVE_BACKTRACE
+#cmakedefine HAVE_BACKTRACE
 //#define HAVE_LIBUNWIND
 //#define HAVE_PSTACK
 #cmakedefine HAVE_CBRT

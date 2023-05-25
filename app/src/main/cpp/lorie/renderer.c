@@ -157,7 +157,7 @@ static const char fragment_shader[] =
     "varying vec2 outTexCoords;\n"
     "uniform sampler2D texture;\n"
     "void main(void) {\n"
-    "   gl_FragColor = texture2D(texture, outTexCoords).bgra;\n"
+    "   gl_FragColor = texture2D(texture, outTexCoords);\n"
     "}\n";
 
 static EGLDisplay egl_display = EGL_NO_DISPLAY;

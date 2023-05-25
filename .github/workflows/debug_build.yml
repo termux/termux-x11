@@ -45,8 +45,51 @@ jobs:
     - name: Copy loader to target directory
       run: |
         cp ./shell-loader/build/outputs/apk/debug/shell-loader-debug.apk ./app/build/outputs/apk/debug/shell-loader-nightly.apk
-    - name: Store generated files
+    - name: Store app-arm64-v8a-debug
       uses: actions/upload-artifact@v3
       with:
-        name: termux-x11
-        path: ./app/build/outputs/apk/debug
+        name: termux-x11-arm64-v8a-debug
+        path: ./app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+    
+    - name: Store app-armeabi-v7a-debug
+      uses: actions/upload-artifact@v3
+      with:
+        name: termux-x11-armeabi-v7a-debug
+        path: ./app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk
+    
+    - name: Store app-universal-debug
+      uses: actions/upload-artifact@v3
+      with:
+        name: termux-x11-universal-debug
+        path: ./app/build/outputs/apk/debug/app-universal-debug.apk
+    
+    - name: Store app-x86_64-debug
+      uses: actions/upload-artifact@v3
+      with:
+        name: termux-x11-x86_64-debug
+        path: ./app/build/outputs/apk/debug/app-x86_64-debug.apk
+    
+    - name: Store app-x86-debug
+      uses: actions/upload-artifact@v3
+      with:
+        name: termux-x11-x86-debug
+        path: ./app/build/outputs/apk/debug/app-x86-debug.apk
+    
+    - name: Store shell-loader-nightly
+      uses: actions/upload-artifact@v3
+      with:
+        name: termux-x11-shell-loader-nightly
+        path: ./app/build/outputs/apk/debug/shell-loader-nightly.apk
+    
+    - name: Store termux-x11-1.02.07-0-all.deb
+      uses: actions/upload-artifact@v3
+      with:
+        name: termux-x11-1.02.07-0-all
+        path: ./app/build/outputs/apk/debug/termux-x11-1.02.07-0-all.deb
+        
+    - name: Store termux-x11-1.02.07-0-any.pkg.tar.xz
+      uses: actions/upload-artifact@v3
+      with:
+        name: termux-x11-1.02.07-0-any.pkg.tar.xz
+        path: ./app/build/outputs/apk/debug/termux-x11-1.02.07-0-any.pkg.tar.xz
+        

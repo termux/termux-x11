@@ -423,7 +423,8 @@ set(XSERVER_LIBS ${XSERVER_LIBS} tirpc xcb Xdmcp Xau pixman Xfont2 Xtrans xcb-er
 add_custom_command(
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/tx11.c" "${CMAKE_CURRENT_BINARY_DIR}/tx11.h"
         COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/c_client.py"
-            "-c" "libxcb 1.15" "-l" "X Version 11" "-s" "3" "-p" "xcbproto" "${CMAKE_CURRENT_SOURCE_DIR}/lorie/tx11.xml"
+            "-c" "libxcb 1.15" "-l" "X Version 11" "-s" "3" "-p" "${CMAKE_CURRENT_SOURCE_DIR}/xcbproto"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lorie/tx11.xml"
         DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/lorie/tx11.xml" "${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/c_client.py"
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
         COMMENT "Generating source code from XML (tx11)"

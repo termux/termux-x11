@@ -122,3 +122,24 @@
 	path = app/src/main/cpp/flac
 	url = https://github.com/xiph/flac
 	ignore = dirty
+[submodule "app/src/main/cpp/libsndfile"]
+	path = app/src/main/cpp/libsndfile
+	url = https://github.com/libsndfile/libsndfile
+	ignore = dirty
+[submodule "app/src/main/cpp/libtool"]
+	path = app/src/main/cpp/libtool
+	url = https://git.savannah.gnu.org/git/libtool.git
+	ignore = dirty
+[submodule "app/src/main/cpp/ogg"]
+	path = app/src/main/cpp/ogg
+	url = https://github.com/xiph/ogg
+	ignore = dirty
+[submodule "app/src/main/cpp/vorbis"]
+	path = app/src/main/cpp/vorbis
+	url = https://github.com/xiph/vorbis
+	ignore = dirty
+[submodule "app/src/main/cpp/pulseaudio"]
+	path = app/src/main/cpp/pulseaudio
+	url = https://gitlab.freedesktop.org/pulseaudio/pulseaudio
+	ignore = dirty
+

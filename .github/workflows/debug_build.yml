@@ -15,7 +15,7 @@ jobs:
     steps:
     - name: Install dependencies
       run: |
-        sudo apt install -y libarchive-tools libwayland-bin
+        sudo apt install -y libarchive-tools meson ninja-build
     - name: Clone repository
       uses: actions/checkout@v3
       with:

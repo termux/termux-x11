@@ -14,18 +14,13 @@ android {
          */
         //noinspection ExpiredTargetSdkVersion,OldTargetApi
         targetSdkVersion 28
-        versionCode 11
-        versionName "1.02.07"
+        versionCode 12
+        versionName "1.02.10"
 
         externalNativeBuild {
             cmake {
                 arguments "-DANDROID_STL=c++_shared"
             }
-        }
-
-        ndk {
-            //noinspection ChromeOsAbiSupport
-            abiFilters "arm64-v8a"
         }
     }
 
@@ -46,6 +41,16 @@ android {
 
         debug {
             signingConfig signingConfigs.debug
+        }
+    }
+
+    splits {
+        abi {
+            enable true
+            reset()
+
+            include "x86", "x86_64", "armeabi-v7a", "arm64-v8a"
+            universalApk true //generate an additional APK that contains all the ABIs
         }
     }
 

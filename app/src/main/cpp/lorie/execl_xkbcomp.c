@@ -107,10 +107,10 @@ int execl_xkbcomp(const char * path, const char * arg, ...) {
     setenv("LD_LIBRARY_PATH", dirname(lib), 1);
     setenv("LD_LIBEXEC", ldlibexec, 1);
 
-    dprintf(2, "executing xkbcomp...\n");
-    dprintf(2, "ldlibpath %s (%d)\n", dirname(lib), getpid());
-    dprintf(2, "ldpreload %s\n", ldpreload);
-    dprintf(2, "ldlibexec %s\n", ldlibexec);
+    __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "executing xkbcomp...");
+    __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "ldlibpath %s (%d)", dirname(lib), getpid());
+    __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "ldpreload %s", ldpreload);
+    __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "ldlibexec %s", ldlibexec);
 
     for(int j=1; j<= SIGUNUSED; j++)
         signal(j, SIG_DFL);

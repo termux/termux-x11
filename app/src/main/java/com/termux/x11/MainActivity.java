@@ -272,7 +272,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         setTerminalToolbarView();
         onWindowFocusChanged(true);
-//        setClipboardSyncEnabled(preferences.getBoolean("clipboardSync", false));
+        setClipboardSyncEnabled(p.getBoolean("clipboardSync", false));
 
         lorieView.setFocusable(true);
         lorieView.setFocusableInTouchMode(true);
@@ -305,8 +305,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
         if (getRequestedOrientation() != requestedOrientation)
             setRequestedOrientation(requestedOrientation);
-
-        setClipboardSyncEnabled(p.getBoolean("clipboardSync", false));
     }
 
     @Override
@@ -517,8 +515,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (reseed)
             window.setSoftInputMode(SOFT_INPUT_ADJUST_RESIZE);
         else
-            window.setSoftInputMode(SOFT_INPUT_ADJUST_PAN|
-                    SOFT_INPUT_STATE_HIDDEN);
+            window.setSoftInputMode(SOFT_INPUT_ADJUST_PAN | SOFT_INPUT_STATE_HIDDEN);
 
         if (p.getBoolean("dexMetaKeyCapture", false)) {
             SamsungDexUtils.dexMetaKeyCapture(this, hasFocus);

@@ -9,14 +9,11 @@ import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.view.Surface;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
-import java.net.URISyntaxException;
-import java.util.Objects;
 
 @SuppressLint("StaticFieldLeak")
 public class CmdEntryPoint extends ICmdEntryInterface.Stub {

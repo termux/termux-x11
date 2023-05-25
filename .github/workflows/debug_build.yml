@@ -38,7 +38,10 @@ jobs:
     - name: Build companion package
       run: |
         ./build_termux_package
-    - name: Store generated APK file
+    - name: Copy loader to target directory
+      run: |
+        cp ./shell-loader/build/outputs/apk/debug/shell-loader-debug.apk ./app/build/outputs/apk/debug/shell-loader-nightly.apk
+    - name: Store generated files
       uses: actions/upload-artifact@v3
       with:
         name: termux-x11

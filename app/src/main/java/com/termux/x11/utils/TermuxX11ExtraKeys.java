@@ -1,8 +1,6 @@
 package com.termux.x11.utils;
 
 import static com.termux.shared.termux.extrakeys.ExtraKeysConstants.PRIMARY_KEY_CODES_FOR_STRINGS;
-import static com.termux.x11.MainActivity.KeyPress;
-import static com.termux.x11.MainActivity.KeyRelease;
 import static com.termux.x11.MainActivity.toggleKeyboardVisibility;
 
 import android.annotation.SuppressLint;
@@ -91,49 +89,47 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     protected void onTerminalExtraKeyButtonClick(@SuppressWarnings("unused") View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, @SuppressWarnings("unused") boolean fnDown) {
         if (this.ctrlDown != ctrlDown) {
             this.ctrlDown = ctrlDown;
-            mActivity.onKey(KeyEvent.KEYCODE_CTRL_LEFT, ctrlDown ? KeyPress : KeyRelease);
+            mActivity.sendKeyEvent(0, KeyEvent.KEYCODE_CTRL_LEFT, ctrlDown);
         }
 
         if (this.altDown != altDown) {
             this.altDown = altDown;
-            mActivity.onKey(KeyEvent.KEYCODE_ALT_LEFT, altDown ? KeyPress : KeyRelease);
+            mActivity.sendKeyEvent(0, KeyEvent.KEYCODE_ALT_LEFT, altDown);
         }
 
         if (this.shiftDown != shiftDown) {
             this.shiftDown = shiftDown;
-            mActivity.onKey(KeyEvent.KEYCODE_SHIFT_LEFT, shiftDown ? KeyPress : KeyRelease);
+            mActivity.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, shiftDown);
         }
 
         if (PRIMARY_KEY_CODES_FOR_STRINGS.containsKey(key)) {
             Integer keyCode = PRIMARY_KEY_CODES_FOR_STRINGS.get(key);
             if (keyCode == null) return;
 
-            mActivity.onKeySym(keyCode, 0, 0);
+            mActivity.sendKeyEvent(0, keyCode, true);
+            mActivity.sendKeyEvent(0, keyCode, false);
         } else {
             // not a control char
-            key.codePoints().forEach(codePoint -> mActivity.onKeySym(0, codePoint, 0));
+            key.codePoints().forEach(mActivity::sendUnicodeEvent);
         }
     }
 
     @Override
     public boolean performExtraKeyButtonHapticFeedback(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
         MainActivity.handler.postDelayed(() -> {
-            int pressed;
+            boolean pressed;
             switch (buttonInfo.getKey()) {
                 case "CTRL":
-                    pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.CTRL, false))
-                            ? KeyPress : KeyRelease;
-                    mActivity.onKey(KeyEvent.KEYCODE_CTRL_LEFT, pressed);
+                    pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.CTRL, false));
+                    mActivity.sendKeyEvent(0, KeyEvent.KEYCODE_CTRL_LEFT, pressed);
                     break;
                 case "ALT":
-                    pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.ALT, false))
-                            ? KeyPress : KeyRelease;
-                    mActivity.onKey(KeyEvent.KEYCODE_ALT_LEFT, pressed);
+                    pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.ALT, false));
+                    mActivity.sendKeyEvent(0, KeyEvent.KEYCODE_ALT_LEFT, pressed);
                     break;
                 case "SHIFT":
-                    pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.SHIFT, false))
-                            ? KeyPress : KeyRelease;
-                    mActivity.onKey(KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
+                    pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.SHIFT, false));
+                    mActivity.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
                     break;
             }
         }, 100);
@@ -181,6 +177,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     /**
      * Set the terminal extra keys and style.
      */
+    @SuppressWarnings("deprecation")
     private void setExtraKeys() {
         mExtraKeysInfo = null;
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(mActivity);
@@ -201,7 +198,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
 
             mExtraKeysInfo = new ExtraKeysInfo(extrakeys, extraKeysStyle, ExtraKeysConstants.CONTROL_CHARS_ALIASES);
         } catch (JSONException e) {
-            Logger.showToast(mActivity, "Could not load and set the \"" + TermuxPropertyConstants.KEY_EXTRA_KEYS + "\" property from the properties file: " + e.toString(), true);
+            Logger.showToast(mActivity, "Could not load and set the \"" + TermuxPropertyConstants.KEY_EXTRA_KEYS + "\" property from the properties file: " + e, true);
             Logger.logStackTraceWithMessage(LOG_TAG, "Could not load and set the \"" + TermuxPropertyConstants.KEY_EXTRA_KEYS + "\" property from the properties file: ", e);
 
             try {

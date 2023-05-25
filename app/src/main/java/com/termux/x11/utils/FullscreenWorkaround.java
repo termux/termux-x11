@@ -1,5 +1,7 @@
 package com.termux.x11.utils;
 
+import static android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN;
+
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.graphics.Rect;
@@ -7,6 +9,7 @@ import android.widget.FrameLayout;
 import android.view.View;
 import android.app.Activity;
 
+@SuppressWarnings("deprecation")
 public class FullscreenWorkaround {
     // For more information, see https://issuetracker.google.com/issues/36911528
     // To use this class, simply invoke assistActivity() on an Activity that already has its content view set.
@@ -26,7 +29,8 @@ public class FullscreenWorkaround {
 
     private void possiblyResizeChildOfContent() {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(mActivity);
-        if (!preferences.getBoolean("fullscreen", false))
+        if (!preferences.getBoolean("fullscreen", false) ||
+                (mActivity.getWindow().getAttributes().flags & FLAG_FULLSCREEN) != 0)
             return;
         if (!preferences.getBoolean("Reseed", true))
             return;

@@ -1,0 +1,21 @@
+diff --git a/src/xcb_util.c b/src/xcb_util.c
+index 0296ce0..e934d89 100644
+--- a/src/xcb_util.c
++++ b/src/xcb_util.c
+@@ -222,6 +222,7 @@ static int _xcb_open_unix(char *protocol, const char *file);
+ #ifdef HAVE_ABSTRACT_SOCKETS
+ static int _xcb_open_abstract(char *protocol, const char *file, size_t filelen);
+ #endif
++extern const char *xcb_unix_base;
+ 
+ static int _xcb_open(const char *host, char *protocol, const int display)
+ {
+@@ -231,7 +232,7 @@ static int _xcb_open(const char *host, char *protocol, const int display)
+ #else
+     static const char unix_base[] = "/tmp/.X11-unix/X";
+ #endif
+-    const char *base = unix_base;
++    const char *base = xcb_unix_base;
+     size_t filelen;
+     char *file = NULL;
+     int actual_filelen;

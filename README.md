@@ -3,13 +3,12 @@
 
 [![Nightly build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml/badge.svg?branch=master)](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml) [![Join the chat at https://gitter.im/termux/termux](https://badges.gitter.im/termux/termux.svg)](https://gitter.im/termux/termux) [![Join the Termux discord server](https://img.shields.io/discord/641256914684084234?label=&logo=discord&logoColor=ffffff&color=5865F2)](https://discord.gg/HXpF69X)
 
-A [Termux](https://termux.com) add-on app providing Android frontend for Xwayland.
+A [Termux](https://termux.com) X11 server add-on app.
 
 ## About
-Termux:X11 uses [Wayland](https://wayland.freedesktop.org/) display protocol. a modern replacement and the predecessor of the [X.org](https://www.x.org/wiki) server.
-Pay attention that it is not a full-fledged Wayland server and it can not handle Wayland apps except Xwayland.
+Termux:X11 is a fully fledged X server. It is built with Android NDK and optimized to be used with Termux.
 
-## Caveat
+## Submodules caveat
 This repo uses submodules. Use 
 
 ```
@@ -23,26 +22,41 @@ or
 ```
 
 ## How does it work?
-The Termux:X11 app's companion package executable creates socket through `$XDG_RUNTIME_DIR` in Termux directory by default.
-
-The wayland sockets is the way for the graphical applications to communicate with. Termux X11 applications do not have wayland support yet, this kind of setup may not be straightforward and therefore additional packages should be installed in order for X11 applications to be run in Termux:X11
+Just like any other X server.
 
 ## Setup Instructions
 For this one you must enable the `x11-repo` repository can be done by executing `pkg install x11-repo` command
 
 For X applications to work, you must install Termux-x11 companion package. You can do that by downloading an artifact from [last successful build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml) and installing `*.apk` and `*.deb` (if you use termux with `pkg`) or `*.tar.xz` (if you use termux with `pacman`) files.
+Or you can install nightly companion package from repositories with `pkg in x11-repo && pkg in termux-x11-nightly`
 
 ## Running Graphical Applications
-to work with GUI applications, start Termux:X11 first. a toast message saying `Service was Created` indicates that it should be ready to use
-
-then you can start your desired graphical application by doing:
+You can start your desired graphical application by doing:
 ```
-~ $ XDG_RUNTIME_DIR=${TMPDIR} termux-x11 :1 &
+~ $ termux-x11 :1 &
 ~ $ env DISPLAY=:1 dbus-launch --exit-with-session xfce4-session
 ```
 You may replace `xfce4-session` if you use other than Xfce
 
 If you're done using Termux:X11 just simply exit it through it's notification drawer by expanding the Termux:X11 notification then "Exit"
+But you should pay attention that `termux-x11` command is still running and can not be killed this way.
+
+## Using with proot environment
+If you plan to use the program with proot, keep in mind that you need to launch proot/proot-distro with the --shared-tmp option. 
+If passing this option is not possible, set the TMPDIR environment variable to point to the directory that corresponds to /tmp in the target container.
+If you are using proot-distro you should know that it is possible to start `termux-x11` command from inside proot container.
+
+## Using with chroot environment
+If you plan to use the program with chroot or unshare, you must to run it as root and set the TMPDIR environment variable to point to the directory that corresponds to /tmp in the target container. 
+This directory must be accessible from the shell from which you launch termux-x11, i.e. it must be in the same SELinux context, same mount namespace, and so on.
+Also you must set `XKB_CONFIG_ROOT` environment variable pointing to container's `/usr/share/X11/xkb` directory, otherwise you will have `xkbcomp`-related errors.
+You can get loader for nightly build from an artifact of [last successful build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml)
+```
+export XKB_CONFIG_ROOT=/path/to/chroot/container/usr/share/xkb
+export TMPDIR=/path/to/chroot/container/tmp
+export CLASSPATH=/path/to/loader.apk
+/system/bin/app_process / com.termux.x11.Loader :0
+```
 
 ### Logs
 If you need to obtain logs from the `com.termux.x11` application,
@@ -100,7 +114,7 @@ In touchpad emulation mode you can use the following gestures:
 * Three-finger swipe down to show-hide additional keys bar.
 
 ## Font or scaling is too big!
-Some apps may have issues with wayland regarding DPI. please see https://wiki.archlinux.org/title/HiDPI on how to override application-specific DPI or scaling.
+Some apps may have issues with X server regarding DPI. please see https://wiki.archlinux.org/title/HiDPI on how to override application-specific DPI or scaling.
 
 You can fix this in your window manager settings (in the case of xfce4 and lxqt via Applications Menu > Settings > Appearance). Look for the DPI value, if it is disabled enable it and adjust its value until the fonts are the appropriate size.
 <details>
@@ -108,6 +122,8 @@ You can fix this in your window manager settings (in the case of xfce4 and lxqt 
 
 ![image](./img/dpi-scale.png) 
 </details>
+
+Also you can choose desired DPI in preferences of Termux:X11 app
 
 ## Using with 3rd party apps
 It is possible to use Termux:X11 with 3rd party apps.

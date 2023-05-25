@@ -1,6 +1,7 @@
 apply plugin: 'com.android.application'
 
 android {
+    namespace 'com.termux.x11'
     compileSdkVersion 30
     defaultConfig {
         applicationId "com.termux.shell_loader"

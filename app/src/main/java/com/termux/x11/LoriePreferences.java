@@ -1,17 +1,18 @@
 package com.termux.x11;
 
+import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
+import static android.content.pm.PackageManager.PERMISSION_GRANTED;
+
 import android.annotation.SuppressLint;
 import android.app.Dialog;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
-import androidx.core.text.HtmlCompat;
 import androidx.fragment.app.DialogFragment;
-import androidx.preference.EditTextPreference;
 import androidx.preference.Preference;
 
 import android.os.Handler;
@@ -23,28 +24,28 @@ import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.PreferenceFragmentCompat;
-import androidx.preference.PreferenceScreen;
+import androidx.preference.PreferenceGroup;
 
 import androidx.preference.Preference.OnPreferenceChangeListener;
 import androidx.preference.SeekBarPreference;
 
 import android.text.method.LinkMovementMethod;
-import android.text.util.Linkify;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
 import com.termux.x11.utils.ExtraKeyConfigPreference;
+import com.termux.x11.utils.KeyInterceptor;
+import com.termux.x11.utils.SamsungDexUtils;
 
 import java.util.Objects;
 import java.util.regex.PatternSyntaxException;
 
+@SuppressWarnings("deprecation")
 public class LoriePreferences extends AppCompatActivity {
 
     static final String ACTION_PREFERENCES_CHANGED = "com.termux.x11.ACTION_PREFERENCES_CHANGED";
@@ -85,14 +86,16 @@ public class LoriePreferences extends AppCompatActivity {
 
         @SuppressWarnings("ConstantConditions")
         void updatePreferencesLayout() {
-            SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
+            SharedPreferences p = getPreferenceManager().getSharedPreferences();
+            if (!SamsungDexUtils.available())
+                findPreference("dexMetaKeyCapture").setVisible(false);
             SeekBarPreference scalePreference = findPreference("displayScale");
             scalePreference.setMin(30);
             scalePreference.setMax(200);
             scalePreference.setSeekBarIncrement(10);
             scalePreference.setShowSeekBarValue(true);
 
-            switch (preferences.getString("displayResolutionMode", "native")) {
+            switch (p.getString("displayResolutionMode", "native")) {
                 case "scaled":
                     findPreference("displayScale").setVisible(true);
                     findPreference("displayResolutionExact").setVisible(false);
@@ -113,11 +116,18 @@ public class LoriePreferences extends AppCompatActivity {
                     findPreference("displayResolutionExact").setVisible(false);
                     findPreference("displayResolutionCustom").setVisible(false);
             }
+
+            findPreference("hideEKOnVolDown").setEnabled(p.getBoolean("showAdditionalKbd", false));
+            findPreference("dexMetaKeyCapture").setEnabled(!p.getBoolean("enableAccessibilityServiceAutomatically", false));
+            findPreference("enableAccessibilityServiceAutomatically").setEnabled(!p.getBoolean("dexMetaKeyCapture", false));
+            findPreference("filterOutWinkey").setEnabled(p.getBoolean("enableAccessibilityServiceAutomatically", false));
+
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P)
+                findPreference("hideCutout").setVisible(false);
         }
 
         @Override
-        public void onCreate(final Bundle savedInstanceState)
-        {
+        public void onCreate(final Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
             SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
 
@@ -127,17 +137,28 @@ public class LoriePreferences extends AppCompatActivity {
             p.putBoolean("showIMEWhileExternalConnected", showImeEnabled.equals("1"));
             p.apply();
 
-            PreferenceScreen s = getPreferenceScreen();
-            for (int i=0; i<s.getPreferenceCount(); i++) {
-                s.getPreference(i).setOnPreferenceChangeListener(this);
-                s.getPreference(i).setOnPreferenceClickListener(this);
-            }
-
+            setListeners(getPreferenceScreen());
             updatePreferencesLayout();
+        }
+
+        void setListeners(PreferenceGroup g) {
+            for (int i=0; i < g.getPreferenceCount(); i++) {
+                g.getPreference(i).setOnPreferenceChangeListener(this);
+                g.getPreference(i).setOnPreferenceClickListener(this);
+                g.getPreference(i).setSingleLineTitle(false);
+
+                if (g.getPreference(i) instanceof PreferenceGroup)
+                    setListeners((PreferenceGroup) g.getPreference(i));
+            }
         }
 
         @Override
         public boolean onPreferenceClick(@NonNull Preference preference) {
+            if ("enableAccessibilityService".equals(preference.getKey())) {
+                Intent intent = new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                startActivityForResult(intent, 0);
+            }
+
             updatePreferencesLayout();
             return false;
         }
@@ -177,6 +198,18 @@ public class LoriePreferences extends AppCompatActivity {
                 }
             }
 
+            if ("displayDensity".equals(key)) {
+                int v;
+                try {
+                    v = Integer.parseInt((String) newValue);
+                } catch (NumberFormatException | PatternSyntaxException ignored) {
+                    Toast.makeText(getActivity(), "This field accepts only numerics between 96 and 800", Toast.LENGTH_SHORT).show();
+                    return false;
+                }
+
+                return (v > 96 && v < 800);
+            }
+
             if ("displayResolutionCustom".equals(key)) {
                 String value = (String) newValue;
                 try {
@@ -189,9 +222,35 @@ public class LoriePreferences extends AppCompatActivity {
                 }
             }
 
+            if ("showAdditionalKbd".equals(key)) {
+                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(requireContext());
+                SharedPreferences.Editor edit = preferences.edit();
+                edit.putBoolean("additionalKbdVisible", true);
+                edit.commit();
+            }
+
+            if ("enableAccessibilityServiceAutomatically".equals(key)) {
+                Boolean value = (Boolean) newValue;
+                if (!value)
+                    KeyInterceptor.shutdown();
+                if (requireContext().checkSelfPermission(WRITE_SECURE_SETTINGS) != PERMISSION_GRANTED) {
+                    new AlertDialog.Builder(requireContext())
+                            .setTitle("Permission denied")
+                            .setMessage("Android requires WRITE_SECURE_SETTINGS permission to start accessibility service automatically.\n" +
+                                    "Please, launch this command using ADB:\n" +
+                                    "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS")
+                            .setNegativeButton("OK", null)
+                            .create()
+                            .show();
+                    return false;
+                }
+            }
+
             Intent intent = new Intent(ACTION_PREFERENCES_CHANGED);
             intent.setPackage("com.termux.x11");
             requireContext().sendBroadcast(intent);
+
+            handler.postAtTime(this::updatePreferencesLayout, 100);
             return true;
         }
 

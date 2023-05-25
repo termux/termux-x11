@@ -1,13 +1,13 @@
 #define XK_MISCELLANY
 #define XK_LATIN1
 #include <X11/keysymdef.h>
-#include "linux-event-codes.h"
+#include "linux/input-event-codes.h"
 
 /* 
  * Indexes in this list match to keycode name in comment.
  * Do not change order, only change values.
  */
-int android_to_keysyms[] = {
+static int android_to_keysyms[] = {
     /* ANDROID_KEYCODE_UNKNOWN */ 0,
     /* ANDROID_KEYCODE_SOFT_LEFT */ 0,
     /* ANDROID_KEYCODE_SOFT_RIGHT */ 0,
@@ -303,7 +303,7 @@ int android_to_keysyms[] = {
  * Indexes in this list match to keycode name in comment.
  * Do not change order, only change values.
  */
-int android_to_linux_keycode[] = {
+static int android_to_linux_keycode[] = {
     /* ANDROID_KEYCODE_UNKNOWN */ 0,
     /* ANDROID_KEYCODE_SOFT_LEFT */ 0,
     /* ANDROID_KEYCODE_SOFT_RIGHT */ 0,

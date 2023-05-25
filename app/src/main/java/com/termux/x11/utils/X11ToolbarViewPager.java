@@ -65,6 +65,11 @@ public class X11ToolbarViewPager {
                     editText.setText("");
                     return true;
                 });
+
+                editText.setOnCapturedPointerListener((v2, e2) -> {
+                    v2.releasePointerCapture();
+                    return false;
+                });
             }
             collection.addView(layout);
             return layout;

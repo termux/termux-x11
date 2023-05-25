@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright © 2023 Twaik Yont
+
+  Permission to use, copy, modify, distribute, and sell this software and its
+  documentation for any purpose is hereby granted without fee, provided that
+  the above copyright notice appear in all copies and that both that copyright
+  notice and this permission notice appear in supporting documentation, and
+  that the name of the copyright holders not be used in advertising or
+  publicity pertaining to distribution of the software without specific,
+  written prior permission.  The copyright holders make no representations
+  about the suitability of this software for any purpose.  It is provided "as
+  is" without express or implied warranty.
+
+  THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+  INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO
+  EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+  CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
+  DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+  TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
+  OF THIS SOFTWARE.
+-->
+<xcb header="tx11" extension-xname="TX11" extension-name="TX11" major-version="0" minor-version="1">
+  <request name="QueryVersion" opcode="0">
+    <field type="CARD32" name="major_version" />
+    <field type="CARD32" name="minor_version" />
+    <reply>
+      <pad bytes="1" />
+      <field type="CARD32" name="major_version" />
+      <field type="CARD32" name="minor_version" />
+    </reply>
+  </request>
+
+  <request name="ScreenSizeChange" opcode="1">
+    <field type="CARD16" name="width" />
+    <field type="CARD16" name="height" />
+    <field type="CARD16" name="dpi" />
+  </request>
+
+  <request name="TouchEvent" opcode="2">
+    <field type="CARD16" name="type" />
+    <field type="CARD16" name="id" />
+    <field type="CARD16" name="x" />
+    <field type="CARD16" name="y" />
+  </request>
+
+  <request name="MouseEvent" opcode="3">
+    <field type="INT16" name="x" />
+    <field type="INT16" name="y" />
+    <field type="CARD8" name="detail" />
+    <field type="CARD8" name="down" />
+    <field type="CARD8" name="relative" />
+  </request>
+
+  <request name="KeyEvent" opcode="4">
+    <field type="CARD16" name="keycode" />
+    <field type="CARD8" name="state" />
+  </request>
+
+  <request name="UnicodeEvent" opcode="5">
+    <field type="CARD16" name="unicode" />
+  </request>
+</xcb>

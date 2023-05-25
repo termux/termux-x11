@@ -1,10 +1,11 @@
 apply plugin: 'com.android.application'
 
 android {
+    namespace 'com.termux.x11'
     compileSdkVersion 33
     defaultConfig {
         applicationId "com.termux.x11"
-        minSdkVersion 24
+        minSdkVersion 26
 
         /*
          * Do not increase targetSdkVersion
@@ -13,12 +14,12 @@ android {
          */
         //noinspection ExpiredTargetSdkVersion,OldTargetApi
         targetSdkVersion 28
-        versionCode 11
-        versionName "1.02.07"
+        versionCode 12
+        versionName "1.02.10"
 
         externalNativeBuild {
             cmake {
-                arguments "-DANDROID_STL=c++_static"
+                arguments "-DANDROID_STL=c++_shared"
             }
         }
     }
@@ -43,9 +44,23 @@ android {
         }
     }
 
+    splits {
+        abi {
+            enable true
+            reset()
+
+            include "x86", "x86_64", "armeabi-v7a", "arm64-v8a"
+            universalApk true //generate an additional APK that contains all the ABIs
+        }
+    }
+
+    buildFeatures {
+        aidl true
+    }
+
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_1_9
+        targetCompatibility JavaVersion.VERSION_1_9
     }
 
     externalNativeBuild {
@@ -68,15 +83,14 @@ android {
 
 dependencies {
     //noinspection DifferentStdlibGradleVersion
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.10"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21"
     implementation "androidx.lifecycle:lifecycle-viewmodel:2.6.1"
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.1"
     implementation 'com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava'
     implementation 'com.termux.termux-app:termux-shared:2f5a6f7de6'
-    implementation 'com.google.android.material:material:1.8.0'
+    implementation 'com.google.android.material:material:1.9.0'
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    //noinspection GradleDependency
-    implementation 'androidx.appcompat:appcompat:1.3.1'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.preference:preference:1.2.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     testImplementation 'junit:junit:4.13.2'

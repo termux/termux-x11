@@ -1,0 +1,41 @@
+diff --git a/Xtranssock.c b/Xtranssock.c
+index b06579c..bb5238b 100644
+--- a/Xtranssock.c
++++ b/Xtranssock.c
+@@ -200,20 +200,28 @@ static int TRANS(SocketINETClose) (XtransConnInfo ciptr);
+ 
+ 
+ #if defined(X11_t)
+-#define UNIX_PATH "/tmp/.X11-unix/X"
+-#define UNIX_DIR "/tmp/.X11-unix"
++extern char* xtrans_unix_path_x11;
++extern char* xtrans_unix_dir_x11;
++#define UNIX_PATH xtrans_unix_path_x11
++#define UNIX_DIR xtrans_unix_dir_x11
+ #endif /* X11_t */
+ #if defined(XIM_t)
+-#define UNIX_PATH "/tmp/.XIM-unix/XIM"
+-#define UNIX_DIR "/tmp/.XIM-unix"
++extern char* xtrans_unix_path_xim;
++extern char* xtrans_unix_dir_xim;
++#define UNIX_PATH xtrans_unix_path_xim
++#define UNIX_DIR xtrans_unix_dir_xim
+ #endif /* XIM_t */
+ #if defined(FS_t) || defined(FONT_t)
+-#define UNIX_PATH "/tmp/.font-unix/fs"
+-#define UNIX_DIR "/tmp/.font-unix"
++extern char* xtrans_unix_path_fs;
++extern char* xtrans_unix_dir_fs;
++#define UNIX_PATH xtrans_unix_path_fs
++#define UNIX_DIR xtrans_unix_dir_fs
+ #endif /* FS_t || FONT_t */
+ #if defined(ICE_t)
+-#define UNIX_PATH "/tmp/.ICE-unix/"
+-#define UNIX_DIR "/tmp/.ICE-unix"
++extern char* xtrans_unix_path_ice;
++extern char* xtrans_unix_dir_ice;
++#define UNIX_PATH xtrans_unix_path_ice
++#define UNIX_DIR xtrans_unix_dir_ice
+ #endif /* ICE_t */
+ 
+ 

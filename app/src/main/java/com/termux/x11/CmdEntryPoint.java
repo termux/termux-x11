@@ -7,13 +7,14 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
+import android.util.Log;
 import android.view.Surface;
 
-import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
+import java.io.DataInputStream;
 import java.net.InetAddress;
-import java.net.MulticastSocket;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.Arrays;
 
 @SuppressLint("StaticFieldLeak")
 public class CmdEntryPoint extends ICmdEntryInterface.Stub {
@@ -34,8 +35,12 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     }
 
     CmdEntryPoint(String[] args) {
-        if (ctx == null)
-            ctx = android.app.ActivityThread.systemMain().getSystemContext();
+        try {
+            if (ctx == null)
+                ctx = android.app.ActivityThread.systemMain().getSystemContext();
+        } catch (Exception e) {
+            Log.e("CmdEntryPoint", "Problem during obtaining Context: ", e);
+        }
 
         if (!start(args))
             System.exit(1);
@@ -58,31 +63,46 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     }
 
     void spawnListeningThread() {
-            /*  The purpose of this function is simple. If the application has not been launched
+        new Thread(() -> { // New thread is needed to avoid android.os.NetworkOnMainThreadException
+            /*
+                The purpose of this function is simple. If the application has not been launched
                 before running termux-x11, the initial sendBroadcast had no effect because no one
                 received the intent. To allow the application to reconnect freely, we will listen on
-                port `PORT` and when receiving a magic phrase, we will send another intent. */
-        new Thread(() -> { // New thread is needed to avoid android.os.NetworkOnMainThreadException
-            try (MulticastSocket socket = new MulticastSocket(PORT)) {
-                InetAddress group = InetAddress.getByName("230.0.0.0");
-                socket.joinGroup(group);
-                DatagramPacket packet = new DatagramPacket(MAGIC, MAGIC.length);
+                port `PORT` and when receiving a magic phrase, we will send another intent.
+             */
+            Log.e("CmdEntryPoint", "Listening port " + PORT);
+            try (ServerSocket listeningSocket =
+                         new ServerSocket(PORT, 0, InetAddress.getByName("127.0.0.1"))) {
+                listeningSocket.setReuseAddress(true);
                 while(true) {
-                    socket.receive(packet);
-                    sendBroadcast();
+                    try (Socket client = listeningSocket.accept()) {
+                        Log.e("CmdEntryPoint", "Somebody connected!");
+                        // We should ensure that it is some
+                        byte[] b = new byte[MAGIC.length];
+                        DataInputStream reader = new DataInputStream(client.getInputStream());
+                        reader.readFully(b);
+                        if (Arrays.equals(MAGIC, b)) {
+                            Log.e("CmdEntryPoint", "New client connection!");
+                            sendBroadcast();
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
-            } catch (IOException e) { throw new RuntimeException(e); }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }).start();
     }
 
     public static void requestConnection() {
         System.err.println("Requesting connection...");
         new Thread(() -> { // New thread is needed to avoid android.os.NetworkOnMainThreadException
-            try (DatagramSocket socket = new DatagramSocket()) {
-                InetAddress group = InetAddress.getByName("230.0.0.0");
-                DatagramPacket packet = new DatagramPacket(MAGIC, MAGIC.length, group, PORT);
-                socket.send(packet);
-            } catch (IOException e) { throw new RuntimeException(e); }
+            try (Socket socket = new Socket("127.0.0.1", CmdEntryPoint.PORT)){
+                socket.getOutputStream().write(CmdEntryPoint.MAGIC);
+            } catch (Exception e) {
+                Log.e("CmdEntryPoint", "Something went wrong when we requested connection", e);
+            }
         }).start();
     }
 

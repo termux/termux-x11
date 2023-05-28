@@ -11,6 +11,7 @@
 #define maybe_unused __attribute__((unused))
 
 #pragma clang diagnostic ignored "-Wunknown-pragmas"
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
 #pragma ide diagnostic ignored "bugprone-reserved-identifier"
 #pragma ide diagnostic ignored "UnusedValue"
 #pragma ide diagnostic ignored "ConstantParameter"
@@ -60,9 +61,14 @@ static char** parse_arguments(const char* line, int* argc) {
 
 void LogMessageVerb(int type, int verb, const char *format, ...);
 
+static char lib[1024];
+void init_module(void) {
+    wai_getModulePath(lib, 1024, NULL);
+}
+
 int execl_xkbcomp(const char * path, const char * arg, ...) {
     size_t argv_max = 1024;
-    maybe_unused int length, argc;
+    maybe_unused int argc;
     maybe_unused char** new_args;
     const char **argv = alloca(argv_max * sizeof(const char *));
     unsigned int i;
@@ -72,7 +78,7 @@ int execl_xkbcomp(const char * path, const char * arg, ...) {
     // So I will use /system/bin/app_process with overloaded __libc_init to load main function stored in packed binary.
     // We are loading 32-bit libraries so it can fail on 64-bit system.
     // That is why we should execute app_process32 and fall back to sh in the case of failure.
-    char lib[1024], ldpreload[1024], ldlibexec[1024];
+    char ldpreload[1024], ldlibexec[1024];
 
     va_list args;
     va_start(args, arg);
@@ -100,7 +106,6 @@ int execl_xkbcomp(const char * path, const char * arg, ...) {
     assert(argv[2] != NULL);
     assert(argv[3] == NULL);
     new_args = parse_arguments(argv[2], &argc);
-    wai_getModulePath(lib, 1024, &length);
     sprintf(ldpreload, "%s/libexec-helper.so", dirname(lib));
     sprintf(ldlibexec, "%s/libxkbcomp.so", dirname(lib));
     setenv("LD_PRELOAD", ldpreload, 1);

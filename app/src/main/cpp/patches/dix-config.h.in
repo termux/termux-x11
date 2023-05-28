@@ -133,7 +133,6 @@
 #define _XTYPEDEF_POINTER 1
 #define _XITYPEDEF_POINTER 1
 
-#define LISTEN_TCP
 #define LISTEN_UNIX
 #define LISTEN_LOCAL
 

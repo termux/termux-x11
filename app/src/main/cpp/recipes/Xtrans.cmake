@@ -54,4 +54,9 @@ static void init_pathes() {
 add_library(Xtrans STATIC "${CMAKE_CURRENT_BINARY_DIR}/X11/Xtrans-defs.c")
 target_compile_options(Xtrans PRIVATE "-fPIC")
 target_include_directories(Xtrans INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/Xtrans)
-target_apply_patch(Xtrans "${CMAKE_CURRENT_SOURCE_DIR}/libxtrans" "${CMAKE_CURRENT_SOURCE_DIR}/patches/Xtrans.patch")
+
+set(d ${CMAKE_CURRENT_SOURCE_DIR}/libxtrans)
+set(p ${CMAKE_CURRENT_SOURCE_DIR}/patches/Xtrans.patch)
+execute_process(COMMAND "bash" "-c" "patch -p1 -d ${d} -i ${p} -R --dry-run > /dev/null 2>&1 || patch -p1 -N -d ${d} -i ${p} -r -")
+unset(d)
+unset(p)

@@ -513,7 +513,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         }
 
         if (reseed)
-            window.setSoftInputMode(SOFT_INPUT_ADJUST_RESIZE);
+            window.setSoftInputMode(SOFT_INPUT_ADJUST_RESIZE | SOFT_INPUT_STATE_HIDDEN);
         else
             window.setSoftInputMode(SOFT_INPUT_ADJUST_PAN | SOFT_INPUT_STATE_HIDDEN);
 

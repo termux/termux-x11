@@ -10,6 +10,8 @@ void tx11_protocol_init(void);
 void lorieChangeWindow(struct ANativeWindow* win);
 void lorieConfigureNotify(int width, int height, int dpi);
 
+void init_module(void);
+
 #ifdef __cplusplus
 }
 #endif

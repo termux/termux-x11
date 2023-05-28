@@ -179,9 +179,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                             CmdEntryPoint.requestConnection();
 
                             Log.v("Lorie", "Disconnected");
-                            runOnUiThread(() -> {
-                                recreate();
-                            });
+                            runOnUiThread(() -> recreate());
                         }, 0);
 
                         onReceiveConnection();
@@ -670,8 +668,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             if (!connected)
                 tryConnect();
 
-
-            if (SDK_INT >= VERSION_CODES.N && connected)
+            if (connected)
                 getWindow().
                         getDecorView().
                         setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));

@@ -8,8 +8,7 @@ TERMUX_PKG_DESCRIPTION="Companion package for termux-x11 app"
 TERMUX_PKG_MAINTAINER="Twaik Yont @twaik"
 TERMUX_PKG_REVISION=0
 TERMUX_PKG_VERSION=1.02.07
-TERMUX_APT_PKG_DEPENDS="xwayland"
-TERMUX_PACMAN_PKG_DEPENDS="xwayland"
+TERMUX_PKG_DEPENDS="xkeyboard-config"
 
 TERMUX_PKG_FULLVERSION="$TERMUX_PKG_VERSION-$TERMUX_PKG_REVISION"
 TERMUX_APT_ARCH=all
@@ -43,7 +42,7 @@ Architecture: $TERMUX_APT_ARCH
 Maintainer: $TERMUX_PKG_MAINTAINER
 Version: $TERMUX_PKG_FULLVERSION
 Homepage: $TERMUX_PKG_HOMEPAGE
-Depends: $TERMUX_APT_PKG_DEPENDS
+Depends: $TERMUX_PKG_DEPENDS
 Description: $TERMUX_PKG_DESCRIPTION
 EOF
 
@@ -71,7 +70,7 @@ BUILD_DATE=$(date +%s)
   echo "packager = $TERMUX_PKG_MAINTAINER"
   echo "arch = $TERMUX_PACMAN_ARCH"
   echo "license = TERMUX_PKG_LICENSE"
-  tr ',' '\n' <<< "$TERMUX_PACMAN_PKG_DEPENDS" | sed 's|(||g; s|)||g; s| ||g; s|>>|>|g; s|<<|<|g' | awk '{ printf "depend = " $1; if ( ($1 ~ /</ || $1 ~ />/ || $1 ~ /=/) && $1 !~ /-/ ) printf "-0"; printf "\n" }' | sed 's/|.*//'
+  tr ',' '\n' <<< "$TERMUX_PKG_DEPENDS" | sed 's|(||g; s|)||g; s| ||g; s|>>|>|g; s|<<|<|g' | awk '{ printf "depend = " $1; if ( ($1 ~ /</ || $1 ~ />/ || $1 ~ /=/) && $1 !~ /-/ ) printf "-0"; printf "\n" }' | sed 's/|.*//'
 } > $DATA_DIR/.PKGINFO
 
 {

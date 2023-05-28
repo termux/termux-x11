@@ -20,17 +20,8 @@ include(CheckTypeSize)
 find_package(Python3 REQUIRED)
 find_package(BISON REQUIRED)
 
-function(target_apply_patch patch_target source_dir patch_file)
-    string(RANDOM LENGTH 32 temp_name)
-    add_custom_target(${patch_target}_${temp_name}
-            COMMAND
-                "patch" "-p1" "-d" "${source_dir}" "-i" "${patch_file}" "-R" "--dry-run" ">" "/dev/null" "2>&1" "||"
-                "patch" "-p1" "-N" "-d" "${source_dir}" "-i" "${patch_file}" "-r" "-"
-            COMMENT "Applying patch ${patch}"
-            VERBATIM
-    )
-    add_dependencies(${patch_target} ${patch_target}_${temp_name})
-    set(temp_name)
+function(target_apply_patch patch_target d p)
+    execute_process(COMMAND "bash" "-c" "patch -p1 -d ${d} -i ${p} -R --dry-run > /dev/null 2>&1 || patch -p1 -N -d ${d} -i ${p} -r -")
 endfunction()
 
 set(test_compile_options

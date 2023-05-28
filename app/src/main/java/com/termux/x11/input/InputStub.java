@@ -23,7 +23,7 @@ public interface InputStub {
     void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown, boolean relative);
 
     /** Sends a mouse wheel event. */
-    void sendMouseWheelEvent(int deltaX, int deltaY);
+    void sendMouseWheelEvent(float deltaX, float deltaY);
 
     /**
      * Sends a key event, and returns false if both scanCode and keyCode are not able to be

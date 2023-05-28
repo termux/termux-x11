@@ -49,8 +49,8 @@ static int dispatch(ClientPtr client) {
         case XCB_TX11_SCREEN_SIZE_CHANGE: {
             REQUEST(xcb_tx11_screen_size_change_request_t)
 
-            __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "window changed: %d %d %d", stuff->width, stuff->height, stuff->dpi);
-            lorieConfigureNotify(stuff->width, stuff->height, stuff->dpi);
+            __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "window changed: %d %d", stuff->width, stuff->height);
+            lorieConfigureNotify(stuff->width, stuff->height);
             return Success;
         }
         case XCB_TX11_TOUCH_EVENT: {
@@ -94,9 +94,10 @@ static int dispatch(ClientPtr client) {
 //                        valuator_mask_set_unaccelerated(&mask, 1, stuff->y, stuff->y);
 //                        QueuePointerEvents(lorieMouseRelative, MotionNotify, 0, flags, &mask);
                     } else {
+//                        dprintf(2, "Got mouse motion %f %f (%d) (%d) \n", stuff->x, stuff->y, (int) stuff->x, (int) stuff->y);
                         flags = POINTER_ABSOLUTE | POINTER_SCREEN | POINTER_NORAW;
-                        valuator_mask_set(&mask, 0, stuff->x);
-                        valuator_mask_set(&mask, 1, stuff->y);
+                        valuator_mask_set_double(&mask, 0, (double) stuff->x);
+                        valuator_mask_set_double(&mask, 1, (double) stuff->y);
                         QueuePointerEvents(lorieMouse, MotionNotify, 0, flags, &mask);
                     }
                     break;
@@ -106,14 +107,15 @@ static int dispatch(ClientPtr client) {
                     QueuePointerEvents(lorieMouse, stuff->down ? ButtonPress : ButtonRelease, stuff->detail, 0, &mask);
                     break;
                 case 4: // BUTTON_SCROLL
+//                    dprintf(2, "Got mouse scroll %f %f (%d) (%d) \n", stuff->x, stuff->y, (int) stuff->x, (int) stuff->y);
                     if (stuff->x) {
                         valuator_mask_zero(&mask);
-                        valuator_mask_set(&mask, 2, stuff->x);
+                        valuator_mask_set_double(&mask, 2, (double) stuff->x / 100);
                         QueuePointerEvents(lorieMouse, MotionNotify, 0, POINTER_RELATIVE, &mask);
                     }
                     if (stuff->y) {
                         valuator_mask_zero(&mask);
-                        valuator_mask_set(&mask, 3, stuff->y);
+                        valuator_mask_set_double(&mask, 3, (double) stuff->y / 100);
                         QueuePointerEvents(lorieMouse, MotionNotify, 0, POINTER_RELATIVE, &mask);
                     }
                     break;

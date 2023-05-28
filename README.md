@@ -61,7 +61,7 @@ export CLASSPATH=/path/to/loader.apk
 ### Logs
 If you need to obtain logs from the `com.termux.x11` application,
 set the `TERMUX_X11_DEBUG` environment variable to 1, like this:
-`DISPLAY=:0 TERMUX_X11_DEBUG=1 termux-x11`
+`TERMUX_X11_DEBUG=1 termux-x11 :0`
 
 The log obtained in this way can be quite long.
 It's better to redirect the output of the command to a file right away.

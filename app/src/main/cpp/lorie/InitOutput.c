@@ -390,13 +390,9 @@ static Bool
 lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     AHardwareBuffer_Desc desc = {};
     void* data;
-    int dpi = monitorResolution;
     int ret;
 
     pScreenPtr = pScreen;
-
-    if (dpi == 0)
-        dpi = 100;
 
     desc.width = pvfb->width;
     desc.height = pvfb->height;
@@ -415,7 +411,7 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     miSetVisualTypesAndMasks(24, ((1 << TrueColor) | (1 << DirectColor)), 8, TrueColor, 0xFF0000, 0x00FF00, 0x0000FF);
     miSetPixmapDepths();
 
-    ret = fbScreenInit(pScreen, data, desc.width, desc.height, dpi, dpi, desc.stride, 32);
+    ret = fbScreenInit(pScreen, data, desc.width, desc.height, monitorResolution, monitorResolution, desc.stride, 32);
     if (ret)
         fbPictureInit(pScreen, 0, 0);
 
@@ -455,7 +451,7 @@ void lorieChangeWindow(struct ANativeWindow* win) {
     renderer_set_window(win);
     renderer_set_buffer(pvfb->buf);
 
-    {
+    if (CursorVisible && EnableCursor) {
         int x, y;
         DeviceIntPtr pDev = GetMaster(lorieMouse, MASTER_POINTER);
         SpriteInfoPtr info = (pDev && pDev->spriteInfo) ? pDev->spriteInfo : NULL;
@@ -473,15 +469,13 @@ void lorieChangeWindow(struct ANativeWindow* win) {
     }
 }
 
-void lorieConfigureNotify(int width, int height, int dpi) {
+void lorieConfigureNotify(int width, int height) {
     ScreenPtr pScreen = pScreenPtr;
     if (pvfb->output && width && height) {
         CARD32 mmWidth, mmHeight;
         RRModePtr mode = lorieCvt(width, height);
-        if (!dpi) dpi = 96;
-        monitorResolution = dpi;
-        mmWidth = ((double) (mode->mode.width))*25.4/dpi;
-        mmHeight = ((double) (mode->mode.width))*25.4/dpi;
+        mmWidth = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
+        mmHeight = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
         RROutputSetModes(pvfb->output, &mode, 1, 0);
         RRCrtcNotify(pvfb->crtc, mode,0, 0,RR_Rotate_0, NULL, 1, &pvfb->output);
         RRScreenSizeSet(pScreen, mode->mode.width, mode->mode.height, mmWidth, mmHeight);
@@ -493,6 +487,9 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     int depths[] = { 1, 4, 8, 15, 16, 24, 32 };
     int bpp[] =    { 1, 8, 8, 16, 16, 32, 32 };
     int i;
+
+    if (monitorResolution == 0)
+        monitorResolution = 96;
 
     for(i = 0; i < ARRAY_SIZE(depths); i++) {
         screen_info->formats[i].depth = depths[i];

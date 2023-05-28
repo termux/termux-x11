@@ -34,7 +34,6 @@
   <request name="ScreenSizeChange" opcode="1">
     <field type="CARD16" name="width" />
     <field type="CARD16" name="height" />
-    <field type="CARD16" name="dpi" />
   </request>
 
   <request name="TouchEvent" opcode="2">
@@ -45,8 +44,8 @@
   </request>
 
   <request name="MouseEvent" opcode="3">
-    <field type="INT16" name="x" />
-    <field type="INT16" name="y" />
+    <field type="float" name="x" />
+    <field type="float" name="y" />
     <field type="CARD8" name="detail" />
     <field type="CARD8" name="down" />
     <field type="CARD8" name="relative" />

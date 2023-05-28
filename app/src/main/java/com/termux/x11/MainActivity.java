@@ -141,7 +141,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
 
             @Override
-            public void sendMouseWheelEvent(int deltaX, int deltaY) {
+            public void sendMouseWheelEvent(float deltaX, float deltaY) {
                 MainActivity.this.sendMouseEvent(deltaX, deltaY, BUTTON_SCROLL, false, true);
             }
 
@@ -163,14 +163,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     text.codePoints().forEach(MainActivity.this::sendUnicodeEvent);
             }
         }));
-        mInputHandler.handleClientSizeChanged(800, 600);
 
         listener.setAsListenerTo(lorieView);
-
-        if (SDK_INT >= VERSION_CODES.N)
-            getWindow().
-             getDecorView().
-              setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
 
         registerReceiver(new BroadcastReceiver() {
             @Override
@@ -186,10 +180,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
                             Log.v("Lorie", "Disconnected");
                             runOnUiThread(() -> {
-                                int visibility = getLorieView().getVisibility();
-                                getLorieView().setVisibility(View.GONE);
-                                getLorieView().setVisibility(visibility);
-                                clientConnectedStateChanged(false);
+                                recreate();
                             });
                         }, 0);
 
@@ -592,7 +583,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
                     int w = width;
                     int h = height;
-                    int dpi = Integer.parseInt(preferences.getString("displayDensity", "120"));
                     switch(preferences.getString("displayResolutionMode", "native")) {
                         case "scaled": {
                             int scale = preferences.getInt("displayScale", 100);
@@ -628,7 +618,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     mInputHandler.handleHostSizeChanged(width, height);
                     mInputHandler.handleClientSizeChanged(w, h);
 
-                    sendWindowChange(w, h, dpi);
+                    sendWindowChange(w, h);
 
                     if (service != null) {
                         try {
@@ -679,6 +669,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             // We should recover connection in the case if file descriptor for some reason was broken...
             if (!connected)
                 tryConnect();
+
+
+            if (SDK_INT >= VERSION_CODES.N && connected)
+                getWindow().
+                        getDecorView().
+                        setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
         });
     }
 
@@ -697,8 +693,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private native void handleXEvents();
     private native void startLogcat(int fd);
     private native void setClipboardSyncEnabled(boolean enabled);
-    private native void sendWindowChange(int width, int height, int dpi);
-    private native void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown, boolean relative);
+    private native void sendWindowChange(int width, int height);
+    private native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
     private native void sendTouchEvent(int action, int id, int x, int y);
     public native void sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
     public native void sendUnicodeEvent(int unicode);

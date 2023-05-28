@@ -403,19 +403,19 @@ Java_com_termux_x11_MainActivity_setClipboardSyncEnabled(JNIEnv*, jobject, jbool
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_sendWindowChange(JNIEnv*, jobject, jint width, jint height, jint dpi) {
+Java_com_termux_x11_MainActivity_sendWindowChange(JNIEnv*, jobject, jint width, jint height) {
     if (conn) {
 //        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client", "Sending window changed: %d %d %d", width, height, dpi);
-        xcb_tx11_screen_size_change(conn, width, height, dpi);
+        xcb_tx11_screen_size_change(conn, width, height);
         xcb_flush(conn);
     }
 }
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_sendMouseEvent(JNIEnv*, jobject, jint x, jint y, jint which_button, jboolean button_down, jboolean relative) {
+Java_com_termux_x11_MainActivity_sendMouseEvent(JNIEnv*, jobject, jfloat x, jfloat y, jint which_button, jboolean button_down, jboolean relative) {
     if (conn) {
-//        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client", "Sending mouse event: %d %d %d %d %d", x, y, which_button, button_down, relative);
+        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client", "Sending mouse event: %f %f %d %d %d", x, y, which_button, button_down, relative);
         xcb_tx11_mouse_event(conn, x, y, which_button, button_down, relative); // NOLINT(cppcoreguidelines-narrowing-conversions)
         xcb_flush(conn);
     }

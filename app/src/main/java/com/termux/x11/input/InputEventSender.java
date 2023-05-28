@@ -67,7 +67,7 @@ public final class InputEventSender {
     }
 
     public void sendMouseWheelEvent(float distanceX, float distanceY) {
-        mInjector.sendMouseWheelEvent((int) distanceX, (int) distanceY);
+        mInjector.sendMouseWheelEvent(distanceX, distanceY);
     }
 
     public void sendReverseMouseWheelEvent(float distanceX, float distanceY) {

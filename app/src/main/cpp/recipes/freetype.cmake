@@ -14,6 +14,7 @@ file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/freetype/include/freetype/con
 
 file(READ "freetype/include/freetype/config/ftoption.h" FTOPTION_H)
 string(REGEX REPLACE "/\\* +(#define +FT_CONFIG_OPTION_SYSTEM_ZLIB) +\\*/" "\\1" FTOPTION_H "${FTOPTION_H}")
+string(REGEX REPLACE "/\\* +(#define +FT_CONFIG_OPTION_USE_BZIP2) +\\*/" "\\1" FTOPTION_H "${FTOPTION_H}")
 file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/freetype/include/freetype/config/ftoption.h" CONTENT "${FTOPTION_H}")
 
 add_library(freetype
@@ -59,7 +60,18 @@ add_library(freetype
         "freetype/src/winfonts/winfnt.c"
 
         "freetype/builds/unix/ftsystem.c"
-        "freetype/src/base/ftdebug.c")
+        "freetype/src/base/ftdebug.c"
 
-target_include_directories(freetype PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/freetype/include" "freetype/include")
+        "bzip2/blocksort.c"
+        "bzip2/huffman.c"
+        "bzip2/crctable.c"
+        "bzip2/randtable.c"
+        "bzip2/compress.c"
+        "bzip2/decompress.c"
+        "bzip2/bzlib.c"
+        )
+
+target_include_directories(freetype
+        PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/freetype/include" "freetype/include"
+        PRIVATE "bzip2")
 target_compile_options(freetype PRIVATE "-DFT2_BUILD_LIBRARY")

@@ -143,3 +143,6 @@
 	url = https://gitlab.freedesktop.org/pulseaudio/pulseaudio
 	ignore = dirty
 
+[submodule "app/src/main/cpp/bzip2"]
+	path = app/src/main/cpp/bzip2
+	url = https://gitlab.com/bzip2/bzip2

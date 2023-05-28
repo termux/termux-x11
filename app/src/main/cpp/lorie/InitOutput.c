@@ -67,7 +67,7 @@ from The Open Group.
 
 #define MAX_FPS 120
 
-extern DeviceIntPtr loriePointer, lorieKeyboard;
+extern DeviceIntPtr lorieMouse, lorieKeyboard;
 
 typedef struct {
     int width;
@@ -104,11 +104,6 @@ void
 ddxGiveUp(unused enum ExitCode error) {
     __android_log_print(ANDROID_LOG_ERROR, "Xlorie", "Server stopped");
     exit(0);
-}
-
-Bool
-ddxReset() {
-    return TRUE;
 }
 
 void
@@ -162,7 +157,7 @@ static RRModePtr lorieCvt(int width, int height) {
     return mode;
 }
 
-static void lorievfbMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
+static void lorieMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
     renderer_set_cursor_coordinates(x, y);
     pvfb->cursorMoved = TRUE;
 }
@@ -184,15 +179,8 @@ static void lorieSetCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, Curs
                 for (x = 0; x < bits->width; x++) {
                     i = y * stride + x / 8;
                     bit = 1 << (x & 7);
-                    if (bits->source[i] & bit)
-                        d = fg;
-                    else
-                        d = bg;
-                    if (bits->mask[i] & bit)
-                        d |= 0xff000000;
-                    else
-                        d = 0x00000000;
-
+                    d = (bits->source[i] & bit) ? fg : bg;
+                    d = (bits->mask[i] & bit) ? d | 0xff000000 : 0x00000000;
                     *p++ = d;
                 }
 
@@ -201,14 +189,14 @@ static void lorieSetCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, Curs
     } else
         renderer_update_cursor(0, 0, 0, 0, NULL);
 
-    lorievfbMoveCursor(NULL, NULL, x0, y0);
+    lorieMoveCursor(NULL, NULL, x0, y0);
 }
 
 static miPointerSpriteFuncRec loriePointerSpriteFuncs = {
     .RealizeCursor = TrueNoop,
     .UnrealizeCursor = TrueNoop,
     .SetCursor = lorieSetCursor,
-    .MoveCursor = lorievfbMoveCursor,
+    .MoveCursor = lorieMoveCursor,
     .DeviceCursorInitialize = TrueNoop,
     .DeviceCursorCleanup = VoidNoop
 };
@@ -391,6 +379,13 @@ lorieRandRInit(ScreenPtr pScreen) {
     return TRUE;
 }
 
+static Bool resetRootCursor(unused ClientPtr pClient, unused void *closure) {
+    CursorVisible = TRUE;
+    pScreenPtr->DisplayCursor(lorieMouse, pScreenPtr, NullCursor);
+    pScreenPtr->DisplayCursor(lorieMouse, pScreenPtr, rootCursor);
+    return TRUE;
+}
+
 static Bool
 lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     AHardwareBuffer_Desc desc = {};
@@ -447,6 +442,7 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
 
     pvfb->closeScreen = pScreen->CloseScreen;
     pScreen->CloseScreen = lorieCloseScreen;
+    QueueWorkProc(resetRootCursor, NULL, NULL);
 
     return TRUE;
 }                               /* end lorieScreenInit */
@@ -458,6 +454,16 @@ void lorieChangeWindow(struct ANativeWindow* win) {
     pvfb->win = win;
     renderer_set_window(win);
     renderer_set_buffer(pvfb->buf);
+
+    {
+        int x, y;
+        DeviceIntPtr pDev = GetMaster(lorieMouse, MASTER_POINTER);
+        SpriteInfoPtr info = (pDev && pDev->spriteInfo) ? pDev->spriteInfo : NULL;
+        CursorPtr pCursor = (info && info->sprite) ? (info->anim.pCursor ?: info->sprite->current) : NULL;
+
+        GetSpritePosition(pDev, &x, &y);
+        lorieSetCursor(NULL, NULL, pCursor, box.x2/2, box.y2/2);
+    }
 
     if (win) {
         RegionInit(&reg, &box, 1);

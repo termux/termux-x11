@@ -31,6 +31,7 @@ extern "C" {
     extern void AutoResetServer(int sig);
     extern int LogSetParameter(int param, int value);
     extern const char *XkbBaseDirectory;
+    extern const char *defaultFontPath;
 
     extern volatile char isItTimeToYield;
     extern volatile char dispatchException;
@@ -85,6 +86,25 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, jclass, jobjectArray args) 
         __android_log_print(ANDROID_LOG_ERROR, "LorieNative", "%s", error);
         dprintf(2, "%s\n", error);
         return JNI_FALSE;
+    }
+
+    {
+        const char *root_dir = dirname(getenv("TMPDIR"));
+        const char* pathes[] = {
+                "/etc/X11/fonts", "/usr/share/fonts/X11", "/share/fonts", nullptr
+        };
+        for (int i=0; pathes[i]; i++) {
+            char current_path[1024] = {0};
+            snprintf(current_path, sizeof(current_path), "%s%s", root_dir, pathes[i]);
+            if (access(current_path, F_OK) == 0) {
+                char default_font_path[4096] = {0};
+                snprintf(default_font_path, sizeof(default_font_path),
+                         "%s/misc,%s/TTF,%s/OTF,%s/Type1,%s/100dpi,%s/75dpi",
+                         current_path, current_path, current_path, current_path, current_path, current_path);
+                defaultFontPath = strdup(default_font_path);
+                break;
+            }
+        }
     }
 
     if (!getenv("XKB_CONFIG_ROOT")) {
@@ -443,6 +463,7 @@ jint JNI_OnLoad(JavaVM *jvm, unused void *reserved) {
     vm->AttachCurrentThread(&env, nullptr);
     system_cls = (jclass) env->NewGlobalRef(env->FindClass("java/lang/System"));
     exit_mid = env->GetStaticMethodID(system_cls, "exit", "(I)V");
+    init_module();
     return JNI_VERSION_1_6;
 }
 

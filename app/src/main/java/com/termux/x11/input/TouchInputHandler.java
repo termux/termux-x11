@@ -265,9 +265,13 @@ public class TouchInputHandler {
     }
 
     public void handleHostSizeChanged(int w, int h) {
+        if (mRenderData.screenWidth == w || mRenderData.screenHeight == h)
+            return;
+
         mRenderData.imageWidth = w;
         mRenderData.imageHeight = h;
         mPanGestureBounds = new Rect(mEdgeSlopInPx, mEdgeSlopInPx, w - mEdgeSlopInPx, h - mEdgeSlopInPx);
+        moveCursorToScreenPoint((float) w/2, (float) h/2);
 
         resetTransformation();
     }

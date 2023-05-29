@@ -21,9 +21,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
-import android.graphics.Matrix;
 import android.graphics.PixelFormat;
-import android.graphics.PointF;
 import android.graphics.Rect;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
@@ -69,7 +67,7 @@ import java.util.regex.PatternSyntaxException;
 
 @SuppressLint("ApplySharedPref")
 @SuppressWarnings({"deprecation", "unused"})
-public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener {
+public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener, InputStub {
     static final String ACTION_STOP = "com.termux.x11.ACTION_STOP";
     static final String REQUEST_LAUNCH_EXTERNAL_DISPLAY = "request_launch_external_display";
     public static final int KeyPress = 2; // synchronized with X.h
@@ -78,7 +76,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public static Handler handler = new Handler();
     FrameLayout frm;
     private TouchInputHandler mInputHandler;
-    private final ServiceEventListener listener = new ServiceEventListener();
     private ICmdEntryInterface service = null;
     public TermuxX11ExtraKeys mExtraKeys;
     private int mTerminalToolbarDefaultHeight;
@@ -101,7 +98,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         return instance;
     }
 
-    @Override @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt"})
+    @Override
+    @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt", "ClickableViewAccessibility", "WrongConstant"})
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
@@ -125,46 +123,100 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         SurfaceView lorieView = findViewById(R.id.lorieView);
 
-        mInputHandler = new TouchInputHandler(this, new RenderStub() {
-            @Override public void showInputFeedback(int feedbackToShow, PointF pos) {}
-            @Override public void setCursorVisibility(boolean visible) {}
-            @Override public void setTransformation(Matrix matrix) {}
-            @Override public void moveCursor(PointF pos) {}
-            @Override public void swipeUp() {}
-            @Override public void swipeDown() {
-                toggleExtraKeys();
-            }
-        }, new InputEventSender(new InputStub() {
-            @Override
-            public void sendMouseEvent(int x, int y, int whichButton, boolean buttonDown, boolean relative) {
-                MainActivity.this.sendMouseEvent(x, y, whichButton, buttonDown, relative);
+        mInputHandler = new TouchInputHandler(this, new RenderStub.NullStub(), new InputEventSender(this));
+        mLorieKeyListener = (v, k, e) -> {
+            if (k == KeyEvent.KEYCODE_VOLUME_DOWN && preferences.getBoolean("hideEKOnVolDown", false)) {
+                if (e.getAction() == KeyEvent.ACTION_UP) {
+                    toggleExtraKeys();
+                    findViewById(R.id.lorieView).requestFocus();
+                }
+                return true;
             }
 
-            @Override
-            public void sendMouseWheelEvent(float deltaX, float deltaY) {
-                MainActivity.this.sendMouseEvent(deltaX, deltaY, BUTTON_SCROLL, false, true);
+            if (k == KeyEvent.KEYCODE_BACK && (e.getSource() & InputDevice.SOURCE_MOUSE) != InputDevice.SOURCE_MOUSE) {
+                if (e.getAction() == KeyEvent.ACTION_UP) {
+                    toggleKeyboardVisibility(MainActivity.this);
+                    findViewById(R.id.lorieView).requestFocus();
+                }
+                return true;
             }
 
-            @Override
-            public void sendTouchEvent(int action, int id, int x, int y) {
-                MainActivity.this.sendTouchEvent(action, id, x, y);
+            return mInputHandler.sendKeyEvent(v, e);
+        };
+        mLorieViewCallback = new SurfaceHolder.Callback() {
+            @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
+                holder.setFormat(PixelFormat.OPAQUE);
             }
+            @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int width, int height) {
+                Log.d("SurfaceChangedListener", "Surface was changed: " + width + "x" + height);
+                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
+                int w = width;
+                int h = height;
+                switch(preferences.getString("displayResolutionMode", "native")) {
+                    case "scaled": {
+                        int scale = preferences.getInt("displayScale", 100);
+                        w = width / scale * 100;
+                        h = height / scale * 100;
+                        break;
+                    }
+                    case "exact": {
+                        String[] resolution = preferences.getString("displayResolutionExact", "1280x1024").split("x");
+                        w = Integer.parseInt(resolution[0]);
+                        h = Integer.parseInt(resolution[1]);
+                        break;
+                    }
+                    case "custom": {
+                        try {
+                            String[] resolution = preferences.getString("displayResolutionCustom", "1280x1024").split("x");
+                            w = Integer.parseInt(resolution[0]);
+                            h = Integer.parseInt(resolution[1]);
+                        } catch (NumberFormatException | PatternSyntaxException ignored) {
+                            w = 1280;
+                            h = 1024;
+                        }
+                        break;
+                    }
+                }
 
-            @Override
-            public boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown) {
-                MainActivity.this.sendKeyEvent(scanCode, keyCode, keyDown);
-                return false;
+                if (width < height && w > h) {
+                    int temp = w;
+                    w = h;
+                    h = temp;
+                }
+
+                mInputHandler.handleHostSizeChanged(width, height);
+                mInputHandler.handleClientSizeChanged(w, h);
+
+                sendWindowChange(w, h);
+
+                if (service != null) {
+                    try {
+                        service.windowChanged(holder.getSurface());
+                    } catch (RemoteException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
-
-            @Override
-            public void sendTextEvent(String text) {
-                Log.d("LorieInputStub", "sendTextEvent " + text);
-                if (text != null)
-                    text.codePoints().forEach(MainActivity.this::sendUnicodeEvent);
+            @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
+                if (service != null) {
+                    try {
+                        service.windowChanged(holder.getSurface());
+                    } catch (RemoteException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
-        }));
+        };
 
-        listener.setAsListenerTo(lorieView);
+        lorieView.setOnTouchListener((v, e) -> mInputHandler.handleTouchEvent(getLorieView(), e));
+        lorieView.setOnHoverListener((v, e) -> mInputHandler.handleTouchEvent(getLorieView(), e));
+        lorieView.setOnGenericMotionListener((v, e) -> mInputHandler.handleTouchEvent(getLorieView(), e));
+        lorieView.setOnCapturedPointerListener((v, e) -> mInputHandler.handleCapturedEvent(getLorieView(), e));
+        lorieView.setOnKeyListener(mLorieKeyListener);
+        lorieView.getHolder().addCallback(mLorieViewCallback);
+
+        Rect r = lorieView.getHolder().getSurfaceFrame();
+        mLorieViewCallback.surfaceChanged(lorieView.getHolder(), 0, r.width(), r.height());
 
         registerReceiver(new BroadcastReceiver() {
             @Override
@@ -390,7 +442,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     public boolean handleKey(KeyEvent e) {
-        Log.d("AccessibilityEvent", "EVENT: " + e);
         if (filterOutWinKey && (e.getKeyCode() == KEYCODE_META_LEFT || e.getKeyCode() == KEYCODE_META_RIGHT || e.isMetaPressed()))
             return false;
         mLorieKeyListener.onKey(null, e.getKeyCode(), e);
@@ -541,110 +592,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         return insets;
     }
 
-    @SuppressWarnings("SameParameterValue")
-    private class ServiceEventListener {
-        @SuppressLint({"WrongConstant", "ClickableViewAccessibility"})
-        private void setAsListenerTo(SurfaceView view) {
-            view.setOnTouchListener((v, e) -> mInputHandler.handleTouchEvent(v, e));
-            view.setOnHoverListener((v, e) -> mInputHandler.handleTouchEvent(v, e));
-            view.setOnGenericMotionListener((v, e) -> mInputHandler.handleTouchEvent(v, e));
-            view.setOnCapturedPointerListener((v, e) -> mInputHandler.handleCapturedEvent(e));
-
-            mLorieKeyListener = (v, k, e) -> {
-                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
-                if (k == KeyEvent.KEYCODE_VOLUME_DOWN && preferences.getBoolean("hideEKOnVolDown", false)) {
-                    if (e.getAction() == KeyEvent.ACTION_UP) {
-                        toggleExtraKeys();
-                        findViewById(R.id.lorieView).requestFocus();
-                    }
-                    return true;
-                }
-
-                if (k == KeyEvent.KEYCODE_BACK && (e.getSource() & InputDevice.SOURCE_MOUSE) != InputDevice.SOURCE_MOUSE) {
-                    if (e.getAction() == KeyEvent.ACTION_UP) {
-                        toggleKeyboardVisibility(MainActivity.this);
-                        findViewById(R.id.lorieView).requestFocus();
-                    }
-                    return true;
-                }
-
-                return mInputHandler.sendKeyEvent(v, e);
-            };
-
-            view.setOnKeyListener(mLorieKeyListener);
-
-            mLorieViewCallback = new SurfaceHolder.Callback() {
-                @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
-                    holder.setFormat(PixelFormat.OPAQUE);
-                }
-                @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int width, int height) {
-                    Log.d("SurfaceChangedListener", "Surface was changed: " + width + "x" + height);
-                    SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
-                    int w = width;
-                    int h = height;
-                    switch(preferences.getString("displayResolutionMode", "native")) {
-                        case "scaled": {
-                            int scale = preferences.getInt("displayScale", 100);
-                            w = width / scale * 100;
-                            h = height / scale * 100;
-                            break;
-                        }
-                        case "exact": {
-                            String[] resolution = preferences.getString("displayResolutionExact", "1280x1024").split("x");
-                            w = Integer.parseInt(resolution[0]);
-                            h = Integer.parseInt(resolution[1]);
-                            break;
-                        }
-                        case "custom": {
-                            try {
-                                String[] resolution = preferences.getString("displayResolutionCustom", "1280x1024").split("x");
-                                w = Integer.parseInt(resolution[0]);
-                                h = Integer.parseInt(resolution[1]);
-                            } catch (NumberFormatException | PatternSyntaxException ignored) {
-                                w = 1280;
-                                h = 1024;
-                            }
-                            break;
-                        }
-                    }
-
-                    if (width < height && w > h) {
-                        int temp = w;
-                        w = h;
-                        h = temp;
-                    }
-
-                    mInputHandler.handleHostSizeChanged(width, height);
-                    mInputHandler.handleClientSizeChanged(w, h);
-
-                    sendWindowChange(w, h);
-
-                    if (service != null) {
-                        try {
-                            service.windowChanged(holder.getSurface());
-                        } catch (RemoteException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
-                @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
-                    if (service != null) {
-                        try {
-                            service.windowChanged(holder.getSurface());
-                        } catch (RemoteException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
-            };
-
-            Rect r = view.getHolder().getSurfaceFrame();
-            mLorieViewCallback.surfaceChanged(view.getHolder(), 0, r.width(), r.height());
-
-            view.getHolder().addCallback(mLorieViewCallback);
-        }
-    }
-
     /**
      * Manually toggle soft keyboard visibility
      * @param context calling context
@@ -670,9 +617,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 tryConnect();
 
             if (connected)
-                getWindow().
-                        getDecorView().
-                        setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
+                getLorieView().setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
         });
     }
 
@@ -687,14 +632,25 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         handler.postDelayed(this::checkXEvents, 300);
     }
 
+    @Override
+    public void sendMouseWheelEvent(float deltaX, float deltaY) {
+        sendMouseEvent(deltaX, deltaY, BUTTON_SCROLL, false, true);
+    }
+
+    @Override
+    public void sendTextEvent(String text) {
+        if (text != null)
+            text.codePoints().forEach(MainActivity.this::sendUnicodeEvent);
+    }
+
     private native void connect(int fd);
     private native void handleXEvents();
     private native void startLogcat(int fd);
     private native void setClipboardSyncEnabled(boolean enabled);
     private native void sendWindowChange(int width, int height);
-    private native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
-    private native void sendTouchEvent(int action, int id, int x, int y);
-    public native void sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
+    public native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
+    public native void sendTouchEvent(int action, int id, int x, int y);
+    public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
     public native void sendUnicodeEvent(int unicode);
 
     static {

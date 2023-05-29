@@ -56,4 +56,13 @@ public interface RenderStub {
      * which requires repainting.
      */
     void setCursorVisibility(boolean visible);
+
+    class NullStub implements RenderStub {
+        @Override public void showInputFeedback(int feedbackToShow, PointF pos) {}
+        @Override public void setTransformation(Matrix matrix) {}
+        @Override public void moveCursor(PointF pos) {}
+        @Override public void swipeUp() {}
+        @Override public void swipeDown() {}
+        @Override public void setCursorVisibility(boolean visible) {}
+    }
 }

@@ -1,6 +1,8 @@
 package com.termux.x11.utils;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.res.Configuration;
 import android.util.Log;
 
 import java.lang.reflect.Method;
@@ -16,6 +18,7 @@ public class SamsungDexUtils {
         } catch (Exception ignored) {}
         return false;
     }
+
     static public void dexMetaKeyCapture(Activity activity, boolean enable) {
         try {
             Class<?> semWindowManager = Class.forName("com.samsung.android.view.SemWindowManager");
@@ -30,5 +33,16 @@ public class SamsungDexUtils {
             Log.d(TAG, "Could not call com.samsung.android.view.SemWindowManager.requestMetaKeyEvent ");
             Log.d(TAG, it.getClass().getCanonicalName() + ": " + it.getMessage());
         }
+    }
+
+    @SuppressWarnings("JavaReflectionMemberAccess")
+    public static boolean checkDeXEnabled(Context ctx) {
+        Configuration config = ctx.getResources().getConfiguration();
+        try {
+            Class<?> c = config.getClass();
+            return c.getField("SEM_DESKTOP_MODE_ENABLED").getInt(c)
+                    == c.getField("semDesktopModeEnabled").getInt(config);
+        } catch (NoSuchFieldException | IllegalArgumentException | IllegalAccessException ignored) {}
+        return false;
     }
 }

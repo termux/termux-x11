@@ -433,7 +433,7 @@ Java_com_termux_x11_MainActivity_sendTouchEvent(JNIEnv*, jobject, jint action, j
 }
 
 extern "C"
-JNIEXPORT void JNICALL
+JNIEXPORT jboolean JNICALL
 Java_com_termux_x11_MainActivity_sendKeyEvent(JNIEnv*, jobject, jint scan_code, jint key_code, jboolean key_down) {
     if (conn) {
         int code = (scan_code) ?: android_to_linux_keycode[key_code];
@@ -441,6 +441,8 @@ Java_com_termux_x11_MainActivity_sendKeyEvent(JNIEnv*, jobject, jint scan_code, 
         xcb_tx11_key_event(conn, code + 8, key_down);
         xcb_flush(conn);
     }
+
+    return true;
 }
 
 extern "C"

@@ -5,6 +5,7 @@ import static android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.graphics.Rect;
+import android.util.Log;
 import android.widget.FrameLayout;
 import android.view.View;
 import android.app.Activity;
@@ -29,10 +30,13 @@ public class FullscreenWorkaround {
 
     private void possiblyResizeChildOfContent() {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(mActivity);
-        if (!preferences.getBoolean("fullscreen", false) ||
-                (mActivity.getWindow().getAttributes().flags & FLAG_FULLSCREEN) != 0)
-            return;
-        if (!preferences.getBoolean("Reseed", true))
+        if (
+                !mActivity.hasWindowFocus() ||
+                !((mActivity.getWindow().getAttributes().flags & FLAG_FULLSCREEN) == FLAG_FULLSCREEN) ||
+                !preferences.getBoolean("Reseed", true) ||
+                !preferences.getBoolean("fullscreen", false) ||
+                SamsungDexUtils.checkDeXEnabled(mActivity)
+        )
             return;
 
         FrameLayout content = (FrameLayout)  ((FrameLayout) mActivity.findViewById(android.R.id.content)).getChildAt(0);

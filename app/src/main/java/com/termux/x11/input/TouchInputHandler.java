@@ -50,6 +50,8 @@ public class TouchInputHandler {
     private final TapGestureDetector mTapDetector;
     private final HardwareMouseListener mHMListener = new HardwareMouseListener();
     private final DexListener mDexListener;
+    private final TouchInputHandler mTouchpadHandler;
+    private final TouchpadListener mTouchpadListener = new TouchpadListener();
 
     /** Used to disambiguate a 2-finger gesture as a swipe or a pinch. */
     private final SwipePinchDetector mSwipePinchDetector;
@@ -100,60 +102,14 @@ public class TouchInputHandler {
      */
     private boolean mIsDragging;
 
-    /**
-     * This class provides a NULL implementation which will be used until a real input
-     * strategy has been created and set.  Using this as the default implementation will prevent
-     * crashes if the owning class does not create/set a real InputStrategy before the host size
-     * information is received (or if the user interacts with the screen in that case).  This class
-     * has default values which will also allow the user to pan/zoom the desktop image until an
-     * InputStrategy implementation has been set.
-     */
-    private static class NullInputStrategy implements InputStrategyInterface {
-        NullInputStrategy() {}
-
-        @Override
-        public boolean onTap(int button) {
-            return false;
-        }
-
-        @Override
-        public boolean onPressAndHold(int button) {
-            return false;
-        }
-
-        @Override
-        public void onMotionEvent(MotionEvent event) {}
-
-        @Override
-        public void onScroll(float distanceX, float distanceY) {}
-
-        @Override
-        public void injectCursorMoveEvent(int x, int y) {}
-
-        @Override
-        public @RenderStub.InputFeedbackType int getShortPressFeedbackType() {
-            return RenderStub.InputFeedbackType.NONE;
-        }
-
-        @Override
-        public @RenderStub.InputFeedbackType int getLongPressFeedbackType() {
-            return RenderStub.InputFeedbackType.NONE;
-        }
-
-        @Override
-        public boolean isIndirectInputMode() {
-            return false;
-        }
-    }
-
-    public TouchInputHandler(Context ctx, /*DesktopView viewer, Desktop desktop, */ RenderStub renderStub,
-                             final InputEventSender injector) {
+    private TouchInputHandler(Context ctx, RenderData renderData, RenderStub renderStub,
+                              final InputEventSender injector, boolean isTouchpad) {
         Preconditions.notNull(renderStub);
         Preconditions.notNull(injector);
 
 //        mDesktop = desktop;
         mRenderStub = renderStub;
-        mRenderData = new RenderData();
+        mRenderData = renderData != null ? renderData :new RenderData();
         mInjector = injector;
         mContext = ctx;
 //        mDesktopCanvas = new DesktopCanvas(renderStub, mRenderData);
@@ -179,8 +135,13 @@ public class TouchInputHandler {
 
         mEdgeSlopInPx = ViewConfiguration.get(/*desktop*/ ctx).getScaledEdgeSlop();
 
-        mInputStrategy = new NullInputStrategy();
+        setInputMode(InputMode.TRACKPAD);
         mDexListener = new DexListener(ctx);
+        mTouchpadHandler = isTouchpad ? null : new TouchInputHandler(ctx, mRenderData, renderStub, injector, true);
+    }
+
+    public TouchInputHandler(Context ctx, RenderStub renderStub, final InputEventSender injector) {
+        this(ctx, null, renderStub, injector, false);
     }
 
     boolean isDexEvent(MotionEvent event) {
@@ -190,7 +151,7 @@ public class TouchInputHandler {
     }
 
     public boolean handleTouchEvent(View view, MotionEvent event) {
-        android.util.Log.d("TOUCHHANDLER", "EVENT " + isDexEvent(event) + " " + event);
+        android.util.Log.d("TOUCHHANDLER", "EVENT " + (mTouchpadHandler != null) + " " + isDexEvent(event) + " " + event);
         if (!view.isFocused() && event.getAction() == MotionEvent.ACTION_DOWN)
             view.requestFocus();
 
@@ -201,6 +162,11 @@ public class TouchInputHandler {
             // Dex touchpad sends events as finger, but it should be considered as a mouse.
             if (isDexEvent(event))
                 return mDexListener.onTouch(view, event);
+
+            // Regular touchpads and Dex touchpad send events as finger too,
+            // but they should be handled as touchscreens with trackpad mode.
+            if (mTouchpadHandler != null && (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD)
+                return mTouchpadHandler.handleTouchEvent(view, event);
 
             // Give the underlying input strategy a chance to observe the current motion event before
             // passing it to the gesture detectors.  This allows the input strategy to react to the
@@ -213,6 +179,7 @@ public class TouchInputHandler {
             mZoomer.onTouchEvent(event);
             mTapDetector.onTouchEvent(event);
             mSwipePinchDetector.onTouchEvent(event);
+            mTouchpadListener.onTouch(view, event);
 
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
@@ -234,39 +201,35 @@ public class TouchInputHandler {
         return false;
     }
 
-    public boolean handleCapturedEvent(MotionEvent e) {
-        android.util.Log.d("TOUCHHANDLER", "CAPTURED " + isDexEvent(e) + " " + e);
+    public boolean handleCapturedEvent(View v, MotionEvent e) {
         if ((e.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) {
-            android.util.Log.d("TOUCHHANDLER", "CAPTURED " + isDexEvent(e) + " x " + e.getAxisValue(MotionEvent.AXIS_RELATIVE_X) + " y " + e.getAxisValue(MotionEvent.AXIS_RELATIVE_Y) + " " + e);
-//            switch (e.getAction()) {
-//                case MotionEvent.ACTION_MOVE:
-//                    moveCursorByOffset(-e.getAxisValue(MotionEvent.AXIS_RELATIVE_X)*2, -e.getAxisValue(MotionEvent.AXIS_RELATIVE_Y)*2);
-//                    break;
-//            }
-        } else {
-            int button = mouseButtonFromMotionEvent(e);
-            switch(e.getAction()) {
-                case MotionEvent.ACTION_MOVE:
-                    if (e.getX() == 0 && e.getY() == 0)
-                        return true;
-//                mInjector.sendMouseEvent(new PointF(e.getX(), e.getY()), InputStub.BUTTON_UNDEFINED, false, true);
-                    moveCursorByOffset(-e.getX()*2, -e.getY()*2);
-                    break;
-                case MotionEvent.ACTION_BUTTON_PRESS:
-                    mInjector.sendMouseDown(mRenderData.getCursorPosition(), button);
-                    break;
-                case MotionEvent.ACTION_BUTTON_RELEASE:
-                    mInjector.sendMouseUp(mRenderData.getCursorPosition(), button);
-                    break;
-                case MotionEvent.ACTION_SCROLL:
-                    float scrollY = -100 * e.getAxisValue(MotionEvent.AXIS_VSCROLL);
-                    float scrollX = -100 * e.getAxisValue(MotionEvent.AXIS_HSCROLL);
+            if (mTouchpadHandler != null)
+                mTouchpadHandler.handleTouchEvent(v, e);
+            return true;
+        }
 
-                    mInjector.sendMouseWheelEvent(scrollX, scrollY);
+        int button = mouseButtonFromMotionEvent(e);
+        switch(e.getAction()) {
+            case MotionEvent.ACTION_MOVE:
+                if (e.getX() == 0 && e.getY() == 0)
                     return true;
-                default:
-                    break;
-            }
+//                mInjector.sendMouseEvent(new PointF(e.getX(), e.getY()), InputStub.BUTTON_UNDEFINED, false, true);
+                moveCursorByOffset(-e.getX()*2, -e.getY()*2);
+                break;
+            case MotionEvent.ACTION_BUTTON_PRESS:
+                mInjector.sendMouseDown(mRenderData.getCursorPosition(), button);
+                break;
+            case MotionEvent.ACTION_BUTTON_RELEASE:
+                mInjector.sendMouseUp(mRenderData.getCursorPosition(), button);
+                break;
+            case MotionEvent.ACTION_SCROLL:
+                float scrollY = -100 * e.getAxisValue(MotionEvent.AXIS_VSCROLL);
+                float scrollX = -100 * e.getAxisValue(MotionEvent.AXIS_HSCROLL);
+
+                mInjector.sendMouseWheelEvent(scrollX, scrollY);
+                return true;
+            default:
+                break;
         }
 
         return true;
@@ -283,6 +246,9 @@ public class TouchInputHandler {
         mRenderData.screenHeight = h;
 
         resetTransformation();
+
+        if (mTouchpadHandler != null)
+            mTouchpadHandler.handleClientSizeChanged(w, h);
     }
 
     public void handleHostSizeChanged(int w, int h) {
@@ -292,6 +258,9 @@ public class TouchInputHandler {
         moveCursorToScreenPoint((float) w/2, (float) h/2);
 
         resetTransformation();
+
+        if (mTouchpadHandler != null)
+            mTouchpadHandler.handleHostSizeChanged(w, h);
     }
 
     public void setInputMode(@InputMode int inputMode) {
@@ -391,7 +360,8 @@ public class TouchInputHandler {
 
             // Check to see if the motion originated at the edge of the screen.
             // If so, then the user is likely swiping in to display system UI.
-            if (!mPanGestureBounds.contains((int) e1.getX(), (int) e1.getY())) {
+            // Also we should check if we are in touchpad handler since it can send events in coordinates of itself
+            if (!mPanGestureBounds.contains((int) e1.getX(), (int) e1.getY()) && mTouchpadHandler != null) {
                 // Prevent the cursor being moved or flung by the gesture.
                 mSuppressCursorMovement = true;
                 return false;
@@ -534,9 +504,22 @@ public class TouchInputHandler {
         }
     }
 
-
     public boolean sendKeyEvent(View view, KeyEvent event) {
         return mInjector.sendKeyEvent(view, event);
+    }
+
+    private class TouchpadListener {
+        void onTouch(View v, MotionEvent e) {
+            if (mInjector.pointerCapture && !v.hasPointerCapture() && e.getAction() == MotionEvent.ACTION_UP)
+                v.requestPointerCapture();
+            if (e.getActionMasked() == MotionEvent.ACTION_MOVE &&
+                    e.getPointerCount() == 1 &&
+                    (e.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) {
+                moveCursorByOffset(
+                        -2 * e.getAxisValue(MotionEvent.AXIS_RELATIVE_X),
+                        -2 * e.getAxisValue(MotionEvent.AXIS_RELATIVE_Y));
+            }
+        }
     }
 
     private class HardwareMouseListener {
@@ -553,7 +536,7 @@ public class TouchInputHandler {
 
         @SuppressLint("ClickableViewAccessibility")
         boolean onTouch(View v, MotionEvent e) {
-            if (mInjector.pointerCapture && e.getAction() == MotionEvent.ACTION_UP && !v.hasPointerCapture())
+            if (mInjector.pointerCapture && !v.hasPointerCapture() && e.getAction() == MotionEvent.ACTION_UP)
                 v.requestPointerCapture();
 
             if (e.getAction() == MotionEvent.ACTION_SCROLL) {
@@ -636,6 +619,9 @@ public class TouchInputHandler {
                         mInjector.sendMouseEvent(mRenderData.getCursorPosition(), 1, false, false);
                         mIsDragging = false;
                     }
+
+                    if (mInjector.pointerCapture && !v.hasPointerCapture())
+                        v.requestPointerCapture();
 
                     break;
                 case MotionEvent.ACTION_MOVE:

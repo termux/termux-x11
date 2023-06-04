@@ -286,3 +286,4 @@ void glGetMinmax(unused GLenum target, unused GLboolean reset, unused GLenum for
 void glGetColorTable(unused GLenum target, unused GLenum format, unused GLenum type, unused GLvoid *table) {}
 void *glXGetProcAddressARB(unused const char *symbol);
 void *glXGetProcAddressARB(unused const char *symbol) { return NULL; } 
+ 

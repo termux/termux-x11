@@ -7,7 +7,7 @@ extern "C" {
 
 void tx11_protocol_init(void);
 
-void lorieChangeWindow(struct ANativeWindow* win);
+Bool lorieChangeWindow(ClientPtr pClient, void *closure);
 void lorieConfigureNotify(int width, int height);
 
 void init_module(void);

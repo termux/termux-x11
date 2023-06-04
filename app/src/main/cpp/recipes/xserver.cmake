@@ -437,7 +437,7 @@ add_library(Xlorie SHARED
         "libxcvt/lib/libxcvt.c"
         "lorie/execl_xkbcomp.c"
         "lorie/shm/shmem.c"
-        "lorie/android.cpp"
+        "lorie/android.c"
         "lorie/InitOutput.c"
         "lorie/InitInput.c"
         "lorie/InputXKB.c"

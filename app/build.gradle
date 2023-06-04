@@ -16,12 +16,6 @@ android {
         targetSdkVersion 28
         versionCode 12
         versionName "1.02.10"
-
-        externalNativeBuild {
-            cmake {
-                arguments "-DANDROID_STL=c++_shared"
-            }
-        }
     }
 
     signingConfigs {

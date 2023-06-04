@@ -444,7 +444,8 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     return TRUE;
 }                               /* end lorieScreenInit */
 
-void lorieChangeWindow(struct ANativeWindow* win) {
+Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
+    struct ANativeWindow* win = (struct ANativeWindow*) closure;
     ScreenPtr pScreen = pScreenPtr;
     RegionRec reg;
     BoxRec box = { .x1 = 0, .y1 = 0, .x2 = pScreen->root->drawable.width, .y2 = pScreen->root->drawable.height};
@@ -468,6 +469,8 @@ void lorieChangeWindow(struct ANativeWindow* win) {
         DamageRegionAppend(&pScreen->GetScreenPixmap(pScreen)->drawable, &reg);
         RegionUninit(&reg);
     }
+
+    return TRUE;
 }
 
 void lorieConfigureNotify(int width, int height) {

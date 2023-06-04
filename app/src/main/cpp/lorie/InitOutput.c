@@ -68,6 +68,7 @@ from The Open Group.
 #define MAX_FPS 120
 
 extern DeviceIntPtr lorieMouse, lorieKeyboard;
+extern __GLXprovider androidProvider;
 
 typedef struct {
     int width;
@@ -506,6 +507,7 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     renderer_init();
     xorgGlxCreateVendor();
     tx11_protocol_init();
+    GlxPushProvider(&androidProvider);
 
     if (-1 == AddScreen(lorieScreenInit, argc, argv)) {
         FatalError("Couldn't add screen %d\n", i);

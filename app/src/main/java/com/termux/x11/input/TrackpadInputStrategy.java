@@ -42,7 +42,7 @@ public class TrackpadInputStrategy implements InputStrategyInterface {
 
     @Override
     public void onScroll(float distanceX, float distanceY) {
-        mInjector.sendReverseMouseWheelEvent(distanceX, distanceY);
+        mInjector.sendMouseWheelEvent(distanceX, distanceY);
     }
 
     @Override

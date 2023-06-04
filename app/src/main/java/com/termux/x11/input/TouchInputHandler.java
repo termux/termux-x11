@@ -54,7 +54,7 @@ public class TouchInputHandler {
     private final TouchpadListener mTouchpadListener = new TouchpadListener();
 
     /** Used to disambiguate a 2-finger gesture as a swipe or a pinch. */
-    private final SwipePinchDetector mSwipePinchDetector;
+    private final SwipeDetector mSwipePinchDetector;
 
     private InputStrategyInterface mInputStrategy;
     private final InputEventSender mInjector;
@@ -125,7 +125,7 @@ public class TouchInputHandler {
 
         mZoomer = new ScaleGestureDetector(/*desktop*/ ctx, listener);
         mTapDetector = new TapGestureDetector(/*desktop*/ ctx, listener);
-        mSwipePinchDetector = new SwipePinchDetector(/*desktop*/ ctx);
+        mSwipePinchDetector = new SwipeDetector(/*desktop*/ ctx);
 
         // The threshold needs to be bigger than the ScaledTouchSlop used by the gesture-detectors,
         // so that a gesture cannot be both a tap and a swipe. It also needs to be small enough so

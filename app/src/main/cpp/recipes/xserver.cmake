@@ -418,7 +418,7 @@ foreach (part glx glxvnd fb mi dix composite damageext dbe randr miext_damage re
 endforeach ()
 
 #set(XSERVER_LIBS ${XSERVER_LIBS} tirpc xcb-errors xcb xkbcommon Xdmcp Xau pixman Xfont2 Xtrans freetype fontenc GL)
-set(XSERVER_LIBS ${XSERVER_LIBS} tirpc xcb Xdmcp Xau pixman Xfont2 Xtrans xcb-errors freetype fontenc GL)
+set(XSERVER_LIBS ${XSERVER_LIBS} tirpc xcb Xdmcp Xau pixman Xfont2 Xtrans xcb-errors freetype fontenc GLESv2 xshmfence)
 
 add_custom_command(
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/tx11.c" "${CMAKE_CURRENT_BINARY_DIR}/tx11.h"
@@ -441,6 +441,7 @@ add_library(Xlorie SHARED
         "lorie/InitOutput.c"
         "lorie/InitInput.c"
         "lorie/InputXKB.c"
+        "lorie/lorieGlx.c"
         "lorie/renderer.c"
         "lorie/tx11-request.c"
         "${CMAKE_CURRENT_BINARY_DIR}/tx11.c"

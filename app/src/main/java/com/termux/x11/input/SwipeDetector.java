@@ -19,14 +19,13 @@ import java.lang.annotation.RetentionPolicy;
  * determine the intent.
  */
 @SuppressWarnings("ConstantConditions")
-public class SwipePinchDetector {
+public class SwipeDetector {
     /** Current state of the gesture. */
-    @IntDef({State.UNKNOWN, State.SWIPE, State.PINCH})
+    @IntDef({State.UNKNOWN, State.SWIPE})
     @Retention(RetentionPolicy.SOURCE)
     private @interface State {
         int UNKNOWN = 0;
         int SWIPE = 1;
-        int PINCH = 2;
     }
     private @State int mState = State.UNKNOWN;
 
@@ -53,7 +52,7 @@ public class SwipePinchDetector {
     }
 
     /** Construct a new detector, using the context to determine movement thresholds. */
-    public SwipePinchDetector(Context context) {
+    public SwipeDetector(Context context) {
         ViewConfiguration config = ViewConfiguration.get(context);
         int touchSlop = config.getScaledTouchSlop();
         mTouchSlopSquare = touchSlop * touchSlop;
@@ -62,11 +61,6 @@ public class SwipePinchDetector {
     /** Returns whether a swipe is in progress. */
     public boolean isSwiping() {
         return mState == State.SWIPE;
-    }
-
-    /** Returns whether a pinch is in progress. */
-    public boolean isPinching() {
-        return mState == State.PINCH;
     }
 
     /**
@@ -130,13 +124,6 @@ public class SwipePinchDetector {
         // soon enough to avoid triggering a sudden large change in the zoom level, but not so
         // soon that SWIPE never gets triggered.
 
-        // Threshold level for triggering the PINCH gesture if one finger is stationary. This
-        // cannot be equal to the touch-slop, because in that case, SWIPE would rarely be detected.
-        // One finger would usually leave the touch-slop radius slightly before the other finger,
-        // triggering a PINCH as described above. A larger radius gives an opportunity for
-        // SWIPE to be detected. Doubling the radius is an arbitrary choice that works well.
-        int pinchThresholdSquare = 4 * mTouchSlopSquare;
-
         boolean finger0Moved = squaredDistance0 > mTouchSlopSquare;
         boolean finger1Moved = squaredDistance1 > mTouchSlopSquare;
 
@@ -144,19 +131,11 @@ public class SwipePinchDetector {
             return;
         }
 
-        if (finger0Moved && !finger1Moved) {
-            if (squaredDistance0 > pinchThresholdSquare) {
-                mState = State.PINCH;
-            }
+        if (finger0Moved && !finger1Moved)
             return;
-        }
 
-        if (!finger0Moved && finger1Moved) {
-            if (squaredDistance1 > pinchThresholdSquare) {
-                mState = State.PINCH;
-            }
+        if (!finger0Moved && finger1Moved)
             return;
-        }
 
         // Both fingers have moved, so determine SWIPE/PINCH status. If the fingers have moved in
         // the same direction, this is a SWIPE, otherwise it's a PINCH. This can be measured by
@@ -164,6 +143,6 @@ public class SwipePinchDetector {
         // vectors are pointing in the same direction, and negative if they're in opposite
         // directions.
         float scalarProduct = deltaX0 * deltaX1 + deltaY0 * deltaY1;
-        mState = (scalarProduct > 0) ? State.SWIPE : State.PINCH;
+        mState = (scalarProduct > 0) ? State.SWIPE: State.UNKNOWN;
     }
 }

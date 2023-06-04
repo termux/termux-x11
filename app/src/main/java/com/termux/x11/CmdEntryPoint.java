@@ -1,5 +1,7 @@
 package com.termux.x11;
 
+import static android.system.Os.getuid;
+
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
@@ -59,6 +61,11 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         Intent intent = new Intent(ACTION_START);
         intent.putExtra("", bundle);
         intent.setPackage("com.termux.x11");
+
+        if (getuid() == 0 || getuid() == 2000) {
+            intent.setFlags(0x00400000 /* FLAG_RECEIVER_FROM_SHELL */);
+        }
+
         ctx.sendBroadcast(intent);
     }
 

@@ -110,12 +110,12 @@ static int dispatch(ClientPtr client) {
 //                    dprintf(2, "Got mouse scroll %f %f (%d) (%d) \n", stuff->x, stuff->y, (int) stuff->x, (int) stuff->y);
                     if (stuff->x) {
                         valuator_mask_zero(&mask);
-                        valuator_mask_set_double(&mask, 2, (double) stuff->x / 100);
+                        valuator_mask_set_double(&mask, 2, (double) stuff->x / 120);
                         QueuePointerEvents(lorieMouse, MotionNotify, 0, POINTER_RELATIVE, &mask);
                     }
                     if (stuff->y) {
                         valuator_mask_zero(&mask);
-                        valuator_mask_set_double(&mask, 3, (double) stuff->y / 100);
+                        valuator_mask_set_double(&mask, 3, (double) stuff->y / 120);
                         QueuePointerEvents(lorieMouse, MotionNotify, 0, POINTER_RELATIVE, &mask);
                     }
                     break;

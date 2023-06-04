@@ -1,5 +1,7 @@
 package com.termux.x11;
 
+import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
+import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.os.Build.VERSION.SDK_INT;
 import static android.view.KeyEvent.*;
 import static android.view.WindowManager.LayoutParams.*;
@@ -21,6 +23,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
+import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.os.Build.VERSION_CODES;
@@ -42,6 +45,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowInsets;
+import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -268,9 +272,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             if (service != null && service.asBinder().isBinderAlive()) {
                 Log.v("LorieBroadcastReceiver", "Extracting logcat fd.");
                 ParcelFileDescriptor logcatOutput = service.getLogcatOutput();
-                if (logcatOutput != null) {
+                if (logcatOutput != null)
                     startLogcat(logcatOutput.detachFd());
-                }
 
                 tryConnect();
             }
@@ -295,6 +298,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 handler.postDelayed(this::tryConnect, 500);
         } catch (Exception e) {
             Log.e("MainActivity", "Something went wrong while we were establishing connection", e);
+            service = null;
+
+            // We should reset the View for the case if we have sent it's surface to the client.
+            getLorieView().getHolder().setFormat(PixelFormat.TRANSPARENT);
+            getLorieView().getHolder().setFormat(PixelFormat.OPAQUE);
         }
     }
 
@@ -339,7 +347,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 edit.putBoolean("enableAccessibilityServiceAutomatically", false);
                 edit.commit();
             }
-        } else
+        } else if (checkSelfPermission(WRITE_SECURE_SETTINGS) == PERMISSION_GRANTED)
             KeyInterceptor.shutdown();
 
         int requestedOrientation = p.getBoolean("forceLandscape", false) ?
@@ -544,6 +552,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             decorView.setSystemUiVisibility(0);
         }
 
+        if (hasFocus) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+            window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            window.setStatusBarColor(Color.BLACK);
+        }
+
         if (SDK_INT >= VERSION_CODES.P) {
             if (p.getBoolean("hideCutout", false))
                 getWindow().getAttributes().layoutInDisplayCutoutMode = (SDK_INT >= VERSION_CODES.R) ?
@@ -558,9 +572,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         else
             window.setSoftInputMode(SOFT_INPUT_ADJUST_PAN | SOFT_INPUT_STATE_HIDDEN);
 
-        if (p.getBoolean("dexMetaKeyCapture", false)) {
-            SamsungDexUtils.dexMetaKeyCapture(this, hasFocus);
-        }
+        SamsungDexUtils.dexMetaKeyCapture(this, hasFocus && p.getBoolean("dexMetaKeyCapture", false));
     }
 
     @Override

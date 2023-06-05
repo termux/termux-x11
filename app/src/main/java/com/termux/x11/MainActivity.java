@@ -138,6 +138,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
 
             if (k == KeyEvent.KEYCODE_BACK && (e.getSource() & InputDevice.SOURCE_MOUSE) != InputDevice.SOURCE_MOUSE) {
+                // Pass physical escape key to container...
+                if (e.getScanCode() != 0)
+                    return mInputHandler.sendKeyEvent(v, e);
                 if (e.getAction() == KeyEvent.ACTION_UP) {
                     toggleKeyboardVisibility(MainActivity.this);
                     findViewById(R.id.lorieView).requestFocus();

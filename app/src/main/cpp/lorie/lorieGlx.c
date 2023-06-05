@@ -55,9 +55,31 @@ static __GLXdrawable * createDrawable(unused ClientPtr client, __GLXscreen * scr
     return private;
 }
 
-static void glXDRIscreenDestroy(__GLXscreen * baseScreen) {
+static void glXDRIscreenDestroy(__GLXscreen *baseScreen) {
     __glXScreenDestroy(baseScreen);
     free(baseScreen);
+}
+
+/* According to __glXScreenDestroy's code all configs
+ * are freed with separate `free` call for each config so
+ * this way we are cloning configs.
+ */
+static __GLXconfig* generateConfigs(void) {
+    __GLXconfig *first, *current, *last;
+
+    first = malloc(sizeof(__GLXconfig));
+    *first = configs[0];
+    last = first;
+
+    for (int i=1; i< ARRAY_SIZE(configs); i++) {
+        current = malloc(sizeof(__GLXconfig));
+        *current = configs[i];
+
+        last->next = current;
+        last = current;
+    }
+
+    return first;
 }
 
 static __GLXscreen *glXDRIscreenProbe(ScreenPtr pScreen) {
@@ -70,7 +92,7 @@ static __GLXscreen *glXDRIscreenProbe(ScreenPtr pScreen) {
     screen->destroy = glXDRIscreenDestroy;
     screen->createDrawable = createDrawable;
     screen->pScreen = pScreen;
-    screen->fbconfigs = configs;
+    screen->fbconfigs = generateConfigs();
     screen->glvnd = strdup("mesa");
 
     __glXInitExtensionEnableBits(screen->glx_enable_bits);

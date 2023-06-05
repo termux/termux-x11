@@ -104,6 +104,7 @@ static void VoidNoop() {}
 void
 ddxGiveUp(unused enum ExitCode error) {
     __android_log_print(ANDROID_LOG_ERROR, "Xlorie", "Server stopped");
+    ((void(*)(void))0)();
     exit(0);
 }
 

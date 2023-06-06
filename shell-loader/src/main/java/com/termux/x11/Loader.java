@@ -24,7 +24,7 @@ public class Loader {
      * 2. We check if target apk has the same signature as loader's apk.
      *    It is needed for to prevent running code of potentially replaced malicious apk.
      * 3. We load target apk code with `PathClassLoader` and start target's main function.
-     *
+     * <p>
      * This way we can make this loader version-agnostic and keep it secure.
      * All application logic is located in target apk.
      *

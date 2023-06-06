@@ -17,6 +17,7 @@
 #include <globals.h>
 #include <xkbsrv.h>
 #include <errno.h>
+#include <dlfcn.h>
 #include "renderer.h"
 #include "lorie.h"
 #include "android-to-linux-keycodes.h"
@@ -461,35 +462,28 @@ void exit(int code) {
         sleep(1);
 }
 
-#if 0
+#if 1
 bool enabled = true;
 #define no_instrument void __attribute__((no_instrument_function)) __attribute__ ((visibility ("default")))
 
-using namespace std;
-extern "C" {
-static thread_local int level = -1;
+static _Thread_local int level = -1;
 no_instrument print_func(void *func, int enter) {
-    int status;
     Dl_info info;
     if (!dladdr(func, &info) || !info.dli_sname)
         return;
 
-    char *demangled = abi::__cxa_demangle(info.dli_sname,nullptr, nullptr, &status);
-    __android_log_print(ANDROID_LOG_DEBUG, "LorieProfile", "%d%*c%s %s", gettid(), level, ' ', enter ? ">" : "<", status == 0 ? demangled : info.dli_sname);
-    free(demangled);
+    __android_log_print(ANDROID_LOG_DEBUG, "LorieProfile", "%d%*c%s %s", gettid(), level, ' ', enter ? ">" : "<", info.dli_sname);
 }
 
-unused no_instrument __cyg_profile_func_enter (void *func, void*) { // NOLINT(bugprone-reserved-identifier)
+unused no_instrument __cyg_profile_func_enter (void *func, unused void* caller) { // NOLINT(bugprone-reserved-identifier)
     level++;
     print_func(func, 1);
 }
 
-unused no_instrument __cyg_profile_func_exit (void *func, void*) { // NOLINT(bugprone-reserved-identifier)
+unused no_instrument __cyg_profile_func_exit (void *func, unused void* caller) { // NOLINT(bugprone-reserved-identifier)
     print_func(func, 0);
     level--;
 }
-
-} // extern "C"
 #endif
 
 // I need this to catch initialisation errors of libxkbcommon.

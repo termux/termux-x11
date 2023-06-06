@@ -3,16 +3,22 @@ package com.termux.x11;
 import static android.system.Os.getuid;
 
 import android.annotation.SuppressLint;
+import android.app.IActivityManager;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.IIntentReceiver;
+import android.content.IIntentSender;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import android.view.Surface;
 
 import java.io.DataInputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -51,7 +57,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         sendBroadcast();
     }
 
-    @SuppressLint("WrongConstant")
+    @SuppressLint({"WrongConstant", "PrivateApi"})
     void sendBroadcast() {
         // We should not care about multiple instances, it should be called only by `Termux:X11` app
         // which is single instance...
@@ -62,11 +68,43 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         intent.putExtra("", bundle);
         intent.setPackage("com.termux.x11");
 
-        if (getuid() == 0 || getuid() == 2000) {
+        if (getuid() == 0 || getuid() == 2000)
             intent.setFlags(0x00400000 /* FLAG_RECEIVER_FROM_SHELL */);
-        }
 
-        ctx.sendBroadcast(intent);
+        try {
+            ctx.sendBroadcast(intent);
+        } catch (IllegalArgumentException e) {
+            String packageName = ctx.getPackageManager().getPackagesForUid(getuid())[0];
+            IActivityManager am;
+            try {
+                //noinspection JavaReflectionMemberAccess
+                am = (IActivityManager) android.app.ActivityManager.class
+                        .getMethod("getService")
+                        .invoke(null);
+            } catch (Exception e2) {
+                try {
+                    am = (IActivityManager) Class.forName("android.app.ActivityManagerNative")
+                            .getMethod("getDefault")
+                            .invoke(null);
+                } catch (Exception e3) {
+                    throw new RuntimeException(e3);
+                }
+            }
+
+            assert am != null;
+            IIntentSender sender = am.getIntentSender(1, packageName, null, null, 0, new Intent[] { intent },
+                    null, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_ONE_SHOT, null, 0);
+            IIntentReceiver.Stub receiver = new IIntentReceiver.Stub() {
+                @Override public void performReceive(Intent intent, int resultCode, String data, Bundle extras, boolean ordered, boolean sticky, int sendingUser) {}
+            };
+            try {
+                IIntentSender.class
+                        .getMethod("send", int.class, Intent.class, String.class, IBinder.class, IIntentReceiver.class, String.class, Bundle.class)
+                        .invoke(sender, 0, intent, null, null, receiver, null, null);
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
+            }
+        }
     }
 
     void spawnListeningThread() {

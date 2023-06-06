@@ -64,6 +64,8 @@ from The Open Group.
 #include "lorie.h"
 
 #define unused __attribute__((unused))
+#define wrap(priv, real, mem, func) { priv->mem = real->mem; real->mem = func; }
+#define unwrap(priv, real, mem) { real->mem = priv->mem; }
 
 #define MAX_FPS 120
 
@@ -71,35 +73,32 @@ extern DeviceIntPtr lorieMouse, lorieKeyboard;
 extern __GLXprovider androidProvider;
 
 typedef struct {
-    int width;
-    int height;
-    CloseScreenProcPtr closeScreen;
-    CreateScreenResourcesProcPtr createScreenResources;
+    CloseScreenProcPtr CloseScreen;
+    CreateScreenResourcesProcPtr CreateScreenResources;
+    CreatePixmapProcPtr CreatePixmap;
+    DestroyPixmapProcPtr DestroyPixmap;
 
     DamagePtr pDamage;
     OsTimerPtr pTimer;
 
-    RROutputPtr output;
-    RRCrtcPtr crtc;
-
     struct ANativeWindow* win;
-    struct AHardwareBuffer* buf;
     Bool cursorMoved;
-    Bool locked;
-    ARect r;
 } lorieScreenInfo, *lorieScreenInfoPtr;
+
 ScreenPtr pScreenPtr;
-
-static lorieScreenInfo lorieScreen = {
-        .width = 1280,
-        .height = 1024,
-};
-
-lorieScreenInfoPtr pvfb = &lorieScreen;
+static lorieScreenInfo lorieScreen = {0};
+static lorieScreenInfoPtr pvfb = &lorieScreen;
 
 static Bool TrueNoop() { return TRUE; }
 static Bool FalseNoop() { return FALSE; }
 static void VoidNoop() {}
+
+static DevPrivateKeyRec loriePixmapPrivateKey;
+typedef struct LoriePixmap* LoriePixmapPtr;
+struct LoriePixmap {
+    struct AHardwareBuffer* buffer;
+    Bool locked;
+};
 
 void
 ddxGiveUp(unused enum ExitCode error) {
@@ -209,22 +208,122 @@ static miPointerScreenFuncRec loriePointerCursorFuncs = {
     .WarpCursor = miPointerWarpCursor
 };
 
-static CARD32 lorieTimerCallback(unused OsTimerPtr timer, unused CARD32 time, void *arg) {
-    if (pvfb->win && pvfb->buf && RegionNotEmpty(DamageRegion(pvfb->pDamage))) {
-        ScreenPtr pScreen = (ScreenPtr) arg;
-        int usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_RARELY;
-        void *data;
+static inline LoriePixmapPtr loriePixmapGetPrivate(PixmapPtr pixmap) {
+    return pixmap && pixmap->devPrivates ? dixLookupPrivate(&pixmap->devPrivates, &loriePixmapPrivateKey) : NULL;
+}
 
-        if (pvfb->locked)
-            AHardwareBuffer_unlock(pvfb->buf, NULL);
+static inline AHardwareBuffer* lorieGetScreenBuffer(ScreenPtr pScreen) {
+    LoriePixmapPtr loriePixmap = pScreen ? (loriePixmapGetPrivate(pScreen->GetScreenPixmap(pScreen))) : NULL;
+    return loriePixmap ? loriePixmap->buffer : NULL;
+}
 
-        pvfb->locked = FALSE;
-        renderer_redraw();
-        pvfb->locked = AHardwareBuffer_lock(pvfb->buf, usage, -1, NULL, &data) == 0;
-        if (pvfb->locked) {
-            pScreen->ModifyPixmapHeader(pScreen->GetScreenPixmap(pScreen), -1, -1, -1, -1, -1, data);
-            DamageEmpty(lorieScreen.pDamage);
+static inline void loriePixmapUnlock(PixmapPtr pixmap) {
+    LoriePixmapPtr loriePixmap = loriePixmapGetPrivate(pixmap);
+    if (!pixmap || !loriePixmap || !loriePixmap->locked)
+        return;
+
+    AHardwareBuffer_unlock(loriePixmap->buffer, NULL);
+    pixmap->drawable.pScreen->ModifyPixmapHeader(pixmap, -1, -1, -1, -1, -1, NULL);
+    loriePixmap->locked = FALSE;
+}
+
+static inline Bool loriePixmapLock(PixmapPtr pixmap) {
+    AHardwareBuffer_Desc desc = {};
+    int usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_RARELY;
+    void *data;
+    LoriePixmapPtr loriePixmap = loriePixmapGetPrivate(pixmap);
+    if (!pixmap || !loriePixmap)
+        return FALSE;
+
+    AHardwareBuffer_describe(loriePixmap->buffer, &desc);
+    loriePixmap->locked = AHardwareBuffer_lock(loriePixmap->buffer, usage, -1, NULL, &data) == 0;
+    if (loriePixmap->locked)
+        pixmap->drawable.pScreen->ModifyPixmapHeader(pixmap, desc.width, desc.height, -1, -1, desc.stride * 4, data);
+
+    return loriePixmap->locked;
+}
+
+static PixmapPtr
+lorieCreatePixmap(ScreenPtr pScreen, int width, int height, int depth, unsigned int hint) {
+    LoriePixmapPtr lPixmap;
+    AHardwareBuffer_Desc desc = {};
+    PixmapPtr pixmap;
+    if (!width || !height || hint != CREATE_PIXMAP_USAGE_BACKING_PIXMAP) {
+        unwrap(pvfb, pScreen, CreatePixmap)
+        // We should check if glamor is enabled
+//        if (glamor_get_screen_private(pScreen))
+//            pixmap = glamor_create_pixmap(pScreen, pScreen->width, pScreen->height, 32, GLAMOR_CREATE_NO_LARGE);
+//        else
+        pixmap = pScreen->CreatePixmap(pScreen, width, height, depth, hint);
+        wrap(pvfb, pScreen, CreatePixmap, lorieCreatePixmap)
+
+        return pixmap;
+    }
+
+    lPixmap = malloc(sizeof(*lPixmap));
+    if (!lPixmap)
+        return NULL;
+
+    pixmap = fbCreatePixmap(pScreen, width, height, depth, hint);
+    if (!pixmap) {
+        free(lPixmap);
+        return NULL;
+    }
+
+    dixSetPrivate(&pixmap->devPrivates, &loriePixmapPrivateKey, lPixmap);
+
+    desc.width = width;
+    desc.height = height;
+    desc.layers = 1;
+    desc.usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN;
+    desc.format = 5; // Corresponds to HAL_PIXEL_FORMAT_BGRA_8888
+
+    // I could use this, but in this case I must swap colours in shader.
+    // desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
+
+    if (AHardwareBuffer_allocate(&desc, &lPixmap->buffer) != 0) {
+        fbDestroyPixmap(pixmap);
+        free(lPixmap);
+        return NULL;
+    }
+
+    loriePixmapLock(pixmap);
+    return pixmap;
+}
+
+static Bool
+lorieDestroyPixmap(PixmapPtr pixmap) {
+    Bool ret;
+    LoriePixmapPtr pmap = loriePixmapGetPrivate(pixmap);
+    ScreenPtr pScreen = pixmap->drawable.pScreen;
+
+    if (pmap && pixmap->refcnt == 1) {
+        loriePixmapUnlock(pixmap);
+        if (pmap->buffer) {
+            AHardwareBuffer_release(pmap->buffer);
+            pmap->buffer = NULL;
         }
+
+        free(pmap);
+    }
+
+    // We are not using fbDestroyPixmap directly since it does not seem to destroy Damage records...
+    // We do not need to destroy damage since subsequent DestroyPixel will destroy it automatically...
+    unwrap(pvfb, pScreen, DestroyPixmap)
+    ret = pScreen->DestroyPixmap(pixmap);
+    wrap(pvfb, pScreen, DestroyPixmap, lorieDestroyPixmap)
+
+    return ret;
+}
+
+static CARD32 lorieTimerCallback(unused OsTimerPtr timer, unused CARD32 time, void *arg) {
+    if (renderer_should_redraw() && RegionNotEmpty(DamageRegion(pvfb->pDamage))) {
+        ScreenPtr pScreen = (ScreenPtr) arg;
+
+        loriePixmapUnlock(pScreen->GetScreenPixmap(pScreen));
+        renderer_redraw();
+        if (loriePixmapLock(pScreen->GetScreenPixmap(pScreen)))
+            DamageEmpty(lorieScreen.pDamage);
     } else if (pvfb->cursorMoved)
         renderer_redraw();
 
@@ -235,11 +334,14 @@ static CARD32 lorieTimerCallback(unused OsTimerPtr timer, unused CARD32 time, vo
 
 static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     Bool ret;
-    pScreen->CreateScreenResources = pvfb->createScreenResources;
+    pScreen->CreateScreenResources = pvfb->CreateScreenResources;
 
     ret = pScreen->CreateScreenResources(pScreen);
     if (!ret)
         return FALSE;
+
+    pScreen->devPrivate =
+            lorieCreatePixmap(pScreen, pScreen->width, pScreen->height, pScreen->rootDepth, CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
 
     pvfb->pDamage = DamageCreate(NULL, NULL, DamageReportNone, TRUE, pScreen, NULL);
     if (!pvfb->pDamage)
@@ -247,20 +349,14 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
 
     DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->pDamage);
     pvfb->pTimer = TimerSet(NULL, 0, 1000 / MAX_FPS, lorieTimerCallback, pScreen);
-    renderer_set_buffer(pvfb->buf);
+    renderer_set_buffer(lorieGetScreenBuffer((pScreen)));
 
     return TRUE;
 }
 
 static Bool
 lorieCloseScreen(ScreenPtr pScreen) {
-    pScreen->CloseScreen = pvfb->closeScreen;
-
-    if (pvfb->win && pvfb->locked) {
-        pScreen->ModifyPixmapHeader(pScreen->GetScreenPixmap(pScreen), -1, -1, -1, -1, -1, NULL);
-        ANativeWindow_unlockAndPost(pvfb->win);
-        pvfb->locked = FALSE;
-    }
+    pScreen->CloseScreen = pvfb->CloseScreen;
 
     /*
      * fb overwrites miCloseScreen, so do this here
@@ -268,58 +364,47 @@ lorieCloseScreen(ScreenPtr pScreen) {
     if (pScreen->devPrivate)
         (*pScreen->DestroyPixmap)(pScreen->devPrivate);
     pScreen->devPrivate = NULL;
-
-    if (pvfb->buf) {
-        AHardwareBuffer_release(pvfb->buf);
-        pvfb->buf = NULL;
-    }
-
-    pvfb->output = NULL;
-    pvfb->crtc = NULL;
     pScreenPtr = NULL;
 
     return pScreen->CloseScreen(pScreen);
 }
 
-static Bool
-lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, CARD32 mmWidth, CARD32 mmHeight) {
-    AHardwareBuffer_Desc desc = {};
-    void* data;
+static int
+lorieSetPixmapVisitWindow(WindowPtr window, void *data) {
+    ScreenPtr screen = window->drawable.pScreen;
 
-    if (width != pvfb->width || height != pvfb->height) {
-        SetRootClip(pScreen, ROOT_CLIP_NONE);
-        DamageEmpty(lorieScreen.pDamage);
-        pScreen->ResizeWindow(pScreen->root, 0, 0, width, height, NULL);
-
-        if (pvfb->buf) {
-            AHardwareBuffer_release(pvfb->buf);
-            pvfb->buf = NULL;
-        }
-
-        desc.width = width;
-        desc.height = height;
-        desc.layers = 1;
-        desc.usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN;
-        desc.format = 5; // Corresponds to HAL_PIXEL_FORMAT_BGRA_8888
-
-        // I could use this, but in this case I must swap colours in shader.
-        // desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
-
-        AHardwareBuffer_allocate(&desc, &pvfb->buf);
-        renderer_set_buffer(pvfb->buf);
-
-        AHardwareBuffer_describe(pvfb->buf, &desc);
-        AHardwareBuffer_lock(pvfb->buf, desc.usage, -1, NULL, &data);
-        pScreen->ModifyPixmapHeader(pScreen->GetScreenPixmap(pScreen), desc.width, desc.height, -1,
-                                    -1, desc.stride * 4, data);
-
-        pvfb->width = pScreen->width = width;
-        pvfb->height = pScreen->height = height;
-        SetRootClip(pScreen, ROOT_CLIP_FULL);
+    if (screen->GetWindowPixmap(window) == data) {
+        screen->SetWindowPixmap(window, screen->GetScreenPixmap(screen));
+        return WT_WALKCHILDREN;
     }
 
-    pScreen->mmWidth = mmWidth;
-    pScreen->mmHeight = mmHeight;
+    return WT_DONTWALKCHILDREN;
+}
+
+static Bool
+lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD32 mmWidth, unused CARD32 mmHeight) {
+    PixmapPtr old_pixmap, new_pixmap;
+    SetRootClip(pScreen, ROOT_CLIP_NONE);
+
+    DamageUnregister(pvfb->pDamage);
+    old_pixmap = pScreen->GetScreenPixmap(pScreen);
+    new_pixmap = pScreen->CreatePixmap(pScreen, width, height, pScreen->rootDepth, CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
+    pScreen->SetScreenPixmap(new_pixmap);
+
+    if (old_pixmap) {
+        TraverseTree(pScreen->root, lorieSetPixmapVisitWindow, old_pixmap);
+        pScreen->DestroyPixmap(old_pixmap);
+    }
+
+    DamageRegister(&pScreen->root->drawable, pvfb->pDamage);
+    DamageEmpty(lorieScreen.pDamage);
+    pScreen->ResizeWindow(pScreen->root, 0, 0, width, height, NULL);
+
+    pScreen->width = width;
+    pScreen->height = height;
+    pScreen->mmWidth = ((double) (width)) * 25.4 / monitorResolution;
+    pScreen->mmHeight = ((double) (height)) * 25.4 / monitorResolution;
+    SetRootClip(pScreen, ROOT_CLIP_FULL);
 
     RRScreenSizeNotify(pScreen);
     update_desktop_dimensions();
@@ -343,41 +428,31 @@ lorieRRGetInfo(unused ScreenPtr pScreen, Rotation *rotations) {
 static Bool
 lorieRandRInit(ScreenPtr pScreen) {
     rrScrPrivPtr pScrPriv;
-#if RANDR_12_INTERFACE
+    RROutputPtr output;
+    RRCrtcPtr crtc;
     RRModePtr mode;
-#endif
 
     if (!RRScreenInit(pScreen))
        return FALSE;
+
     pScrPriv = rrGetScrPriv(pScreen);
     pScrPriv->rrGetInfo = lorieRRGetInfo;
-#if RANDR_12_INTERFACE
     pScrPriv->rrCrtcSet = lorieRRCrtcSet;
     pScrPriv->rrScreenSetSize = lorieRRScreenSetSize;
 
     RRScreenSetSizeRange(pScreen, 1, 1, 32767, 32767);
 
-    mode = lorieCvt(pScreen->width, pScreen->height);
-    if (!mode)
-       return FALSE;
-
-    pvfb->crtc = RRCrtcCreate(pScreen, NULL);
-    if (!pvfb->crtc)
-       return FALSE;
-
-    /* This is to avoid xrandr to complain about the gamma missing */
-    RRCrtcGammaSetSize(pvfb->crtc, 256);
-
-    pvfb->output = RROutputCreate(pScreen, "screen", 6, NULL);
-    if (!pvfb->output)
-       return FALSE;
-    if (!( RROutputSetClones(pvfb->output, NULL, 0)
-        && RROutputSetModes(pvfb->output, &mode, 1, 0)
-        && RROutputSetCrtcs(pvfb->output, &pvfb->crtc, 1)
-        && RROutputSetConnection(pvfb->output, RR_Connected) ))
+    if (FALSE
+        || !(mode = lorieCvt(pScreen->width, pScreen->height))
+        || !(crtc = RRCrtcCreate(pScreen, NULL))
+        || !RRCrtcGammaSetSize(crtc, 256)
+        || !(output = RROutputCreate(pScreen, "screen", 6, NULL))
+        || !RROutputSetClones(output, NULL, 0)
+        || !RROutputSetModes(output, &mode, 1, 0)
+        || !RROutputSetCrtcs(output, &crtc, 1)
+        || !RROutputSetConnection(output, RR_Connected)
+        || !RRCrtcNotify(crtc, mode, 0, 0, RR_Rotate_0, NULL, 1, &output))
         return FALSE;
-    RRCrtcNotify(pvfb->crtc, mode, 0, 0, RR_Rotate_0, NULL, 1, &pvfb->output);
-#endif
     return TRUE;
 }
 
@@ -390,56 +465,27 @@ static Bool resetRootCursor(unused ClientPtr pClient, unused void *closure) {
 
 static Bool
 lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
-    AHardwareBuffer_Desc desc = {};
-    void* data;
-    int ret;
-
     pScreenPtr = pScreen;
 
-    desc.width = pvfb->width;
-    desc.height = pvfb->height;
-    desc.layers = 1;
-    desc.usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN;
-    desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
-
-    AHardwareBuffer_allocate(&desc, &pvfb->buf);
-
-    AHardwareBuffer_describe(pvfb->buf, &desc);
-    AHardwareBuffer_lock(pvfb->buf, desc.usage, -1, NULL, &data);
-    if (!data)
-        return FALSE;
-
-    pvfb->locked = TRUE;
-    miSetVisualTypesAndMasks(24, ((1 << TrueColor) | (1 << DirectColor)), 8, TrueColor, 0xFF0000, 0x00FF00, 0x0000FF);
-    miSetPixmapDepths();
-
-    ret = fbScreenInit(pScreen, data, desc.width, desc.height, monitorResolution, monitorResolution, desc.stride, 32);
-    if (ret)
-        fbPictureInit(pScreen, 0, 0);
-
-    if (!ret)
-        return FALSE;
-
-    if (!lorieRandRInit(pScreen))
-       return FALSE;
-
-    miPointerInitialize(pScreen, &loriePointerSpriteFuncs, &loriePointerCursorFuncs, TRUE);
-
+    miSetZeroLineBias(pScreen, 0);
     pScreen->blackPixel = 0;
     pScreen->whitePixel = 1;
 
-    ret = fbCreateDefColormap(pScreen);
-
-    if (!ret)
+    if (FALSE
+          || !dixRegisterPrivateKey(&loriePixmapPrivateKey, PRIVATE_PIXMAP, 0)
+          || !miSetVisualTypesAndMasks(24, ((1 << TrueColor) | (1 << DirectColor)), 8, TrueColor, 0xFF0000, 0x00FF00, 0x0000FF)
+          || !miSetPixmapDepths()
+          || !fbScreenInit(pScreen, NULL, 1280, 1024, monitorResolution, monitorResolution, 0, 32)
+          || !fbPictureInit(pScreen, 0, 0)
+          || !lorieRandRInit(pScreen)
+          || !miPointerInitialize(pScreen, &loriePointerSpriteFuncs, &loriePointerCursorFuncs, TRUE)
+          || !fbCreateDefColormap(pScreen))
         return FALSE;
 
-    miSetZeroLineBias(pScreen, 0);
-
-    pvfb->createScreenResources = pScreen->CreateScreenResources;
-    pScreen->CreateScreenResources = lorieCreateScreenResources;
-
-    pvfb->closeScreen = pScreen->CloseScreen;
-    pScreen->CloseScreen = lorieCloseScreen;
+    wrap(pvfb, pScreen, CreateScreenResources, lorieCreateScreenResources)
+    wrap(pvfb, pScreen, CreatePixmap, lorieCreatePixmap)
+    wrap(pvfb, pScreen, DestroyPixmap, lorieDestroyPixmap)
+    wrap(pvfb, pScreen, CloseScreen, lorieCloseScreen)
     QueueWorkProc(resetRootCursor, NULL, NULL);
 
     return TRUE;
@@ -452,7 +498,7 @@ Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
     BoxRec box = { .x1 = 0, .y1 = 0, .x2 = pScreen->root->drawable.width, .y2 = pScreen->root->drawable.height};
     pvfb->win = win;
     renderer_set_window(win);
-    renderer_set_buffer(pvfb->buf);
+    renderer_set_buffer(lorieGetScreenBuffer(pScreen));
 
     if (CursorVisible && EnableCursor) {
         int x, y;
@@ -476,13 +522,15 @@ Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
 
 void lorieConfigureNotify(int width, int height) {
     ScreenPtr pScreen = pScreenPtr;
-    if (pvfb->output && width && height) {
+    RROutputPtr output = RRFirstOutput(pScreen);
+
+    if (output && width && height) {
         CARD32 mmWidth, mmHeight;
         RRModePtr mode = lorieCvt(width, height);
         mmWidth = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
         mmHeight = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
-        RROutputSetModes(pvfb->output, &mode, 1, 0);
-        RRCrtcNotify(pvfb->crtc, mode,0, 0,RR_Rotate_0, NULL, 1, &pvfb->output);
+        RROutputSetModes(output, &mode, 1, 0);
+        RRCrtcNotify(RRFirstEnabledCrtc(pScreen), mode,0, 0,RR_Rotate_0, NULL, 1, &output);
         RRScreenSizeSet(pScreen, mode->mode.width, mode->mode.height, mmWidth, mmHeight);
     }
 }

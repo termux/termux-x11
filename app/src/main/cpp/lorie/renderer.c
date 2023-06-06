@@ -387,6 +387,10 @@ static void draw_cursor(void);
 
 float ia = 0;
 
+int renderer_should_redraw(void) {
+    return sfc != EGL_NO_SURFACE;
+}
+
 void renderer_redraw(void) {
     if (!sfc)
         return;

@@ -79,7 +79,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: termux-companion packages
-        path:
+        path: |
           ./app/build/outputs/apk/debug/shell-loader-nightly.apk
           ./app/build/outputs/apk/debug/termux-x11-*-all.deb
           ./app/build/outputs/apk/debug/termux-x11-*-any.pkg.tar.xz

@@ -28,17 +28,15 @@ static int argc = 0;
 static char** argv = NULL;
 extern char *__progname; // NOLINT(bugprone-reserved-identifier)
 
-static char* progname(void) {
-    static char* progname = NULL;
 
-    if (!progname) {
-        progname = strdup(__progname);
-        if (strstr(progname, ":"))
-            strstr(progname, ":")[0] = 0;
-    }
-
-    return progname;
-}
+extern char *xtrans_unix_path_x11;
+extern char *xtrans_unix_dir_x11;
+extern char *xtrans_unix_path_xim;
+extern char *xtrans_unix_dir_xim;
+extern char *xtrans_unix_path_fs;
+extern char *xtrans_unix_dir_fs;
+extern char *xtrans_unix_path_ice;
+extern char *xtrans_unix_dir_ice;
 
 static void* startServer(unused void* cookie) {
     char* envp[] = { NULL };
@@ -63,6 +61,10 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectA
         (*env)->ReleaseStringUTFChars(env, js, pjc);
     }
 
+    // adb sets TMPDIR to /data/local/tmp which is pretty useless.
+    if (getenv("TMPDIR") && !strcmp("/data/local/tmp", getenv("TMPDIR")))
+        unsetenv("TMPDIR");
+
     if (!getenv("TMPDIR")) {
         if (access("/tmp", F_OK) == 0)
             setenv("TMPDIR", "/tmp", 1);
@@ -76,6 +78,21 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectA
         dprintf(2, "%s\n", error);
         return JNI_FALSE;
     }
+
+    {
+        char* path = getenv("TMPDIR");
+
+        asprintf(&xtrans_unix_path_x11, "%s/.X11-unix/X", path);
+        asprintf(&xtrans_unix_dir_x11, "%s/.X11-unix/", path);
+        asprintf(&xtrans_unix_path_xim, "%s/.XIM-unix/XIM", path);
+        asprintf(&xtrans_unix_dir_xim, "%s/.XIM-unix", path);
+        asprintf(&xtrans_unix_path_fs, "%s/.font-unix/fs", path);
+        asprintf(&xtrans_unix_dir_fs, "%s/.font-unix", path);
+        asprintf(&xtrans_unix_path_ice, "%s/.ICE-unix/", path);
+        asprintf(&xtrans_unix_dir_ice, "%s/.ICE-unix", path);
+    }
+
+    __android_log_print(ANDROID_LOG_ERROR, "LorieNative", "Using TMPDIR=\"%s\"", getenv("TMPDIR"));
 
     {
         const char *root_dir = dirname(getenv("TMPDIR"));
@@ -97,8 +114,18 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectA
     }
 
     if (!getenv("XKB_CONFIG_ROOT")) {
+        // chroot case
+        const char *root_dir = dirname(getenv("TMPDIR"));
+        char current_path[1024] = {0};
+        snprintf(current_path, sizeof(current_path), "%s/usr/share/X11/xkb", root_dir);
+        if (access(current_path, F_OK) == 0)
+            setenv("XKB_CONFIG_ROOT", current_path, 1);
+    }
+    if (!getenv("XKB_CONFIG_ROOT")) {
+        // proot case
         if (access("/usr/share/X11/xkb", F_OK) == 0)
             setenv("XKB_CONFIG_ROOT", "/usr/share/X11/xkb", 1);
+        // Termux case
         else if (access("/data/data/com.termux/files/usr/share/X11/xkb", F_OK) == 0)
             setenv("XKB_CONFIG_ROOT", "/data/data/com.termux/files/usr/share/X11/xkb", 1);
     }
@@ -385,7 +412,6 @@ Java_com_termux_x11_MainActivity_setClipboardSyncEnabled(unused JNIEnv* env, unu
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_sendWindowChange(unused JNIEnv* env, unused jobject cls, jint width, jint height, jint framerate) {
     if (conn) {
-//        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client", "Sending window changed: %d %d %d", width, height, dpi);
         xcb_tx11_screen_size_change(conn, width, height, framerate);
         xcb_flush(conn);
     }
@@ -394,7 +420,6 @@ Java_com_termux_x11_MainActivity_sendWindowChange(unused JNIEnv* env, unused job
 JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_sendMouseEvent(unused JNIEnv* env, unused jobject cls, jfloat x, jfloat y, jint which_button, jboolean button_down, jboolean relative) {
     if (conn) {
-        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client", "Sending mouse event: %f %f %d %d %d", x, y, which_button, button_down, relative);
         xcb_tx11_mouse_event(conn, x, y, which_button, button_down, relative); // NOLINT(cppcoreguidelines-narrowing-conversions)
         xcb_flush(conn);
     }
@@ -404,7 +429,6 @@ JNIEXPORT void JNICALL
 Java_com_termux_x11_MainActivity_sendTouchEvent(unused JNIEnv* env, unused jobject cls, jint action, jint id, jint x, jint y) {
     if (conn) {
         if (action >= 0) {
-//            __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client","Sending touch event: %d %d %d %d", action, id, x, y);
             xcb_tx11_touch_event(conn, action, id, x, y); // NOLINT(cppcoreguidelines-narrowing-conversions)
         } else xcb_flush(conn);
     }
@@ -414,7 +438,6 @@ JNIEXPORT jboolean JNICALL
 Java_com_termux_x11_MainActivity_sendKeyEvent(unused JNIEnv* env, unused jobject cls, jint scan_code, jint key_code, jboolean key_down) {
     if (conn) {
         int code = (scan_code) ?: android_to_linux_keycode[key_code];
-//        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client","Sending key event: %d %d %d %s", scan_code, key_code, code, key_down ? "press" : "release");
         xcb_tx11_key_event(conn, code + 8, key_down);
         xcb_flush(conn);
     }
@@ -508,7 +531,7 @@ static void* stderrToLogcatThread(unused void* cookie) {
 }
 
 __attribute__((constructor)) static void init(void) {
-    if (!strcmp("com.termux.x11", progname())) {
+    if (!strcmp("com.termux.x11", __progname)) {
         pthread_t t;
         pthread_create(&t, NULL, stderrToLogcatThread, NULL);
     }

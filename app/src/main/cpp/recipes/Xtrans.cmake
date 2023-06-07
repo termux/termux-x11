@@ -24,21 +24,7 @@ char *xtrans_unix_dir_ice = NULL;
 
 __attribute__((constructor))
 static void init_pathes() {
-    char* path;
-    if (getenv(\"TMPDIR\"))
-        path = getenv(\"TMPDIR\");
-    else if (access(\"/tmp/\", F_OK) == 0)
-        path = \"/tmp\";
-    else if (access(\"/data/data/com.termux/files/\", F_OK) == 0)
-        path = \"/data/data/com.termux/files/usr/tmp\";
-    else if (access(\"/data/data/com.antutu.ABenchMark/files/image/\", F_OK) == 0)
-        path = \"/data/data/com.antutu.ABenchMark/files/image/tmp\";
-    else if (access(\"/data/data/com.ludashi.benchmark/files/image/\", F_OK) == 0)
-        path = \"/data/data/com.ludashi.benchmark/files/image/tmp\";
-    else if (access(\"/data/data/com.eltechs.ed/files/image/\", F_OK) == 0)
-        path = \"/data/data/com.eltechs.ed/files/image/tmp\";
-    else
-        path = \"/tmp\";
+    char* path = getenv(\"TMPDIR\");
 
     asprintf(&xtrans_unix_path_x11, \"%s/.X11-unix/X\", path);
     asprintf(&xtrans_unix_dir_x11, \"%s/.X11-unix/\", path);

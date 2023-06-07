@@ -27,7 +27,6 @@ static int dispatch(ClientPtr client) {
         return BadMatch;
 
     valuator_mask_zero(&mask);
-    __android_log_print(ANDROID_LOG_INFO, "XLorieTrace", "HERE %s %d", __PRETTY_FUNCTION__, __LINE__);
     switch (req->data) {
         case XCB_TX11_QUERY_VERSION: {
             xcb_tx11_query_version_reply_t rep = {
@@ -50,7 +49,7 @@ static int dispatch(ClientPtr client) {
             REQUEST(xcb_tx11_screen_size_change_request_t)
 
             __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "window changed: %d %d", stuff->width, stuff->height);
-            lorieConfigureNotify(stuff->width, stuff->height);
+            lorieConfigureNotify(stuff->width, stuff->height, stuff->framerate);
             return Success;
         }
         case XCB_TX11_TOUCH_EVENT: {

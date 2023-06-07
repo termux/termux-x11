@@ -40,6 +40,8 @@ from The Open Group.
 #endif
 
 #include <stdio.h>
+#include <sys/timerfd.h>
+#include <sys/errno.h>
 #include <libxcvt/libxcvt.h>
 #include <X11/X.h>
 #include <X11/Xos.h>
@@ -67,8 +69,6 @@ from The Open Group.
 #define wrap(priv, real, mem, func) { priv->mem = real->mem; real->mem = func; }
 #define unwrap(priv, real, mem) { real->mem = priv->mem; }
 
-#define MAX_FPS 120
-
 extern DeviceIntPtr lorieMouse, lorieKeyboard;
 extern __GLXprovider androidProvider;
 
@@ -78,16 +78,19 @@ typedef struct {
     CreatePixmapProcPtr CreatePixmap;
     DestroyPixmapProcPtr DestroyPixmap;
 
-    DamagePtr pDamage;
-    OsTimerPtr pTimer;
+    DamagePtr damage;
+    OsTimerPtr redrawTimer;
+    OsTimerPtr fpsTimer;
 
     struct ANativeWindow* win;
     Bool cursorMoved;
+    int timerFd;
 } lorieScreenInfo, *lorieScreenInfoPtr;
 
 ScreenPtr pScreenPtr;
 static lorieScreenInfo lorieScreen = {0};
 static lorieScreenInfoPtr pvfb = &lorieScreen;
+static char *xstartup = NULL;
 
 static Bool TrueNoop() { return TRUE; }
 static Bool FalseNoop() { return FALSE; }
@@ -105,6 +108,18 @@ ddxGiveUp(unused enum ExitCode error) {
     __android_log_print(ANDROID_LOG_ERROR, "Xlorie", "Server stopped");
     ((void(*)(void))0)();
     exit(0);
+}
+
+void
+ddxReady(void) {
+    if (xstartup && serverGeneration == 1 && !fork()) {
+        char DISPLAY[16] = "";
+        sprintf(DISPLAY, ":%s", display);
+        setenv("DISPLAY", DISPLAY, 1);
+        execlp("sh", "sh", "-c", xstartup, NULL);
+        dprintf(2, "Failed to start command `sh -c \"%s\"`: %s\n", xstartup, strerror(errno));
+        abort();
+    }
 }
 
 void
@@ -129,16 +144,28 @@ ddxBeforeReset(void) {
 void
 ddxInputThreadInit(void) {}
 #endif
-void ddxUseMsg(void) {}
-int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) { return 0; }
 
-static RRModePtr lorieCvt(int width, int height) {
+void ddxUseMsg(void) {
+    ErrorF("-xstartup \"command\"    start `command` after server startup\n");
+}
+
+int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
+    if (strcmp(argv[i], "-xstartup") == 0) {  /* -xstartup "command" */
+        CHECK_FOR_REQUIRED_ARGUMENTS(1);
+        xstartup = argv[++i];
+        return 2;
+    }
+
+    return 0;
+}
+
+static RRModePtr lorieCvt(int width, int height, int framerate) {
     struct libxcvt_mode_info *info;
     char name[128];
     xRRModeInfo modeinfo = {0};
     RRModePtr mode;
 
-    info = libxcvt_gen_mode_info(width, height, 60000, 0, 0);
+    info = libxcvt_gen_mode_info(width, height, framerate, 0, 0);
 
     snprintf(name, sizeof name, "%dx%d", info->hdisplay, info->vdisplay);
     modeinfo.nameLength = strlen(name);
@@ -319,20 +346,26 @@ lorieDestroyPixmap(PixmapPtr pixmap) {
     return ret;
 }
 
-static CARD32 lorieTimerCallback(unused OsTimerPtr timer, unused CARD32 time, void *arg) {
-    if (renderer_should_redraw() && RegionNotEmpty(DamageRegion(pvfb->pDamage))) {
+static void lorieTimerCallback(int fd, unused int r, void *arg) {
+    char dummy[8];
+    read(fd, dummy, 8);
+    if (renderer_should_redraw() && RegionNotEmpty(DamageRegion(pvfb->damage))) {
+        int redrawn = FALSE;
         ScreenPtr pScreen = (ScreenPtr) arg;
 
         loriePixmapUnlock(pScreen->GetScreenPixmap(pScreen));
-        renderer_redraw();
-        if (loriePixmapLock(pScreen->GetScreenPixmap(pScreen)))
-            DamageEmpty(lorieScreen.pDamage);
+        redrawn = renderer_redraw();
+        if (loriePixmapLock(pScreen->GetScreenPixmap(pScreen)) && redrawn)
+            DamageEmpty(pvfb->damage);
     } else if (pvfb->cursorMoved)
         renderer_redraw();
 
     pvfb->cursorMoved = FALSE;
+}
 
-    return 1000/MAX_FPS;
+static CARD32 lorieFramecounter(unused OsTimerPtr timer, unused CARD32 time, unused void *arg) {
+    renderer_print_fps(5000);
+    return 5000;
 }
 
 static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
@@ -346,12 +379,13 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     pScreen->devPrivate =
             pScreen->CreatePixmap(pScreen, pScreen->width, pScreen->height, pScreen->rootDepth, CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
 
-    pvfb->pDamage = DamageCreate(NULL, NULL, DamageReportNone, TRUE, pScreen, NULL);
-    if (!pvfb->pDamage)
+    pvfb->damage = DamageCreate(NULL, NULL, DamageReportNone, TRUE, pScreen, NULL);
+    if (!pvfb->damage)
         FatalError("Couldn't setup damage\n");
 
-    DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->pDamage);
-    pvfb->pTimer = TimerSet(NULL, 0, 1000 / MAX_FPS, lorieTimerCallback, pScreen);
+    DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->damage);
+//    pvfb->redrawTimer = TimerSet(NULL, 0, 1000 / MAX_FPS, lorieTimerCallback, pScreen);
+    pvfb->fpsTimer = TimerSet(NULL, 0, 5000, lorieFramecounter, pScreen);
     renderer_set_buffer(lorieGetScreenBuffer((pScreen)));
 
     return TRUE;
@@ -389,7 +423,7 @@ lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD
     PixmapPtr old_pixmap, new_pixmap;
     SetRootClip(pScreen, ROOT_CLIP_NONE);
 
-    DamageUnregister(pvfb->pDamage);
+    DamageUnregister(pvfb->damage);
     old_pixmap = pScreen->GetScreenPixmap(pScreen);
     new_pixmap = pScreen->CreatePixmap(pScreen, width, height, pScreen->rootDepth, CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
     pScreen->SetScreenPixmap(new_pixmap);
@@ -399,8 +433,10 @@ lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD
         pScreen->DestroyPixmap(old_pixmap);
     }
 
-    DamageRegister(&pScreen->root->drawable, pvfb->pDamage);
-    DamageEmpty(lorieScreen.pDamage);
+    renderer_set_buffer(lorieGetScreenBuffer(pScreen));
+
+    DamageRegister(&pScreen->root->drawable, pvfb->damage);
+    DamageEmpty(pvfb->damage);
     pScreen->ResizeWindow(pScreen->root, 0, 0, width, height, NULL);
 
     pScreen->width = width;
@@ -446,7 +482,7 @@ lorieRandRInit(ScreenPtr pScreen) {
     RRScreenSetSizeRange(pScreen, 1, 1, 32767, 32767);
 
     if (FALSE
-        || !(mode = lorieCvt(pScreen->width, pScreen->height))
+        || !(mode = lorieCvt(pScreen->width, pScreen->height, 30))
         || !(crtc = RRCrtcCreate(pScreen, NULL))
         || !RRCrtcGammaSetSize(crtc, 256)
         || !(output = RROutputCreate(pScreen, "screen", 6, NULL))
@@ -468,7 +504,17 @@ static Bool resetRootCursor(unused ClientPtr pClient, unused void *closure) {
 
 static Bool
 lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
+    static int timerFd = -1;
     pScreenPtr = pScreen;
+
+    if (timerFd == -1) {
+        struct itimerspec spec = {0};
+        timerFd = timerfd_create(CLOCK_MONOTONIC,  0);
+        timerfd_settime(timerFd, 0, &spec, NULL);
+    }
+
+    pvfb->timerFd = timerFd;
+    SetNotifyFd(timerFd, lorieTimerCallback, X_NOTIFY_READ, pScreen);
 
     miSetZeroLineBias(pScreen, 0);
     pScreen->blackPixel = 0;
@@ -523,18 +569,25 @@ Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
     return TRUE;
 }
 
-void lorieConfigureNotify(int width, int height) {
+void lorieConfigureNotify(int width, int height, int framerate) {
     ScreenPtr pScreen = pScreenPtr;
     RROutputPtr output = RRFirstOutput(pScreen);
 
     if (output && width && height) {
         CARD32 mmWidth, mmHeight;
-        RRModePtr mode = lorieCvt(width, height);
+        RRModePtr mode = lorieCvt(width, height, framerate);
         mmWidth = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
         mmHeight = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
         RROutputSetModes(output, &mode, 1, 0);
         RRCrtcNotify(RRFirstEnabledCrtc(pScreen), mode,0, 0,RR_Rotate_0, NULL, 1, &output);
         RRScreenSizeSet(pScreen, mode->mode.width, mode->mode.height, mmWidth, mmHeight);
+    }
+
+    if (framerate > 0) {
+        long nsecs = 1000 * 1000 * 1000 / framerate;
+        struct itimerspec spec = { { 0, nsecs }, { 0, nsecs } };
+        timerfd_settime(lorieScreen.timerFd, 0, &spec, NULL);
+        __android_log_print(ANDROID_LOG_VERBOSE, "LorieNative", "New framerate is %d", framerate);
     }
 }
 

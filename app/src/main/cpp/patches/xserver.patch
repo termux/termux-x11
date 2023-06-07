@@ -1,8 +1,33 @@
+diff --git a/dix/main.c b/dix/main.c
+index bfc8addbe..56fb30b63 100644
+--- a/dix/main.c
++++ b/dix/main.c
+@@ -266,6 +266,7 @@ dix_main(int argc, char *argv[], char *envp[])
+         }
+ 
+         NotifyParentProcess();
++        ddxReady();
+ 
+         InputThreadInit();
+ 
+diff --git a/include/os.h b/include/os.h
+index bb3348b18..1a5400717 100644
+--- a/include/os.h
++++ b/include/os.h
+@@ -560,6 +560,8 @@ enum ExitCode {
+ extern _X_EXPORT void
+ ddxGiveUp(enum ExitCode error);
+ extern _X_EXPORT void
++ddxReady(void);
++extern _X_EXPORT void
+ ddxInputThreadInit(void);
+ extern _X_EXPORT int
+ TimeSinceLastInputEvent(void);
 diff --git a/os/osinit.c b/os/osinit.c
-index 8575319..8f87c1b 100644
+index 8575319ff..06c44a416 100644
 --- a/os/osinit.c
 +++ b/os/osinit.c
-@@ -170,7 +170,7 @@ OsInit(void)
+@@ -170,11 +170,11 @@ OsInit(void)
  #endif
  
      if (!been_here) {
@@ -17,7 +42,7 @@ index 8575319..8f87c1b 100644
              SIGSYS,
              SIGXCPU,
 diff --git a/os/utils.c b/os/utils.c
-index 92a66e8..a2e490d 100644
+index 92a66e81a..a2e490dc0 100644
 --- a/os/utils.c
 +++ b/os/utils.c
 @@ -212,6 +212,8 @@ OsSignal(int sig, OsSigHandlerPtr handler)

@@ -448,7 +448,7 @@ add_library(Xlorie SHARED
         "${CMAKE_CURRENT_BINARY_DIR}/tx11.h")
 target_include_directories(Xlorie PRIVATE ${inc} "libxcvt/include" "libxkbcommon/include")
 target_link_options(Xlorie PRIVATE "-Wl,--as-needed" "-Wl,--no-undefined" "-fvisibility=hidden")
-target_link_libraries(Xlorie "-Wl,--whole-archive" ${XSERVER_LIBS} xkbcommon "-Wl,--no-whole-archive" android log m z)
+target_link_libraries(Xlorie "-Wl,--whole-archive" ${XSERVER_LIBS} xkbcommon "-Wl,--no-whole-archive" android log m z EGL GLESv2)
 target_compile_options(Xlorie PRIVATE ${compile_options})
 add_dependencies(Xlorie xkbcomp exec-helper)
 target_apply_patch(Xlorie "${CMAKE_CURRENT_SOURCE_DIR}/xserver" "${CMAKE_CURRENT_SOURCE_DIR}/patches/xserver.patch")

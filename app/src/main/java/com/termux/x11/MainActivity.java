@@ -159,6 +159,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
                 int w = width;
                 int h = height;
+                int framerate = (int) getDisplay().getRefreshRate();
                 switch(preferences.getString("displayResolutionMode", "native")) {
                     case "scaled": {
                         int scale = preferences.getInt("displayScale", 100);
@@ -194,7 +195,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 mInputHandler.handleHostSizeChanged(width, height);
                 mInputHandler.handleClientSizeChanged(w, h);
 
-                sendWindowChange(w, h);
+                sendWindowChange(w, h, framerate);
 
                 if (service != null) {
                     try {
@@ -662,7 +663,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private native void handleXEvents();
     private native void startLogcat(int fd);
     private native void setClipboardSyncEnabled(boolean enabled);
-    private native void sendWindowChange(int width, int height);
+    private native void sendWindowChange(int width, int height, int framerate);
     public native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
     public native void sendTouchEvent(int action, int id, int x, int y);
     public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);

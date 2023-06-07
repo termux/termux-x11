@@ -27,7 +27,8 @@ maybe_unused void renderer_set_window(EGLNativeWindowType native_window);
 maybe_unused void renderer_upload(int w, int h, void* data);
 maybe_unused void renderer_update_rects(int width, int height, pixman_box16_t *rects, int amount, void* data);
 maybe_unused int renderer_should_redraw(void);
-maybe_unused void renderer_redraw(void);
+maybe_unused int renderer_redraw(void);
+maybe_unused void renderer_print_fps(float millis);
 
 maybe_unused void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data);
 maybe_unused void renderer_set_cursor_coordinates(int x, int y);

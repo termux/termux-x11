@@ -34,6 +34,7 @@
   <request name="ScreenSizeChange" opcode="1">
     <field type="CARD16" name="width" />
     <field type="CARD16" name="height" />
+    <field type="CARD16" name="framerate" />
   </request>
 
   <request name="TouchEvent" opcode="2">

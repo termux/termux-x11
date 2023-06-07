@@ -111,7 +111,6 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectA
     }
 
     wai_getModulePath(lib, sizeof(lib), NULL);
-    setenv("LIBGL_DRIVERS_PATH", dirname(lib), 1);
 
     XkbBaseDirectory = getenv("XKB_CONFIG_ROOT");
     if (access(XkbBaseDirectory, F_OK) != 0) {
@@ -384,10 +383,10 @@ Java_com_termux_x11_MainActivity_setClipboardSyncEnabled(unused JNIEnv* env, unu
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_sendWindowChange(unused JNIEnv* env, unused jobject cls, jint width, jint height) {
+Java_com_termux_x11_MainActivity_sendWindowChange(unused JNIEnv* env, unused jobject cls, jint width, jint height, jint framerate) {
     if (conn) {
 //        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client", "Sending window changed: %d %d %d", width, height, dpi);
-        xcb_tx11_screen_size_change(conn, width, height);
+        xcb_tx11_screen_size_change(conn, width, height, framerate);
         xcb_flush(conn);
     }
 }

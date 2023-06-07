@@ -36,7 +36,16 @@ You can start your desired graphical application by doing:
 ~ $ termux-x11 :1 &
 ~ $ env DISPLAY=:1 dbus-launch --exit-with-session xfce4-session
 ```
+or
+```
+~ $ termux-x11 :1 -xstartup "dbus-launch --exit-with-session xfce4-session"
+```
 You may replace `xfce4-session` if you use other than Xfce
+
+`dbus-launch` does not work for some users so you can start session with
+```
+~ $ termux-x11 :1 -xstartup "xfce4-session"
+```
 
 If you're done using Termux:X11 just simply exit it through it's notification drawer by expanding the Termux:X11 notification then "Exit"
 But you should pay attention that `termux-x11` command is still running and can not be killed this way.

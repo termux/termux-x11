@@ -17,75 +17,6 @@
 #include "renderer.h"
 #include "os.h"
 
-// We can not link both mesa's GL and Android's GLES without interfering.
-// That is the only way to do this without creating linker namespaces.
-
-#define eglFunctions(a, m)             \
-m(a, eglGetDisplay)                    \
-m(a, eglGetError)                      \
-m(a, eglInitialize)                    \
-m(a, eglChooseConfig)                  \
-m(a, eglBindAPI)                       \
-m(a, eglCreateContext)                 \
-m(a, eglMakeCurrent)                   \
-m(a, eglSwapInterval)                  \
-m(a, eglDestroySurface)                \
-m(a, eglGetNativeClientBufferANDROID)  \
-m(a, eglCreateImageKHR)                \
-m(a, eglDestroyImageKHR)               \
-m(a, eglCreateWindowSurface)           \
-m(a, eglSwapBuffers)
-
-#define glFunctions(a, m)              \
-m(a, glGetError)                       \
-m(a, glCreateShader)                   \
-m(a, glShaderSource)                   \
-m(a, glCompileShader)                  \
-m(a, glGetShaderiv)                    \
-m(a, glGetShaderInfoLog)               \
-m(a, glDeleteShader)                   \
-m(a, glCreateProgram)                  \
-m(a, glAttachShader)                   \
-m(a, glLinkProgram)                    \
-m(a, glGetProgramiv)                   \
-m(a, glGetProgramInfoLog)              \
-m(a, glDeleteProgram)                  \
-m(a, glActiveTexture)                  \
-m(a, glUseProgram)                     \
-m(a, glBindTexture)                    \
-m(a, glVertexAttribPointer)            \
-m(a, glEnableVertexAttribArray)        \
-m(a, glDrawArrays)                     \
-m(a, glEnable)                         \
-m(a, glBlendFunc)                      \
-m(a, glDisable)                        \
-m(a, glGetAttribLocation)              \
-m(a, glGenTextures)                    \
-m(a, glViewport)                       \
-m(a, glClearColor)                     \
-m(a, glClear)                          \
-m(a, glTexParameteri)                  \
-m(a, glTexImage2D)                     \
-m(a, glTexSubImage2D)                  \
-m(a, glEGLImageTargetTexture2DOES)
-
-#define defineFuncPointer(a, name) static __typeof__(name)* $##name = NULL;
-#define SYMBOL(lib, name) $ ## name = dlsym(lib, #name);
-
-eglFunctions(0, defineFuncPointer)
-glFunctions(0, defineFuncPointer)
-
-static void init(void) {
-    void *libEGL, *libGLESv2;
-    if ($eglGetDisplay)
-        return;
-    libEGL = dlopen("libEGL.so", RTLD_NOW);
-    libGLESv2 = dlopen("libGLESv2.so", RTLD_NOW);
-
-    eglFunctions(libEGL, SYMBOL)
-    glFunctions(libGLESv2, SYMBOL)
-}
-
 //#define log(...) logMessage(X_ERROR, -1, __VA_ARGS__)
 #define log(...) __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", __VA_ARGS__)
 
@@ -93,7 +24,7 @@ static GLuint create_program(const char* p_vertex_source, const char* p_fragment
 
 static void eglCheckError(int line) {
     char* desc;
-    switch($eglGetError()) {
+    switch(eglGetError()) {
 #define E(code, text) case code: desc = (char*) text; break
         case EGL_SUCCESS: desc = NULL; // "No error"
         E(EGL_NOT_INITIALIZED, "EGL not initialized or failed to initialize");
@@ -121,7 +52,7 @@ static void eglCheckError(int line) {
 static void checkGlError(int line) {
     GLenum error;
     char *desc = NULL;
-    for (error = $glGetError(); error; error = $glGetError()) {
+    for (error = glGetError(); error; error = glGetError()) {
         switch (error) {
 #define E(code) case code: desc = (char*)#code; break
             E(GL_INVALID_ENUM);
@@ -166,6 +97,7 @@ static EGLSurface sfc = EGL_NO_SURFACE;
 static EGLConfig cfg = 0;
 static EGLNativeWindowType win = 0;
 static EGLImageKHR image = NULL;
+static int renderedFrames = 0;
 
 static struct {
     GLuint id;
@@ -196,32 +128,31 @@ int renderer_init(void) {
 
     if (ctx)
         return 1;
-    init();
 
-    egl_display = $eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     eglCheckError(__LINE__);
     if (egl_display == EGL_NO_DISPLAY) {
         log("Xlorie: Got no EGL display.\n");
         return 0;
     }
 
-    if ($eglInitialize(egl_display, &major, &minor) != EGL_TRUE) {
+    if (eglInitialize(egl_display, &major, &minor) != EGL_TRUE) {
         log("Xlorie: Unable to initialize EGL\n");
         return 0;
     }
     log("Xlorie: Initialized EGL version %d.%d\n", major, minor);
     eglCheckError(__LINE__);
 
-    if ($eglChooseConfig(egl_display, configAttribs, &cfg, 1, &numConfigs) != EGL_TRUE) {
+    if (eglChooseConfig(egl_display, configAttribs, &cfg, 1, &numConfigs) != EGL_TRUE) {
         log("Xlorie: eglChooseConfig failed.\n");
         eglCheckError(__LINE__);
         return 0;
     }
 
-    $eglBindAPI(EGL_OPENGL_ES_API);
+    eglBindAPI(EGL_OPENGL_ES_API);
     eglCheckError(__LINE__);
 
-    ctx = $eglCreateContext(egl_display, cfg, NULL, ctxattribs);
+    ctx = eglCreateContext(egl_display, cfg, NULL, ctxattribs);
     eglCheckError(__LINE__);
     if (ctx == EGL_NO_CONTEXT) {
         log("Xlorie: eglCreateContext failed.\n");
@@ -229,7 +160,7 @@ int renderer_init(void) {
         return 0;
     }
 
-    if ($eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE) {
+    if (eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE) {
         log("Xlorie: eglMakeCurrent failed.\n");
         eglCheckError(__LINE__);
         return 0;
@@ -245,28 +176,28 @@ void renderer_set_buffer(AHardwareBuffer* buffer) {
     AHardwareBuffer_Desc desc = {0};
     __android_log_print(ANDROID_LOG_DEBUG, "XlorieTest2", "renderer_set_buffer0");
     if (image)
-        $eglDestroyImageKHR(egl_display, image);
+        eglDestroyImageKHR(egl_display, image);
 
-    $glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
+    glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
     if (buffer) {
         AHardwareBuffer_describe(buffer, &desc);
 
         display.width = (float) desc.width;
         display.height = (float) desc.height;
 
-        clientBuffer = $eglGetNativeClientBufferANDROID(buffer); eglCheckError(__LINE__);
-        image = clientBuffer ? $eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes) : NULL;
+        clientBuffer = eglGetNativeClientBufferANDROID(buffer); eglCheckError(__LINE__);
+        image = clientBuffer ? eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes) : NULL;
         eglCheckError(__LINE__);
         if (clientBuffer) {
-            $glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image); checkGlError();
+            glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image); checkGlError();
         }
     } else {
         uint32_t data = {0};
-        $glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data); checkGlError();
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data); checkGlError();
     }
     renderer_redraw();
 
@@ -279,12 +210,12 @@ void renderer_set_window(EGLNativeWindowType window) {
         return;
 
     if (sfc != EGL_NO_SURFACE) {
-        if ($eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE) {
+        if (eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE) {
             log("Xlorie: eglMakeCurrent (EGL_NO_SURFACE) failed.\n");
             eglCheckError(__LINE__);
             return;
         }
-        if ($eglDestroySurface(egl_display, sfc) != EGL_TRUE) {
+        if (eglDestroySurface(egl_display, sfc) != EGL_TRUE) {
             log("Xlorie: eglDestoySurface failed.\n");
             eglCheckError(__LINE__);
             return;
@@ -295,19 +226,22 @@ void renderer_set_window(EGLNativeWindowType window) {
         ANativeWindow_release(win);
     win = window;
 
+    if (!win)
+        return;
+
     ANativeWindow_setBuffersGeometry(win,
             ANativeWindow_getWidth(win),
             ANativeWindow_getHeight(win),
             AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM);
 
-    sfc = $eglCreateWindowSurface(egl_display, cfg, win, NULL);
+    sfc = eglCreateWindowSurface(egl_display, cfg, win, NULL);
     if (sfc == EGL_NO_SURFACE) {
         log("Xlorie: eglCreateWindowSurface failed.\n");
         eglCheckError(__LINE__);
         return;
     }
 
-    if ($eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE) {
+    if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE) {
         log("Xlorie: eglMakeCurrent failed.\n");
         eglCheckError(__LINE__);
         return;
@@ -321,39 +255,39 @@ void renderer_set_window(EGLNativeWindowType window) {
             return;
         }
 
-        gv_pos = (GLuint) $glGetAttribLocation(g_texture_program, "position"); checkGlError();
-        gv_coords = (GLuint) $glGetAttribLocation(g_texture_program, "texCoords"); checkGlError();
+        gv_pos = (GLuint) glGetAttribLocation(g_texture_program, "position"); checkGlError();
+        gv_coords = (GLuint) glGetAttribLocation(g_texture_program, "texCoords"); checkGlError();
 
-        $glActiveTexture(GL_TEXTURE0); checkGlError();
-        $glGenTextures(1, &display.id); checkGlError();
-        $glGenTextures(1, &cursor.id); checkGlError();
+        glActiveTexture(GL_TEXTURE0); checkGlError();
+        glGenTextures(1, &display.id); checkGlError();
+        glGenTextures(1, &cursor.id); checkGlError();
     }
 
-    $eglSwapInterval(egl_display, 0);
+    eglSwapInterval(egl_display, 0);
 
     if (win && ctx && ANativeWindow_getWidth(win) && ANativeWindow_getHeight(win))
-        $glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win)); checkGlError();
+        glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win)); checkGlError();
 
     log("Xlorie: new surface applied: %p\n", sfc);
 
     if (!sfc)
         return;
 
-    $glClearColor(1.f, 0.f, 0.f, 0.0f); checkGlError();
-    $glClear(GL_COLOR_BUFFER_BIT); checkGlError();
+    glClearColor(1.f, 0.f, 0.f, 0.0f); checkGlError();
+    glClear(GL_COLOR_BUFFER_BIT); checkGlError();
     renderer_redraw();
 }
 
 maybe_unused void renderer_upload(int w, int h, void* data) {
     display.width = (float) w;
     display.height = (float) h;
-    $glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
+    glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
 
-    $glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data); checkGlError();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data); checkGlError();
 }
 
 maybe_unused void renderer_update_rects(int width, maybe_unused int height, pixman_box16_t *rects, int amount, void* data) {
@@ -361,17 +295,17 @@ maybe_unused void renderer_update_rects(int width, maybe_unused int height, pixm
     uint32_t* d;
     display.width = (float) width;
     display.height = (float) height;
-    $glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
+    glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
 
     for (i = 0; i < amount; i++)
         for (j = rects[i].y1; j < rects[i].y2; j++) {
             d = &((uint32_t*)data)[width * j + rects[i].x1];
             w = rects[i].x2 - rects[i].x1;
-            $glTexSubImage2D(GL_TEXTURE_2D, 0, rects[i].x1, j, w, 1, GL_RGBA, GL_UNSIGNED_BYTE, d); checkGlError();
+            glTexSubImage2D(GL_TEXTURE_2D, 0, rects[i].x1, j, w, 1, GL_RGBA, GL_UNSIGNED_BYTE, d); checkGlError();
         }
 }
 
@@ -382,13 +316,13 @@ void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data) {
     cursor.xhot = (float) xhot;
     cursor.yhot = (float) yhot;
 
-    $glBindTexture(GL_TEXTURE_2D, cursor.id); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
-    $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
+    glBindTexture(GL_TEXTURE_2D, cursor.id); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
 
-    $glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data); checkGlError();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data); checkGlError();
 }
 
 void renderer_set_cursor_coordinates(int x, int y) {
@@ -405,33 +339,45 @@ int renderer_should_redraw(void) {
     return sfc != EGL_NO_SURFACE;
 }
 
-void renderer_redraw(void) {
+int renderer_redraw(void) {
     if (!sfc)
-        return;
+        return FALSE;
 
     draw(display.id,  -1.f, -1.f, 1.f, 1.f);
     draw_cursor();
-    $eglSwapBuffers(egl_display, sfc); checkGlError();
+    eglSwapBuffers(egl_display, sfc); checkGlError();
+    if (eglGetError() == EGL_SUCCESS) {
+        renderedFrames++;
+        return TRUE;
+    } else
+        return FALSE;
+}
+
+void renderer_print_fps(float millis) {
+    if (renderedFrames)
+        __android_log_print(ANDROID_LOG_VERBOSE, "LorieNative", "%d frames in %.1f seconds = %.1f FPS",
+                                renderedFrames, millis / 1000, (float) renderedFrames *  1000 / millis);
+    renderedFrames = 0;
 }
 
 static GLuint load_shader(GLenum shaderType, const char* pSource) {
     GLint compiled = 0;
-    GLuint shader = $glCreateShader(shaderType); checkGlError();
+    GLuint shader = glCreateShader(shaderType); checkGlError();
     if (shader) {
-        $glShaderSource(shader, 1, &pSource, NULL); checkGlError();
-        $glCompileShader(shader); checkGlError();
-        $glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled); checkGlError();
+        glShaderSource(shader, 1, &pSource, NULL); checkGlError();
+        glCompileShader(shader); checkGlError();
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled); checkGlError();
         if (!compiled) {
             GLint infoLen = 0;
-            $glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen); checkGlError();
+            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen); checkGlError();
             if (infoLen) {
                 char* buf = (char*) malloc(infoLen);
                 if (buf) {
-                    $glGetShaderInfoLog(shader, infoLen, NULL, buf); checkGlError();
+                    glGetShaderInfoLog(shader, infoLen, NULL, buf); checkGlError();
                     log("Xlorie: Could not compile shader %d:\n%s\n", shaderType, buf);
                     free(buf);
                 }
-                $glDeleteShader(shader); checkGlError();
+                glDeleteShader(shader); checkGlError();
                 shader = 0;
             }
         }
@@ -448,24 +394,24 @@ static GLuint create_program(const char* p_vertex_source, const char* p_fragment
         return 0;
     }
 
-    program = $glCreateProgram(); checkGlError();
+    program = glCreateProgram(); checkGlError();
     if (program) {
-        $glAttachShader(program, vertexShader); checkGlError();
-        $glAttachShader(program, pixelShader); checkGlError();
-        $glLinkProgram(program); checkGlError();
-        $glGetProgramiv(program, GL_LINK_STATUS, &linkStatus); checkGlError();
+        glAttachShader(program, vertexShader); checkGlError();
+        glAttachShader(program, pixelShader); checkGlError();
+        glLinkProgram(program); checkGlError();
+        glGetProgramiv(program, GL_LINK_STATUS, &linkStatus); checkGlError();
         if (linkStatus != GL_TRUE) {
             GLint bufLength = 0;
-            $glGetProgramiv(program, GL_INFO_LOG_LENGTH, &bufLength); checkGlError();
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &bufLength); checkGlError();
             if (bufLength) {
                 char* buf = (char*) malloc(bufLength);
                 if (buf) {
-                    $glGetProgramInfoLog(program, bufLength, NULL, buf); checkGlError();
+                    glGetProgramInfoLog(program, bufLength, NULL, buf); checkGlError();
                     log("Xlorie: Could not link program:\n%s\n", buf);
                     free(buf);
                 }
             }
-            $glDeleteProgram(program); checkGlError();
+            glDeleteProgram(program); checkGlError();
             program = 0;
         }
     }
@@ -480,15 +426,15 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1) {
         x1, -y1, 0.f, 1.f, 1.f,
     };
 
-    $glActiveTexture(GL_TEXTURE0); checkGlError();
-    $glUseProgram(g_texture_program); checkGlError();
-    $glBindTexture(GL_TEXTURE_2D, id); checkGlError();
+    glActiveTexture(GL_TEXTURE0); checkGlError();
+    glUseProgram(g_texture_program); checkGlError();
+    glBindTexture(GL_TEXTURE_2D, id); checkGlError();
 
-    $glVertexAttribPointer(gv_pos, 3, GL_FLOAT, GL_FALSE, 20, coords); checkGlError();
-    $glVertexAttribPointer(gv_coords, 2, GL_FLOAT, GL_FALSE, 20, &coords[3]); checkGlError();
-    $glEnableVertexAttribArray(gv_pos); checkGlError();
-    $glEnableVertexAttribArray(gv_coords); checkGlError();
-    $glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); checkGlError();
+    glVertexAttribPointer(gv_pos, 3, GL_FLOAT, GL_FALSE, 20, coords); checkGlError();
+    glVertexAttribPointer(gv_coords, 2, GL_FLOAT, GL_FALSE, 20, &coords[3]); checkGlError();
+    glEnableVertexAttribArray(gv_pos); checkGlError();
+    glEnableVertexAttribArray(gv_coords); checkGlError();
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); checkGlError();
 }
 
 maybe_unused static void draw_cursor(void) {
@@ -497,9 +443,9 @@ maybe_unused static void draw_cursor(void) {
     y = 2.f * (cursor.y - cursor.yhot) / display.height - 1.f;
     w = 2.f * cursor.width / display.width;
     h = 2.f * cursor.height / display.height;
-    $glEnable(GL_BLEND); checkGlError();
-    $glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); checkGlError();
+    glEnable(GL_BLEND); checkGlError();
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); checkGlError();
     draw(cursor.id, x, y, x + w, y + h);
-    $glDisable(GL_BLEND); checkGlError();
+    glDisable(GL_BLEND); checkGlError();
 }
 

@@ -7,6 +7,9 @@
 #define maybe_unused __attribute__((__unused__))
 #endif
 
+#define TICK(X) clock_t X ## _clock = clock()
+#define TOCK(X) printf("time %s: %.6f sec.\n", (#X), (double)(clock() - (X ## _clock)) / CLOCKS_PER_SEC)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -16,7 +19,6 @@ extern "C" {
 // In that case part of X server's api is unavailable,
 // so we should pass addresses to all needed functions to the renderer lib.
 typedef void (*renderer_message_func_type) (int type, int verb, const char *format, ...);
-
 maybe_unused void renderer_message_func(renderer_message_func_type function);
 
 maybe_unused int renderer_init(void);

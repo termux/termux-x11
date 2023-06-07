@@ -157,7 +157,7 @@ static const char fragment_shader[] =
     "varying vec2 outTexCoords;\n"
     "uniform sampler2D texture;\n"
     "void main(void) {\n"
-    "   gl_FragColor = texture2D(texture, outTexCoords);\n"
+    "   gl_FragColor = texture2D(texture, outTexCoords).bgra;\n"
     "}\n";
 
 static EGLDisplay egl_display = EGL_NO_DISPLAY;
@@ -229,26 +229,12 @@ int renderer_init(void) {
         return 0;
     }
 
-    if ($eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx) != EGL_TRUE) {
+    if ($eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE) {
         log("Xlorie: eglMakeCurrent failed.\n");
         eglCheckError(__LINE__);
         return 0;
     }
     eglCheckError(__LINE__);
-
-    g_texture_program = create_program(vertex_shader, fragment_shader);
-    if (!g_texture_program) {
-        log("Xlorie: GLESv2: Unable to create shader program.\n");
-        eglCheckError(__LINE__);
-        return 1;
-    }
-
-    gv_pos = (GLuint) $glGetAttribLocation(g_texture_program, "position"); checkGlError();
-    gv_coords = (GLuint) $glGetAttribLocation(g_texture_program, "texCoords"); checkGlError();
-
-    $glActiveTexture(GL_TEXTURE0); checkGlError();
-    $glGenTextures(1, &display.id); checkGlError();
-    $glGenTextures(1, &cursor.id); checkGlError();
 
     return 1;
 }
@@ -256,28 +242,35 @@ int renderer_init(void) {
 void renderer_set_buffer(AHardwareBuffer* buffer) {
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     EGLClientBuffer clientBuffer;
-    AHardwareBuffer_Desc desc;
+    AHardwareBuffer_Desc desc = {0};
     __android_log_print(ANDROID_LOG_DEBUG, "XlorieTest2", "renderer_set_buffer0");
     if (image)
         $eglDestroyImageKHR(egl_display, image);
-
-    AHardwareBuffer_describe(buffer, &desc);
-
-    display.width = (float) desc.width;
-    display.height = (float) desc.height;
-
-    clientBuffer = $eglGetNativeClientBufferANDROID(buffer); eglCheckError(__LINE__);
-    image = $eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes); eglCheckError(__LINE__);
 
     $glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
     $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); checkGlError();
     $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); checkGlError();
     $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
     $glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
-    $glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image); checkGlError();
+    if (buffer) {
+        AHardwareBuffer_describe(buffer, &desc);
+
+        display.width = (float) desc.width;
+        display.height = (float) desc.height;
+
+        clientBuffer = $eglGetNativeClientBufferANDROID(buffer); eglCheckError(__LINE__);
+        image = clientBuffer ? $eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes) : NULL;
+        eglCheckError(__LINE__);
+        if (clientBuffer) {
+            $glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image); checkGlError();
+        }
+    } else {
+        uint32_t data = {0};
+        $glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data); checkGlError();
+    }
     renderer_redraw();
 
-    __android_log_print(ANDROID_LOG_DEBUG, "XlorieTest2", "renderer_set_buffer %d %d", desc.width, desc.height);
+    __android_log_print(ANDROID_LOG_DEBUG, "XlorieTest2", "renderer_set_buffer %p %d %d", buffer, desc.width, desc.height);
 }
 
 void renderer_set_window(EGLNativeWindowType window) {
@@ -302,6 +295,11 @@ void renderer_set_window(EGLNativeWindowType window) {
         ANativeWindow_release(win);
     win = window;
 
+    ANativeWindow_setBuffersGeometry(win,
+            ANativeWindow_getWidth(win),
+            ANativeWindow_getHeight(win),
+            AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM);
+
     sfc = $eglCreateWindowSurface(egl_display, cfg, win, NULL);
     if (sfc == EGL_NO_SURFACE) {
         log("Xlorie: eglCreateWindowSurface failed.\n");
@@ -313,6 +311,22 @@ void renderer_set_window(EGLNativeWindowType window) {
         log("Xlorie: eglMakeCurrent failed.\n");
         eglCheckError(__LINE__);
         return;
+    }
+
+    if (sfc && !g_texture_program) {
+        g_texture_program = create_program(vertex_shader, fragment_shader);
+        if (!g_texture_program) {
+            log("Xlorie: GLESv2: Unable to create shader program.\n");
+            eglCheckError(__LINE__);
+            return;
+        }
+
+        gv_pos = (GLuint) $glGetAttribLocation(g_texture_program, "position"); checkGlError();
+        gv_coords = (GLuint) $glGetAttribLocation(g_texture_program, "texCoords"); checkGlError();
+
+        $glActiveTexture(GL_TEXTURE0); checkGlError();
+        $glGenTextures(1, &display.id); checkGlError();
+        $glGenTextures(1, &cursor.id); checkGlError();
     }
 
     $eglSwapInterval(egl_display, 0);

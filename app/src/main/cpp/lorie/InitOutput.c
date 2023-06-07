@@ -229,16 +229,19 @@ static inline void loriePixmapUnlock(PixmapPtr pixmap) {
 
 static inline Bool loriePixmapLock(PixmapPtr pixmap) {
     AHardwareBuffer_Desc desc = {};
-    int usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_RARELY;
     void *data;
+    int status;
     LoriePixmapPtr loriePixmap = loriePixmapGetPrivate(pixmap);
     if (!pixmap || !loriePixmap)
         return FALSE;
 
     AHardwareBuffer_describe(loriePixmap->buffer, &desc);
-    loriePixmap->locked = AHardwareBuffer_lock(loriePixmap->buffer, usage, -1, NULL, &data) == 0;
+    status = AHardwareBuffer_lock(loriePixmap->buffer, desc.usage, -1, NULL, &data);
+    loriePixmap->locked = status == 0;
     if (loriePixmap->locked)
         pixmap->drawable.pScreen->ModifyPixmapHeader(pixmap, desc.width, desc.height, -1, -1, desc.stride * 4, data);
+    else
+        FatalError("Failed to lock surface: %d\n", status);
 
     return loriePixmap->locked;
 }
@@ -275,11 +278,11 @@ lorieCreatePixmap(ScreenPtr pScreen, int width, int height, int depth, unsigned 
     desc.width = width;
     desc.height = height;
     desc.layers = 1;
-    desc.usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN;
-    desc.format = 5; // Corresponds to HAL_PIXEL_FORMAT_BGRA_8888
+    desc.usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_RARELY;
+//    desc.format = 5; // Corresponds to HAL_PIXEL_FORMAT_BGRA_8888
 
     // I could use this, but in this case I must swap colours in shader.
-    // desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
+     desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
 
     if (AHardwareBuffer_allocate(&desc, &lPixmap->buffer) != 0) {
         fbDestroyPixmap(pixmap);
@@ -341,7 +344,7 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
         return FALSE;
 
     pScreen->devPrivate =
-            lorieCreatePixmap(pScreen, pScreen->width, pScreen->height, pScreen->rootDepth, CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
+            pScreen->CreatePixmap(pScreen, pScreen->width, pScreen->height, pScreen->rootDepth, CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
 
     pvfb->pDamage = DamageCreate(NULL, NULL, DamageReportNone, TRUE, pScreen, NULL);
     if (!pvfb->pDamage)

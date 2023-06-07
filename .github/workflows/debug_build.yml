@@ -48,19 +48,19 @@ jobs:
     - name: Store app-arm64-v8a-debug
       uses: actions/upload-artifact@v3
       with:
-        name: termux-x11-arm64-v8a-debug
-        path: ./app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
-        name: termux-x11-armeabi-v7a-debug
-        path: ./app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk
-        name: termux-x11-universal-debug
-        path: ./app/build/outputs/apk/debug/app-universal-debug.apk
-        name: termux-x11-x86_64-debug
-        path: ./app/build/outputs/apk/debug/app-x86_64-debug.apk
-        name: termux-x11-x86-debug
-        path: ./app/build/outputs/apk/debug/app-x86-debug.apk
-        name: termux-companion packages
-        paths:
-          - ./app/build/outputs/apk/debug/shell-loader-nightly.apk,
-          - ./app/build/outputs/apk/debug/termux-x11-1.02.07-0-all.deb,
-          - ./app/build/outputs/apk/debug/termux-x11-1.02.07-0-any.pkg.tar.xz
+        - name: termux-x11-arm64-v8a-debug
+          path: ./app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+        - name: termux-x11-armeabi-v7a-debug
+          path: ./app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk
+        - name: termux-x11-universal-debug
+          path: ./app/build/outputs/apk/debug/app-universal-debug.apk
+        - name: termux-x11-x86_64-debug
+          path: ./app/build/outputs/apk/debug/app-x86_64-debug.apk
+        - name: termux-x11-x86-debug
+          path: ./app/build/outputs/apk/debug/app-x86-debug.apk
+        - name: termux-companion packages
+          paths:
+            - ./app/build/outputs/apk/debug/shell-loader-nightly.apk,
+            - ./app/build/outputs/apk/debug/termux-x11-1.02.07-0-all.deb,
+            - ./app/build/outputs/apk/debug/termux-x11-1.02.07-0-any.pkg.tar.xz
         

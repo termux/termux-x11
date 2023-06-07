@@ -80,7 +80,7 @@ jobs:
       with:
         name: termux-companion packages
         path: |
-          ./app/build/outputs/apk/debug/shell-loader-nightly.apk
-          ./app/build/outputs/apk/debug/termux-x11-1.02.07-0-all.deb
+          ./app/build/outputs/apk/debug/shell-loader-nightly.apk |
+          ./app/build/outputs/apk/debug/termux-x11-1.02.07-0-all.deb |
           ./app/build/outputs/apk/debug/termux-x11-1.02.07-0-any.pkg.tar.xz
         

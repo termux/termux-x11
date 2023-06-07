@@ -247,6 +247,7 @@ public class LoriePreferences extends AppCompatActivity {
             }
 
             Intent intent = new Intent(ACTION_PREFERENCES_CHANGED);
+            intent.putExtra("key", key);
             intent.setPackage("com.termux.x11");
             requireContext().sendBroadcast(intent);
 

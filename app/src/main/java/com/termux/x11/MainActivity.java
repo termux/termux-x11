@@ -127,7 +127,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         SurfaceView lorieView = findViewById(R.id.lorieView);
 
-        mInputHandler = new TouchInputHandler(this, new RenderStub.NullStub(), new InputEventSender(this));
+        mInputHandler = new TouchInputHandler(this, new RenderStub.NullStub() {
+            @Override
+            public void swipeDown() {
+                toggleExtraKeys();
+                findViewById(R.id.lorieView).requestFocus();
+            }
+        }, new InputEventSender(this));
         mLorieKeyListener = (v, k, e) -> {
             if (k == KeyEvent.KEYCODE_VOLUME_DOWN && preferences.getBoolean("hideEKOnVolDown", false)) {
                 if (e.getAction() == KeyEvent.ACTION_UP) {
@@ -249,7 +255,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 } else if (ACTION_STOP.equals(intent.getAction())) {
                     finishAffinity();
                 } else if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction())) {
-                    recreate();
+                    Log.d("MainActivity", "preference: " + intent.getStringExtra("key"));
+                    if (!"additionalKbdVisible".equals(intent.getStringExtra("key")))
+                        recreate();
 //                    onPreferencesChanged();
                 }
             }

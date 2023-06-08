@@ -35,7 +35,6 @@ set(test_compile_options
         "-Wnested-externs"
         "-Wbad-function-cast"
         "-Wold-style-definition"
-        "-Wdeclaration-after-statement"
         "-Wunused"
         "-Wuninitialized"
         "-Wshadow"

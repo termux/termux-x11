@@ -18,6 +18,7 @@
 #include <xkbsrv.h>
 #include <errno.h>
 #include <dlfcn.h>
+#include <wchar.h>
 #include "renderer.h"
 #include "lorie.h"
 #include "android-to-linux-keycodes.h"
@@ -374,14 +375,18 @@ Java_com_termux_x11_MainActivity_handleXEvents(JNIEnv *env, jobject thiz) {
                 xcb_get_property_cookie_t cookie = xcb_get_property(conn, false, win, prop_sel, XCB_ATOM_ANY, 0, data_size);
                 xcb_get_property_reply_t* reply = xcb_get_property_reply(conn, cookie, &err);
                 parse_error(err);
-                if (reply)
-                    (*env)->CallVoidMethod(env, thiz, id, (*env)->NewStringUTF(env, (const char *) xcb_get_property_value(reply)));
+                if (reply) {
+                    /* create NULL-terminated string even if for some reason it was not. */
+                    char *string = alloca(data_size + 1);
+                    memset(string, 0, data_size + 1);
+                    memcpy(string, xcb_get_property_value(reply), data_size);
+                    __android_log_print(ANDROID_LOG_VERBOSE, "LorieNative", "Clipboard content is %s", string);
+                    (*env)->CallVoidMethod(env, thiz, id, (*env)->NewStringUTF(env, string));
+                }
                 free(reply);
             }
         }
     }
-
-//    return 5; // EVENT_INPUT | EVENT_ERROR = 5
 }
 
 JNIEXPORT void JNICALL
@@ -451,6 +456,36 @@ Java_com_termux_x11_MainActivity_sendUnicodeEvent(unused JNIEnv* env, unused job
 //        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client","Sending unicode event: %d", unicode);
         xcb_tx11_unicode_event(conn, unicode);
         xcb_flush(conn);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_termux_x11_MainActivity_sendTextEvent(JNIEnv *env, unused jobject thiz, jstring text) {
+    if (conn && text) {
+        char *str = (char*) (*env)->GetStringUTFChars(env, text, NULL);
+        char *p = str;
+        mbstate_t state = { 0 };
+        __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client","Parsing text: %s", str);
+
+        while (*p) {
+            wchar_t wc;
+            size_t len = mbrtowc(&wc, p, MB_CUR_MAX, &state);
+
+            if (len == (size_t)-1 || len == (size_t)-2) {
+                fprintf(stderr, "Invalid UTF-8 sequence encountered\n");
+                exit(EXIT_FAILURE);
+            }
+
+            if (len == 0)
+                break;
+
+            __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client","Sending unicode event: %lc (U+%X)", wc, wc);
+            xcb_tx11_unicode_event(conn, wc);
+            p += len;
+        }
+
+        xcb_flush(conn);
+        (*env)->ReleaseStringUTFChars(env, text, str);
     }
 }
 
@@ -537,3 +572,4 @@ __attribute__((constructor)) static void init(void) {
     }
 }
 #endif
+

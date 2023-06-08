@@ -661,12 +661,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         sendMouseEvent(deltaX, deltaY, BUTTON_SCROLL, false, true);
     }
 
-    @Override
-    public void sendTextEvent(String text) {
-        if (text != null)
-            text.codePoints().forEach(MainActivity.this::sendUnicodeEvent);
-    }
-
     private native void connect(int fd);
     private native void handleXEvents();
     private native void startLogcat(int fd);
@@ -675,7 +669,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
     public native void sendTouchEvent(int action, int id, int x, int y);
     public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
-    public native void sendUnicodeEvent(int unicode);
+    public native void sendTextEvent(String text);
 
     static {
         System.loadLibrary("Xlorie");

@@ -110,7 +110,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
             mActivity.sendKeyEvent(0, keyCode, false);
         } else {
             // not a control char
-            key.codePoints().forEach(mActivity::sendUnicodeEvent);
+            mActivity.sendTextEvent(key);
         }
     }
 

@@ -132,7 +132,10 @@ You can fix this in your window manager settings (in the case of xfce4 and lxqt 
 ![image](./img/dpi-scale.png) 
 </details>
 
-Also you can choose desired DPI in preferences of Termux:X11 app
+Also you can start `termux-x11` with `-dpi` option.
+```
+~ $ termux-x11 :1 -xstartup "xfce4-session" -dpi 120
+```
 
 ## Using with 3rd party apps
 It is possible to use Termux:X11 with 3rd party apps.

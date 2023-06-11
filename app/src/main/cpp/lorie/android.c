@@ -472,8 +472,7 @@ Java_com_termux_x11_MainActivity_sendTextEvent(JNIEnv *env, unused jobject thiz,
             size_t len = mbrtowc(&wc, p, MB_CUR_MAX, &state);
 
             if (len == (size_t)-1 || len == (size_t)-2) {
-                fprintf(stderr, "Invalid UTF-8 sequence encountered\n");
-                exit(EXIT_FAILURE);
+                __android_log_print(ANDROID_LOG_ERROR, "Xlorie-client","Invalid UTF-8 sequence encountered");
             }
 
             if (len == 0)

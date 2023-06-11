@@ -16,10 +16,13 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <paths.h>
+#include <ctype.h>
 
 #define __u32 uint32_t
 #ifdef ANDROID
 #include <linux/ashmem.h>
+#include <libgen.h>
+
 #endif
 
 #include "shm.h"
@@ -44,19 +47,54 @@ typedef struct {
 static shmem_t* shmem = NULL;
 static size_t shmem_amount = 0;
 
-static uint8_t syscall_supported = 1;
+static uint8_t syscall_supported = 0;
 
-__attribute__((constructor))
+#define ANDROID_LINUX_SHM
+#undef SYS_ipc
+static bool isProot(void) {
+    char buf[4096];
+    char path[256];
+    char exe_path[256];
+    int tpid;
+
+    const int status_fd = open("/proc/self/status", O_RDONLY);
+    if (status_fd == -1)
+        return false;
+
+    read(status_fd, buf, sizeof(buf) - 1);
+    close(status_fd);
+
+    const char *tracer_str = strstr(buf, "TracerPid:");
+
+    if (tracer_str || sscanf(tracer_str, "TracerPid:   %d", &tpid) != 1 || !tpid)
+        return false;
+
+    snprintf(path, sizeof(path), "/proc/%d/exe", tpid);
+
+    ssize_t len = readlink(path, exe_path, sizeof(exe_path) - 1);
+    if (len == -1)
+        return false;
+
+    exe_path[len] = '\0';
+    return (!strcmp(basename(exe_path), "proot"));
+}
+
+__attribute__((unused, constructor))
 static void check_syscall_support(void) {
+    dprintf(2, "proot: %d\n", isProot());
+    if (!isProot())
+        return;
+
+    errno = 0;
 #ifdef ANDROID_LINUX_SHM
 #ifdef SYS_ipc
-    if (syscall(SYS_ipc) != -1 && errno != ENOSYS)
+    syscall(SYS_ipc);
 #else
-    if (syscall(SYS_shmat) == -1 && errno == ENOSYS)
+    syscall(SYS_shmat);
 #endif
 #endif
-        syscall_supported = 0;
-//    printf("syscall supported %d %s\n", syscall_supported, strerror(errno));
+    if (errno != ENOSYS)
+        syscall_supported = 1;
 }
 
 // The lower 16 bits of (getpid() + i), where i is a sequence number.

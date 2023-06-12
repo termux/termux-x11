@@ -33,6 +33,11 @@ maybe_unused void renderer_print_fps(float millis);
 maybe_unused void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data);
 maybe_unused void renderer_set_cursor_coordinates(int x, int y);
 
+struct renderer_pending_cursor {
+    int width, height, xhot, yhot;
+    unsigned long data[0];
+};
+
 #ifdef __cplusplus
 }
 #endif

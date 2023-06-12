@@ -96,6 +96,7 @@ static EGLContext ctx = EGL_NO_CONTEXT;
 static EGLSurface sfc = EGL_NO_SURFACE;
 static EGLConfig cfg = 0;
 static EGLNativeWindowType win = 0;
+static AHardwareBuffer *buffer = NULL;
 static EGLImageKHR image = NULL;
 static int renderedFrames = 0;
 
@@ -170,20 +171,24 @@ int renderer_init(void) {
     return 1;
 }
 
-void renderer_set_buffer(AHardwareBuffer* buffer) {
+void renderer_set_buffer(AHardwareBuffer* buf) {
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     EGLClientBuffer clientBuffer;
     AHardwareBuffer_Desc desc = {0};
     __android_log_print(ANDROID_LOG_DEBUG, "XlorieTest2", "renderer_set_buffer0");
     if (image)
         eglDestroyImageKHR(egl_display, image);
+    if (buffer)
+        AHardwareBuffer_release(buffer);
 
+    buffer = buf;
     glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); checkGlError();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); checkGlError();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
     if (buffer) {
+        AHardwareBuffer_acquire(buffer);
         AHardwareBuffer_describe(buffer, &desc);
 
         display.width = (float) desc.width;

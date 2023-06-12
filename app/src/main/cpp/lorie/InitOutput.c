@@ -82,6 +82,7 @@ typedef struct {
     OsTimerPtr redrawTimer;
     OsTimerPtr fpsTimer;
 
+    Bool threadedRenderer;
     struct ANativeWindow* win;
     Bool cursorMoved;
     int timerFd;
@@ -184,46 +185,73 @@ static RRModePtr lorieCvt(int width, int height, int framerate) {
     return mode;
 }
 
-static void lorieMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
+static void lorieMoveCursorDirect(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
     renderer_set_cursor_coordinates(x, y);
     pvfb->cursorMoved = TRUE;
 }
 
-static void lorieSetCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, CursorPtr pCurs, int x0, int y0) {
+static void lorieConvertCursor(CursorPtr pCurs, CARD32 *data) {
+    CursorBitsPtr bits = pCurs->bits;
+    if (bits->argb) {
+        for (int i = 0; i < bits->width * bits->height * 4; i++) {
+            /* Convert bgra to rgba */
+            CARD32 p = bits->argb[i];
+            data[i] = (p & 0xFF000000) | ((p & 0x00FF0000) >> 16) | (p & 0x0000FF00) | ((p & 0x000000FF) << 16);
+        }
+    } else {
+        CARD32 d, fg, bg, *p;
+        int x, y, stride, i, bit;
+
+        p = data;
+        fg = ((pCurs->foreBlue & 0xff00) << 8) | (pCurs->foreGreen & 0xff00) | (pCurs->foreRed >> 8);
+        bg = ((pCurs->backBlue & 0xff00) << 8) | (pCurs->backGreen & 0xff00) | (pCurs->backRed >> 8);
+        stride = BitmapBytePad(bits->width);
+        for (y = 0; y < bits->height; y++)
+            for (x = 0; x < bits->width; x++) {
+                i = y * stride + x / 8;
+                bit = 1 << (x & 7);
+                d = (bits->source[i] & bit) ? fg : bg;
+                d = (bits->mask[i] & bit) ? d | 0xff000000 : 0x00000000;
+                *p++ = d;
+            }
+    }
+}
+
+static void lorieSetCursorDirect(unused DeviceIntPtr pDev, unused ScreenPtr pScr, CursorPtr pCurs, int x0, int y0) {
     CursorBitsPtr bits = pCurs ? pCurs->bits : NULL;
     if (pCurs && bits) {
-        if (bits->argb)
-            renderer_update_cursor(bits->width, bits->width, bits->xhot, bits->yhot, bits->argb);
-        else {
-            CARD32 d, fg, bg, *p, data[bits->width * bits->height * 4];
-            int x, y, stride, i, bit;
+        CARD32 data[bits->width * bits->height * 4];
 
-            p = data;
-            fg = ((pCurs->foreRed & 0xff00) << 8) | (pCurs->foreGreen & 0xff00) | (pCurs->foreBlue >> 8);
-            bg = ((pCurs->backRed & 0xff00) << 8) | (pCurs->backGreen & 0xff00) | (pCurs->backBlue >> 8);
-            stride = BitmapBytePad(bits->width);
-            for (y = 0; y < bits->height; y++)
-                for (x = 0; x < bits->width; x++) {
-                    i = y * stride + x / 8;
-                    bit = 1 << (x & 7);
-                    d = (bits->source[i] & bit) ? fg : bg;
-                    d = (bits->mask[i] & bit) ? d | 0xff000000 : 0x00000000;
-                    *p++ = d;
-                }
-
-            renderer_update_cursor(bits->width, bits->height, bits->xhot, bits->yhot, data);
-        }
+        lorieConvertCursor(pCurs, data);
+        renderer_update_cursor(bits->width, bits->height, bits->xhot, bits->yhot, data);
     } else
         renderer_update_cursor(0, 0, 0, 0, NULL);
 
-    lorieMoveCursor(NULL, NULL, x0, y0);
+    lorieMoveCursorDirect(NULL, NULL, x0, y0);
 }
 
-static miPointerSpriteFuncRec loriePointerSpriteFuncs = {
+static void lorieMoveCursorThreaded(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
+    // TODO: implement this
+}
+
+static void lorieSetCursorThreaded(unused DeviceIntPtr pDev, unused ScreenPtr pScr, CursorPtr pCurs, int x0, int y0) {
+    // TODO: implement this
+}
+
+static miPointerSpriteFuncRec loriePointerSpriteFuncsDirect = {
     .RealizeCursor = TrueNoop,
     .UnrealizeCursor = TrueNoop,
-    .SetCursor = lorieSetCursor,
-    .MoveCursor = lorieMoveCursor,
+    .SetCursor = lorieSetCursorDirect,
+    .MoveCursor = lorieMoveCursorDirect,
+    .DeviceCursorInitialize = TrueNoop,
+    .DeviceCursorCleanup = VoidNoop
+};
+
+static miPointerSpriteFuncRec loriePointerSpriteFuncsThreaded = {
+    .RealizeCursor = TrueNoop,
+    .UnrealizeCursor = TrueNoop,
+    .SetCursor = lorieSetCursorThreaded,
+    .MoveCursor = lorieMoveCursorThreaded,
     .DeviceCursorInitialize = TrueNoop,
     .DeviceCursorCleanup = VoidNoop
 };
@@ -304,10 +332,10 @@ lorieCreatePixmap(ScreenPtr pScreen, int width, int height, int depth, unsigned 
     desc.width = width;
     desc.height = height;
     desc.layers = 1;
-    desc.usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_RARELY;
+    desc.usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN;
     desc.format = 5; // Stands to HAL_PIXEL_FORMAT_BGRA_8888
 
-    // I could use this, but in this case I must swap colours in shader.
+    // I could use this, but in this case I must swap colours in the shader.
 //     desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
 
     if (AHardwareBuffer_allocate(&desc, &lPixmap->buffer) != 0) {
@@ -383,7 +411,6 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
         FatalError("Couldn't setup damage\n");
 
     DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->damage);
-//    pvfb->redrawTimer = TimerSet(NULL, 0, 1000 / MAX_FPS, lorieTimerCallback, pScreen);
     pvfb->fpsTimer = TimerSet(NULL, 0, 5000, lorieFramecounter, pScreen);
     renderer_set_buffer(lorieGetScreenBuffer((pScreen)));
 
@@ -526,7 +553,9 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
           || !fbScreenInit(pScreen, NULL, 1280, 1024, monitorResolution, monitorResolution, 0, 32)
           || !fbPictureInit(pScreen, 0, 0)
           || !lorieRandRInit(pScreen)
-          || !miPointerInitialize(pScreen, &loriePointerSpriteFuncs, &loriePointerCursorFuncs, TRUE)
+          || !miPointerInitialize(pScreen, pvfb->threadedRenderer ?
+                                        &loriePointerSpriteFuncsThreaded : &loriePointerSpriteFuncsDirect,
+                                        &loriePointerCursorFuncs, TRUE)
           || !fbCreateDefColormap(pScreen))
         return FALSE;
 
@@ -545,8 +574,13 @@ Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
     RegionRec reg;
     BoxRec box = { .x1 = 0, .y1 = 0, .x2 = pScreen->root->drawable.width, .y2 = pScreen->root->drawable.height};
     pvfb->win = win;
-    renderer_set_window(win);
-    renderer_set_buffer(lorieGetScreenBuffer(pScreen));
+
+    if (pvfb->threadedRenderer) {
+
+    } else {
+        renderer_set_window(win);
+        renderer_set_buffer(lorieGetScreenBuffer(pScreen));
+    }
 
     if (CursorVisible && EnableCursor) {
         int x, y;
@@ -555,7 +589,10 @@ Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
         CursorPtr pCursor = (info && info->sprite) ? (info->anim.pCursor ?: info->sprite->current) : NULL;
 
         GetSpritePosition(pDev, &x, &y);
-        lorieSetCursor(NULL, NULL, pCursor, box.x2/2, box.y2/2);
+        if (pvfb->threadedRenderer)
+            lorieSetCursorThreaded(NULL, NULL, pCursor, box.x2/2, box.y2/2);
+        else
+            lorieSetCursorDirect(NULL, NULL, pCursor, box.x2/2, box.y2/2);
     }
 
     if (win) {

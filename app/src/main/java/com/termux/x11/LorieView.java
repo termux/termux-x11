@@ -1,10 +1,10 @@
 package com.termux.x11;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.SharedPreferences;
-import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.preference.PreferenceManager;
@@ -18,18 +18,22 @@ import androidx.annotation.NonNull;
 
 import java.util.regex.PatternSyntaxException;
 
+@SuppressLint("WrongConstant")
 @SuppressWarnings("deprecation")
 public class LorieView extends SurfaceView {
     interface Callback {
         void changed(Surface sfc, int surfaceWidth, int surfaceHeight, int screenWidth, int screenHeight);
     }
 
-    private static final int RGBA_8888 = 5; // Stands for HAL_PIXEL_FORMAT_BGRA_8888
+    interface PixelFormat {
+        int BGRA_8888 = 5; // Stands for HAL_PIXEL_FORMAT_BGRA_8888
+    }
+
     private Callback mCallback;
     private final Point p = new Point();
     private final SurfaceHolder.Callback mSurfaceCallback = new SurfaceHolder.Callback() {
         @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
-            holder.setFormat(RGBA_8888);
+            holder.setFormat(PixelFormat.BGRA_8888);
         }
 
         @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int width, int height) {
@@ -68,7 +72,7 @@ public class LorieView extends SurfaceView {
     public void regenerate() {
         Callback callback = mCallback;
         mCallback = null;
-        getHolder().setFormat(RGBA_8888);
+        getHolder().setFormat(PixelFormat.BGRA_8888);
         mCallback = callback;
 
         triggerCallback();
@@ -80,7 +84,7 @@ public class LorieView extends SurfaceView {
         requestFocus();
 
         Rect r = getHolder().getSurfaceFrame();
-        getActivity().runOnUiThread(() -> mSurfaceCallback.surfaceChanged(getHolder(), PixelFormat.RGBA_8888, r.width(), r.height()));
+        getActivity().runOnUiThread(() -> mSurfaceCallback.surfaceChanged(getHolder(), PixelFormat.BGRA_8888, r.width(), r.height()));
     }
 
     private Activity getActivity() {

@@ -81,7 +81,6 @@ static bool isProot(void) {
 
 __attribute__((unused, constructor))
 static void check_syscall_support(void) {
-    dprintf(2, "proot: %d\n", isProot());
     if (!isProot())
         return;
 

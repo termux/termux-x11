@@ -196,7 +196,7 @@ Java_com_termux_x11_CmdEntryPoint_getLogcatOutput(JNIEnv *env, unused jobject cl
         int p[2];
         pipe(p);
         fchmod(p[1], 0777);
-        pthread_create(&t, NULL, logcatThread, NULL);
+        pthread_create(&t, NULL, logcatThread, (void*) (uint64_t) p[0]);
         return (*env)->CallStaticObjectMethod(env, ParcelFileDescriptorClass, adoptFd, p[1]);
     }
     return NULL;

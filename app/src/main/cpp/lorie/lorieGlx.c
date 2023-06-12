@@ -51,6 +51,18 @@ static __GLXscreen *glXDRIscreenProbe(ScreenPtr pScreen) {
     screen->glvnd = strdup("mesa");
 
     __glXInitExtensionEnableBits(screen->glx_enable_bits);
+    /* There is no real GLX support, but anyways swrast reports it. */
+    __glXEnableExtension(screen->glx_enable_bits, "GLX_MESA_copy_sub_buffer");
+    __glXEnableExtension(screen->glx_enable_bits, "GLX_EXT_no_config_context");
+    __glXEnableExtension(screen->glx_enable_bits, "GLX_ARB_create_context");
+    __glXEnableExtension(screen->glx_enable_bits, "GLX_ARB_create_context_no_error");
+    __glXEnableExtension(screen->glx_enable_bits, "GLX_ARB_create_context_profile");
+    __glXEnableExtension(screen->glx_enable_bits, "GLX_EXT_create_context_es_profile");
+    __glXEnableExtension(screen->glx_enable_bits, "GLX_EXT_create_context_es2_profile");
+    __glXEnableExtension(screen->glx_enable_bits, "GLX_EXT_framebuffer_sRGB");
+    __glXEnableExtension(screen->glx_enable_bits, "GLX_ARB_fbconfig_float");
+    __glXEnableExtension(screen->glx_enable_bits, "GLX_EXT_fbconfig_packed_float");
+    __glXEnableExtension(screen->glx_enable_bits, "GLX_EXT_texture_from_pixmap");
     __glXScreenInit(screen, pScreen);
 
     return screen;

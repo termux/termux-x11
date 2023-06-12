@@ -14,19 +14,21 @@
 		android:paddingLeft="0dp"
 		android:paddingTop="0dp"
 		android:paddingRight="0dp"
-		android:paddingBottom="0dp">
+		android:paddingBottom="0dp"
+		android:background="@android:color/black">
 
-		<SurfaceView
+		<com.termux.x11.LorieView
 			android:id="@+id/lorieView"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent"
-			android:visibility="visible" />
+			android:visibility="visible"
+			android:layout_gravity="center" />
 
 		<LinearLayout
 			android:id="@+id/stub"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent"
-			android:background="@android:color/transparent"
+			android:background="@android:color/black"
 			android:gravity="center_horizontal|center_vertical"
 			android:orientation="vertical"
 			android:visibility="visible">

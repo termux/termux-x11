@@ -29,6 +29,11 @@
             android:summary="Example: 1280x1024" />
 
         <SwitchPreferenceCompat
+            android:title="Stretch to fit display"
+            android:defaultValue="false"
+            android:key="displayStretch" />
+
+        <SwitchPreferenceCompat
             android:title="Reseed Screen While Soft Keyboard is open"
             android:summary="The screen size will be adjusted while Soft Keyboard is open."
             android:defaultValue="true"

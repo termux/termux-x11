@@ -108,20 +108,12 @@ public final class InputEventSender {
     public void sendTouchEvent(MotionEvent event) {
         int action = event.getActionMasked();
         int touchEventType = eventTypeFromMaskedAction(action);
-//        List</*TouchEventData*/ Object> touchEventList = new ArrayList<>();
 
         if (action == MotionEvent.ACTION_MOVE) {
             // In order to process all of the events associated with an ACTION_MOVE event, we need
             // to walk the list of historical events in order and add each event to our list, then
             // retrieve the current move event data.
             int pointerCount = event.getPointerCount();
-//            int historySize = event.getHistorySize();
-//            for (int h = 0; h < historySize; ++h) {
-//                for (int p = 0; p < pointerCount; ++p) {
-//                    mInjector.sendTouchEvent(event.getPointerId(p),
-//                            (int) event.getHistoricalX(p, h), (int) event.getHistoricalY(p, h));
-//                }
-//            }
 
             for (int p = 0; p < pointerCount; p++)
                 mInjector.sendTouchEvent(touchEventType, event.getPointerId(p), (int) event.getX(p), (int) event.getY(p));
@@ -134,17 +126,9 @@ public final class InputEventSender {
             int x = (int) event.getX(activePointerIndex);
             int y = (int) event.getY(activePointerIndex);
             mInjector.sendTouchEvent(touchEventType, id, x, y);
-//            touchEventList.add(new TouchEventData(event.getPointerId(activePointerIndex),
-//                    event.getX(activePointerIndex), event.getY(activePointerIndex),
-//                    event.getSize(activePointerIndex), event.getSize(activePointerIndex),
-//                    event.getOrientation(activePointerIndex),
-//                    event.getPressure(activePointerIndex)));
         }
 
-//        if (!touchEventList.isEmpty()) {
-//            mInjector.sendTouchEvent(touchEventType, touchEventList.toArray(new TouchEventData[0]));
-//        }
-            mInjector.sendTouchEvent(-1, 0, 0, 0);
+        mInjector.sendTouchEvent(-1, 0, 0, 0);
     }
 
     /**

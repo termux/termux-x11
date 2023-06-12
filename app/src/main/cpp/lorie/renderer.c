@@ -88,7 +88,7 @@ static const char fragment_shader[] =
     "varying vec2 outTexCoords;\n"
     "uniform sampler2D texture;\n"
     "void main(void) {\n"
-    "   gl_FragColor = texture2D(texture, outTexCoords).bgra;\n"
+    "   gl_FragColor = texture2D(texture, outTexCoords);\n"
     "}\n";
 
 static EGLDisplay egl_display = EGL_NO_DISPLAY;
@@ -192,9 +192,8 @@ void renderer_set_buffer(AHardwareBuffer* buffer) {
         clientBuffer = eglGetNativeClientBufferANDROID(buffer); eglCheckError(__LINE__);
         image = clientBuffer ? eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes) : NULL;
         eglCheckError(__LINE__);
-        if (clientBuffer) {
+        if (image)
             glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image); checkGlError();
-        }
     } else {
         uint32_t data = {0};
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data); checkGlError();
@@ -228,11 +227,6 @@ void renderer_set_window(EGLNativeWindowType window) {
 
     if (!win)
         return;
-
-    ANativeWindow_setBuffersGeometry(win,
-            ANativeWindow_getWidth(win),
-            ANativeWindow_getHeight(win),
-            AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM);
 
     sfc = eglCreateWindowSurface(egl_display, cfg, win, NULL);
     if (sfc == EGL_NO_SURFACE) {

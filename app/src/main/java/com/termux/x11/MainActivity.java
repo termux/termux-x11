@@ -24,8 +24,6 @@ import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Color;
-import android.graphics.PixelFormat;
-import android.graphics.Rect;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Handler;
@@ -39,8 +37,6 @@ import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.PointerIcon;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -67,8 +63,6 @@ import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
 
-import java.util.regex.PatternSyntaxException;
-
 @SuppressLint("ApplySharedPref")
 @SuppressWarnings({"deprecation", "unused"})
 public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener, InputStub {
@@ -87,7 +81,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private final int mNotificationId = 7892;
     NotificationManager mNotificationManager;
     private boolean mClientConnected = false;
-    private SurfaceHolder.Callback mLorieViewCallback;
     private View.OnKeyListener mLorieKeyListener;
     private boolean filterOutWinKey = false;
 
@@ -108,7 +101,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         super.onCreate(savedInstanceState);
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        preferences.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> onPreferencesChanged());
+        preferences.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> onPreferencesChanged(key));
 
         getWindow().addFlags(FLAG_KEEP_SCREEN_ON);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -125,112 +118,60 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             startActivity(i);
         });
 
-        SurfaceView lorieView = findViewById(R.id.lorieView);
+        LorieView lorieView = findViewById(R.id.lorieView);
+        View lorieParent = (View) lorieView.getParent();
 
         mInputHandler = new TouchInputHandler(this, new RenderStub.NullStub() {
             @Override
             public void swipeDown() {
                 toggleExtraKeys();
-                findViewById(R.id.lorieView).requestFocus();
+                lorieView.requestFocus();
             }
         }, new InputEventSender(this));
         mLorieKeyListener = (v, k, e) -> {
             if (k == KeyEvent.KEYCODE_VOLUME_DOWN && preferences.getBoolean("hideEKOnVolDown", false)) {
-                if (e.getAction() == KeyEvent.ACTION_UP) {
+                if (e.getAction() == KeyEvent.ACTION_UP)
                     toggleExtraKeys();
-                    findViewById(R.id.lorieView).requestFocus();
-                }
                 return true;
             }
 
+            Log.d("MainActivity", "qweqweq");
             if (k == KeyEvent.KEYCODE_BACK && (e.getSource() & InputDevice.SOURCE_MOUSE) != InputDevice.SOURCE_MOUSE) {
                 // Pass physical escape key to container...
+                Log.d("MainActivity", "Toggling keyboard visibilityasdasdasdasdasd");
                 if (e.getScanCode() != 0)
                     return mInputHandler.sendKeyEvent(v, e);
                 if (e.getAction() == KeyEvent.ACTION_UP) {
+                    Log.d("MainActivity", "Toggling keyboard visibility");
                     toggleKeyboardVisibility(MainActivity.this);
-                    findViewById(R.id.lorieView).requestFocus();
                 }
                 return true;
             }
 
             return mInputHandler.sendKeyEvent(v, e);
         };
-        mLorieViewCallback = new SurfaceHolder.Callback() {
-            @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
-                holder.setFormat(PixelFormat.OPAQUE);
-            }
-            @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int width, int height) {
-                Log.d("SurfaceChangedListener", "Surface was changed: " + width + "x" + height);
-                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
-                int w = width;
-                int h = height;
-                int framerate = (int) getDisplay().getRefreshRate();
-                switch(preferences.getString("displayResolutionMode", "native")) {
-                    case "scaled": {
-                        int scale = preferences.getInt("displayScale", 100);
-                        w = width / scale * 100;
-                        h = height / scale * 100;
-                        break;
-                    }
-                    case "exact": {
-                        String[] resolution = preferences.getString("displayResolutionExact", "1280x1024").split("x");
-                        w = Integer.parseInt(resolution[0]);
-                        h = Integer.parseInt(resolution[1]);
-                        break;
-                    }
-                    case "custom": {
-                        try {
-                            String[] resolution = preferences.getString("displayResolutionCustom", "1280x1024").split("x");
-                            w = Integer.parseInt(resolution[0]);
-                            h = Integer.parseInt(resolution[1]);
-                        } catch (NumberFormatException | PatternSyntaxException ignored) {
-                            w = 1280;
-                            h = 1024;
-                        }
-                        break;
-                    }
-                }
 
-                if (width < height && w > h) {
-                    int temp = w;
-                    w = h;
-                    h = temp;
-                }
-
-                mInputHandler.handleHostSizeChanged(width, height);
-                mInputHandler.handleClientSizeChanged(w, h);
-
-                sendWindowChange(w, h, framerate);
-
-                if (service != null) {
-                    try {
-                        service.windowChanged(holder.getSurface());
-                    } catch (RemoteException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-            @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
-                if (service != null) {
-                    try {
-                        service.windowChanged(holder.getSurface());
-                    } catch (RemoteException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        };
-
-        lorieView.setOnTouchListener((v, e) -> mInputHandler.handleTouchEvent(getLorieView(), e));
-        lorieView.setOnHoverListener((v, e) -> mInputHandler.handleTouchEvent(getLorieView(), e));
-        lorieView.setOnGenericMotionListener((v, e) -> mInputHandler.handleTouchEvent(getLorieView(), e));
-        lorieView.setOnCapturedPointerListener((v, e) -> mInputHandler.handleCapturedEvent(getLorieView(), e));
+        lorieParent.setOnTouchListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));
+        lorieParent.setOnHoverListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));
+        lorieParent.setOnGenericMotionListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));
+        lorieParent.setOnCapturedPointerListener((v, e) -> mInputHandler.handleCapturedEvent(lorieView, e));
         lorieView.setOnKeyListener(mLorieKeyListener);
-        lorieView.getHolder().addCallback(mLorieViewCallback);
 
-        Rect r = lorieView.getHolder().getSurfaceFrame();
-        mLorieViewCallback.surfaceChanged(lorieView.getHolder(), 0, r.width(), r.height());
+        lorieView.setCallback((sfc, surfaceWidth, surfaceHeight, screenWidth, screenHeight) -> {
+            int framerate = (int) ((lorieView.getDisplay() != null) ? lorieView.getDisplay().getRefreshRate() : 30);
+
+            mInputHandler.handleHostSizeChanged(surfaceWidth, surfaceHeight);
+            mInputHandler.handleClientSizeChanged(screenWidth, screenHeight);
+            sendWindowChange(screenWidth, screenHeight, framerate);
+
+            if (service != null) {
+                try {
+                    service.windowChanged(sfc);
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
 
         registerReceiver(new BroadcastReceiver() {
             @Override
@@ -273,7 +214,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         mNotificationManager.notify(mNotificationId, mNotification);
 
         CmdEntryPoint.requestConnection();
-        onPreferencesChanged();
+        onPreferencesChanged("");
 
         toggleExtraKeys(false, false);
         checkXEvents();
@@ -302,9 +243,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             ParcelFileDescriptor fd = service.getXConnection();
             if (fd != null) {
                 connect(fd.detachFd());
-                SurfaceView lorieView = getLorieView();
-                Rect r = lorieView.getHolder().getSurfaceFrame();
-                mLorieViewCallback.surfaceChanged(lorieView.getHolder(), PixelFormat.RGBA_8888, r.width(), r.height());
+                getLorieView().triggerCallback();
                 clientConnectedStateChanged(true);
             } else
                 handler.postDelayed(this::tryConnect, 500);
@@ -313,14 +252,16 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             service = null;
 
             // We should reset the View for the case if we have sent it's surface to the client.
-            getLorieView().getHolder().setFormat(PixelFormat.TRANSPARENT);
-            getLorieView().getHolder().setFormat(PixelFormat.OPAQUE);
+            getLorieView().regenerate();
         }
     }
 
-    void onPreferencesChanged() {
+    void onPreferencesChanged(String key) {
+        if ("additionalKbdVisible".equals(key))
+            return;
+
         SharedPreferences p = PreferenceManager.getDefaultSharedPreferences(this);
-        SurfaceView lorieView = getLorieView();
+        LorieView lorieView = getLorieView();
 
         int mode = Integer.parseInt(p.getString("touchMode", "1"));
         mInputHandler.setInputMode(mode);
@@ -335,10 +276,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         onWindowFocusChanged(true);
         setClipboardSyncEnabled(p.getBoolean("clipboardSync", false));
 
-        lorieView.setFocusable(true);
-        lorieView.setFocusableInTouchMode(true);
-        lorieView.requestFocus();
-        mLorieViewCallback.surfaceChanged(lorieView.getHolder(), PixelFormat.RGBA_8888, lorieView.getWidth(), lorieView.getHeight());
+        lorieView.triggerCallback();
 
         filterOutWinKey = p.getBoolean("filterOutWinkey", false);
         if (p.getBoolean("enableAccessibilityServiceAutomatically", false)) {
@@ -394,7 +332,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 R.style.FullScreen_ExternalDisplay : R.style.NoActionBar);
     }
 
-    public SurfaceView getLorieView() {
+    public LorieView getLorieView() {
         return findViewById(R.id.lorieView);
     }
 
@@ -452,13 +390,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 edit.commit();
             }
 
-            pager.setVisibility(show ? View.VISIBLE : View.GONE);
+            pager.setVisibility(show ? View.VISIBLE : View.INVISIBLE);
         });
     }
 
     public void toggleExtraKeys() {
         int visibility = getTerminalToolbarViewPager().getVisibility();
         toggleExtraKeys(visibility != View.VISIBLE, true);
+        getLorieView().requestFocus();
     }
 
     public boolean handleKey(KeyEvent e) {
@@ -523,7 +462,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             InputMethodManager imm = (InputMethodManager) getSystemService(Activity.INPUT_METHOD_SERVICE);
             View view = getCurrentFocus();
             if (view == null) {
-                view = findViewById(R.id.lorieView);
+                view = getLorieView();
                 view.requestFocus();
             }
             imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
@@ -610,9 +549,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @SuppressLint("WrongConstant")
     @Override
     public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-        SurfaceView c = getLorieView();
-        Rect r = c.getHolder().getSurfaceFrame();
-        handler.postDelayed(() -> mLorieViewCallback.surfaceChanged(c.getHolder(), 0, r.width(), r.height()), 100);
+        handler.postDelayed(() -> getLorieView().triggerCallback(), 100);
         return insets;
     }
 
@@ -634,7 +571,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             mClientConnected = connected;
             toggleExtraKeys(connected && preferences.getBoolean("additionalKbdVisible", true), true);
             findViewById(R.id.stub).setVisibility(connected?View.INVISIBLE:View.VISIBLE);
-            findViewById(R.id.lorieView).setVisibility(connected?View.VISIBLE:View.INVISIBLE);
+            getLorieView().setVisibility(connected?View.VISIBLE:View.INVISIBLE);
 
             // We should recover connection in the case if file descriptor for some reason was broken...
             if (!connected)

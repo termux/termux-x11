@@ -90,8 +90,9 @@
 #cmakedefine HAVE_SYS_SYSMACROS_H
 
 #cmakedefine HAVE_ARC4RANDOM_BUF
-#cmakedefine HAVE_BACKTRACE
-//#define HAVE_LIBUNWIND
+//#cmakedefine HAVE_BACKTRACE
+#undef HAVE_BACKTRACE
+#undef HAVE_LIBUNWIND
 //#define HAVE_PSTACK
 #cmakedefine HAVE_CBRT
 #cmakedefine HAVE_EPOLL_CREATE1
@@ -180,7 +181,6 @@
 
 /* Use libmd SHA1 functions */
 #define HAVE_SHA1_IN_LIBMD 1
-#undef HAVE_LIBUNWIND
 
 #define HAVE_APM 1
 #define HAVE_ACPI 1

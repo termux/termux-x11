@@ -41,8 +41,7 @@ extern char *xtrans_unix_dir_ice;
 
 static void* startServer(unused void* cookie) {
     char* envp[] = { NULL };
-    dix_main(argc, (char**) argv, envp);
-    return NULL;
+    exit(dix_main(argc, (char**) argv, envp));
 }
 
 JNIEXPORT jboolean JNICALL

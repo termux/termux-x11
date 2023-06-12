@@ -105,9 +105,8 @@ struct LoriePixmap {
 
 void
 ddxGiveUp(unused enum ExitCode error) {
-    __android_log_print(ANDROID_LOG_ERROR, "Xlorie", "Server stopped");
-    ((void(*)(void))0)();
-    exit(0);
+    __android_log_print(ANDROID_LOG_ERROR, "Xlorie", "Server stopped (%d)", error);
+    exit(error);
 }
 
 void
@@ -306,10 +305,10 @@ lorieCreatePixmap(ScreenPtr pScreen, int width, int height, int depth, unsigned 
     desc.height = height;
     desc.layers = 1;
     desc.usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_RARELY;
-//    desc.format = 5; // Corresponds to HAL_PIXEL_FORMAT_BGRA_8888
+    desc.format = 5; // Stands to HAL_PIXEL_FORMAT_BGRA_8888
 
     // I could use this, but in this case I must swap colours in shader.
-     desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
+//     desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
 
     if (AHardwareBuffer_allocate(&desc, &lPixmap->buffer) != 0) {
         fbDestroyPixmap(pixmap);

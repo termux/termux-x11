@@ -1,7 +1,3 @@
-[submodule "app/src/main/cpp/libandroid-shmem"]
-	path = app/src/main/cpp/libandroid-shmem
-	url = https://github.com/termux/libandroid-shmem
-	ignore = dirty
 [submodule "app/src/main/cpp/libmd"]
 	path = app/src/main/cpp/libmd
 	url = https://git.hadrons.org/git/libmd
@@ -26,10 +22,6 @@
 	path = app/src/main/cpp/libfontenc
 	url = https://gitlab.freedesktop.org/xorg/lib/libfontenc
 	ignore = dirty
-[submodule "app/src/main/cpp/libxext"]
-	path = app/src/main/cpp/libxext
-	url = https://gitlab.freedesktop.org/xorg/lib/libxext
-	ignore = dirty
 [submodule "app/src/main/cpp/libxau"]
 	path = app/src/main/cpp/libxau
 	url = https://gitlab.freedesktop.org/xorg/lib/libxau
@@ -45,14 +37,6 @@
 [submodule "app/src/main/cpp/libxfont"]
 	path = app/src/main/cpp/libxfont
 	url = https://gitlab.freedesktop.org/xorg/lib/libxfont
-	ignore = dirty
-[submodule "app/src/main/cpp/libxrender"]
-	path = app/src/main/cpp/libxrender
-	url = https://gitlab.freedesktop.org/xorg/lib/libxrender
-	ignore = dirty
-[submodule "app/src/main/cpp/libxrandr"]
-	path = app/src/main/cpp/libxrandr
-	url = https://gitlab.freedesktop.org/xorg/lib/libxrandr
 	ignore = dirty
 [submodule "app/src/main/cpp/libxkbfile"]
 	path = app/src/main/cpp/libxkbfile
@@ -74,14 +58,6 @@
 	path = app/src/main/cpp/libxcvt
 	url = https://gitlab.freedesktop.org/xorg/lib/libxcvt
 	ignore = dirty
-[submodule "app/src/main/cpp/libxfixes"]
-	path = app/src/main/cpp/libxfixes
-	url = https://gitlab.freedesktop.org/xorg/lib/libxfixes
-	ignore = dirty
-[submodule "app/src/main/cpp/libxxf86vm"]
-	path = app/src/main/cpp/libxxf86vm
-	url = https://gitlab.freedesktop.org/xorg/lib/libxxf86vm
-	ignore = dirty
 [submodule "app/src/main/cpp/libx11"]
 	path = app/src/main/cpp/libx11
 	url = https://gitlab.freedesktop.org/xorg/lib/libx11
@@ -102,10 +78,6 @@
 	path = app/src/main/cpp/xserver
 	url = https://gitlab.freedesktop.org/xorg/xserver
 	ignore = dirty
-[submodule "app/src/main/cpp/mesa"]
-	path = app/src/main/cpp/mesa
-	url = https://gitlab.freedesktop.org/mesa/mesa
-	ignore = dirty
 [submodule "app/src/main/cpp/virglrenderer"]
 	path = app/src/main/cpp/virglrenderer
 	url = https://gitlab.freedesktop.org/virgl/virglrenderer
@@ -117,30 +89,6 @@
 [submodule "app/src/main/cpp/libxcb-errors"]
 	path = app/src/main/cpp/libxcb-errors
 	url = https://gitlab.freedesktop.org/xorg/lib/libxcb-errors
-	ignore = dirty
-[submodule "app/src/main/cpp/flac"]
-	path = app/src/main/cpp/flac
-	url = https://github.com/xiph/flac
-	ignore = dirty
-[submodule "app/src/main/cpp/libsndfile"]
-	path = app/src/main/cpp/libsndfile
-	url = https://github.com/libsndfile/libsndfile
-	ignore = dirty
-[submodule "app/src/main/cpp/libtool"]
-	path = app/src/main/cpp/libtool
-	url = https://github.com/autotools-mirror/libtool
-	ignore = dirty
-[submodule "app/src/main/cpp/ogg"]
-	path = app/src/main/cpp/ogg
-	url = https://github.com/xiph/ogg
-	ignore = dirty
-[submodule "app/src/main/cpp/vorbis"]
-	path = app/src/main/cpp/vorbis
-	url = https://github.com/xiph/vorbis
-	ignore = dirty
-[submodule "app/src/main/cpp/pulseaudio"]
-	path = app/src/main/cpp/pulseaudio
-	url = https://gitlab.freedesktop.org/pulseaudio/pulseaudio
 	ignore = dirty
 
 [submodule "app/src/main/cpp/bzip2"]

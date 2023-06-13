@@ -10,7 +10,6 @@
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
-#include <GL/gl.h>
 #include <android/native_window.h>
 #include <android/log.h>
 #include <dlfcn.h>

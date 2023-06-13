@@ -70,7 +70,6 @@ from The Open Group.
 #define unwrap(priv, real, mem) { real->mem = priv->mem; }
 
 extern DeviceIntPtr lorieMouse, lorieKeyboard;
-extern __GLXprovider androidProvider;
 
 typedef struct {
     CloseScreenProcPtr CloseScreen;
@@ -651,7 +650,6 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     renderer_init();
     xorgGlxCreateVendor();
     tx11_protocol_init();
-    GlxPushProvider(&androidProvider);
 
     if (-1 == AddScreen(lorieScreenInit, argc, argv)) {
         FatalError("Couldn't add screen %d\n", i);

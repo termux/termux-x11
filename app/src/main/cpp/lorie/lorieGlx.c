@@ -5,7 +5,6 @@
 #include "glxserver.h"
 #include "glxutil.h"
 #include "fbconfigs.h"
-#include "glstubs.h"
 
 #define unused __attribute__((unused))
 
@@ -68,7 +67,7 @@ static __GLXscreen *glXDRIscreenProbe(ScreenPtr pScreen) {
     return screen;
 }
 
-__GLXprovider androidProvider = {
+__GLXprovider __glXDRISWRastProvider = {
         glXDRIscreenProbe,
         "DRISWRAST",
         NULL

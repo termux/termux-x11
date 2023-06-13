@@ -149,7 +149,6 @@ file(GENERATE
 set(inc "${CMAKE_CURRENT_BINARY_DIR}"
         "${CMAKE_CURRENT_BINARY_DIR}/epoxy"
         "libepoxy/include"
-        "mesa/include"
         "libxfont/include"
         "pixman/pixman"
         "xorgproto/include"
@@ -158,9 +157,7 @@ set(inc "${CMAKE_CURRENT_BINARY_DIR}"
         "xserver/Xi"
         "xserver/composite"
         "xserver/damageext"
-        "xserver/exa"
         "xserver/fb"
-        "xserver/glamor"
         "xserver/mi"
         "xserver/miext/damage"
         "xserver/miext/shadow"
@@ -174,7 +171,6 @@ set(inc "${CMAKE_CURRENT_BINARY_DIR}"
         "xserver/xfixes"
         "xserver/glx")
 
-# _FILE_OFFSET_BITS=64 ??
 set(compile_options
         ${common_compile_options}
         "-std=gnu99"
@@ -374,12 +370,12 @@ set(GLX_SOURCES
         glxext.c indirect_dispatch.c indirect_dispatch_swap.c indirect_reqsize.c indirect_size_get.c
         indirect_table.c clientinfo.c createcontext.c extension_string.c indirect_util.c
         indirect_program.c indirect_texture_compression.c glxcmds.c glxcmdsswap.c glxext.c
-        glxdriswrast.c glxdricommon.c glxscreens.c render2.c render2swap.c renderpix.c renderpixswap.c
-        rensize.c single2.c single2swap.c singlepix.c singlepixswap.c singlesize.c swap_interval.c
-        xfont.c)
+        glxscreens.c render2.c render2swap.c renderpix.c renderpixswap.c rensize.c single2.c
+        single2swap.c singlepix.c singlepixswap.c singlesize.c swap_interval.c xfont.c)
 list(TRANSFORM GLX_SOURCES PREPEND "xserver/glx/")
 add_library(xserver_glx STATIC ${GLX_SOURCES})
-target_include_directories(xserver_glx PRIVATE ${inc})
+target_link_libraries(xserver_glx PRIVATE epoxy)
+target_include_directories(xserver_glx PRIVATE ${inc} libepoxy/include)
 target_compile_options(xserver_glx PRIVATE ${compile_options})
 
 set(GLXVND_SOURCES
@@ -389,31 +385,9 @@ add_library(xserver_glxvnd STATIC ${GLXVND_SOURCES})
 target_include_directories(xserver_glxvnd PRIVATE ${inc})
 target_compile_options(xserver_glxvnd PRIVATE ${compile_options})
 
-set(GLAMOR_SOURCES
-        addtraps.c composite_glyphs.c compositerects.c copy.c core.c dash.c fbo.c font.c glyphblt.c
-        gradient.c image.c largepixmap.c lines.c picture.c pixmap.c points.c prepare.c program.c
-        rects.c render.c segs.c spans.c sync.c text.c transfer.c transform.c trapezoid.c triangles.c
-        utils.c vbo.c window.c xv.c)
-list(TRANSFORM GLAMOR_SOURCES PREPEND "xserver/glamor/glamor_")
-set(GLAMOR_SOURCES ${GLAMOR_SOURCES} "xserver/glamor/glamor.c" "lorie/glamor.c")
-add_library(xserver_glamor STATIC ${GLAMOR_SOURCES})
-target_include_directories(xserver_glamor PRIVATE ${inc})
-target_compile_options(xserver_glamor PRIVATE ${compile_options})
-target_link_libraries(xserver_glamor PUBLIC epoxy)
-
-set(EXA_SOURCES
-        classic.c migration_classic.c driver.c mixed.c migration_mixed.c accel.c glyphs.c offscreen.c
-        render.c unaccel.c)
-list(TRANSFORM EXA_SOURCES PREPEND "xserver/exa/exa_")
-set(EXA_SOURCES ${EXA_SOURCES} "xserver/exa/exa.c")
-add_library(xserver_exa STATIC ${EXA_SOURCES})
-target_include_directories(xserver_exa PRIVATE ${inc})
-target_compile_options(xserver_exa PRIVATE ${compile_options})
-
-
 set(XSERVER_LIBS)
 foreach (part glx glxvnd fb mi dix composite damageext dbe randr miext_damage render present xext
-              miext_sync xfixes xi xkb record xi_stubs xkb_stubs os dri3 glamor)
+              miext_sync xfixes xi xkb record xi_stubs xkb_stubs os dri3)
     set(XSERVER_LIBS ${XSERVER_LIBS} xserver_${part})
 endforeach ()
 
@@ -431,7 +405,7 @@ add_custom_command(
         VERBATIM
 )
 
-add_library(exec-helper SHARED lorie/exec-helper.c)
+add_library(exec-helper SHARED "lorie/exec-helper.c")
 add_library(Xlorie SHARED
         "xserver/mi/miinitext.c"
         "libxcvt/lib/libxcvt.c"

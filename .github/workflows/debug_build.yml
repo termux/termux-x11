@@ -84,3 +84,9 @@ jobs:
           ./app/build/outputs/apk/debug/termux-x11-*-all.deb
           ./app/build/outputs/apk/debug/termux-x11-*-any.pkg.tar.xz
         
+    - name: Store unstripped libraries with debug symbols
+      uses: actions/upload-artifact@v3
+      with:
+        name: termux-x11-unstripped-libraries-for-ndk-stack
+        path: ./app/.cxx/Debug/*
+    

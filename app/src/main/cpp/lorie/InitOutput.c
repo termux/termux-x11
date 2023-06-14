@@ -68,7 +68,7 @@ from The Open Group.
 #define unused __attribute__((unused))
 #define wrap(priv, real, mem, func) { priv->mem = real->mem; real->mem = func; }
 #define unwrap(priv, real, mem) { real->mem = priv->mem; }
-#define USAGE AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN
+#define USAGE (AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN)
 
 extern DeviceIntPtr lorieMouse, lorieKeyboard;
 
@@ -80,8 +80,6 @@ typedef struct {
     OsTimerPtr redrawTimer;
     OsTimerPtr fpsTimer;
 
-    Bool threadedRenderer;
-    struct ANativeWindow* win;
     Bool cursorMoved;
     int timerFd;
 
@@ -364,8 +362,7 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     if (!ret)
         return FALSE;
 
-    pScreen->devPrivate =
-            pScreen->CreatePixmap(pScreen, 0, 0, pScreen->rootDepth, CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
+    pScreen->devPrivate = pScreen->CreatePixmap(pScreen, 0, 0, pScreen->rootDepth, CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
 
     pvfb->damage = DamageCreate(NULL, NULL, DamageReportNone, TRUE, pScreen, NULL);
     if (!pvfb->damage)
@@ -410,16 +407,16 @@ lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD
     PixmapPtr old_pixmap, new_pixmap;
     SetRootClip(pScreen, ROOT_CLIP_NONE);
 
-    DamageUnregister(pvfb->damage);
-    old_pixmap = pScreen->GetScreenPixmap(pScreen);
-    new_pixmap = pScreen->CreatePixmap(pScreen, 0, 0, pScreen->rootDepth, CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
-    pScreen->SetScreenPixmap(new_pixmap);
-
-    if (old_pixmap) {
-        TraverseTree(pScreen->root, lorieSetPixmapVisitWindow, old_pixmap);
-        pScreen->DestroyPixmap(old_pixmap);
-    }
-    DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->damage);
+//    DamageUnregister(pvfb->damage);
+//    old_pixmap = pScreen->GetScreenPixmap(pScreen);
+//    new_pixmap = pScreen->CreatePixmap(pScreen, 0, 0, pScreen->rootDepth, CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
+//    pScreen->SetScreenPixmap(new_pixmap);
+//
+//    if (old_pixmap) {
+//        TraverseTree(pScreen->root, lorieSetPixmapVisitWindow, old_pixmap);
+//        pScreen->DestroyPixmap(old_pixmap);
+//    }
+//    DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->damage);
 
     pScreen->width = width;
     pScreen->height = height;
@@ -523,36 +520,26 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     return TRUE;
 }                               /* end lorieScreenInit */
 
+// From xfixes/cursor.c
+static CursorPtr
+CursorForDevice(DeviceIntPtr pDev) {
+    if (!CursorVisible || !EnableCursor)
+        return NULL;
+
+    if (pDev && pDev->spriteInfo) {
+        if (pDev->spriteInfo->anim.pCursor)
+            return pDev->spriteInfo->anim.pCursor;
+        return pDev->spriteInfo->sprite ? pDev->spriteInfo->sprite->current : NULL;
+    }
+
+    return NULL;
+}
+
 Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
     struct ANativeWindow* win = (struct ANativeWindow*) closure;
-    ScreenPtr pScreen = pScreenPtr;
-    RegionRec reg;
-    BoxRec box = { .x1 = 0, .y1 = 0, .x2 = pScreen->root->drawable.width, .y2 = pScreen->root->drawable.height};
-    pvfb->win = win;
-
-    if (pvfb->threadedRenderer) {
-
-    } else {
-        renderer_set_window(win);
-        renderer_set_buffer(pvfb->root.buffer);
-    }
-
-    if (CursorVisible && EnableCursor) {
-        int x, y;
-        DeviceIntPtr pDev = GetMaster(lorieMouse, MASTER_POINTER);
-        SpriteInfoPtr info = (pDev && pDev->spriteInfo) ? pDev->spriteInfo : NULL;
-        CursorPtr pCursor = (info && info->sprite) ? (info->anim.pCursor ?: info->sprite->current) : NULL;
-
-        GetSpritePosition(pDev, &x, &y);
-        lorieSetCursor(NULL, NULL, pCursor, -1, -1);
-    }
-
-    if (win) {
-        RegionInit(&reg, &box, 1);
-        pScreen->WindowExposures(pScreen->root, &reg);
-        DamageRegionAppend(&pScreen->GetScreenPixmap(pScreen)->drawable, &reg);
-        RegionUninit(&reg);
-    }
+    renderer_set_window(win);
+    renderer_set_buffer(pvfb->root.buffer);
+    lorieSetCursor(NULL, NULL, CursorForDevice(GetMaster(lorieMouse, MASTER_POINTER)), -1, -1);
 
     return TRUE;
 }

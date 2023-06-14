@@ -131,7 +131,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 return true;
             }
 
-            Log.d("MainActivity", "qweqweq");
             if (k == KeyEvent.KEYCODE_BACK && (e.getSource() & InputDevice.SOURCE_MOUSE) != InputDevice.SOURCE_MOUSE) {
                 // Pass physical escape key to container...
                 Log.d("MainActivity", "Toggling keyboard visibilityasdasdasdasdasd");

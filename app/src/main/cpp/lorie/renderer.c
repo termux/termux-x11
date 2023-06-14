@@ -203,10 +203,9 @@ void renderer_set_buffer(AHardwareBuffer* buf) {
     EGLClientBuffer clientBuffer;
     AHardwareBuffer_Desc desc = {0};
 
-    if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE) {
-        eglCheckError(__LINE__);
+
+    if (eglGetCurrentContext() == EGL_NO_CONTEXT)
         return;
-    }
 
     log("renderer_set_buffer0");
     if (image)
@@ -215,11 +214,6 @@ void renderer_set_buffer(AHardwareBuffer* buf) {
         AHardwareBuffer_release(buffer);
 
     buffer = buf;
-
-    if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE) {
-        eglCheckError(__LINE__);
-        return;
-    }
 
     glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); checkGlError();
@@ -245,10 +239,8 @@ void renderer_set_buffer(AHardwareBuffer* buf) {
         uint32_t data = {0};
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data); checkGlError();
     }
-    renderer_redraw();
 
-    glFlush();
-    eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    renderer_redraw();
 
     log("renderer_set_buffer %p %d %d", buffer, desc.width, desc.height);
 }
@@ -327,7 +319,8 @@ maybe_unused void renderer_upload(int w, int h, void* data) {
     display.width = (float) w;
     display.height = (float) h;
 
-    eglMakeCurrent(egl_display, sfc, sfc, ctx); eglCheckError(__LINE__);
+    if (eglGetCurrentContext() == EGL_NO_CONTEXT)
+        return;
 
     glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); checkGlError();
@@ -338,7 +331,6 @@ maybe_unused void renderer_upload(int w, int h, void* data) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data); checkGlError();
 
     glFlush();
-    eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 }
 
 maybe_unused void renderer_update_rects(int width, maybe_unused int height, pixman_box16_t *rects, int amount, void* data) {
@@ -347,7 +339,8 @@ maybe_unused void renderer_update_rects(int width, maybe_unused int height, pixm
     display.width = (float) width;
     display.height = (float) height;
 
-    eglMakeCurrent(egl_display, sfc, sfc, ctx); eglCheckError(__LINE__);
+    if (eglGetCurrentContext() == EGL_NO_CONTEXT)
+        return;
 
     glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); checkGlError();
@@ -363,7 +356,6 @@ maybe_unused void renderer_update_rects(int width, maybe_unused int height, pixm
         }
 
     glFlush();
-    eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 }
 
 void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data) {
@@ -373,10 +365,8 @@ void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data) {
     cursor.xhot = (float) xhot;
     cursor.yhot = (float) yhot;
 
-    if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE) {
-        eglCheckError(__LINE__);
+    if (eglGetCurrentContext() == EGL_NO_CONTEXT)
         return;
-    }
 
     glBindTexture(GL_TEXTURE_2D, cursor.id); checkGlError();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); checkGlError();
@@ -385,9 +375,6 @@ void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data); checkGlError();
-
-    glFlush();
-    eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 }
 
 void renderer_set_cursor_coordinates(int x, int y) {
@@ -401,16 +388,18 @@ static void draw_cursor(void);
 float ia = 0;
 
 int renderer_should_redraw(void) {
-    return sfc != EGL_NO_SURFACE;
+    return sfc != EGL_NO_SURFACE && eglGetCurrentContext() != EGL_NO_CONTEXT;
 }
 
 int renderer_redraw(void) {
     int err = EGL_SUCCESS;
 
-    if (!sfc)
+    if (!sfc || eglGetCurrentContext() == EGL_NO_CONTEXT)
         return FALSE;
 
-    if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE) {
+    draw(display.id,  -1.f, -1.f, 1.f, 1.f);
+    draw_cursor();
+    if (eglSwapBuffers(egl_display, sfc) != EGL_TRUE) {
         err = eglGetError();
         eglCheckError(__LINE__);
         if (err == EGL_BAD_NATIVE_WINDOW || err == EGL_BAD_SURFACE) {
@@ -422,21 +411,8 @@ int renderer_redraw(void) {
         }
     }
 
-    draw(display.id,  -1.f, -1.f, 1.f, 1.f);
-    draw_cursor();
-    if (eglSwapBuffers(egl_display, sfc) != EGL_TRUE) {
-        err = eglCheckError(__LINE__);
-        if (err == EGL_BAD_SURFACE) {
-            log("We've got EGL_BAD_SURFACE so window is to be destroyed. Native window disconnected/abandoned, probably activity is destroyed or in background");
-            renderer_set_window(NULL);
-            return FALSE;
-        }
-    }
-
     renderedFrames++;
-    eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-
-    return err == EGL_SUCCESS;
+    return TRUE;
 }
 
 void renderer_print_fps(float millis) {

@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
+#include <sys/prctl.h>
 #include <xcb.h>
 #include <linux/un.h>
 #include <libgen.h>
@@ -59,6 +60,15 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectA
         argv[i] = (char *) calloc(strlen(pjc) + 1, sizeof(char)); //Extra char for the terminating NULL
         strcpy((char *) argv[i], pjc);
         (*env)->ReleaseStringUTFChars(env, js, pjc);
+    }
+
+    if (getenv("TERMUX_X11_DEBUG") && !fork()) {
+        // Printing logs of local logcat.
+        char pid[32] = {0};
+        prctl(PR_SET_PDEATHSIG, SIGTERM);
+        sprintf(pid, "%d", getppid());
+        dprintf(2, "starting logcat for %s\n", pid);
+        execlp("logcat", "logcat", "--pid", pid, NULL);
     }
 
     // adb sets TMPDIR to /data/local/tmp which is pretty useless.

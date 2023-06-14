@@ -29,7 +29,6 @@ static __GLXdrawable * createDrawable(unused ClientPtr client, __GLXscreen * scr
 }
 
 static void glXDRIscreenDestroy(__GLXscreen *baseScreen) {
-    free(baseScreen->glvnd);
     free(baseScreen->GLXextensions);
     free(baseScreen->GLextensions);
     free(baseScreen->visuals);
@@ -47,7 +46,7 @@ static __GLXscreen *glXDRIscreenProbe(ScreenPtr pScreen) {
     screen->createDrawable = createDrawable;
     screen->pScreen = pScreen;
     screen->fbconfigs = configs;
-    screen->glvnd = strdup("mesa");
+    screen->glvnd = "mesa";
 
     __glXInitExtensionEnableBits(screen->glx_enable_bits);
     /* There is no real GLX support, but anyways swrast reports it. */

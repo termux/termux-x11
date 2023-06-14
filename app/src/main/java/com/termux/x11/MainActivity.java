@@ -103,12 +103,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         preferences.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> onPreferencesChanged(key));
 
-        getWindow().addFlags(FLAG_KEEP_SCREEN_ON);
+        getWindow().setFlags(FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS | FLAG_KEEP_SCREEN_ON | FLAG_TRANSLUCENT_STATUS, 0);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
-
-        DisplayMetrics dm = new DisplayMetrics();
-        getWindowManager().getDefaultDisplay().getMetrics(dm);
 
         frm = findViewById(R.id.frame);
         Button preferencesButton = findViewById(R.id.preferences_button);
@@ -125,7 +122,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             @Override
             public void swipeDown() {
                 toggleExtraKeys();
-                lorieView.requestFocus();
             }
         }, new InputEventSender(this));
         mLorieKeyListener = (v, k, e) -> {
@@ -488,9 +484,24 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (getRequestedOrientation() != requestedOrientation)
             setRequestedOrientation(requestedOrientation);
 
+        if (hasFocus) {
+
+            if (SDK_INT >= VERSION_CODES.P) {
+                if (p.getBoolean("hideCutout", false))
+                    getWindow().getAttributes().layoutInDisplayCutoutMode = (SDK_INT >= VERSION_CODES.R) ?
+                            LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS :
+                            LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                else
+                    getWindow().getAttributes().layoutInDisplayCutoutMode = LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT;
+            }
+
+            window.setStatusBarColor(Color.BLACK);
+            window.setNavigationBarColor(Color.BLACK);
+        }
+
+        window.setFlags(FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS | FLAG_KEEP_SCREEN_ON | FLAG_TRANSLUCENT_STATUS, 0);
         if (hasFocus && fullscreen) {
-            window.setFlags(FLAG_FULLSCREEN,
-                    FLAG_FULLSCREEN);
+            window.addFlags(FLAG_FULLSCREEN);
             decorView.setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                             | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
@@ -503,27 +514,15 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             decorView.setSystemUiVisibility(0);
         }
 
-        if (hasFocus) {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-            window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-            window.setStatusBarColor(Color.BLACK);
-        }
-
-        if (SDK_INT >= VERSION_CODES.P) {
-            if (p.getBoolean("hideCutout", false))
-                getWindow().getAttributes().layoutInDisplayCutoutMode = (SDK_INT >= VERSION_CODES.R) ?
-                    LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS :
-                    LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-            else
-                getWindow().getAttributes().layoutInDisplayCutoutMode = LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT;
-        }
-
         if (reseed)
             window.setSoftInputMode(SOFT_INPUT_ADJUST_RESIZE | SOFT_INPUT_STATE_HIDDEN);
         else
             window.setSoftInputMode(SOFT_INPUT_ADJUST_PAN | SOFT_INPUT_STATE_HIDDEN);
 
         SamsungDexUtils.dexMetaKeyCapture(this, hasFocus && p.getBoolean("dexMetaKeyCapture", false));
+
+        if (hasFocus)
+            getLorieView().regenerate();
     }
 
     @Override

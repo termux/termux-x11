@@ -88,5 +88,5 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: termux-x11-unstripped-libraries-for-ndk-stack
-        path: ./app/.cxx/Debug/*
+        path: ./app/build/intermediates/cxx/Debug/*
     

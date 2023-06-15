@@ -3,7 +3,7 @@
     <string-array name="touchscreenInputModesEntries">
         <item>Trackpad</item>
         <item>Simulated touchscreen</item>
-        <item>Touchscreen</item>
+        <item>Direct touch</item>
     </string-array>
     <string-array name="touchscreenInputModesValues">
         <item>1</item>

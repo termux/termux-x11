@@ -18,6 +18,7 @@ import android.view.View;
 import android.view.ViewConfiguration;
 
 import androidx.annotation.IntDef;
+import androidx.core.math.MathUtils;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -225,8 +226,17 @@ public class TouchInputHandler {
             case MotionEvent.ACTION_MOVE:
                 if (e.getX() == 0 && e.getY() == 0)
                     return true;
-//                mInjector.sendMouseEvent(new PointF(e.getX(), e.getY()), InputStub.BUTTON_UNDEFINED, false, true);
-                moveCursorByOffset(-e.getX()*2, -e.getY()*2);
+
+                PointF newPos = mRenderData.getCursorPosition();
+                newPos.offset(e.getX()*2, e.getY()*2);
+                newPos.set(
+                        MathUtils.clamp(newPos.x, 0, mRenderData.screenWidth),
+                        MathUtils.clamp(newPos.y, 0, mRenderData.screenHeight));
+                boolean cursorMoved = mRenderData.setCursorPosition(newPos.x, newPos.y);
+                if (cursorMoved)
+                    mInjector.sendCursorMove(mRenderData.getCursorPosition());
+
+                mRenderStub.moveCursor(mRenderData.getCursorPosition());
                 break;
             case MotionEvent.ACTION_BUTTON_PRESS:
                 mInjector.sendMouseDown(mRenderData.getCursorPosition(), button);
@@ -298,15 +308,7 @@ public class TouchInputHandler {
     private void moveCursorByOffset(float deltaX, float deltaY) {
         PointF cursorPos = mRenderData.getCursorPosition();
         cursorPos.offset(-deltaX, -deltaY);
-        if (cursorPos.x < 0)
-            cursorPos.x = 0;
-        if (cursorPos.y < 0)
-            cursorPos.y = 0;
-        if (cursorPos.x > mRenderData.screenWidth)
-            cursorPos.x = mRenderData.screenWidth;
-        if (cursorPos.y > mRenderData.screenHeight)
-            cursorPos.y = mRenderData.screenHeight;
-        moveCursor(cursorPos.x, cursorPos.y);
+        moveCursor(MathUtils.clamp(cursorPos.x, 0, mRenderData.screenWidth), MathUtils.clamp(cursorPos.y, 0, mRenderData.screenHeight));
     }
 
     /** Moves the cursor to the specified position on the screen. */

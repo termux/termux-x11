@@ -67,7 +67,6 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectA
         char pid[32] = {0};
         prctl(PR_SET_PDEATHSIG, SIGTERM);
         sprintf(pid, "%d", getppid());
-        dprintf(2, "starting logcat for %s\n", pid);
         execlp("logcat", "logcat", "--pid", pid, NULL);
     }
 

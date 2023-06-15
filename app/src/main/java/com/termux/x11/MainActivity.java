@@ -149,6 +149,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         lorieParent.setOnTouchListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));
         lorieParent.setOnHoverListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));
         lorieParent.setOnGenericMotionListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));
+        lorieView.setOnCapturedPointerListener((v, e) -> mInputHandler.handleCapturedEvent(lorieView, e));
         lorieParent.setOnCapturedPointerListener((v, e) -> mInputHandler.handleCapturedEvent(lorieView, e));
         lorieView.setOnKeyListener(mLorieKeyListener);
 

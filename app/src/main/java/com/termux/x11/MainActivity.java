@@ -405,23 +405,17 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @SuppressLint("ObsoleteSdkInt")
     Notification buildNotification() {
-        Intent notificationIntent = new Intent(this, MainActivity.class);
-        notificationIntent.putExtra("key", "value");
-        notificationIntent.setAction(Long.toString(System.currentTimeMillis()));
+        Intent preferencesIntent = new Intent(this, LoriePreferences.class);
+        preferencesIntent.putExtra("key", "value");
+        preferencesIntent.setAction(Intent.ACTION_MAIN);
 
         Intent exitIntent = new Intent(ACTION_STOP);
         exitIntent.setPackage(getPackageName());
 
-        Intent preferencesIntent = new Intent(this, LoriePreferences.class);
-        preferencesIntent.setAction(Intent.ACTION_MAIN);
+        PendingIntent pIntent = PendingIntent.getActivity(this, 0, preferencesIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pExitIntent = PendingIntent.getBroadcast(this, 0, exitIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        PendingIntent pIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        PendingIntent pExitIntent = PendingIntent.getBroadcast(this, 0, exitIntent, PendingIntent.FLAG_IMMUTABLE);
-        PendingIntent pPreferencesIntent = PendingIntent.getActivity(this, 0, preferencesIntent, PendingIntent.FLAG_IMMUTABLE);
-
-        int priority = Notification.PRIORITY_HIGH;
-        if (SDK_INT >= VERSION_CODES.N)
-            priority = NotificationManager.IMPORTANCE_HIGH;
+        int priority = Notification.PRIORITY_MIN;
         NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         String channelId = SDK_INT >= VERSION_CODES.O ? getNotificationChannel(notificationManager) : "";
         return new NotificationCompat.Builder(this, channelId)
@@ -433,15 +427,15 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 .setPriority(priority)
                 .setShowWhen(false)
                 .setColor(0xFF607D8B)
-                .addAction(0, "Preferences", pPreferencesIntent)
                 .addAction(0, "Exit", pExitIntent)
+                .addAction(0, "Preferences", pIntent)
                 .build();
     }
 
     private String getNotificationChannel(NotificationManager notificationManager){
         String channelId = getResources().getString(R.string.app_name);
         String channelName = getResources().getString(R.string.app_name);
-        NotificationChannel channel = new NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_HIGH);
+        NotificationChannel channel = new NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_MIN);
         channel.setImportance(NotificationManager.IMPORTANCE_NONE);
         channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
         notificationManager.createNotificationChannel(channel);

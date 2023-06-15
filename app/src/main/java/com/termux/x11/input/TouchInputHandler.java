@@ -201,6 +201,13 @@ public class TouchInputHandler {
                     mIsDragging = false;
                     break;
 
+                case MotionEvent.ACTION_SCROLL:
+                    float scrollY = -100 * event.getAxisValue(MotionEvent.AXIS_VSCROLL);
+                    float scrollX = -100 * event.getAxisValue(MotionEvent.AXIS_HSCROLL);
+
+                    mInjector.sendMouseWheelEvent(scrollX, scrollY);
+                    return true;
+
                 case MotionEvent.ACTION_POINTER_DOWN:
                     mTotalMotionY = 0;
                     break;

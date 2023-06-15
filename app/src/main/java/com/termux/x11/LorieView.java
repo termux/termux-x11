@@ -142,7 +142,9 @@ public class LorieView extends SurfaceView {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
-        if (preferences.getBoolean("displayStretch", false)) {
+        if (preferences.getBoolean("displayStretch", false)
+              || "native".equals(preferences.getString("displayResolutionMode", "native"))
+              || "scaled".equals(preferences.getString("displayResolutionMode", "native"))) {
             getHolder().setSizeFromLayout();
             return;
         }
@@ -159,11 +161,10 @@ public class LorieView extends SurfaceView {
             //noinspection SuspiciousNameCombination
             p.set(p.y, p.x);
 
-        if (width > height * p.x / p.y) {
+        if (width > height * p.x / p.y)
             width = height * p.x / p.y;
-        } else {
+        else
             height = width * p.y / p.x;
-        }
 
         getHolder().setFixedSize(p.x, p.y);
         setMeasuredDimension(width, height);

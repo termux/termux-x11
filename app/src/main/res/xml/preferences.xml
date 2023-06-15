@@ -133,4 +133,8 @@
         android:title="Automatic uploading clipboard to Android"
         android:defaultValue="false"
         android:key="clipboardSync" />
+
+    <Preference
+        android:title="Request notification permission"
+        android:key="requestNotificationPermission" />
 </PreferenceScreen>

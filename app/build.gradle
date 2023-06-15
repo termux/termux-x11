@@ -6,14 +6,7 @@ android {
     defaultConfig {
         applicationId "com.termux.x11"
         minSdkVersion 26
-
-        /*
-         * Do not increase targetSdkVersion
-         * Android does not allow to manage socket
-         * owned by other userId if targetSdkVersion is 29+
-         */
-        //noinspection ExpiredTargetSdkVersion,OldTargetApi
-        targetSdkVersion 28
+        targetSdkVersion 33
         versionCode 12
         versionName "1.02.10"
     }

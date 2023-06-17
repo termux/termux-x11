@@ -53,8 +53,8 @@ static int eglCheckError(int line) {
 
 static const char* eglErrorLabel(int code) {
     switch(code) {
-#define E(code) case code: return #code; break
         case EGL_SUCCESS: return NULL; // "No error"
+#define E(code) case code: return #code; break
         E(EGL_NOT_INITIALIZED);
         E(EGL_BAD_ACCESS);
         E(EGL_BAD_ALLOC);
@@ -284,7 +284,7 @@ void renderer_set_window(EGLNativeWindowType window) {
         return;
     }
 
-    if (sfc && !g_texture_program) {
+    if (!g_texture_program) {
         g_texture_program = create_program(vertex_shader, fragment_shader);
         if (!g_texture_program) {
             log("Xlorie: GLESv2: Unable to create shader program.\n");
@@ -306,9 +306,6 @@ void renderer_set_window(EGLNativeWindowType window) {
         glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win)); checkGlError();
 
     log("Xlorie: new surface applied: %p\n", sfc);
-
-    if (!sfc)
-        return;
 
     glClearColor(1.f, 0.f, 0.f, 0.0f); checkGlError();
     glClear(GL_COLOR_BUFFER_BIT); checkGlError();
@@ -365,7 +362,7 @@ void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data) {
     cursor.xhot = (float) xhot;
     cursor.yhot = (float) yhot;
 
-    if (eglGetCurrentContext() == EGL_NO_CONTEXT)
+    if (eglGetCurrentContext() == EGL_NO_CONTEXT || !cursor.width || !cursor.height)
         return;
 
     glBindTexture(GL_TEXTURE_2D, cursor.id); checkGlError();
@@ -501,6 +498,10 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1) {
 
 maybe_unused static void draw_cursor(void) {
     float x, y, w, h;
+
+    if (!cursor.width || !cursor.height)
+        return;
+
     x = 2.f * (cursor.x - cursor.xhot) / display.width - 1.f;
     y = 2.f * (cursor.y - cursor.yhot) / display.height - 1.f;
     w = 2.f * cursor.width / display.width;

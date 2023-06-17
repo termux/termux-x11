@@ -69,6 +69,7 @@ from The Open Group.
 #define wrap(priv, real, mem, func) { priv->mem = real->mem; real->mem = func; }
 #define unwrap(priv, real, mem) { real->mem = priv->mem; }
 #define USAGE (AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN)
+#define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
 
 extern DeviceIntPtr lorieMouse, lorieKeyboard;
 
@@ -100,7 +101,7 @@ static void VoidNoop() {}
 
 void
 ddxGiveUp(unused enum ExitCode error) {
-    __android_log_print(ANDROID_LOG_ERROR, "Xlorie", "Server stopped (%d)", error);
+    log(ERROR, "Server stopped (%d)", error);
     exit(error);
 }
 
@@ -122,7 +123,7 @@ OsVendorInit(void) {
 
 void
 OsVendorFatalError(unused const char *f, unused va_list args) {
-    __android_log_vprint(ANDROID_LOG_ERROR, "Xlorie", f, args);
+    log(ERROR, f, args);
 }
 
 #if defined(DDXBEFORERESET)
@@ -187,7 +188,7 @@ static void lorieMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int
 static void lorieConvertCursor(CursorPtr pCurs, CARD32 *data) {
     CursorBitsPtr bits = pCurs->bits;
     if (bits->argb) {
-        for (int i = 0; i < bits->width * bits->height * 4; i++) {
+        for (int i = 0; i < bits->width * bits->height; i++) {
             /* Convert bgra to rgba */
             CARD32 p = bits->argb[i];
             data[i] = (p & 0xFF000000) | ((p & 0x00FF0000) >> 16) | (p & 0x0000FF00) | ((p & 0x000000FF) << 16);
@@ -562,7 +563,7 @@ void lorieConfigureNotify(int width, int height, int framerate) {
         long nsecs = 1000 * 1000 * 1000 / framerate;
         struct itimerspec spec = { { 0, nsecs }, { 0, nsecs } };
         timerfd_settime(lorieScreen.timerFd, 0, &spec, NULL);
-        __android_log_print(ANDROID_LOG_VERBOSE, "LorieNative", "New framerate is %d", framerate);
+        log(VERBOSE, "New framerate is %d", framerate);
     }
 }
 

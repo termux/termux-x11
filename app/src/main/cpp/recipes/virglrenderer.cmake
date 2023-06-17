@@ -6,21 +6,6 @@ check_include_file("sys/select.h" HAVE_SYS_SELECT_H)
 set (HAVE_PTHREAD 1)
 set (HAVE_EPOXY_EGL_H 1)
 
-#set (VIRGL_WITH_VENUS 1)
-#set (VIRGL_WITH_VENUS_VALDATE 1)
-#set (VIRGL_WITH_VENUS_VALDATE 1)
-#set (VIRGL_WITH_TRACING "TRACE_WITH_STDERR")
-
-if (VIRGL_WITH_VENUS)
-    set(ENABLE_VENUS 1)
-    set(VIRGL_VENUS_VULKAN_LIBRARY "-lvulkan")
-else ()
-    set(VIRGL_VENUS_VULKAN_LIBRARY)
-endif ()
-if (VIRGL_WITH_VENUS_VALDATE)
-    set(ENABLE_VENUS_VALIDATE 1)
-endif ()
-
 check_source_compiles(C "
     #define _GNU_SOURCE 1
     #include <pthread.h>
@@ -109,8 +94,6 @@ file(CONFIGURE
 #cmakedefine HAVE_EPOXY_GLX_H
 #cmakedefine CHECK_GL_ERRORS
 #cmakedefine ENABLE_MINIGBM_ALLOCATION
-#cmakedefine ENABLE_VENUS
-#cmakedefine ENABLE_VENUS_VALIDATE
 #cmakedefine ENABLE_DRM
 #cmakedefine ENABLE_DRM_MSM
 #cmakedefine ENABLE_RENDER_SERVER
@@ -133,8 +116,6 @@ file(CONFIGURE
 #cmakedefine PIPE_ARCH_AARCH64
 #define EGL_WITHOUT_GBM
 
-#cmakedefine ENABLE_VENUS
-#cmakedefine ENABLE_VENUS_VALIDATE
 #cmakedefine ENABLE_TRACING \"@VIRGL_WITH_TRACING@\"
 
 #undef ANDROID
@@ -146,32 +127,6 @@ file(CONFIGURE
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/gl4es-decompress.c"
         CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/virglrenderer/src/gl4es-decompress.c\"")
 
-#if (ANDROID_PLATFORM)
-#    # Android defines it as a static inline, for some reason it is not detected
-#    set(HAVE___BUILTIN_FFSLL 1)
-#    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/log")
-#    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/cutils")
-#    file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/log/log.h" CONTENT "#include <android/log.h>\n")
-#    file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/cutils/properties.h" CONTENT "#include <android/log.h>\n")
-#endif()
-
-#virglrenderer/src/venus/vkr_device_object.py
-add_custom_command(
-        OUTPUT
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_buffer_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_command_buffer_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_descriptor_set_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_device_memory_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_image_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_pipeline_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_query_pool_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_queue_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_render_pass_gen.h"
-        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/virglrenderer/src/venus/vkr_device_object.py"
-            "-o" "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer" "${CMAKE_CURRENT_SOURCE_DIR}/virglrenderer/src/venus/vkr_device_object.json"
-        COMMENT "Generating vulkan sources for virglrenderer"
-        VERBATIM)
-
 add_custom_command(
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/u_format_table.c"
         COMMAND Python3::Interpreter "-B" "${CMAKE_CURRENT_SOURCE_DIR}/virglrenderer/src/gallium/auxiliary/util/u_format_table.py"
@@ -179,41 +134,6 @@ add_custom_command(
             "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/u_format_table.c"
         COMMENT "Generating source code (u_format_table.c)"
         VERBATIM)
-
-if (VIRGL_WITH_VENUS)
-    set(VIRGL_VENUS_SOURCES
-            "virglrenderer/src/venus/vkr_allocator.c"
-            "virglrenderer/src/venus/vkr_buffer.c"
-            "virglrenderer/src/venus/vkr_command_buffer.c"
-            "virglrenderer/src/venus/vkr_common.c"
-            "virglrenderer/src/venus/vkr_context.c"
-            "virglrenderer/src/venus/vkr_cs.c"
-            "virglrenderer/src/venus/vkr_descriptor_set.c"
-            "virglrenderer/src/venus/vkr_device.c"
-            "virglrenderer/src/venus/vkr_device_memory.c"
-            "virglrenderer/src/venus/vkr_image.c"
-            "virglrenderer/src/venus/vkr_instance.c"
-            "virglrenderer/src/venus/vkr_physical_device.c"
-            "virglrenderer/src/venus/vkr_pipeline.c"
-            "virglrenderer/src/venus/vkr_query_pool.c"
-            "virglrenderer/src/venus/vkr_queue.c"
-            "virglrenderer/src/venus/vkr_render_pass.c"
-            "virglrenderer/src/venus/vkr_renderer.c"
-            "virglrenderer/src/venus/vkr_ring.c"
-            "virglrenderer/src/venus/vkr_transport.c"
-
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_buffer_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_command_buffer_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_descriptor_set_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_device_memory_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_image_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_pipeline_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_query_pool_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_queue_gen.h"
-            "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/vkr_render_pass_gen.h")
-else ()
-    set(VIRGL_VENUS_SOURCES)
-endif ()
 
 add_executable(virgl_test_server
         "virglrenderer/src/virglrenderer.c"
@@ -267,9 +187,7 @@ add_executable(virgl_test_server
         "virglrenderer/vtest/util.c"
         "virglrenderer/vtest/vtest_shm.c"
         "virglrenderer/vtest/vtest_server.c"
-        "virglrenderer/vtest/vtest_renderer.c"
-
-        ${VIRGL_VENUS_SOURCES})
+        "virglrenderer/vtest/vtest_renderer.c")
 target_include_directories(virgl_test_server PRIVATE
         "libepoxy/include"
         "drm/include/drm"

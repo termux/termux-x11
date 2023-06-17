@@ -71,7 +71,7 @@ endforeach ()
 set(CMAKE_REQUIRED_QUIET ${CMAKE_REQUIRED_QUIET_OLD})
 
 foreach(project xorgproto fontenc md freetype pixman tirpc xshmfence xcb xkbcommon
-                xcb-errors X11 Xtrans xkbfile Xdmcp Xau Xfont2 xkbcomp xserver epoxy virglrenderer)
+                xcb-errors X11 Xtrans xkbfile Xdmcp Xau Xfont2 xkbcomp xserver epoxy)
     include(recipes/${project}.cmake)
 endforeach()
 

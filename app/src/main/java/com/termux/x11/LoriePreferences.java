@@ -132,6 +132,7 @@ public class LoriePreferences extends AppCompatActivity {
             findPreference("displayResolutionMode").setSummary(p.getString("displayResolutionMode", "native"));
             findPreference("displayResolutionExact").setSummary(p.getString("displayResolutionExact", "1280x1024"));
             findPreference("displayResolutionCustom").setSummary(p.getString("displayResolutionCustom", "1280x1024"));
+            findPreference("displayStretch").setEnabled("exact".equals(p.getString("displayResolutionMode", "native")) || "custom".equals(p.getString("displayResolutionMode", "native")));
 
             int modeValue = Integer.parseInt(p.getString("touchMode", "1")) - 1;
             String mode = getResources().getStringArray(R.array.touchscreenInputModesEntries)[modeValue];

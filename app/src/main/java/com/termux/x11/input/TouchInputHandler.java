@@ -31,6 +31,8 @@ import java.lang.annotation.RetentionPolicy;
 public class TouchInputHandler {
     private static final float EPSILON = 0.001f;
 
+    public static int STYLUS_INPUT_HELPER_MODE = 1;//1 = Left Click, 2 Middle Click, 3 Right Click
+
     /** Used to set/store the selected input mode. */
     @SuppressWarnings("unused")
     @IntDef({InputMode.UNKNOWN, InputMode.TRACKPAD, InputMode.SIMULATED_TOUCH, InputMode.TOUCH})
@@ -168,7 +170,9 @@ public class TouchInputHandler {
         if (!view.isFocused() && event.getAction() == MotionEvent.ACTION_DOWN)
             view.requestFocus();
 
-        if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_MOUSE)
+        if ((event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_MOUSE)
+                || (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_STYLUS)
+        )
             return mHMListener.onTouch(view, event);
 
         if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER) {
@@ -179,6 +183,8 @@ public class TouchInputHandler {
             // Regular touchpads and Dex touchpad send events as finger too,
             // but they should be handled as touchscreens with trackpad mode.
             if (mTouchpadHandler != null && (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD)
+                return mTouchpadHandler.handleTouchEvent(view, view, event);
+            if (mTouchpadHandler != null && (event.getSource() & InputDevice.SOURCE_BLUETOOTH_STYLUS) == InputDevice.SOURCE_BLUETOOTH_STYLUS)
                 return mTouchpadHandler.handleTouchEvent(view, view, event);
 
             // Give the underlying input strategy a chance to observe the current motion event before
@@ -222,7 +228,7 @@ public class TouchInputHandler {
     }
 
     public boolean handleCapturedEvent(View v, MotionEvent e) {
-        if ((e.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) {
+        if (((e.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) || ((e.getSource() & InputDevice.SOURCE_BLUETOOTH_STYLUS) == InputDevice.SOURCE_BLUETOOTH_STYLUS)) {
             if (mTouchpadHandler != null)
                 mTouchpadHandler.handleTouchEvent(v, v, e);
             return true;
@@ -535,7 +541,8 @@ public class TouchInputHandler {
         void onTouch(View v, MotionEvent e) {
             if (mInjector.pointerCapture && !v.hasPointerCapture() && e.getAction() == MotionEvent.ACTION_UP)
                 v.requestPointerCapture();
-            if (e.getActionMasked() == MotionEvent.ACTION_MOVE &&
+            if ( (e.getActionMasked() == MotionEvent.ACTION_MOVE) ||
+                    (e.getActionMasked() == MotionEvent.ACTION_HOVER_MOVE) &&
                     e.getPointerCount() == 1 &&
                     (e.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) {
                 moveCursorByOffset(
@@ -573,6 +580,21 @@ public class TouchInputHandler {
             float[] imagePoint = mapScreenPointToImagePoint((int) e.getX(), (int) e.getY());
             if (mRenderData.setCursorPosition(imagePoint[0], imagePoint[1]))
                 mInjector.sendCursorMove(imagePoint[0], imagePoint[1]);
+
+            //STYLUS HERE
+            if (e.getToolType(e.getActionIndex()) == MotionEvent.TOOL_TYPE_STYLUS)
+            {//make sure its a stylus event
+                if (e.getAction() == MotionEvent.ACTION_DOWN)
+                    mInjector.sendMouseEvent(mRenderData.getCursorPosition(), STYLUS_INPUT_HELPER_MODE, true, false);
+                if (e.getAction() == MotionEvent.ACTION_UP)
+                    mInjector.sendMouseEvent(mRenderData.getCursorPosition(), STYLUS_INPUT_HELPER_MODE, false, false);
+                if (e.getAction() == MotionEvent.ACTION_HOVER_MOVE)
+                    moveCursorByOffset(
+                            -2 * e.getAxisValue(MotionEvent.AXIS_RELATIVE_X),
+                            -2 * e.getAxisValue(MotionEvent.AXIS_RELATIVE_Y));
+
+            }
+            //END OF STYLUS
 
             currentBS = e.getButtonState();
             if (isMouseButtonChanged(MotionEvent.BUTTON_PRIMARY))
@@ -625,16 +647,19 @@ public class TouchInputHandler {
                         mInjector.sendCursorMove(imagePoint[0], imagePoint[1]);
                     break;
                 case MotionEvent.ACTION_DOWN:
-                    if ((e.getFlags() & 0x14000000) == 0x14000000) {
+                    if ((e.getFlags() & 0x14000000) == 0x14000000){
                         mIsScrolling = true;
                         mScroller.onTouchEvent(e);
-                    } else if ((e.getFlags() & 0x4000000) == 0x4000000) {
+                    } else if (((e.getFlags() & 0x4000000) == 0x4000000)
+                          //  || (e.getSource() & e.getSource()) == InputDevice.SOURCE_BLUETOOTH_STYLUS
+                      )
+                    {
                         mIsDragging = true;
                         mInjector.sendMouseEvent(mRenderData.getCursorPosition(), 1, true, false);
                     }
                     break;
                 case MotionEvent.ACTION_UP:
-                    if ((e.getFlags() & 0x14000000) == 0x14000000) {
+                    if ((e.getFlags() & 0x14000000) == 0x14000000){
                         mScroller.onTouchEvent(e);
                         mIsScrolling = false;
                     }

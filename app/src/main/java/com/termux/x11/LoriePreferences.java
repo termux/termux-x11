@@ -142,14 +142,6 @@ public class LoriePreferences extends AppCompatActivity {
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                     && ContextCompat.checkSelfPermission(requireContext(), POST_NOTIFICATIONS) == PERMISSION_DENIED;
             findPreference("requestNotificationPermission").setVisible(requestNotificationPermissionVisible);
-
-
-
-            findPreference("displayScale").setVisible(true);
-
-
-
-
         }
 
         @Override

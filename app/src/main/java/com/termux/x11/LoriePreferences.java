@@ -142,6 +142,14 @@ public class LoriePreferences extends AppCompatActivity {
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                     && ContextCompat.checkSelfPermission(requireContext(), POST_NOTIFICATIONS) == PERMISSION_DENIED;
             findPreference("requestNotificationPermission").setVisible(requestNotificationPermissionVisible);
+
+
+
+            findPreference("displayScale").setVisible(true);
+
+
+
+
         }
 
         @Override
@@ -249,6 +257,14 @@ public class LoriePreferences extends AppCompatActivity {
                 edit.putBoolean("additionalKbdVisible", true);
                 edit.commit();
             }
+
+            if ("showStylusClickOverride".equals(key)) {
+                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(requireContext());
+                SharedPreferences.Editor edit = preferences.edit();
+                edit.putBoolean("showStylusClickOverride", true);
+                edit.commit();
+            }
+
 
             if ("enableAccessibilityServiceAutomatically".equals(key)) {
                 Boolean value = (Boolean) newValue;

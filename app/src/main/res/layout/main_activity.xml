@@ -95,7 +95,8 @@
 		android:layout_height="wrap_content"
 		android:translationX="0px"
 		android:translationY="0px"
-		app:chipSpacing="0px">
+		app:chipSpacing="0px"
+		app:chipSpacingHorizontal="0dp">
 
 		<Button
 			android:id="@+id/button_visibility"
@@ -119,6 +120,7 @@
 			android:layout_width="wrap_content"
 			android:layout_height="wrap_content"
 			app:chipSpacing="0px"
+			app:chipSpacingHorizontal="0dp"
 			tools:visibility="visible">
 
 			<Button

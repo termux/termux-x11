@@ -301,8 +301,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     ChipGroup chipgroup_all_btns = findViewById(R.id.mouse_helper_visibility);
                     FrameLayout main_frame = findViewById(R.id.frame);
                     //Calculate screen border making sure btn is fully inside the view
-                    float max_x = main_frame.getWidth() - chipgroup_all_btns.getWidth();
-                    float max_y = main_frame.getHeight() - chipgroup_all_btns.getHeight();
+                    float max_x = main_frame.getWidth() - 4 * button_left.getWidth();
+                    float max_y = main_frame.getHeight() - 4 * button_left.getHeight();
                     float min_x = 0;
                     float min_y = 0;
 

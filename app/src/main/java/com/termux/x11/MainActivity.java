@@ -296,6 +296,19 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     chipgroup.setVisibility(View.VISIBLE);
                     button_visibility.setAlpha(menu_selected_trasparency);
                     button_visibility.setText("X");
+
+
+                    ChipGroup chipgroup_all_btns = findViewById(R.id.mouse_helper_visibility);
+                    FrameLayout main_frame = findViewById(R.id.frame);
+                    //Calculate screen border making sure btn is fully inside the view
+                    float max_x = main_frame.getWidth() - chipgroup_all_btns.getWidth();
+                    float max_y = main_frame.getHeight() - chipgroup_all_btns.getHeight();
+                    float min_x = 0;
+                    float min_y = 0;
+
+                    //Make sure the Stylus menu is fully inside the screen
+                    chipgroup_all_btns.setX(MathUtils.clamp(chipgroup_all_btns.getX(),min_x,max_x));
+                    chipgroup_all_btns.setY(MathUtils.clamp(chipgroup_all_btns.getY(),min_y,max_y));
                 }
             }
         });

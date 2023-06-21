@@ -103,7 +103,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         preferences.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> onPreferencesChanged(key));
 
-        getWindow().setFlags(FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS | FLAG_KEEP_SCREEN_ON | FLAG_TRANSLUCENT_STATUS, 0);
+        getWindow().setFlags(FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS | FLAG_TRANSLUCENT_STATUS, 0);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
 
@@ -471,6 +471,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         boolean fullscreen = p.getBoolean("fullscreen", false);
         boolean reseed = p.getBoolean("Reseed", true);
 
+        if (p.getBoolean("keepScreenOn", false))
+	        window.addFlags(FLAG_KEEP_SCREEN_ON);
+	    else
+	        window.clearFlags(FLAG_KEEP_SCREEN_ON);
+
         fullscreen = fullscreen || getIntent().getBooleanExtra(REQUEST_LAUNCH_EXTERNAL_DISPLAY, false);
 
         int requestedOrientation = p.getBoolean("forceLandscape", false) ?
@@ -493,7 +498,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             window.setNavigationBarColor(Color.BLACK);
         }
 
-        window.setFlags(FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS | FLAG_KEEP_SCREEN_ON | FLAG_TRANSLUCENT_STATUS, 0);
+        window.setFlags(FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS | FLAG_TRANSLUCENT_STATUS, 0);
         if (hasFocus && fullscreen) {
             window.addFlags(FLAG_FULLSCREEN);
             decorView.setSystemUiVisibility(

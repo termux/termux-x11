@@ -60,6 +60,11 @@
             android:title="Hide display cutout (if any)"
             android:defaultValue="false"
             android:key="hideCutout" />
+        
+        <SwitchPreferenceCompat
+	        android:title="Keep Screen On"
+            android:defaultValue="false"
+            android:key="keepScreenOn" />
 
     </PreferenceCategory>
     <PreferenceCategory android:key="input" android:title="Input">

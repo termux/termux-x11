@@ -250,6 +250,13 @@ public class LoriePreferences extends AppCompatActivity {
                 edit.commit();
             }
 
+            if ("keepScreenOn".equals(key)) {
+                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(requireContext());
+                SharedPreferences.Editor edit = preferences.edit();
+                edit.putBoolean("keepScreenOn", true);
+                edit.commit();
+            }
+
             if ("enableAccessibilityServiceAutomatically".equals(key)) {
                 Boolean value = (Boolean) newValue;
                 if (!value)

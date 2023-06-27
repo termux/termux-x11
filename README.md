@@ -63,8 +63,8 @@ You can get loader for nightly build from an artifact of [last successful build]
 ```
 export XKB_CONFIG_ROOT=/path/to/chroot/container/usr/share/xkb
 export TMPDIR=/path/to/chroot/container/tmp
-export CLASSPATH=/path/to/loader.apk
-/system/bin/app_process / com.termux.x11.Loader :0
+export CLASSPATH=$(/system/bin/pm path com.termux.x11 | cut -d: -f2)
+/system/bin/app_process / com.termux.x11.CmdEntryPoint :0
 ```
 
 ### Logs

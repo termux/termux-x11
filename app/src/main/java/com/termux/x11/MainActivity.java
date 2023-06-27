@@ -508,6 +508,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             decorView.setSystemUiVisibility(0);
         }
 
+        if (p.getBoolean("keepScreenOn", true))
+            window.addFlags(FLAG_KEEP_SCREEN_ON);
+        else
+            window.clearFlags(FLAG_KEEP_SCREEN_ON);
+
         if (reseed)
             window.setSoftInputMode(SOFT_INPUT_ADJUST_RESIZE | SOFT_INPUT_STATE_HIDDEN);
         else

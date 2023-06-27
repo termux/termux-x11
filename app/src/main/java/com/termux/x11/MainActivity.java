@@ -471,11 +471,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         boolean fullscreen = p.getBoolean("fullscreen", false);
         boolean reseed = p.getBoolean("Reseed", true);
 
-        if (p.getBoolean("keepScreenOn", false))
-	        window.addFlags(FLAG_KEEP_SCREEN_ON);
-	    else
-	        window.clearFlags(FLAG_KEEP_SCREEN_ON);
-
         fullscreen = fullscreen || getIntent().getBooleanExtra(REQUEST_LAUNCH_EXTERNAL_DISPLAY, false);
 
         int requestedOrientation = p.getBoolean("forceLandscape", false) ?
@@ -512,6 +507,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             window.clearFlags(FLAG_FULLSCREEN);
             decorView.setSystemUiVisibility(0);
         }
+
+        if (p.getBoolean("keepScreenOn", false))
+            window.addFlags(FLAG_KEEP_SCREEN_ON);
+        else
+            window.clearFlags(FLAG_KEEP_SCREEN_ON);
 
         if (reseed)
             window.setSoftInputMode(SOFT_INPUT_ADJUST_RESIZE | SOFT_INPUT_STATE_HIDDEN);

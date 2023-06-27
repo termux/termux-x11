@@ -312,49 +312,6 @@ void renderer_set_window(EGLNativeWindowType window) {
     renderer_redraw();
 }
 
-maybe_unused void renderer_upload(int w, int h, void* data) {
-    display.width = (float) w;
-    display.height = (float) h;
-
-    if (eglGetCurrentContext() == EGL_NO_CONTEXT)
-        return;
-
-    glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data); checkGlError();
-
-    glFlush();
-}
-
-maybe_unused void renderer_update_rects(int width, maybe_unused int height, pixman_box16_t *rects, int amount, void* data) {
-    int i, w, j;
-    uint32_t* d;
-    display.width = (float) width;
-    display.height = (float) height;
-
-    if (eglGetCurrentContext() == EGL_NO_CONTEXT)
-        return;
-
-    glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
-
-    for (i = 0; i < amount; i++)
-        for (j = rects[i].y1; j < rects[i].y2; j++) {
-            d = &((uint32_t*)data)[width * j + rects[i].x1];
-            w = rects[i].x2 - rects[i].x1;
-            glTexSubImage2D(GL_TEXTURE_2D, 0, rects[i].x1, j, w, 1, GL_RGBA, GL_UNSIGNED_BYTE, d); checkGlError();
-        }
-
-    glFlush();
-}
-
 void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data) {
     log("Xlorie: updating cursor\n");
     cursor.width = (float) w;
@@ -366,8 +323,8 @@ void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data) {
         return;
 
     glBindTexture(GL_TEXTURE_2D, cursor.id); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); checkGlError();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); checkGlError();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
 

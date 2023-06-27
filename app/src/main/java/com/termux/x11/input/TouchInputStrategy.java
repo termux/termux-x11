@@ -8,6 +8,8 @@ import android.graphics.Matrix;
 import android.graphics.PointF;
 import android.view.MotionEvent;
 
+import androidx.core.math.MathUtils;
+
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Queue;
@@ -211,6 +213,7 @@ public class TouchInputStrategy implements InputStrategyInterface {
         Matrix inverted = new Matrix();
         mRenderData.transform.invert(inverted);
         event.transform(inverted);
+        event.setLocation(MathUtils.clamp(event.getX(), 0, mRenderData.screenWidth), MathUtils.clamp(event.getY(), 0, mRenderData.screenHeight));
 
         return event;
     }

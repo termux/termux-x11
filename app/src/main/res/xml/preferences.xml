@@ -63,7 +63,7 @@
         
         <SwitchPreferenceCompat
 	        android:title="Keep Screen On"
-            android:defaultValue="false"
+            android:defaultValue="true"
             android:key="keepScreenOn" />
 
     </PreferenceCategory>

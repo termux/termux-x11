@@ -61,7 +61,6 @@ This directory must be accessible from the shell from which you launch termux-x1
 Also you must set `XKB_CONFIG_ROOT` environment variable pointing to container's `/usr/share/X11/xkb` directory, otherwise you will have `xkbcomp`-related errors.
 You can get loader for nightly build from an artifact of [last successful build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml)
 ```
-export XKB_CONFIG_ROOT=/path/to/chroot/container/usr/share/xkb
 export TMPDIR=/path/to/chroot/container/tmp
 export CLASSPATH=$(/system/bin/pm path com.termux.x11 | cut -d: -f2)
 /system/bin/app_process / com.termux.x11.CmdEntryPoint :0

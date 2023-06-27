@@ -60,10 +60,8 @@ If you plan to use the program with chroot or unshare, you must to run it as roo
 This directory must be accessible from the shell from which you launch termux-x11, i.e. it must be in the same SELinux context, same mount namespace, and so on.
 Also you must set `XKB_CONFIG_ROOT` environment variable pointing to container's `/usr/share/X11/xkb` directory, otherwise you will have `xkbcomp`-related errors.
 You can get loader for nightly build from an artifact of [last successful build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml)
-```bash
-CHROOT=/path/to/chroot/dir
-export XKB_CONFIG_ROOT=${CHROOT}/usr/share/X11/xkb
-export TMPDIR=${CHROOT}/tmp
+```
+export TMPDIR=/path/to/chroot/container/tmp
 export CLASSPATH=$(/system/bin/pm path com.termux.x11 | cut -d: -f2)
 /system/bin/app_process / com.termux.x11.CmdEntryPoint :0
 ```

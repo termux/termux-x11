@@ -464,20 +464,12 @@ JNIEXPORT jboolean JNICALL
 Java_com_termux_x11_MainActivity_sendKeyEvent(unused JNIEnv* env, unused jobject cls, jint scan_code, jint key_code, jboolean key_down) {
     if (conn) {
         int code = (scan_code) ?: android_to_linux_keycode[key_code];
+        log(DEBUG, "Sending key: %d", code + 8);
         xcb_tx11_key_event(conn, code + 8, key_down);
         xcb_flush(conn);
     }
 
     return true;
-}
-
-maybe_unused JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_sendUnicodeEvent(unused JNIEnv* env, unused jobject cls, jint unicode) {
-    if (conn) {
-//        log("Sending unicode event: %d", unicode);
-        xcb_tx11_unicode_event(conn, unicode);
-        xcb_flush(conn);
-    }
 }
 
 JNIEXPORT void JNICALL

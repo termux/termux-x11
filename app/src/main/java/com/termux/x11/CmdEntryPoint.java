@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.IIntentReceiver;
 import android.content.IIntentSender;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -18,18 +19,18 @@ import android.util.Log;
 import android.view.Surface;
 
 import java.io.DataInputStream;
-import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URL;
 import java.util.Arrays;
 
-@SuppressLint("StaticFieldLeak")
+@SuppressLint({"StaticFieldLeak", "UnsafeDynamicallyLoadedCode"})
 public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static final String ACTION_START = "com.termux.x11.CmdEntryPoint.ACTION_START";
     public static final int PORT = 7892;
     public static final byte[] MAGIC = "0xDEADBEEF".getBytes();
-    private static final Handler handler = new Handler();
+    private static final Handler handler;
     public static Context ctx;
 
     /**
@@ -98,9 +99,12 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
                 @Override public void performReceive(Intent intent, int resultCode, String data, Bundle extras, boolean ordered, boolean sticky, int sendingUser) {}
             };
             try {
+                //noinspection JavaReflectionMemberAccess
                 IIntentSender.class
                         .getMethod("send", int.class, Intent.class, String.class, IBinder.class, IIntentReceiver.class, String.class, Bundle.class)
-                        .invoke(sender, 0, intent, null, null, receiver, null, null);
+                        .invoke(sender, 0, intent, null, null, new IIntentReceiver.Stub() {
+                            @Override public void performReceive(Intent intent, int resultCode, String data, Bundle extras, boolean ordered, boolean sticky, int sendingUser) {}
+                        }, null, null);
             } catch (Exception ex) {
                 throw new RuntimeException(ex);
             }
@@ -157,6 +161,25 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public native ParcelFileDescriptor getLogcatOutput();
 
     static {
-        System.loadLibrary("Xlorie");
+        try {
+            System.loadLibrary("Xlorie");
+        } catch (UnsatisfiedLinkError e) {
+            // It is executed directly from command line, without shell-loader
+            String path = "lib/" + Build.SUPPORTED_ABIS[0] + "/libXlorie.so";
+            ClassLoader loader = CmdEntryPoint.class.getClassLoader();
+            URL res = loader != null ? loader.getResource(path) : null;
+            String libPath = res != null ? res.getFile().replace("file:", "") : null;
+            if (libPath != null) {
+                try {
+                    Looper.prepareMainLooper();
+                    System.load(libPath);
+                } catch (Exception e2) {
+                    e.printStackTrace(System.err);
+                    e2.printStackTrace(System.err);
+                }
+            } else e.printStackTrace(System.err);
+        }
+
+        handler = new Handler();
     }
 }

@@ -164,6 +164,7 @@ public class TouchInputHandler {
 
             event.offsetLocation(-offsetX, -offsetY);
         }
+
         android.util.Log.d("TOUCHHANDLER", "EVENT " + (mTouchpadHandler != null) + " " + isDexEvent(event) + " " + event);
         if (!view.isFocused() && event.getAction() == MotionEvent.ACTION_DOWN)
             view.requestFocus();

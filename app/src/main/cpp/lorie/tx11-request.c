@@ -57,11 +57,6 @@ static int dispatch(ClientPtr client) {
             double x, y;
             DDXTouchPointInfoPtr touch = TouchFindByDDXID(lorieTouch, stuff->id, FALSE);
 
-            if (stuff->x < 0)
-                stuff->x = 0;
-            if (stuff->y < 0)
-                stuff->y = 0;
-
             x = (float) stuff->x * 0xFFFF / pScreenPtr->GetScreenPixmap(pScreenPtr)->drawable.width;
             y = (float) stuff->y * 0xFFFF / pScreenPtr->GetScreenPixmap(pScreenPtr)->drawable.height;
 

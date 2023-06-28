@@ -204,7 +204,7 @@ target_include_directories(virgl_test_server PRIVATE
         "${CMAKE_CURRENT_BINARY_DIR}"
         "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer")
 target_compile_options(virgl_test_server PRIVATE "-fPIE" "-DHAVE_CONFIG_H" "-imacros" "${CMAKE_CURRENT_BINARY_DIR}/virglrenderer/config.h")
-target_link_libraries(virgl_test_server PRIVATE epoxy m ${VIRGL_VENUS_VULKAN_LIBRARY})
+target_link_libraries(virgl_test_server PRIVATE epoxy m)
 target_link_options(virgl_test_server PRIVATE "-s")
 
 file(GLOB virglrenderer_patches "patches/virglrenderer/*.patc*")

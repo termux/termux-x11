@@ -34,6 +34,7 @@ from The Open Group.
 #pragma ide diagnostic ignored "ConstantFunctionResult"
 #pragma ide diagnostic ignored "bugprone-integer-division"
 #pragma clang diagnostic ignored "-Wmissing-noreturn"
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
 
 #ifdef HAVE_DIX_CONFIG_H
 #include <dix-config.h>
@@ -60,6 +61,7 @@ from The Open Group.
 #include "randrstr.h"
 #include "damagestr.h"
 #include "cursorstr.h"
+#include "shmint.h"
 
 #include "renderer.h"
 #include "inpututils.h"
@@ -391,33 +393,9 @@ lorieCloseScreen(ScreenPtr pScreen) {
     return pScreen->CloseScreen(pScreen);
 }
 
-static int
-lorieSetPixmapVisitWindow(WindowPtr window, void *data) {
-    ScreenPtr screen = window->drawable.pScreen;
-
-    if (screen->GetWindowPixmap(window) == data) {
-        screen->SetWindowPixmap(window, screen->GetScreenPixmap(screen));
-        return WT_WALKCHILDREN;
-    }
-
-    return WT_DONTWALKCHILDREN;
-}
-
 static Bool
 lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD32 mmWidth, unused CARD32 mmHeight) {
-    PixmapPtr old_pixmap, new_pixmap;
     SetRootClip(pScreen, ROOT_CLIP_NONE);
-
-//    DamageUnregister(pvfb->damage);
-//    old_pixmap = pScreen->GetScreenPixmap(pScreen);
-//    new_pixmap = pScreen->CreatePixmap(pScreen, 0, 0, pScreen->rootDepth, CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
-//    pScreen->SetScreenPixmap(new_pixmap);
-//
-//    if (old_pixmap) {
-//        TraverseTree(pScreen->root, lorieSetPixmapVisitWindow, old_pixmap);
-//        pScreen->DestroyPixmap(old_pixmap);
-//    }
-//    DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->damage);
 
     pScreen->width = width;
     pScreen->height = height;
@@ -517,6 +495,7 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     wrap(pvfb, pScreen, CreateScreenResources, lorieCreateScreenResources)
     wrap(pvfb, pScreen, CloseScreen, lorieCloseScreen)
     QueueWorkProc(resetRootCursor, NULL, NULL);
+    ShmRegisterFbFuncs(pScreen);
 
     return TRUE;
 }                               /* end lorieScreenInit */

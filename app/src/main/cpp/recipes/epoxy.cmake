@@ -1,5 +1,4 @@
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/epoxy")
-file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/epoxy/GL")
 file(CONFIGURE
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/epoxy/config.h"
         CONTENT "\
@@ -8,8 +7,6 @@ file(CONFIGURE
 #define EPOXY_PUBLIC __attribute__((visibility(\"default\"))) extern
 #define HAVE_KHRPLATFORM_H
 ")
-file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/epoxy/GL/gl.h" CONTENT "#include <epoxy/gl.h>")
-file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/epoxy/GL/glext.h" CONTENT "")
 
 add_custom_command(
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/epoxy/gl_generated_dispatch.c"

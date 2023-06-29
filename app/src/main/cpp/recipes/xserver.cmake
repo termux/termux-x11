@@ -146,9 +146,18 @@ file(GENERATE
 #define XKM_OUTPUT_DIR (getenv(\"TMPDIR\") ?: \"/tmp\")
 ")
 
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/xserver")
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/xserver/GL")
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/xserver/GL/glext.h" CONTENT "#include <GL/gl.h>")
+add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/xserver/GL/gl.h"
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/lorie/gen_stubs.py"
+        "--outputdir=${CMAKE_CURRENT_BINARY_DIR}/xserver/GL" "${CMAKE_CURRENT_SOURCE_DIR}/libepoxy/registry/gl.xml"
+        COMMENT "Generating source code (GL/gl.h)"
+        VERBATIM)
+
 set(inc "${CMAKE_CURRENT_BINARY_DIR}"
-        "${CMAKE_CURRENT_BINARY_DIR}/epoxy"
-        "libepoxy/include"
+        "${CMAKE_CURRENT_BINARY_DIR}/xserver"
         "libxfont/include"
         "pixman/pixman"
         "xorgproto/include"
@@ -373,9 +382,8 @@ set(GLX_SOURCES
         glxscreens.c render2.c render2swap.c renderpix.c renderpixswap.c rensize.c single2.c
         single2swap.c singlepix.c singlepixswap.c singlesize.c swap_interval.c xfont.c)
 list(TRANSFORM GLX_SOURCES PREPEND "xserver/glx/")
-add_library(xserver_glx STATIC ${GLX_SOURCES})
-target_link_libraries(xserver_glx PRIVATE epoxy)
-target_include_directories(xserver_glx PRIVATE ${inc} libepoxy/include)
+add_library(xserver_glx STATIC ${GLX_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/xserver/GL/gl.h")
+target_include_directories(xserver_glx PRIVATE ${inc})
 target_compile_options(xserver_glx PRIVATE ${compile_options})
 
 set(GLXVND_SOURCES

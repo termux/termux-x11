@@ -41,10 +41,10 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.termux.shared.termux.settings.properties.TermuxPropertyConstants;
 import com.termux.x11.utils.ExtraKeyConfigPreference;
 import com.termux.x11.utils.KeyInterceptor;
 import com.termux.x11.utils.SamsungDexUtils;
+import com.termux.x11.utils.TermuxX11ExtraKeys;
 
 import java.util.Objects;
 import java.util.regex.PatternSyntaxException;
@@ -296,7 +296,7 @@ public class LoriePreferences extends AppCompatActivity {
                 SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
                 EditText config = view.findViewById(R.id.extra_keys_config);
                 config.setTypeface(Typeface.MONOSPACE);
-                config.setText(preferences.getString("extra_keys_config", TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS));
+                config.setText(preferences.getString("extra_keys_config", TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS));
                 TextView desc = view.findViewById(R.id.extra_keys_config_description);
                 desc.setLinksClickable(true);
                 desc.setText(R.string.extra_keys_config_desc);
@@ -307,7 +307,7 @@ public class LoriePreferences extends AppCompatActivity {
                         .setPositiveButton("OK",
                                 (dialog, whichButton) -> {
                                     String text = config.getText().toString();
-                                    text = text.length() > 0 ? text : TermuxPropertyConstants.DEFAULT_IVALUE_EXTRA_KEYS;
+                                    text = text.length() > 0 ? text : TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS;
                                     preferences
                                             .edit()
                                             .putString("extra_keys_config", text)

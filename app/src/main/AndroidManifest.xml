@@ -48,11 +48,6 @@
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".GettingStartedActivity"
-            android:taskAffinity=".GettingStartedActivity"
-            android:theme="@style/Theme.BaseActivity.DayNight.NoActionBar"
-            android:exported="true" />
 	    <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="false"/>
 	    <meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />
 

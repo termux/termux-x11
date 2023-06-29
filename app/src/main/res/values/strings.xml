@@ -38,4 +38,13 @@
     <string name="preferences_button_text">   Preferences   </string>
     <string name="extra_keys_config_desc">Here you can set value of extra-keys variable like in Termux app. Read <a href="http://wiki.termux.com/wiki/Touch_Keyboard#Extra_Keys_Row">this</a>.
     Put empty string for the default value.</string>
+
+    <!-- Log Level -->
+    <string name="log_level_title">Log Level</string>
+    <string name="log_level_off">Off</string>
+    <string name="log_level_normal">Normal</string>
+    <string name="log_level_debug">Debug</string>
+    <string name="log_level_verbose">Verbose</string>
+    <string name="log_level_unknown">*Unknown*</string>
+    <string name="log_level_value">Logcat log level set to \"%1$s\"</string>
 </resources>

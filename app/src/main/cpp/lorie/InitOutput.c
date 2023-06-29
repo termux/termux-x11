@@ -365,7 +365,7 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     if (!ret)
         return FALSE;
 
-    pScreen->devPrivate = pScreen->CreatePixmap(pScreen, 0, 0, pScreen->rootDepth, CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
+    pScreen->devPrivate = fbCreatePixmap(pScreen, 0, 0, pScreen->rootDepth, CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
 
     pvfb->damage = DamageCreate(NULL, NULL, DamageReportNone, TRUE, pScreen, NULL);
     if (!pvfb->damage)
@@ -380,16 +380,8 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
 
 static Bool
 lorieCloseScreen(ScreenPtr pScreen) {
-    pScreen->CloseScreen = pvfb->CloseScreen;
-
-    /*
-     * fb overwrites miCloseScreen, so do this here
-     */
-    if (pScreen->devPrivate)
-        (*pScreen->DestroyPixmap)(pScreen->devPrivate);
-    pScreen->devPrivate = NULL;
-    pScreenPtr = NULL;
-
+    unwrap(pvfb, pScreen, CloseScreen)
+    // No need to call fbDestroyPixmap since AllocatePixmap sets pixmap as PRIVATE_SCREEN so it is destroyed automatically.
     return pScreen->CloseScreen(pScreen);
 }
 

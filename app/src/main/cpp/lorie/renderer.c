@@ -18,6 +18,7 @@
 
 //#define log(...) logMessage(X_ERROR, -1, __VA_ARGS__)
 #define log(...) __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", __VA_ARGS__)
+#define loge(...) __android_log_print(ANDROID_LOG_ERROR, "gles-renderer", __VA_ARGS__)
 
 static GLuint create_program(const char* p_vertex_source, const char* p_fragment_source);
 
@@ -203,9 +204,10 @@ void renderer_set_buffer(AHardwareBuffer* buf) {
     EGLClientBuffer clientBuffer;
     AHardwareBuffer_Desc desc = {0};
 
-
-    if (eglGetCurrentContext() == EGL_NO_CONTEXT)
+    if (eglGetCurrentContext() == EGL_NO_CONTEXT) {
+        loge("There is no current context, `renderer_set_buffer` is call is cancelled");
         return;
+    }
 
     log("renderer_set_buffer0");
     if (image)
@@ -228,15 +230,25 @@ void renderer_set_buffer(AHardwareBuffer* buf) {
         display.height = (float) desc.height;
 
         clientBuffer = eglGetNativeClientBufferANDROID(buffer);
-        if (!clientBuffer)
+        if (!clientBuffer) {
             eglCheckError(__LINE__);
+            loge("Failed to obtain EGLClientBuffer from AHardwareBuffer");
+        }
         image = clientBuffer ? eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes) : NULL;
-        if (!image)
+        if (image != NULL)
+            glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
+        else {
             eglCheckError(__LINE__);
-        if (image)
-            glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image); checkGlError();
+            loge("Binding AHardwareBuffer to an EGLImage failed.");
+
+            uint32_t data = {0};
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data);
+            checkGlError();
+        }
+        checkGlError();
     } else {
         uint32_t data = {0};
+        loge("There is no AHardwareBuffer, nothing to be bound.");
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data); checkGlError();
     }
 

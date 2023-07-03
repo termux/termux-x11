@@ -49,6 +49,7 @@ from The Open Group.
 #include <android/log.h>
 #include <android/native_window.h>
 #include <android/hardware_buffer.h>
+#include <sys/wait.h>
 #include "scrnintstr.h"
 #include "servermd.h"
 #include "fb.h"
@@ -107,16 +108,47 @@ ddxGiveUp(unused enum ExitCode error) {
     exit(error);
 }
 
+static void* ddxReadyThread(unused void* cookie) {
+    if (xstartup && serverGeneration == 1) {
+        pid_t pid = fork();
+
+        if (!pid) {
+            char DISPLAY[16] = "";
+            sprintf(DISPLAY, ":%s", display);
+            setenv("DISPLAY", DISPLAY, 1);
+            execlp("sh", "sh", "-c", xstartup, NULL);
+            dprintf(2, "Failed to start command `sh -c \"%s\"`: %s\n", xstartup, strerror(errno));
+            abort();
+        } else {
+            int status;
+            do {
+                pid_t w = waitpid(pid, &status, 0);
+                if (w == -1) {
+                    perror("waitpid");
+                    raise(SIGKILL);
+                }
+
+                if (WIFEXITED(status)) {
+                    printf("%d exited, status=%d\n", w, WEXITSTATUS(status));
+                } else if (WIFSIGNALED(status)) {
+                    printf("%d killed by signal %d\n", w, WTERMSIG(status));
+                } else if (WIFSTOPPED(status)) {
+                    printf("%d stopped by signal %d\n", w, WSTOPSIG(status));
+                } else if (WIFCONTINUED(status)) {
+                    printf("%d continued\n", w);
+                }
+            } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+            raise(SIGINT);
+        }
+    }
+
+    return NULL;
+}
+
 void
 ddxReady(void) {
-    if (xstartup && serverGeneration == 1 && !fork()) {
-        char DISPLAY[16] = "";
-        sprintf(DISPLAY, ":%s", display);
-        setenv("DISPLAY", DISPLAY, 1);
-        execlp("sh", "sh", "-c", xstartup, NULL);
-        dprintf(2, "Failed to start command `sh -c \"%s\"`: %s\n", xstartup, strerror(errno));
-        abort();
-    }
+    pthread_t t;
+    pthread_create(&t, NULL, ddxReadyThread, NULL);
 }
 
 void

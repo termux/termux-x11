@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.SharedPreferences;
+import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.preference.PreferenceManager;
@@ -72,7 +73,7 @@ public class LorieView extends SurfaceView {
     public void regenerate() {
         Callback callback = mCallback;
         mCallback = null;
-        getHolder().setFormat(PixelFormat.BGRA_8888);
+        getHolder().setFormat(android.graphics.PixelFormat.RGBA_8888);
         mCallback = callback;
 
         triggerCallback();

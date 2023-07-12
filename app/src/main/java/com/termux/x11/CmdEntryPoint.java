@@ -1,6 +1,7 @@
 package com.termux.x11;
 
 import static android.system.Os.getuid;
+import static android.system.Os.getenv;
 
 import android.annotation.SuppressLint;
 import android.app.IActivityManager;
@@ -60,6 +61,9 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
 
     @SuppressLint({"WrongConstant", "PrivateApi"})
     void sendBroadcast() {
+        String targetPackage = getenv("TERMUX_X11_OVERRIDE_PACKAGE");
+        if (targetPackage == null)
+            targetPackage = "com.termux.x11";
         // We should not care about multiple instances, it should be called only by `Termux:X11` app
         // which is single instance...
         Bundle bundle = new Bundle();
@@ -67,7 +71,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
 
         Intent intent = new Intent(ACTION_START);
         intent.putExtra("", bundle);
-        intent.setPackage("com.termux.x11");
+        intent.setPackage(targetPackage);
 
         if (getuid() == 0 || getuid() == 2000)
             intent.setFlags(0x00400000 /* FLAG_RECEIVER_FROM_SHELL */);

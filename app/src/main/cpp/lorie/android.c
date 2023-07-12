@@ -257,7 +257,7 @@ static void parse_error(xcb_generic_error_t* err) {
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_connect(unused JNIEnv* env, unused jobject cls, jint fd) {
+Java_com_termux_x11_LorieView_connect(unused JNIEnv* env, unused jobject cls, jint fd) {
     xcb_connection_t* new_conn = xcb_connect_to_fd(fd, NULL);
     int conn_err = xcb_connection_has_error(new_conn);
     xcb_generic_error_t* err = NULL;
@@ -341,7 +341,7 @@ Java_com_termux_x11_MainActivity_connect(unused JNIEnv* env, unused jobject cls,
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_handleXEvents(JNIEnv *env, jobject thiz) {
+Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, jobject thiz) {
     xcb_generic_event_t *ev;
 #if 0
     static jfieldID fid = nullptr;
@@ -411,7 +411,7 @@ Java_com_termux_x11_MainActivity_handleXEvents(JNIEnv *env, jobject thiz) {
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_startLogcat(JNIEnv *env, unused jobject cls, jint fd) {
+Java_com_termux_x11_LorieView_startLogcat(JNIEnv *env, unused jobject cls, jint fd) {
     kill(-1, SIGTERM); // Termux:X11 starts only logcat, so any other process should not be killed.
 
     log(DEBUG, "Starting logcat with output to given fd");
@@ -431,12 +431,12 @@ Java_com_termux_x11_MainActivity_startLogcat(JNIEnv *env, unused jobject cls, ji
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_setClipboardSyncEnabled(unused JNIEnv* env, unused jobject cls, jboolean enabled) {
+Java_com_termux_x11_LorieView_setClipboardSyncEnabled(unused JNIEnv* env, unused jobject cls, jboolean enabled) {
     clipboard_sync_enabled = enabled;
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_sendWindowChange(unused JNIEnv* env, unused jobject cls, jint width, jint height, jint framerate) {
+Java_com_termux_x11_LorieView_sendWindowChange(unused JNIEnv* env, unused jobject cls, jint width, jint height, jint framerate) {
     if (conn) {
         xcb_tx11_screen_size_change(conn, width, height, framerate);
         xcb_flush(conn);
@@ -444,7 +444,7 @@ Java_com_termux_x11_MainActivity_sendWindowChange(unused JNIEnv* env, unused job
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_sendMouseEvent(unused JNIEnv* env, unused jobject cls, jfloat x, jfloat y, jint which_button, jboolean button_down, jboolean relative) {
+Java_com_termux_x11_LorieView_sendMouseEvent(unused JNIEnv* env, unused jobject cls, jfloat x, jfloat y, jint which_button, jboolean button_down, jboolean relative) {
     if (conn) {
         xcb_tx11_mouse_event(conn, x, y, which_button, button_down, relative); // NOLINT(cppcoreguidelines-narrowing-conversions)
         xcb_flush(conn);
@@ -452,7 +452,7 @@ Java_com_termux_x11_MainActivity_sendMouseEvent(unused JNIEnv* env, unused jobje
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_sendTouchEvent(unused JNIEnv* env, unused jobject cls, jint action, jint id, jint x, jint y) {
+Java_com_termux_x11_LorieView_sendTouchEvent(unused JNIEnv* env, unused jobject cls, jint action, jint id, jint x, jint y) {
     if (conn) {
         if (action >= 0) {
             xcb_tx11_touch_event(conn, action, id, x, y); // NOLINT(cppcoreguidelines-narrowing-conversions)
@@ -461,7 +461,7 @@ Java_com_termux_x11_MainActivity_sendTouchEvent(unused JNIEnv* env, unused jobje
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_termux_x11_MainActivity_sendKeyEvent(unused JNIEnv* env, unused jobject cls, jint scan_code, jint key_code, jboolean key_down) {
+Java_com_termux_x11_LorieView_sendKeyEvent(unused JNIEnv* env, unused jobject cls, jint scan_code, jint key_code, jboolean key_down) {
     if (conn) {
         int code = (scan_code) ?: android_to_linux_keycode[key_code];
         log(DEBUG, "Sending key: %d", code + 8);
@@ -473,7 +473,7 @@ Java_com_termux_x11_MainActivity_sendKeyEvent(unused JNIEnv* env, unused jobject
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_MainActivity_sendTextEvent(JNIEnv *env, unused jobject thiz, jstring text) {
+Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, unused jobject thiz, jstring text) {
     if (conn && text) {
         char *str = (char*) (*env)->GetStringUTFChars(env, text, NULL);
         char *p = str;

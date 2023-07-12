@@ -17,11 +17,13 @@ import android.view.SurfaceView;
 
 import androidx.annotation.NonNull;
 
+import com.termux.x11.input.InputStub;
+
 import java.util.regex.PatternSyntaxException;
 
 @SuppressLint("WrongConstant")
 @SuppressWarnings("deprecation")
-public class LorieView extends SurfaceView {
+public class LorieView extends SurfaceView implements InputStub {
     interface Callback {
         void changed(Surface sfc, int surfaceWidth, int surfaceHeight, int screenWidth, int screenHeight);
     }
@@ -169,5 +171,24 @@ public class LorieView extends SurfaceView {
 
         getHolder().setFixedSize(p.x, p.y);
         setMeasuredDimension(width, height);
+    }
+
+    @Override
+    public void sendMouseWheelEvent(float deltaX, float deltaY) {
+        sendMouseEvent(deltaX, deltaY, BUTTON_SCROLL, false, true);
+    }
+
+    static native void connect(int fd);
+    static native void handleXEvents();
+    static native void startLogcat(int fd);
+    static native void setClipboardSyncEnabled(boolean enabled);
+    static native void sendWindowChange(int width, int height, int framerate);
+    public native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
+    public native void sendTouchEvent(int action, int id, int x, int y);
+    public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
+    public native void sendTextEvent(String text);
+
+    static {
+        System.loadLibrary("Xlorie");
     }
 }

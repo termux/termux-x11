@@ -65,7 +65,7 @@ import com.termux.x11.utils.X11ToolbarViewPager;
 
 @SuppressLint("ApplySharedPref")
 @SuppressWarnings({"deprecation", "unused"})
-public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener, InputStub {
+public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener {
     static final String ACTION_STOP = "com.termux.x11.ACTION_STOP";
     static final String REQUEST_LAUNCH_EXTERNAL_DISPLAY = "request_launch_external_display";
     public static final int KeyPress = 2; // synchronized with X.h
@@ -123,7 +123,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             public void swipeDown() {
                 toggleExtraKeys();
             }
-        }, new InputEventSender(this));
+        }, new InputEventSender(lorieView));
         mLorieKeyListener = (v, k, e) -> {
             if (k == KeyEvent.KEYCODE_VOLUME_DOWN && preferences.getBoolean("hideEKOnVolDown", false)) {
                 if (e.getAction() == KeyEvent.ACTION_UP)
@@ -158,7 +158,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
             mInputHandler.handleHostSizeChanged(surfaceWidth, surfaceHeight);
             mInputHandler.handleClientSizeChanged(screenWidth, screenHeight);
-            sendWindowChange(screenWidth, screenHeight, framerate);
+            LorieView.sendWindowChange(screenWidth, screenHeight, framerate);
 
             if (service != null) {
                 try {
@@ -222,7 +222,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 Log.v("LorieBroadcastReceiver", "Extracting logcat fd.");
                 ParcelFileDescriptor logcatOutput = service.getLogcatOutput();
                 if (logcatOutput != null)
-                    startLogcat(logcatOutput.detachFd());
+                    LorieView.startLogcat(logcatOutput.detachFd());
 
                 tryConnect();
             }
@@ -238,7 +238,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             Log.v("LorieBroadcastReceiver", "Extracting X connection socket.");
             ParcelFileDescriptor fd = service.getXConnection();
             if (fd != null) {
-                connect(fd.detachFd());
+                LorieView.connect(fd.detachFd());
                 getLorieView().triggerCallback();
                 clientConnectedStateChanged(true);
             } else
@@ -270,7 +270,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         setTerminalToolbarView();
         onWindowFocusChanged(true);
-        setClipboardSyncEnabled(p.getBoolean("clipboardSync", false));
+        LorieView.setClipboardSyncEnabled(p.getBoolean("clipboardSync", false));
 
         lorieView.triggerCallback();
 
@@ -587,26 +587,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     private void checkXEvents() {
-        handleXEvents();
+        LorieView.handleXEvents();
         handler.postDelayed(this::checkXEvents, 300);
-    }
-
-    @Override
-    public void sendMouseWheelEvent(float deltaX, float deltaY) {
-        sendMouseEvent(deltaX, deltaY, BUTTON_SCROLL, false, true);
-    }
-
-    private native void connect(int fd);
-    private native void handleXEvents();
-    private native void startLogcat(int fd);
-    private native void setClipboardSyncEnabled(boolean enabled);
-    private native void sendWindowChange(int width, int height, int framerate);
-    public native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
-    public native void sendTouchEvent(int action, int id, int x, int y);
-    public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
-    public native void sendTextEvent(String text);
-
-    static {
-        System.loadLibrary("Xlorie");
     }
 }

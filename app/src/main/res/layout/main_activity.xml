@@ -6,9 +6,6 @@
     android:layout_height="match_parent"
 	android:background="@android:color/black">
 
-
-
-
 	<FrameLayout
 		android:id="@+id/frame"
 		android:layout_width="match_parent"
@@ -104,7 +101,6 @@
 			android:layout_height="64px"
 			android:minWidth="44dip"
 			android:minHeight="22dip"
-			android:onClick="sendMessage"
 			android:padding="0px"
 			android:paddingStart="0px"
 			android:paddingLeft="0px"
@@ -113,7 +109,8 @@
 			android:paddingRight="0px"
 			android:paddingBottom="0px"
 			android:text="X"
-			android:textSize="8sp" />
+			android:textSize="8sp"
+			tools:ignore="HardcodedText,PxUsage,SmallSp" />
 
 		<com.google.android.material.chip.ChipGroup
 			android:id="@+id/mouse_helper_secondary_layer"
@@ -129,7 +126,6 @@
 				android:layout_height="64px"
 				android:minWidth="44dip"
 				android:minHeight="22dip"
-				android:onClick="sendMessage"
 				android:padding="0px"
 				android:paddingStart="0px"
 				android:paddingLeft="0px"
@@ -138,7 +134,8 @@
 				android:paddingRight="0px"
 				android:paddingBottom="0px"
 				android:text="L"
-				android:textSize="8sp" />
+				android:textSize="8sp"
+				tools:ignore="HardcodedText,PxUsage,SmallSp" />
 
 			<Button
 				android:id="@+id/button_middle_click"
@@ -146,7 +143,6 @@
 				android:layout_height="64px"
 				android:minWidth="44dip"
 				android:minHeight="22dip"
-				android:onClick="sendMessage"
 				android:padding="0px"
 				android:paddingStart="0px"
 				android:paddingLeft="0px"
@@ -155,7 +151,8 @@
 				android:paddingRight="0px"
 				android:paddingBottom="0px"
 				android:text="M"
-				android:textSize="8sp" />
+				android:textSize="8sp"
+				tools:ignore="HardcodedText,PxUsage,SmallSp" />
 
 			<Button
 				android:id="@+id/button_right_click"
@@ -163,7 +160,6 @@
 				android:layout_height="64px"
 				android:minWidth="44dip"
 				android:minHeight="22dip"
-				android:onClick="sendMessage"
 				android:padding="0px"
 				android:paddingStart="0px"
 				android:paddingLeft="0px"
@@ -172,7 +168,8 @@
 				android:paddingRight="0px"
 				android:paddingBottom="0px"
 				android:text="R"
-				android:textSize="8sp" />
+				android:textSize="8sp"
+				tools:ignore="HardcodedText,PxUsage,SmallSp" />
 		</com.google.android.material.chip.ChipGroup>
 
 	</com.google.android.material.chip.ChipGroup>

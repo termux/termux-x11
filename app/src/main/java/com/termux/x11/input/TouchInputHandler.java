@@ -8,14 +8,12 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Matrix;
 import android.graphics.PointF;
-import android.graphics.Rect;
 import android.view.GestureDetector;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
-import android.view.ViewConfiguration;
 
 import androidx.annotation.IntDef;
 import androidx.core.math.MathUtils;
@@ -31,7 +29,7 @@ import java.lang.annotation.RetentionPolicy;
 public class TouchInputHandler {
     private static final float EPSILON = 0.001f;
 
-    public static int STYLUS_INPUT_HELPER_MODE = 1;//1 = Left Click, 2 Middle Click, 3 Right Click
+    public static int STYLUS_INPUT_HELPER_MODE = 1; //1 = Left Click, 2 Middle Click, 3 Right Click
 
     /** Used to set/store the selected input mode. */
     @SuppressWarnings("unused")
@@ -51,6 +49,7 @@ public class TouchInputHandler {
     private final GestureDetector mScroller;
     private final ScaleGestureDetector mZoomer;
     private final TapGestureDetector mTapDetector;
+    private final StylusListener mStylusListener = new StylusListener();
     private final HardwareMouseListener mHMListener = new HardwareMouseListener();
     private final DexListener mDexListener;
     private final TouchInputHandler mTouchpadHandler;
@@ -75,17 +74,17 @@ public class TouchInputHandler {
      */
     private final float mSwipeThreshold;
 
-    /**
-     * Distance, in pixels, from the edge of the screen in which a touch event should be considered
-     * as having originated from that edge.
-     */
-    private final int mEdgeSlopInPx;
+//    /**
+//     * Distance, in pixels, from the edge of the screen in which a touch event should be considered
+//     * as having originated from that edge.
+//     */
+//    private final int mEdgeSlopInPx;
 
-    /**
-     * Defines an inset boundary within which pan gestures are allowed.  Pan gestures which
-     * originate outside of this boundary will be ignored.
-     */
-    private Rect mPanGestureBounds = new Rect();
+//    /**
+//     * Defines an inset boundary within which pan gestures are allowed.  Pan gestures which
+//     * originate outside of this boundary will be ignored.
+//     */
+//    private Rect mPanGestureBounds = new Rect();
 
     /**
      * Set to true to prevent any further movement of the cursor, for example, when showing the
@@ -136,7 +135,7 @@ public class TouchInputHandler {
         float density = /*desktop*/ ctx.getResources().getDisplayMetrics().density;
         mSwipeThreshold = 40 * density;
 
-        mEdgeSlopInPx = ViewConfiguration.get(/*desktop*/ ctx).getScaledEdgeSlop();
+//        mEdgeSlopInPx = ViewConfiguration.get(/*desktop*/ ctx).getScaledEdgeSlop();
 
         setInputMode(InputMode.TRACKPAD);
         mDexListener = new DexListener(ctx);
@@ -167,13 +166,14 @@ public class TouchInputHandler {
             event.offsetLocation(-offsetX, -offsetY);
         }
 
-        android.util.Log.d("TOUCHHANDLER", "EVENT " + (mTouchpadHandler != null) + " " + isDexEvent(event) + " " + event);
         if (!view.isFocused() && event.getAction() == MotionEvent.ACTION_DOWN)
             view.requestFocus();
 
-        if ((event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_MOUSE)
-                || (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_STYLUS)
-        )
+        if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_STYLUS) {
+            return mStylusListener.onTouch(view, event);
+        }
+
+        if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_MOUSE)
             return mHMListener.onTouch(view, event);
 
         if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER) {
@@ -184,8 +184,6 @@ public class TouchInputHandler {
             // Regular touchpads and Dex touchpad send events as finger too,
             // but they should be handled as touchscreens with trackpad mode.
             if (mTouchpadHandler != null && (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD)
-                return mTouchpadHandler.handleTouchEvent(view, view, event);
-            if (mTouchpadHandler != null && (event.getSource() & InputDevice.SOURCE_BLUETOOTH_STYLUS) == InputDevice.SOURCE_BLUETOOTH_STYLUS)
                 return mTouchpadHandler.handleTouchEvent(view, view, event);
 
             // Give the underlying input strategy a chance to observe the current motion event before
@@ -292,7 +290,7 @@ public class TouchInputHandler {
     public void handleHostSizeChanged(int w, int h) {
         mRenderData.imageWidth = w;
         mRenderData.imageHeight = h;
-        mPanGestureBounds = new Rect(mEdgeSlopInPx, mEdgeSlopInPx, w - mEdgeSlopInPx, h - mEdgeSlopInPx);
+//        mPanGestureBounds = new Rect(mEdgeSlopInPx, mEdgeSlopInPx, w - mEdgeSlopInPx, h - mEdgeSlopInPx);
         moveCursorToScreenPoint((float) w/2, (float) h/2);
 
         resetTransformation();
@@ -582,21 +580,6 @@ public class TouchInputHandler {
             if (mRenderData.setCursorPosition(imagePoint[0], imagePoint[1]))
                 mInjector.sendCursorMove(imagePoint[0], imagePoint[1]);
 
-            //STYLUS HERE
-            if (e.getToolType(e.getActionIndex()) == MotionEvent.TOOL_TYPE_STYLUS) {
-                //make sure its a stylus event
-                if (e.getAction() == MotionEvent.ACTION_DOWN)
-                    mInjector.sendMouseEvent(mRenderData.getCursorPosition(), STYLUS_INPUT_HELPER_MODE, true, false);
-                if (e.getAction() == MotionEvent.ACTION_UP)
-                    mInjector.sendMouseEvent(mRenderData.getCursorPosition(), STYLUS_INPUT_HELPER_MODE, false, false);
-                if (e.getAction() == MotionEvent.ACTION_HOVER_MOVE)
-                    moveCursorByOffset(
-                            -2 * e.getAxisValue(MotionEvent.AXIS_RELATIVE_X),
-                            -2 * e.getAxisValue(MotionEvent.AXIS_RELATIVE_Y));
-
-            }
-            //END OF STYLUS
-
             currentBS = e.getButtonState();
             if (isMouseButtonChanged(MotionEvent.BUTTON_PRIMARY))
                 mInjector.sendMouseEvent(mRenderData.getCursorPosition(), 1, mouseButtonDown(MotionEvent.BUTTON_PRIMARY), false);
@@ -605,6 +588,40 @@ public class TouchInputHandler {
             if (isMouseButtonChanged(MotionEvent.BUTTON_SECONDARY))
                 mInjector.sendMouseEvent(mRenderData.getCursorPosition(), 3, mouseButtonDown(MotionEvent.BUTTON_SECONDARY), false);
             savedBS = currentBS;
+            return true;
+        }
+    }
+
+    private class StylusListener {
+        private int button = 0;
+
+        // I've got this on SM-N770F
+        private static final int ACTION_PRIMARY_DOWN = 0xd3;
+        private static final int ACTION_PRIMARY_UP = 0xd4;
+
+        @SuppressLint("ClickableViewAccessibility")
+        boolean onTouch(View v, MotionEvent e) {
+            if (mInjector.pointerCapture && !v.hasPointerCapture() && e.getAction() == MotionEvent.ACTION_UP)
+                v.requestPointerCapture();
+
+            int action = e.getAction();
+            moveCursorToScreenPoint(e.getX(e.getActionIndex()), e.getY(e.getActionIndex()));
+            if (action == MotionEvent.ACTION_DOWN || action == ACTION_PRIMARY_DOWN) {
+                button = STYLUS_INPUT_HELPER_MODE;
+                if (button == 1) {
+                    if (e.isButtonPressed(MotionEvent.BUTTON_STYLUS_PRIMARY))
+                        button = 3;
+                    if (e.isButtonPressed(MotionEvent.BUTTON_STYLUS_SECONDARY))
+                        button = 2;
+                }
+            }
+
+            if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP || action == ACTION_PRIMARY_DOWN || action == ACTION_PRIMARY_UP)
+                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), button, (action == MotionEvent.ACTION_DOWN || action == ACTION_PRIMARY_DOWN), false);
+
+            if (action == MotionEvent.ACTION_UP)
+                button = 0;
+
             return true;
         }
     }

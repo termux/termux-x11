@@ -216,153 +216,93 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         toggleExtraKeys(false, false);
         checkXEvents();
 
-        //Stylus code here
-        init_stylus_aux_buttons();
+        initStylusAuxButtons();
     }
 
-
-    //Register the needed events to handle stylus as left,middle and right click
-    private void init_stylus_aux_buttons(){
+    //Register the needed events to handle stylus as left, middle and right click
+    private void initStylusAuxButtons() {
         SharedPreferences p = PreferenceManager.getDefaultSharedPreferences(this);
-        boolean stylus_menu_enabled = p.getBoolean("showStylusClickOverride", false);
-        final float menu_unselected_trasparency = 0.66f;
-        final float menu_selected_trasparency = 1.0f;
-        Button button_left = findViewById(R.id.button_left_click);
-        Button button_right = findViewById(R.id.button_right_click);
-        Button button_middle = findViewById(R.id.button_middle_click);
-        Button button_visibility = findViewById(R.id.button_visibility);
-        if(stylus_menu_enabled){
-            findViewById(R.id.mouse_helper_visibility).setVisibility(View.VISIBLE);
-        }else{
-            findViewById(R.id.mouse_helper_visibility).setVisibility(View.GONE);
-        }
-        button_left.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //Simulated mouse click 1 = left , 2 = middle , 3 = right
-                TouchInputHandler.STYLUS_INPUT_HELPER_MODE = 1;
-                button_left.setAlpha(menu_selected_trasparency);
-                button_right.setAlpha(menu_unselected_trasparency);
-                button_middle.setAlpha(menu_unselected_trasparency);
-                button_visibility.setAlpha(menu_unselected_trasparency);
+        boolean stylusMenuEnabled = p.getBoolean("showStylusClickOverride", false);
+        final float menuUnselectedTrasparency = 0.66f;
+        final float menuSelectedTrasparency = 1.0f;
+        Button left = findViewById(R.id.button_left_click);
+        Button right = findViewById(R.id.button_right_click);
+        Button middle = findViewById(R.id.button_middle_click);
+        Button visibility = findViewById(R.id.button_visibility);
+        ChipGroup overlay = findViewById(R.id.mouse_helper_visibility);
+        ChipGroup buttons = findViewById(R.id.mouse_helper_secondary_layer);
+        overlay.setVisibility(stylusMenuEnabled ? View.VISIBLE : View.GONE);
+        View.OnClickListener listener = view -> {
+            TouchInputHandler.STYLUS_INPUT_HELPER_MODE = (view.equals(left) ? 1 : (view.equals(middle) ? 2 : (view.equals(right) ? 3 : 0)));
+            left.setAlpha((TouchInputHandler.STYLUS_INPUT_HELPER_MODE == 1) ? menuSelectedTrasparency : menuUnselectedTrasparency);
+            middle.setAlpha((TouchInputHandler.STYLUS_INPUT_HELPER_MODE == 2) ? menuSelectedTrasparency : menuUnselectedTrasparency);
+            right.setAlpha((TouchInputHandler.STYLUS_INPUT_HELPER_MODE == 3) ? menuSelectedTrasparency : menuUnselectedTrasparency);
+            visibility.setAlpha(menuUnselectedTrasparency);
+        };
 
-            }
-        });
+        left.setOnClickListener(listener);
+        middle.setOnClickListener(listener);
+        right.setOnClickListener(listener);
 
-        button_right.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //Simulated mouse click 1 = left , 2 = middle , 3 = right
-                TouchInputHandler.STYLUS_INPUT_HELPER_MODE = 3;
-                button_left.setAlpha(menu_unselected_trasparency);
-                button_right.setAlpha(menu_selected_trasparency);
-                button_middle.setAlpha(menu_unselected_trasparency);
-                button_visibility.setAlpha(menu_unselected_trasparency);
-            }
-        });
+        visibility.setOnClickListener(view -> {
+            if (buttons.getVisibility() == View.VISIBLE) {
+                buttons.setVisibility(View.GONE);
+                visibility.setAlpha(menuUnselectedTrasparency);
+                int m = TouchInputHandler.STYLUS_INPUT_HELPER_MODE;
+                visibility.setText(m == 1 ? "L" : (m == 2 ? "M" : (m == 3 ? "R" : "U")));
+            } else {
+                buttons.setVisibility(View.VISIBLE);
+                visibility.setAlpha(menuUnselectedTrasparency);
+                visibility.setText("X");
 
-        button_middle.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //Simulated mouse click 1 = left , 2 = middle , 3 = right
-                TouchInputHandler.STYLUS_INPUT_HELPER_MODE = 2;
-                button_left.setAlpha(menu_unselected_trasparency);
-                button_right.setAlpha(menu_unselected_trasparency);
-                button_middle.setAlpha(menu_selected_trasparency);
-                button_visibility.setAlpha(menu_unselected_trasparency);
-            }
-        });
+                //Calculate screen border making sure btn is fully inside the view
+                float maxX = frm.getWidth() - 4 * left.getWidth();
+                float maxY = frm.getHeight() - 4 * left.getHeight();
 
-        ChipGroup chipgroup = findViewById(R.id.mouse_helper_secondary_layer);
-        button_visibility.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //Simulated mouse click 1 = left , 2 = middle , 3 = right
-                if (chipgroup.getVisibility() == View.VISIBLE) {
-                    chipgroup.setVisibility(View.GONE);
-                    button_visibility.setAlpha(menu_unselected_trasparency);
-                    switch(TouchInputHandler.STYLUS_INPUT_HELPER_MODE){
-                        case 1:
-                            button_visibility.setText("L");
-                            break;
-                        case 2:
-                            button_visibility.setText("M");
-                            break;
-                        case 3:
-                            button_visibility.setText("R");
-                            break;
-                    }
-                }else{
-                    chipgroup.setVisibility(View.VISIBLE);
-                    button_visibility.setAlpha(menu_selected_trasparency);
-                    button_visibility.setText("X");
+                //Make sure the Stylus menu is fully inside the screen
+                overlay.setX(MathUtils.clamp(overlay.getX(), 0, maxX));
+                overlay.setY(MathUtils.clamp(overlay.getY(), 0, maxY));
 
-
-                    ChipGroup chipgroup_all_btns = findViewById(R.id.mouse_helper_visibility);
-                    FrameLayout main_frame = findViewById(R.id.frame);
-                    //Calculate screen border making sure btn is fully inside the view
-                    float max_x = main_frame.getWidth() - 4 * button_left.getWidth();
-                    float max_y = main_frame.getHeight() - 4 * button_left.getHeight();
-                    float min_x = 0;
-                    float min_y = 0;
-
-                    //Make sure the Stylus menu is fully inside the screen
-                    chipgroup_all_btns.setX(MathUtils.clamp(chipgroup_all_btns.getX(),min_x,max_x));
-                    chipgroup_all_btns.setY(MathUtils.clamp(chipgroup_all_btns.getY(),min_y,max_y));
-                }
+                int m = TouchInputHandler.STYLUS_INPUT_HELPER_MODE;
+                listener.onClick(m == 1 ? left : (m == 2 ? middle : (m == 3 ? right : left)));
             }
         });
         //Simulated mouse click 1 = left , 2 = middle , 3 = right
         TouchInputHandler.STYLUS_INPUT_HELPER_MODE = 1;
-        button_visibility.setAlpha(menu_unselected_trasparency);
-
+        listener.onClick(left);
 
         //Enable drag and drop of menu btn
-        ChipGroup chipgroup_all_btns = findViewById(R.id.mouse_helper_visibility);
-        FrameLayout main_frame = findViewById(R.id.frame);
-        main_frame.setOnDragListener(new View.OnDragListener() {
-            float dX = chipgroup_all_btns.getX();
-            float dY = chipgroup_all_btns.getY();
-            @Override
-            public boolean onDrag(View v, DragEvent event) {
-                //Calculate screen border making sure btn is fully inside the view
-                float max_x = main_frame.getWidth() - button_visibility.getWidth();
-                float max_y = main_frame.getHeight() - button_visibility.getHeight();
-                float min_x = 0;
-                float min_y = 0;
+        frm.setOnDragListener((v, event) -> {
+            //Calculate screen border making sure btn is fully inside the view
+            float maxX = frm.getWidth() - visibility.getWidth();
+            float maxY = frm.getHeight() - visibility.getHeight();
 
-                switch (event.getAction()) {
-                    case DragEvent.ACTION_DRAG_LOCATION:
+            switch (event.getAction()) {
+                case DragEvent.ACTION_DRAG_LOCATION:
+                    //Center touch location with btn icon
+                    float dX = event.getX() - visibility.getWidth() / 2.0f;
+                    float dY = event.getY() - visibility.getHeight() / 2.0f;
 
-                        //Center touch location with btn icon
-                        dX = event.getX() - button_visibility.getWidth()/2.0f;
-                        dY = event.getY() - button_visibility.getHeight()/2.0f;
-
-                        //Make sure the dragged btn is inside the view with clamp
-                        chipgroup_all_btns.setX(MathUtils.clamp(dX,min_x,max_x));
-                        chipgroup_all_btns.setY(MathUtils.clamp(dY,min_y,max_y));
-                        break;
-                    case DragEvent.ACTION_DRAG_ENDED:
-                        //Make sure the dragged btn is inside the view with clamp
-                        chipgroup_all_btns.setX(MathUtils.clamp(dX,min_x,max_x));
-                        chipgroup_all_btns.setY(MathUtils.clamp(dY,min_y,max_y));
-                        break;
-                }
-                return true;
+                    //Make sure the dragged btn is inside the view with clamp
+                    overlay.setX(MathUtils.clamp(dX, 0, maxX));
+                    overlay.setY(MathUtils.clamp(dY, 0, maxY));
+                    break;
+                case DragEvent.ACTION_DRAG_ENDED:
+                    //Make sure the dragged btn is inside the view
+                    overlay.setX(MathUtils.clamp(overlay.getX(), 0, maxX));
+                    overlay.setY(MathUtils.clamp(overlay.getY(), 0, maxY));
+                    break;
             }
+            return true;
         });
 
         //Activate dragging menu when long pressing visibility btn
-        button_visibility.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                View.DragShadowBuilder myShadow = new View.DragShadowBuilder(button_visibility);
-                v.startDragAndDrop(null, myShadow, null, View.DRAG_FLAG_GLOBAL);
-                return true;
-            }
+        visibility.setOnLongClickListener(v -> {
+            View.DragShadowBuilder myShadow = new View.DragShadowBuilder(visibility);
+            v.startDragAndDrop(null, myShadow, null, View.DRAG_FLAG_GLOBAL);
+            return true;
         });
     }
-
 
     void onReceiveConnection() {
         try {
@@ -449,24 +389,19 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (getRequestedOrientation() != requestedOrientation)
             setRequestedOrientation(requestedOrientation);
 
-        boolean stylus_menu_enabled = p.getBoolean("showStylusClickOverride", false);
-
-        if (stylus_menu_enabled){
-            ChipGroup chipgroup = findViewById(R.id.mouse_helper_visibility);
-            chipgroup.setVisibility(View.VISIBLE);
-        }else{
-            ChipGroup chipgroup = findViewById(R.id.mouse_helper_visibility);
-
-
+        ChipGroup buttons = findViewById(R.id.mouse_helper_visibility);
+        if (p.getBoolean("showStylusClickOverride", false)) {
+            buttons.setVisibility(View.VISIBLE);
+        } else {
             //Reset default input back to normal
             TouchInputHandler.STYLUS_INPUT_HELPER_MODE = 1;
-            final float menu_unselected_trasparency = 0.66f;
-            final float menu_selected_trasparency = 1.0f;
-            findViewById(R.id.button_left_click).setAlpha(menu_selected_trasparency);
-            findViewById(R.id.button_right_click).setAlpha(menu_unselected_trasparency);
-            findViewById(R.id.button_middle_click).setAlpha(menu_unselected_trasparency);
-            findViewById(R.id.button_visibility).setAlpha(menu_unselected_trasparency);
-            chipgroup.setVisibility(View.GONE);
+            final float menuUnselectedTrasparency = 0.66f;
+            final float menuSelectedTrasparency = 1.0f;
+            findViewById(R.id.button_left_click).setAlpha(menuSelectedTrasparency);
+            findViewById(R.id.button_right_click).setAlpha(menuUnselectedTrasparency);
+            findViewById(R.id.button_middle_click).setAlpha(menuUnselectedTrasparency);
+            findViewById(R.id.button_visibility).setAlpha(menuUnselectedTrasparency);
+            buttons.setVisibility(View.GONE);
         }
     }
 

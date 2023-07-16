@@ -36,6 +36,7 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.PointerIcon;
 import android.view.View;
 import android.view.ViewGroup;
@@ -53,7 +54,6 @@ import androidx.core.app.NotificationCompat;
 import androidx.viewpager.widget.ViewPager;
 
 import com.termux.x11.input.InputEventSender;
-import com.termux.x11.input.InputStub;
 import com.termux.x11.input.RenderStub;
 import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.FullscreenWorkaround;
@@ -374,6 +374,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             boolean show = enabled && mClientConnected && visible;
 
             if (show) {
+                setTerminalToolbarView();
                 getTerminalToolbarViewPager().bringToFront();
             } else {
                 parent.removeView(pager);
@@ -562,7 +563,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     @SuppressWarnings("SameParameterValue")
-    // It is used in native code
     void clientConnectedStateChanged(boolean connected) {
         runOnUiThread(()-> {
             SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);

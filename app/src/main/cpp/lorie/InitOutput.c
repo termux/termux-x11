@@ -541,8 +541,7 @@ CursorForDevice(DeviceIntPtr pDev) {
 
 Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
     struct ANativeWindow* win = (struct ANativeWindow*) closure;
-    renderer_set_window(win);
-    renderer_set_buffer(pvfb->root.buffer);
+    renderer_set_window(win, pvfb->root.buffer);
     lorieSetCursor(NULL, NULL, CursorForDevice(GetMaster(lorieMouse, MASTER_POINTER)), -1, -1);
 
     return TRUE;
@@ -552,7 +551,7 @@ void lorieConfigureNotify(int width, int height, int framerate) {
     ScreenPtr pScreen = pScreenPtr;
     RROutputPtr output = RRFirstOutput(pScreen);
 
-    if (output && width && height) {
+    if (output && width && height && pScreen->width != width && pScreen->height != height) {
         CARD32 mmWidth, mmHeight;
         RRModePtr mode = lorieCvt(width, height, framerate);
         mmWidth = ((double) (mode->mode.width)) * 25.4 / monitorResolution;

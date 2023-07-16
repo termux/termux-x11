@@ -257,7 +257,7 @@ void renderer_set_buffer(AHardwareBuffer* buf) {
     log("renderer_set_buffer %p %d %d", buffer, desc.width, desc.height);
 }
 
-void renderer_set_window(EGLNativeWindowType window) {
+void renderer_set_window(EGLNativeWindowType window, AHardwareBuffer* buffer) {
     log("renderer_set_window %p %d %d", window, window ? ANativeWindow_getWidth(window) : 0, window ? ANativeWindow_getHeight(window) : 0);
     if (window && win == window)
         return;
@@ -319,9 +319,10 @@ void renderer_set_window(EGLNativeWindowType window) {
 
     log("Xlorie: new surface applied: %p\n", sfc);
 
-    glClearColor(1.f, 0.f, 0.f, 0.0f); checkGlError();
-    glClear(GL_COLOR_BUFFER_BIT); checkGlError();
-    renderer_redraw();
+    if (!buffer) {
+        glClearColor(0.f, 0.f, 0.f, 0.0f); checkGlError();
+        glClear(GL_COLOR_BUFFER_BIT); checkGlError();
+    } else renderer_set_buffer(buffer);
 }
 
 void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data) {
@@ -372,7 +373,7 @@ int renderer_redraw(void) {
             log("We've got %s so window is to be destroyed. "
                 "Native window disconnected/abandoned, probably activity is destroyed or in background",
                 eglErrorLabel(err));
-            renderer_set_window(NULL);
+            renderer_set_window(NULL, NULL);
             return FALSE;
         }
     }

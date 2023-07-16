@@ -77,6 +77,12 @@
             android:entryValues="@array/touchscreenInputModesValues" />
 
         <SwitchPreferenceCompat
+            android:title="Show stylus click options"
+            android:summary="Stylus touch override, left middle or right click (Only for the stylus)"
+            android:defaultValue="false"
+            android:key="showStylusClickOverride" />
+
+        <SwitchPreferenceCompat
             android:title="Show additional keyboard"
             android:summary="Show keyboard with additional keys."
             android:defaultValue="true"

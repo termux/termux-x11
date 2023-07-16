@@ -583,8 +583,8 @@ public class TouchInputHandler {
                 mInjector.sendCursorMove(imagePoint[0], imagePoint[1]);
 
             //STYLUS HERE
-            if (e.getToolType(e.getActionIndex()) == MotionEvent.TOOL_TYPE_STYLUS)
-            {//make sure its a stylus event
+            if (e.getToolType(e.getActionIndex()) == MotionEvent.TOOL_TYPE_STYLUS) {
+                //make sure its a stylus event
                 if (e.getAction() == MotionEvent.ACTION_DOWN)
                     mInjector.sendMouseEvent(mRenderData.getCursorPosition(), STYLUS_INPUT_HELPER_MODE, true, false);
                 if (e.getAction() == MotionEvent.ACTION_UP)
@@ -648,19 +648,16 @@ public class TouchInputHandler {
                         mInjector.sendCursorMove(imagePoint[0], imagePoint[1]);
                     break;
                 case MotionEvent.ACTION_DOWN:
-                    if ((e.getFlags() & 0x14000000) == 0x14000000){
+                    if ((e.getFlags() & 0x14000000) == 0x14000000) {
                         mIsScrolling = true;
                         mScroller.onTouchEvent(e);
-                    } else if (((e.getFlags() & 0x4000000) == 0x4000000)
-                          //  || (e.getSource() & e.getSource()) == InputDevice.SOURCE_BLUETOOTH_STYLUS
-                      )
-                    {
+                    } else if ((e.getFlags() & 0x4000000) == 0x4000000) {
                         mIsDragging = true;
                         mInjector.sendMouseEvent(mRenderData.getCursorPosition(), 1, true, false);
                     }
                     break;
                 case MotionEvent.ACTION_UP:
-                    if ((e.getFlags() & 0x14000000) == 0x14000000){
+                    if ((e.getFlags() & 0x14000000) == 0x14000000) {
                         mScroller.onTouchEvent(e);
                         mIsScrolling = false;
                     }

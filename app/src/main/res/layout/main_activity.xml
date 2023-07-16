@@ -177,8 +177,6 @@
 
 	</com.google.android.material.chip.ChipGroup>
 
-
-
 	<androidx.viewpager.widget.ViewPager
 		android:id="@+id/terminal_toolbar_view_pager"
 		android:visibility="gone"

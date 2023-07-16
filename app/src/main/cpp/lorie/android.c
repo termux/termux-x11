@@ -178,7 +178,15 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectA
 
 JNIEXPORT void JNICALL
 Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, unused jobject cls, jobject surface) {
+    static jobject cached = NULL;
     ANativeWindow* win = surface ? ANativeWindow_fromSurface(env, surface) : NULL;
+    
+    if (cached)
+        (*env)->DeleteGlobalRef(env, cached);
+
+    if (surface)
+        cached = (*env)->NewGlobalRef(env, surface);
+
     if (win)
         ANativeWindow_acquire(win);
     log(DEBUG, "window change: %p", win);

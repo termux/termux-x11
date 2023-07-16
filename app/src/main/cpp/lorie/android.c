@@ -180,7 +180,7 @@ JNIEXPORT void JNICALL
 Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, unused jobject cls, jobject surface) {
     static jobject cached = NULL;
     ANativeWindow* win = surface ? ANativeWindow_fromSurface(env, surface) : NULL;
-    
+
     if (cached)
         (*env)->DeleteGlobalRef(env, cached);
 

@@ -5,13 +5,9 @@ android {
     compileSdkVersion 30
     defaultConfig {
         applicationId "com.termux.shell_loader"
-        minSdkVersion 24
-        // Note: targetSdkVersion affects only tests,
-        //       normally, even though this is packaged as apk,
-        //       it's not loaded as apk so targetSdkVersion is ignored.
-        //       targetSdkVersion this must be < 28 because this application accesses hidden apis
-        //noinspection ExpiredTargetSdkVersion,OldTargetApi
-        targetSdkVersion 28
+        // This apk should not be instalable
+        minSdkVersion 16384
+        targetSdkVersion 16384
         versionCode 1
         versionName "0.1"
     }

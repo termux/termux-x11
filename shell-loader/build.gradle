@@ -1,33 +1,8 @@
 apply plugin: 'com.android.application'
 
-android {
-    namespace 'com.termux.x11'
-    compileSdkVersion 30
-    defaultConfig {
-        applicationId "com.termux.shell_loader"
-        // This apk should not be instalable
-        minSdkVersion 16384
-        targetSdkVersion 16384
-        versionCode 1
-        versionName "0.1"
-    }
-
-    signingConfigs {
-        debug {
-            storeFile file('../app/testkey_untrusted.jks')
-            keyAlias 'alias'
-            storePassword 'xrj45yWGLbsO7W0v'
-            keyPassword 'xrj45yWGLbsO7W0v'
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-
-}
-
-dependencies {
-    compileOnly project(':shell-loader:stub')
-}
+android.namespace 'com.termux.x11'
+android.compileSdkVersion 28
+android.buildTypes.debug.signingConfig project(':app').android.signingConfigs.debug
+android.compileOptions.sourceCompatibility JavaVersion.VERSION_1_8
+android.compileOptions.targetCompatibility JavaVersion.VERSION_1_8
+dependencies.compileOnly project(':shell-loader:stub')

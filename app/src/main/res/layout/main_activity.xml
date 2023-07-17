@@ -3,7 +3,7 @@
 	xmlns:app="http://schemas.android.com/apk/res-auto"
 	xmlns:tools="http://schemas.android.com/tools"
 	android:layout_width="match_parent"
-    android:layout_height="match_parent"
+        android:layout_height="match_parent"
 	android:background="@android:color/black">
 
 	<FrameLayout
@@ -36,10 +36,8 @@
 
 			<ImageView
 				android:id="@+id/x11_image"
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:minWidth="100sp"
-				android:minHeight="100sp"
+				android:layout_width="130dp"
+				android:layout_height="130dp"
 				android:scaleType="fitCenter"
 				app:srcCompat="@drawable/ic_x11_icon"
 				android:contentDescription="X Logo"

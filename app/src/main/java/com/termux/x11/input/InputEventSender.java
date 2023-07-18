@@ -97,6 +97,7 @@ public final class InputEventSender {
         }
     }
 
+    final boolean[] pointers = new boolean[10];
     /**
      * Extracts the touch point data from a MotionEvent, converts each point into a marshallable
      * object and passes the set of points to the JNI layer to be transmitted to the remote host.
@@ -116,7 +117,18 @@ public final class InputEventSender {
             int pointerCount = event.getPointerCount();
 
             for (int p = 0; p < pointerCount; p++)
+                pointers[event.getPointerId(p)] = false;
+
+            for (int p = 0; p < pointerCount; p++) {
+                pointers[event.getPointerId(p)] = true;
                 mInjector.sendTouchEvent(touchEventType, event.getPointerId(p), (int) event.getX(p), (int) event.getY(p));
+            }
+
+            // Sometimes Android does not send ACTION_POINTER_UP/ACTION_UP so some pointers are "stuck" in pressed state.
+            for (int p = 0; p < 10; p++) {
+                if (!pointers[p])
+                    mInjector.sendTouchEvent(XI_TouchEnd, p, 0, 0);
+            }
         } else {
             // For all other events, we only want to grab the current/active pointer.  The event
             // contains a list of every active pointer but passing all of of these to the host can

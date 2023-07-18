@@ -70,6 +70,9 @@ static int dispatch(ClientPtr client) {
                     return Success;
             }
 
+            if (stuff->type == XI_TouchEnd && (!touch || !touch->active))
+                return Success;
+
             __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "touch event: %d %d %d %d", stuff->type, stuff->id, stuff->x, stuff->y);
             valuator_mask_set_double(&mask, 0, x);
             valuator_mask_set_double(&mask, 1, y);

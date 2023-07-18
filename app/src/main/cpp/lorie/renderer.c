@@ -205,7 +205,7 @@ void renderer_set_buffer(AHardwareBuffer* buf) {
     AHardwareBuffer_Desc desc = {0};
 
     if (eglGetCurrentContext() == EGL_NO_CONTEXT) {
-        loge("There is no current context, `renderer_set_buffer` is call is cancelled");
+        loge("There is no current context, `renderer_set_buffer` call is cancelled");
         return;
     }
 

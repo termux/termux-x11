@@ -33,12 +33,12 @@ Or you can install nightly companion package from repositories with `pkg in x11-
 ## Running Graphical Applications
 You can start your desired graphical application by doing:
 ```
-~ $ termux-x11 :1 &
-~ $ env DISPLAY=:1 dbus-launch --exit-with-session xfce4-session
+~ $ termux-x11 :1 -xstartup "dbus-launch --exit-with-session xfce4-session"
 ```
 or
 ```
-~ $ termux-x11 :1 -xstartup "dbus-launch --exit-with-session xfce4-session"
+~ $ termux-x11 :1 &
+~ $ env DISPLAY=:1 dbus-launch --exit-with-session xfce4-session
 ```
 You may replace `xfce4-session` if you use other than Xfce
 

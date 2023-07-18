@@ -24,6 +24,7 @@ import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Handler;
@@ -109,11 +110,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         setContentView(R.layout.main_activity);
 
         frm = findViewById(R.id.frame);
-        Button preferencesButton = findViewById(R.id.preferences_button);
-        preferencesButton.setOnClickListener((l) -> {
+        findViewById(R.id.preferences_button).setOnClickListener((l) -> {
             Intent i = new Intent(this, LoriePreferences.class);
             i.setAction(Intent.ACTION_MAIN);
             startActivity(i);
+        });
+        findViewById(R.id.help_button).setOnClickListener((l) -> {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/termux/termux-x11/blob/master/README.md#running-graphical-applications")));
         });
 
         LorieView lorieView = findViewById(R.id.lorieView);

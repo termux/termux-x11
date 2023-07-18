@@ -77,8 +77,7 @@
 				android:id="@+id/help_button"
 				android:layout_width="wrap_content"
 				android:layout_height="wrap_content"
-				android:text="@string/getting_started_button_text"
-				android:visibility="gone" />
+				android:text="@string/help_button_text" />
 		</LinearLayout>
 
 

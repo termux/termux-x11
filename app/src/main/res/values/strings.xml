@@ -34,7 +34,7 @@
     <string name="action_already_granted">Already Granted</string>
     <string name="action_already_disabled">Already Disabled</string>
     <string name="not_connected">Not connected</string>
-    <string name="getting_started_button_text">Getting started</string>
+    <string name="help_button_text">   Help   </string>
     <string name="preferences_button_text">   Preferences   </string>
     <string name="extra_keys_config_desc">Here you can set value of extra-keys variable like in Termux app. Read <a href="http://wiki.termux.com/wiki/Touch_Keyboard#Extra_Keys_Row">this</a>.
     Put empty string for the default value.</string>

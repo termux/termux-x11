@@ -15,8 +15,6 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -37,7 +35,6 @@ import android.util.Log;
 import android.view.DragEvent;
 import android.view.InputDevice;
 import android.view.KeyEvent;
-import android.view.MotionEvent;
 import android.view.PointerIcon;
 import android.view.View;
 import android.view.ViewGroup;
@@ -110,14 +107,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         setContentView(R.layout.main_activity);
 
         frm = findViewById(R.id.frame);
-        findViewById(R.id.preferences_button).setOnClickListener((l) -> {
-            Intent i = new Intent(this, LoriePreferences.class);
-            i.setAction(Intent.ACTION_MAIN);
-            startActivity(i);
-        });
-        findViewById(R.id.help_button).setOnClickListener((l) -> {
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/termux/termux-x11/blob/master/README.md#running-graphical-applications")));
-        });
+        findViewById(R.id.preferences_button).setOnClickListener((l) -> startActivity(new Intent(this, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}));
+        findViewById(R.id.help_button).setOnClickListener((l) -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/termux/termux-x11/blob/master/README.md#running-graphical-applications"))));
 
         LorieView lorieView = findViewById(R.id.lorieView);
         View lorieParent = (View) lorieView.getParent();
@@ -686,14 +677,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         });
     }
 
-    // It is used in native code
-    void setClipboardText(String text) {
-        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        clipboard.setPrimaryClip(ClipData.newPlainText("X11 clipboard", text));
-    }
-
     private void checkXEvents() {
-        LorieView.handleXEvents();
+        getLorieView().handleXEvents();
         handler.postDelayed(this::checkXEvents, 300);
     }
 }

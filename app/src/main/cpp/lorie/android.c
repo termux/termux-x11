@@ -390,6 +390,11 @@ Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, jobject thiz) {
             xcb_generic_error_t* err = NULL;
             uint32_t data_size = 0;
             jmethodID id = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, thiz), "setClipboardText","(Ljava/lang/String;)V");
+            if (!id) {
+                log(ERROR, "setClipboardText method not found");
+                return;
+            }
+
             log(DEBUG, "We've got selection (clipboard) contents");
             {
                 xcb_get_property_cookie_t cookie = xcb_get_property(conn, false, win, prop_sel, XCB_ATOM_ANY, 0, 0);

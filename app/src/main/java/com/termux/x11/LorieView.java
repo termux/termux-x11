@@ -2,6 +2,8 @@ package com.termux.x11;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.SharedPreferences;
@@ -178,8 +180,14 @@ public class LorieView extends SurfaceView implements InputStub {
         sendMouseEvent(deltaX, deltaY, BUTTON_SCROLL, false, true);
     }
 
+    // It is used in native code
+    void setClipboardText(String text) {
+        ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboard.setPrimaryClip(ClipData.newPlainText("X11 clipboard", text));
+    }
+
     static native void connect(int fd);
-    static native void handleXEvents();
+    native void handleXEvents();
     static native void startLogcat(int fd);
     static native void setClipboardSyncEnabled(boolean enabled);
     static native void sendWindowChange(int width, int height, int framerate);

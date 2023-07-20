@@ -70,6 +70,10 @@ public class X11ToolbarViewPager {
                     v2.releasePointerCapture();
                     return false;
                 });
+
+                layout.findViewById(R.id.terminal_toolbar_back_button).setOnClickListener(v -> {
+                    mActivity.getTerminalToolbarViewPager().setCurrentItem(0, true);
+                });
             }
             collection.addView(layout);
             return layout;

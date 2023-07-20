@@ -551,7 +551,7 @@ void lorieConfigureNotify(int width, int height, int framerate) {
     ScreenPtr pScreen = pScreenPtr;
     RROutputPtr output = RRFirstOutput(pScreen);
 
-    if (output && width && height && pScreen->width != width && pScreen->height != height) {
+    if (output && width && height && (pScreen->width != width || pScreen->height != height)) {
         CARD32 mmWidth, mmHeight;
         RRModePtr mode = lorieCvt(width, height, framerate);
         mmWidth = ((double) (mode->mode.width)) * 25.4 / monitorResolution;

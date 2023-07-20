@@ -485,6 +485,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
 
             pager.setVisibility(show ? View.VISIBLE : View.INVISIBLE);
+
+            getLorieView().requestFocus();
         });
     }
 

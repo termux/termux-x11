@@ -348,6 +348,16 @@ Java_com_termux_x11_LorieView_connect(unused JNIEnv* env, unused jobject cls, ji
     xcb_flush(conn);
 }
 
+static inline void xcb_check_errors(JNIEnv* env) {
+    if (!conn || !xcb_connection_has_error(conn))
+        return;
+
+    jclass cls = (*env)->FindClass(env, "com/termux/x11/CmdEntryPoint");
+    jmethodID method = !cls ? NULL : (*env)->GetStaticMethodID(env, cls, "requestConnection", "()V");
+    if (method)
+        (*env)->CallStaticVoidMethod(env, cls, method);
+}
+
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, jobject thiz) {
     xcb_generic_event_t *ev;
@@ -421,6 +431,8 @@ Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, jobject thiz) {
             }
         }
     }
+
+    xcb_check_errors(env);
 }
 
 JNIEXPORT void JNICALL
@@ -453,6 +465,7 @@ Java_com_termux_x11_LorieView_sendWindowChange(unused JNIEnv* env, unused jobjec
     if (conn) {
         xcb_tx11_screen_size_change(conn, width, height, framerate);
         xcb_flush(conn);
+        xcb_check_errors(env);
     }
 }
 
@@ -461,6 +474,7 @@ Java_com_termux_x11_LorieView_sendMouseEvent(unused JNIEnv* env, unused jobject 
     if (conn) {
         xcb_tx11_mouse_event(conn, x, y, which_button, button_down, relative); // NOLINT(cppcoreguidelines-narrowing-conversions)
         xcb_flush(conn);
+        xcb_check_errors(env);
     }
 }
 
@@ -470,6 +484,7 @@ Java_com_termux_x11_LorieView_sendTouchEvent(unused JNIEnv* env, unused jobject 
         if (action >= 0) {
             xcb_tx11_touch_event(conn, action, id, x, y); // NOLINT(cppcoreguidelines-narrowing-conversions)
         } else xcb_flush(conn);
+        xcb_check_errors(env);
     }
 }
 
@@ -480,6 +495,7 @@ Java_com_termux_x11_LorieView_sendKeyEvent(unused JNIEnv* env, unused jobject cl
         log(DEBUG, "Sending key: %d", code + 8);
         xcb_tx11_key_event(conn, code + 8, key_down);
         xcb_flush(conn);
+        xcb_check_errors(env);
     }
 
     return true;
@@ -507,10 +523,12 @@ Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, unused jobject thiz, js
             log(DEBUG, "Sending unicode event: %lc (U+%X)", wc, wc);
             xcb_tx11_unicode_event(conn, wc);
             p += len;
+            usleep(30000);
         }
 
         xcb_flush(conn);
         (*env)->ReleaseStringUTFChars(env, text, str);
+        xcb_check_errors(env);
     }
 }
 

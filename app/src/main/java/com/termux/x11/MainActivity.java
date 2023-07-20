@@ -31,6 +31,7 @@ import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
+import android.service.notification.StatusBarNotification;
 import android.util.Log;
 import android.view.DragEvent;
 import android.view.InputDevice;
@@ -411,7 +412,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     public void onPause() {
-        mNotificationManager.cancel(mNotificationId);
+        for (StatusBarNotification notification: mNotificationManager.getActiveNotifications())
+            if (notification.getId() == mNotificationId)
+                mNotificationManager.cancel(mNotificationId);
         super.onPause();
     }
 

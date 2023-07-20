@@ -522,11 +522,11 @@ Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, unused jobject thiz, js
 
             log(DEBUG, "Sending unicode event: %lc (U+%X)", wc, wc);
             xcb_tx11_unicode_event(conn, wc);
+            xcb_flush(conn);
             p += len;
             usleep(30000);
         }
 
-        xcb_flush(conn);
         (*env)->ReleaseStringUTFChars(env, text, str);
         xcb_check_errors(env);
     }

@@ -4,10 +4,15 @@ on:
   push:
     branches:
       - master
-      - x11-client-experimental
+    paths-ignore:
+      - '**.md'
+      - 'img/**'
   pull_request:
     branches:
       - master
+    paths-ignore:
+      - '**.md'
+      - 'img/**'
 
 jobs:
   build:

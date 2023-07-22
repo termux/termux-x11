@@ -352,6 +352,9 @@ static inline void xcb_check_errors(JNIEnv* env) {
     if (!conn || !xcb_connection_has_error(conn))
         return;
 
+    xcb_disconnect(conn);
+    conn = NULL;
+
     jclass cls = (*env)->FindClass(env, "com/termux/x11/CmdEntryPoint");
     jmethodID method = !cls ? NULL : (*env)->GetStaticMethodID(env, cls, "requestConnection", "()V");
     if (method)

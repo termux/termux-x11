@@ -90,6 +90,7 @@ typedef struct {
     struct {
         AHardwareBuffer* buffer;
         Bool locked;
+        Bool legacyDrawing;
     } root;
 } lorieScreenInfo, *lorieScreenInfoPtr;
 
@@ -176,6 +177,7 @@ ddxInputThreadInit(void) {}
 
 void ddxUseMsg(void) {
     ErrorF("-xstartup \"command\"    start `command` after server startup\n");
+    ErrorF("-legacy-drawing        use legacy drawing, without using AHardwareBuffers\n");
 }
 
 int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
@@ -183,6 +185,11 @@ int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
         CHECK_FOR_REQUIRED_ARGUMENTS(1);
         xstartup = argv[++i];
         return 2;
+    }
+
+    if (strcmp(argv[i], "-legacy-drawing") == 0) {
+        pvfb->root.legacyDrawing = TRUE;
+        return 1;
     }
 
     return 0;
@@ -281,6 +288,19 @@ static void lorieUpdateBuffer(void) {
     int status, wasLocked = pvfb->root.locked;
     void *data0 = NULL, *data1 = NULL;
 
+    if (pvfb->root.legacyDrawing) {
+        PixmapPtr pixmap = (PixmapPtr) pScreenPtr->devPrivate;
+        DrawablePtr draw = &pixmap->drawable;
+        data0 = malloc(pScreenPtr->width * pScreenPtr->height * 4);
+        data1 = (draw->width && draw->height) ? pixmap->devPrivate.ptr : NULL;
+        if (data1)
+            pixman_blt(data1, data0, draw->width, pScreenPtr->width, 32, 32, 0, 0, 0, 0,
+                       min(draw->width, pScreenPtr->width), min(draw->height, pScreenPtr->height));
+        pScreenPtr->ModifyPixmapHeader(pScreenPtr->devPrivate, pScreenPtr->width, pScreenPtr->height, 32, 32, pScreenPtr->width * 4, data0);
+        free(data1);
+        return;
+    }
+
     if (pScreenPtr->devPrivate) {
         d0.width = pScreenPtr->width;
         d0.height = pScreenPtr->height;
@@ -339,6 +359,9 @@ static void lorieUpdateBuffer(void) {
 }
 
 static inline void loriePixmapUnlock(PixmapPtr pixmap) {
+    if (pvfb->root.legacyDrawing)
+        return renderer_update_root(pixmap->drawable.width, pixmap->drawable.height, pixmap->devPrivate.ptr);
+
     if (pvfb->root.locked)
         AHardwareBuffer_unlock(pvfb->root.buffer, NULL);
 
@@ -350,6 +373,9 @@ static inline Bool loriePixmapLock(PixmapPtr pixmap) {
     AHardwareBuffer_Desc desc = {};
     void *data;
     int status;
+
+    if (pvfb->root.legacyDrawing)
+        return TRUE;
 
     if (!pvfb->root.buffer) {
         pvfb->root.locked = FALSE;
@@ -543,6 +569,11 @@ Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
     struct ANativeWindow* win = (struct ANativeWindow*) closure;
     renderer_set_window(win, pvfb->root.buffer);
     lorieSetCursor(NULL, NULL, CursorForDevice(GetMaster(lorieMouse, MASTER_POINTER)), -1, -1);
+
+    if (pvfb->root.legacyDrawing) {
+        renderer_update_root(pScreenPtr->width, pScreenPtr->height, ((PixmapPtr) pScreenPtr->devPrivate)->devPrivate.ptr);
+        renderer_redraw();
+    }
 
     return TRUE;
 }

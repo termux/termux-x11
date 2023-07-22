@@ -81,6 +81,7 @@ static int dispatch(ClientPtr client) {
         }
         case XCB_TX11_MOUSE_EVENT: {
             REQUEST(xcb_tx11_mouse_event_request_t)
+            dprintf(2, "Here! %s %d x %f y %f detail %d down %d\n", __FILE__, __LINE__, stuff->x, stuff->y, stuff->detail, stuff->down);
 
             int flags;
             switch(stuff->detail) {
@@ -121,11 +122,13 @@ static int dispatch(ClientPtr client) {
         }
         case XCB_TX11_KEY_EVENT: {
             REQUEST(xcb_tx11_key_event_request_t)
+            dprintf(2, "Here! %s %d\n", __FILE__, __LINE__);
             QueueKeyboardEvents(lorieKeyboard, stuff->state ? KeyPress : KeyRelease, stuff->keycode);
             return Success;
         }
         case XCB_TX11_UNICODE_EVENT: {
             REQUEST(xcb_tx11_unicode_event_request_t)
+            dprintf(2, "Here! %s %d\n", __FILE__, __LINE__);
             char name[128];
             xkb_keysym_get_name(xkb_utf32_to_keysym(stuff->unicode), name, 128);
             __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d %s\n", xkb_utf32_to_keysym(stuff->unicode), name);

@@ -20,6 +20,7 @@ import android.util.Log;
 import android.view.Surface;
 
 import java.io.DataInputStream;
+import java.io.PrintStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -46,8 +47,14 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
 
     CmdEntryPoint(String[] args) {
         try {
-            if (ctx == null)
+            if (ctx == null) {
+                // Hiding harmless framework errors, like this:
+                // java.io.FileNotFoundException: /data/system/theme_config/theme_compatibility.xml: open failed: ENOENT (No such file or directory)
+                PrintStream err = System.err;
+                System.setErr(null);
                 ctx = android.app.ActivityThread.systemMain().getSystemContext();
+                System.setErr(err);
+            }
         } catch (Exception e) {
             Log.e("CmdEntryPoint", "Problem during obtaining Context: ", e);
         }
@@ -139,11 +146,11 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
                             sendBroadcast();
                         }
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        e.printStackTrace(System.err);
                     }
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                e.printStackTrace(System.err);
             }
         }).start();
     }

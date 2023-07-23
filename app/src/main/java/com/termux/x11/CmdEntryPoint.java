@@ -19,6 +19,8 @@ import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import android.view.Surface;
 
+import androidx.annotation.Keep;
+
 import java.io.DataInputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -28,7 +30,7 @@ import java.net.Socket;
 import java.net.URL;
 import java.util.Arrays;
 
-@SuppressLint({"StaticFieldLeak", "UnsafeDynamicallyLoadedCode"})
+@Keep @SuppressLint({"StaticFieldLeak", "UnsafeDynamicallyLoadedCode"})
 public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static final String ACTION_START = "com.termux.x11.CmdEntryPoint.ACTION_START";
     public static final int PORT = 7892;
@@ -107,15 +109,12 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
             assert am != null;
             IIntentSender sender = am.getIntentSender(1, packageName, null, null, 0, new Intent[] { intent },
                     null, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_ONE_SHOT, null, 0);
-            IIntentReceiver.Stub receiver = new IIntentReceiver.Stub() {
-                @Override public void performReceive(Intent intent, int resultCode, String data, Bundle extras, boolean ordered, boolean sticky, int sendingUser) {}
-            };
             try {
                 //noinspection JavaReflectionMemberAccess
                 IIntentSender.class
                         .getMethod("send", int.class, Intent.class, String.class, IBinder.class, IIntentReceiver.class, String.class, Bundle.class)
                         .invoke(sender, 0, intent, null, null, new IIntentReceiver.Stub() {
-                            @Override public void performReceive(Intent intent, int resultCode, String data, Bundle extras, boolean ordered, boolean sticky, int sendingUser) {}
+                            @Override public void performReceive(Intent i, int r, String d, Bundle e, boolean o, boolean s, int a) {}
                         }, null, null);
             } catch (Exception ex) {
                 throw new RuntimeException(ex);

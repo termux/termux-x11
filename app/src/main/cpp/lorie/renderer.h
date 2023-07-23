@@ -1,6 +1,5 @@
 #pragma once
 #include <android/hardware_buffer.h>
-#include <EGL/egl.h>
 #include "pixman.h"
 
 #ifndef maybe_unused
@@ -23,7 +22,7 @@ maybe_unused void renderer_message_func(renderer_message_func_type function);
 
 maybe_unused int renderer_init(void);
 maybe_unused void renderer_set_buffer(AHardwareBuffer* buffer);
-maybe_unused void renderer_set_window(EGLNativeWindowType native_window, AHardwareBuffer* buffer);
+maybe_unused void renderer_set_window(struct ANativeWindow* native_window, AHardwareBuffer* buffer);
 maybe_unused int renderer_should_redraw(void);
 maybe_unused int renderer_redraw(void);
 maybe_unused void renderer_print_fps(float millis);

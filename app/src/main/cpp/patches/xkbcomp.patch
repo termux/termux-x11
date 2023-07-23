@@ -1,0 +1,82 @@
+diff --git a/compat.c b/compat.c
+index 757ef42..dbfd61a 100644
+--- a/compat.c
++++ b/compat.c
+@@ -579,7 +579,7 @@ SetInterpField(SymInterpInfo * si,
+     return ok;
+ }
+ 
+-LookupEntry groupNames[] = {
++LookupEntry xkbcomp_groupNames[] = {
+     {"group1", 0x01}
+     ,
+     {"group2", 0x02}
+diff --git a/compat.h b/compat.h
+index 799b215..900de43 100644
+--- a/compat.h
++++ b/compat.h
+@@ -2,6 +2,6 @@
+ #ifndef COMPAT_H
+ #define COMPAT_H 1
+ 
+-extern LookupEntry groupNames[];
++extern LookupEntry xkbcomp_groupNames[];
+ 
+ #endif /* COMPAT_H */
+diff --git a/indicators.c b/indicators.c
+index b3e7d18..36c1cd4 100644
+--- a/indicators.c
++++ b/indicators.c
+@@ -223,7 +223,7 @@ SetIndicatorMapField(LEDInfo * led,
+         if (arrayNdx != NULL)
+             return ReportIndicatorNotArray(xkb->dpy, led, field);
+         if (!ExprResolveMask
+-            (value, &rtrn, SimpleLookup, (XPointer) groupNames))
++            (value, &rtrn, SimpleLookup, (XPointer) xkbcomp_groupNames))
+             return ReportIndicatorBadType(xkb->dpy, led, field, "group mask");
+         led->groups = rtrn.uval;
+         led->defs.defined |= _LED_Groups;
+diff --git a/xkbcomp.c b/xkbcomp.c
+index 796fa22..a2acf41 100644
+--- a/xkbcomp.c
++++ b/xkbcomp.c
+@@ -24,6 +24,9 @@
+ 
+  ********************************************************/
+ 
++#pragma clang diagnostic ignored "-Wunknown-pragmas"
++#pragma ide diagnostic ignored "bugprone-reserved-identifier"
++
+ #include <stdio.h>
+ #include <ctype.h>
+ #include <X11/keysym.h>
+@@ -46,6 +49,7 @@
+ #include "misc.h"
+ #include "tokens.h"
+ #include <X11/extensions/XKBgeom.h>
++#include <dlfcn.h>
+ 
+ 
+ #ifdef WIN32
+@@ -893,8 +897,8 @@ GetDisplay(char *program, char *dpyName)
+ extern int yydebug;
+ #endif
+ 
+-int
+-main(int argc, char *argv[])
++static int
++xkbcomp_main(int argc, char *argv[])
+ {
+     FILE *file;         /* input file (or stdin) */
+     XkbFile *rtrn;
+@@ -1246,3 +1250,10 @@ main(int argc, char *argv[])
+     uFinishUp();
+     return (ok == 0);
+ }
++
++__attribute__((__used__, visibility ("default")))
++void __libc_init(void* raw_args, void (*onexit)(void), __attribute__((__unused__)) __typeof__(xkbcomp_main)* main, void* s) {
++    __typeof__(__libc_init)* orig;
++    orig = dlsym(RTLD_NEXT, "__libc_init");
++    return orig(raw_args, onexit, xkbcomp_main, s);
++}

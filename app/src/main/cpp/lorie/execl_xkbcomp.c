@@ -78,7 +78,6 @@ int execl_xkbcomp(const char * path, const char * arg, ...) {
     // So I will use /system/bin/app_process with overloaded __libc_init to load main function stored in packed binary.
     // We are loading 32-bit libraries so it can fail on 64-bit system.
     // That is why we should execute app_process32 and fall back to sh in the case of failure.
-    char ldpreload[1024], ldlibexec[1024];
 
     va_list args;
     va_start(args, arg);
@@ -106,16 +105,8 @@ int execl_xkbcomp(const char * path, const char * arg, ...) {
     assert(argv[2] != NULL);
     assert(argv[3] == NULL);
     new_args = parse_arguments(argv[2], &argc);
-    sprintf(ldpreload, "%s/libexec-helper.so", dirname(lib));
-    sprintf(ldlibexec, "%s/libxkbcomp.so", dirname(lib));
-    setenv("LD_PRELOAD", ldpreload, 1);
-    setenv("LD_LIBRARY_PATH", dirname(lib), 1);
-    setenv("LD_LIBEXEC", ldlibexec, 1);
-
-    __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "executing xkbcomp...");
-    __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "ldlibpath %s (%d)", dirname(lib), getpid());
-    __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "ldpreload %s", ldpreload);
-    __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "ldlibexec %s", ldlibexec);
+    setenv("LD_PRELOAD", lib, 1);
+    __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "executing xkbcomp, ldpreload %s", lib);
 
     for(int j=1; j<= SIGUNUSED; j++)
         signal(j, SIG_DFL);

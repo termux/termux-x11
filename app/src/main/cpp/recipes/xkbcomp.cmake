@@ -36,8 +36,7 @@ static void init_pathes(void) {
 ")
 
 BISON_TARGET(xkbcomp_parser xkbcomp/xkbparse.y ${CMAKE_CURRENT_BINARY_DIR}/xkbparse.c)
-add_library(xkbcomp SHARED
-#add_executable(xkbcomp
+add_library(xkbcomp STATIC
         xkbcomp/action.c
         xkbcomp/alias.c
         xkbcomp/compat.c
@@ -63,4 +62,4 @@ target_compile_options(xkbcomp PRIVATE "-DHAVE_CONFIG_H" ${common_compile_option
 target_link_options(xkbcomp PRIVATE "-fPIC")
 target_include_directories(xkbcomp PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/xkbcomp-config" "xkbcomp")
 target_link_libraries(xkbcomp PRIVATE X11 xkbfile)
-#target_link_options(xkbcomp PRIVATE "-static" "-s")
+target_apply_patch(xkbcomp "${CMAKE_CURRENT_SOURCE_DIR}/xkbcomp" "${CMAKE_CURRENT_SOURCE_DIR}/patches/xkbcomp.patch")

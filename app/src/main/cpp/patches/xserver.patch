@@ -23,6 +23,47 @@ index bb3348b18..1a5400717 100644
  ddxInputThreadInit(void);
  extern _X_EXPORT int
  TimeSinceLastInputEvent(void);
+diff --git a/include/xkbfile.h b/include/xkbfile.h
+index f93d31ab0..f65338ac4 100644
+--- a/include/xkbfile.h
++++ b/include/xkbfile.h
+@@ -79,6 +79,36 @@ typedef void (*XkbFileAddOnFunc) (FILE * /* file */ ,
+ 
+ /***====================================================================***/
+ 
++#define XkbInternAtom XXkbInternAtom
++#define XkbAtomText XXkbAtomText
++#define XkbStringText XXkbStringText
++#define XkbVModIndexText XXkbVModIndexText
++#define XkbVModMaskText XXkbVModMaskText
++#define XkbModMaskText XXkbModMaskText
++#define XkbModIndexText XXkbModIndexText
++#define XkbConfigText XXkbConfigText
++#define XkbKeysymText XXkbKeysymText
++#define XkbKeyNameText XXkbKeyNameText
++#define XkbSIMatchText XXkbSIMatchText
++#define XkbIMWhichStateMaskText XXkbIMWhichStateMaskText
++#define XkbControlsMaskText XXkbControlsMaskText
++#define XkbGeomFPText XXkbGeomFPText
++#define XkbDoodadTypeText XXkbDoodadTypeText
++#define XkbActionTypeText XXkbActionTypeText
++#define XkbActionText XXkbActionText
++#define XkbBehaviorText XXkbBehaviorText
++#define XkbIndentText XXkbIndentText
++#define XkbWriteXKBKeycodes XXkbWriteXKBKeycodes
++#define XkbWriteXKBKeyTypes XXkbWriteXKBKeyTypes
++#define XkbWriteXKBCompatMap XXkbWriteXKBCompatMap
++#define XkbWriteXKBSymbols XXkbWriteXKBSymbols
++#define XkbWriteXKBGeometry XXkbWriteXKBGeometry
++#define XkbWriteXKBKeymapForNames XXkbWriteXKBKeymapForNames
++#define XkbFindKeycodeByName XXkbFindKeycodeByName
++#define XkbConvertGetByNameComponents XXkbConvertGetByNameComponents
++#define XkbNameMatchesPattern XXkbNameMatchesPattern
++#define _XkbKSCheckCase _XXkbKSCheckCase
++
+ _XFUNCPROTOBEGIN
+ 
+ extern _X_EXPORT char *XkbIndentText(unsigned   /* size */
 diff --git a/os/osinit.c b/os/osinit.c
 index 8575319ff..06c44a416 100644
 --- a/os/osinit.c

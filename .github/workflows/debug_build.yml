@@ -15,6 +15,14 @@ on:
       - 'img/**'
 
 jobs:
+  validation:
+    name: "Validation"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - uses: gradle/wrapper-validation-action@v1
   build:
     runs-on: ubuntu-latest
     steps:

@@ -20,6 +20,7 @@ import android.util.Log;
 import android.view.Surface;
 
 import java.io.DataInputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -51,7 +52,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
                 // Hiding harmless framework errors, like this:
                 // java.io.FileNotFoundException: /data/system/theme_config/theme_compatibility.xml: open failed: ENOENT (No such file or directory)
                 PrintStream err = System.err;
-                System.setErr(null);
+                System.setErr(new PrintStream(new OutputStream() { public void write(int arg0) {} }));
                 ctx = android.app.ActivityThread.systemMain().getSystemContext();
                 System.setErr(err);
             }

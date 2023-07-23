@@ -9,6 +9,7 @@ import android.os.Build;
 import android.os.Looper;
 import android.util.Log;
 
+import java.io.OutputStream;
 import java.io.PrintStream;
 
 import dalvik.system.PathClassLoader;
@@ -45,7 +46,7 @@ public class Loader {
         // Hiding harmless framework errors, like this:
         // java.io.FileNotFoundException: /data/system/theme_config/theme_compatibility.xml: open failed: ENOENT (No such file or directory)
         PrintStream err = System.err;
-        System.setErr(null);
+        System.setErr(new PrintStream(new OutputStream() { public void write(int arg0) {} }));
         Context ctx = android.app.ActivityThread.systemMain().getSystemContext();
         System.setErr(err);
 

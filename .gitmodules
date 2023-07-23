@@ -6,10 +6,6 @@
 	path = app/src/main/cpp/libtirpc
 	url = https://github.com/alisw/libtirpc
 	ignore = dirty
-[submodule "app/src/main/cpp/drm"]
-	path = app/src/main/cpp/drm
-	url = https://gitlab.freedesktop.org/mesa/drm
-	ignore = dirty
 [submodule "app/src/main/cpp/freetype"]
 	path = app/src/main/cpp/freetype
 	url = https://gitlab.freedesktop.org/freetype/freetype
@@ -78,19 +74,6 @@
 	path = app/src/main/cpp/xserver
 	url = https://gitlab.freedesktop.org/xorg/xserver
 	ignore = dirty
-[submodule "app/src/main/cpp/virglrenderer"]
-	path = app/src/main/cpp/virglrenderer
-	url = https://gitlab.freedesktop.org/virgl/virglrenderer
-	ignore = dirty
-[submodule "app/src/main/cpp/libxkbcommon"]
-	path = app/src/main/cpp/libxkbcommon
-	url = https://github.com/xkbcommon/libxkbcommon
-	ignore = dirty
-[submodule "app/src/main/cpp/libxcb-errors"]
-	path = app/src/main/cpp/libxcb-errors
-	url = https://gitlab.freedesktop.org/xorg/lib/libxcb-errors
-	ignore = dirty
-
 [submodule "app/src/main/cpp/bzip2"]
 	path = app/src/main/cpp/bzip2
 	url = https://gitlab.com/bzip2/bzip2

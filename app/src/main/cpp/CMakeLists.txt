@@ -4,7 +4,6 @@ project(lorie)
 set(can_use_assembler TRUE)
 enable_language(ASM)
 
-#set_property(TARGET tgt PROPERTY C_STANDARD 11)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
@@ -70,12 +69,6 @@ foreach (option ${test_compile_options})
 endforeach ()
 set(CMAKE_REQUIRED_QUIET ${CMAKE_REQUIRED_QUIET_OLD})
 
-foreach(project xorgproto fontenc md freetype pixman tirpc xshmfence xcb xkbcommon
-                xcb-errors X11 Xtrans xkbfile Xdmcp Xau Xfont2 xkbcomp xserver epoxy)
+foreach(project xorgproto fontenc md freetype pixman tirpc xshmfence xcb Xtrans Xdmcp Xau Xfont2 xkbcomp xserver)
     include(recipes/${project}.cmake)
 endforeach()
-
-add_library(android-shmem STATIC "lorie/shm/shmem.c")
-target_compile_options(android-shmem
-        PRIVATE "-D_PATH_TMP=(getenv(\"TMPDIR\") ?: \"/tmp\")"
-        PUBLIC "-include" "${CMAKE_CURRENT_SOURCE_DIR}/lorie/shm/shm.h")

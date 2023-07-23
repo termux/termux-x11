@@ -11,11 +11,11 @@
 #include <android/log.h>
 #include "lorie.h"
 #include "tx11.h"
-#include "xkbcommon/xkbcommon.h"
 
 __attribute__((__unused__))
 extern DeviceIntPtr lorieMouse, lorieMouseRelative, lorieTouch, lorieKeyboard;
 extern ScreenPtr pScreenPtr;
+extern int ucs2keysym(long ucs);
 
 void lorieKeysymKeyboardEvent(KeySym keysym, int down);
 
@@ -126,11 +126,10 @@ static int dispatch(ClientPtr client) {
         }
         case XCB_TX11_UNICODE_EVENT: {
             REQUEST(xcb_tx11_unicode_event_request_t)
-            char name[128];
-            xkb_keysym_get_name(xkb_utf32_to_keysym(stuff->unicode), name, 128);
-            __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d %s\n", xkb_utf32_to_keysym(stuff->unicode), name);
-            lorieKeysymKeyboardEvent(xkb_utf32_to_keysym(stuff->unicode), TRUE);
-            lorieKeysymKeyboardEvent(xkb_utf32_to_keysym(stuff->unicode), FALSE);
+            int ks = ucs2keysym(stuff->unicode);
+            __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d\n", ks);
+            lorieKeysymKeyboardEvent(ks, TRUE);
+            lorieKeysymKeyboardEvent(ks, FALSE);
             return Success;
         }
         default:

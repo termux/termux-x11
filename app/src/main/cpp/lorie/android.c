@@ -15,7 +15,6 @@
 #include <linux/un.h>
 #include <libgen.h>
 #include <xcb/xfixes.h>
-#include <xcb_errors.h>
 #include <stdlib.h>
 #include <string.h>
 #include <libgen.h>
@@ -237,32 +236,10 @@ Java_com_termux_x11_CmdEntryPoint_getLogcatOutput(JNIEnv *env, unused jobject cl
 
 static xcb_connection_t* conn = NULL;
 static int xfixes_first_event = 0;
-static xcb_errors_context_t *err_ctx = NULL;
 static xcb_window_t win = 0;
 static xcb_atom_t prop_sel = 0;
 static xcb_atom_t atom_clipboard = 0;
 static bool clipboard_sync_enabled = false;
-
-static void parse_error(xcb_generic_error_t* err) {
-    const char* ext = NULL;
-    const char* err_name = NULL;
-
-    if (!err)
-        return;
-
-    err_name =  xcb_errors_get_name_for_error(err_ctx, err->error_code, &ext);
-    log(ERROR, "\n"
-        "XCB Error of failed request:               %s::%s\n"
-        "  Major opcode of failed request:          %d (%s)\n"
-        "  Minor opcode of failed request:          %d (%s)\n"
-        "  Serial number of failed request:         %d\n"
-        "  Current serial number in output stream:  %d",
-        (ext?:""), err_name, err->major_code,
-        xcb_errors_get_name_for_major_code(err_ctx, err->major_code),
-        err->minor_code, xcb_errors_get_name_for_minor_code(err_ctx, err->major_code, err->minor_code) ?: "Core",
-        err->sequence, err->full_sequence);
-    free(err);
-}
 
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_connect(unused JNIEnv* env, unused jobject cls, jint fd) {
@@ -288,19 +265,16 @@ Java_com_termux_x11_LorieView_connect(unused JNIEnv* env, unused jobject cls, ji
         log(ERROR, "XCB connection has error: %s", s);
     }
 
-    if (err_ctx)
-        xcb_errors_context_free(err_ctx);
     if (conn)
         xcb_disconnect(conn);
     conn = new_conn;
-    xcb_errors_context_new(conn, &err_ctx);
 
     log(DEBUG, "XCB connection is successfull");
 
     {
         xcb_query_extension_cookie_t cookie = xcb_query_extension(conn, 6, "XFIXES");
         xcb_query_extension_reply_t* reply = xcb_query_extension_reply(conn, cookie, &err);
-        parse_error(err);
+        free(err);
         if (reply)
             xfixes_first_event = reply->first_event;
         free(reply);
@@ -308,13 +282,13 @@ Java_com_termux_x11_LorieView_connect(unused JNIEnv* env, unused jobject cls, ji
     {
         xcb_xfixes_query_version_cookie_t cookie = xcb_xfixes_query_version(conn, 4, 0);
         xcb_xfixes_query_version_reply_t* reply = xcb_xfixes_query_version_reply(conn, cookie, &err);
-        parse_error(err);
+        free(err);
         free(reply);
     }
     {
         xcb_intern_atom_cookie_t cookie = xcb_intern_atom(conn, false, 9, "CLIPBOARD");
         xcb_intern_atom_reply_t* reply = xcb_intern_atom_reply(conn, cookie, &err);
-        parse_error(err);
+        free(err);
         if (reply)
             atom_clipboard = reply->atom;
         free(reply);
@@ -322,7 +296,7 @@ Java_com_termux_x11_LorieView_connect(unused JNIEnv* env, unused jobject cls, ji
     {
         xcb_intern_atom_cookie_t cookie = xcb_intern_atom(conn, false, 15, "TERMUX_X11_CLIP");
         xcb_intern_atom_reply_t* reply = xcb_intern_atom_reply(conn, cookie, &err);
-        parse_error(err);
+        free(err);
         if (reply)
             prop_sel = reply->atom;
         free(reply);
@@ -331,7 +305,7 @@ Java_com_termux_x11_LorieView_connect(unused JNIEnv* env, unused jobject cls, ji
         xcb_screen_t *s = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
         xcb_void_cookie_t cookie = xcb_xfixes_select_selection_input_checked(conn, s->root, atom_clipboard,
                                                                 XCB_XFIXES_SELECTION_EVENT_MASK_SET_SELECTION_OWNER);
-        parse_error(xcb_request_check(conn, cookie));
+        free(xcb_request_check(conn, cookie));
     }
 
     {
@@ -342,7 +316,7 @@ Java_com_termux_x11_LorieView_connect(unused JNIEnv* env, unused jobject cls, ji
                                            10, 10, 0, XCB_WINDOW_CLASS_INPUT_ONLY,
                                            XCB_COPY_FROM_PARENT, XCB_CW_OVERRIDE_REDIRECT,
                                            (const uint32_t[]) {true});
-        parse_error(xcb_request_check(conn, cookie));
+        free(xcb_request_check(conn, cookie));
     }
 
     xcb_flush(conn);
@@ -391,7 +365,7 @@ Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, jobject thiz) {
 
     while ((ev = xcb_poll_for_event(conn))) {
         if (!ev->response_type)
-            parse_error((xcb_generic_error_t *) ev);
+            free(ev);
         else if (ev->response_type == xfixes_first_event + XCB_XFIXES_SELECTION_NOTIFY) { // Clipboard selection notify
             log(DEBUG, "Clipboard content changed!");
             if (clipboard_sync_enabled) {
@@ -412,7 +386,7 @@ Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, jobject thiz) {
             {
                 xcb_get_property_cookie_t cookie = xcb_get_property(conn, false, win, prop_sel, XCB_ATOM_ANY, 0, 0);
                 xcb_get_property_reply_t* reply = xcb_get_property_reply(conn, cookie, &err);
-                parse_error(err);
+                free(err);
                 if (reply)
                     data_size = reply->bytes_after;
                 free(reply);
@@ -421,7 +395,7 @@ Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, jobject thiz) {
             if (data_size) {
                 xcb_get_property_cookie_t cookie = xcb_get_property(conn, false, win, prop_sel, XCB_ATOM_ANY, 0, data_size);
                 xcb_get_property_reply_t* reply = xcb_get_property_reply(conn, cookie, &err);
-                parse_error(err);
+                free(err);
                 if (reply) {
                     /* create NULL-terminated string even if for some reason it was not. */
                     char *string = alloca(data_size + 1);
@@ -589,7 +563,6 @@ unused no_instrument __cyg_profile_func_exit (void *func, unused void* caller) {
 }
 #endif
 
-// I need this to catch initialisation errors of libxkbcommon.
 #if 1
 // It is needed to redirect stderr to logcat
 static void* stderrToLogcatThread(unused void* cookie) {

@@ -399,8 +399,7 @@ foreach (part glx glxvnd fb mi dix composite damageext dbe randr miext_damage re
     set(XSERVER_LIBS ${XSERVER_LIBS} xserver_${part})
 endforeach ()
 
-#set(XSERVER_LIBS ${XSERVER_LIBS} tirpc xcb-errors xcb xkbcommon Xdmcp Xau pixman Xfont2 Xtrans freetype fontenc GL)
-set(XSERVER_LIBS ${XSERVER_LIBS} tirpc xcb Xdmcp Xau pixman Xfont2 Xtrans xcb-errors freetype fontenc GLESv2 xshmfence)
+set(XSERVER_LIBS ${XSERVER_LIBS} tirpc xcb Xdmcp Xau pixman Xfont2 Xtrans freetype fontenc GLESv2 xshmfence)
 
 add_custom_command(
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/tx11.c" "${CMAKE_CURRENT_BINARY_DIR}/tx11.h"
@@ -415,6 +414,7 @@ add_custom_command(
 
 add_library(Xlorie SHARED
         "xserver/mi/miinitext.c"
+        "xserver/hw/xquartz/keysym2ucs.c"
         "libxcvt/lib/libxcvt.c"
         "lorie/execl_xkbcomp.c"
         "lorie/shm/shmem.c"
@@ -426,8 +426,8 @@ add_library(Xlorie SHARED
         "lorie/tx11-request.c"
         "${CMAKE_CURRENT_BINARY_DIR}/tx11.c"
         "${CMAKE_CURRENT_BINARY_DIR}/tx11.h")
-target_include_directories(Xlorie PRIVATE ${inc} "libxcvt/include" "libxkbcommon/include")
+target_include_directories(Xlorie PRIVATE ${inc} "libxcvt/include")
 target_link_options(Xlorie PRIVATE "-Wl,--as-needed" "-Wl,--no-undefined" "-fvisibility=hidden")
-target_link_libraries(Xlorie "-Wl,--whole-archive" ${XSERVER_LIBS} xkbcommon xkbcomp "-Wl,--no-whole-archive" android log m z EGL GLESv2)
+target_link_libraries(Xlorie "-Wl,--whole-archive" ${XSERVER_LIBS} xkbcomp "-Wl,--no-whole-archive" android log m z EGL GLESv2)
 target_compile_options(Xlorie PRIVATE ${compile_options})
 target_apply_patch(Xlorie "${CMAKE_CURRENT_SOURCE_DIR}/xserver" "${CMAKE_CURRENT_SOURCE_DIR}/patches/xserver.patch")

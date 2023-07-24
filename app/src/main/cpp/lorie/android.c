@@ -3,31 +3,21 @@
 #pragma ide diagnostic ignored "bugprone-reserved-identifier"
 #pragma ide diagnostic ignored "OCUnusedMacroInspection"
 #define __USE_GNU
-#include <pthread.h>
 #include <jni.h>
 #include <android/log.h>
 #include <android/native_window_jni.h>
 #include <sys/stat.h>
-#include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/prctl.h>
-#include <xcb.h>
-#include <linux/un.h>
 #include <libgen.h>
 #include <xcb/xfixes.h>
-#include <stdlib.h>
-#include <string.h>
-#include <libgen.h>
 #include <globals.h>
 #include <xkbsrv.h>
 #include <errno.h>
-#include <dlfcn.h>
 #include <wchar.h>
-#include <sched.h>
 #include "renderer.h"
 #include "lorie.h"
 #include "android-to-linux-keycodes.h"
-#include "whereami.h"
 #include "tx11.h"
 
 #define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
@@ -52,7 +42,6 @@ static void* startServer(unused void* cookie) {
 
 JNIEXPORT jboolean JNICALL
 Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectArray args) {
-    char lib[128] = {0};
     pthread_t t;
     // execv's argv array is a bit incompatible with Java's String[], so we do some converting here...
     argc = (*env)->GetArrayLength(env, args) + 1; // Leading executable path
@@ -161,8 +150,6 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectA
         dprintf(2, "%s\n", error);
         return JNI_FALSE;
     }
-
-    wai_getModulePath(lib, sizeof(lib), NULL);
 
     XkbBaseDirectory = getenv("XKB_CONFIG_ROOT");
     if (access(XkbBaseDirectory, F_OK) != 0) {
@@ -323,7 +310,7 @@ Java_com_termux_x11_LorieView_connect(unused JNIEnv* env, unused jobject cls, ji
 }
 
 static inline void xcb_check_errors(JNIEnv* env) {
-    if (!conn || !xcb_connection_has_error(conn))
+    if (!xcb_connection_has_error(conn))
         return;
 
     xcb_disconnect(conn);
@@ -414,8 +401,6 @@ Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, jobject thiz) {
 
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_startLogcat(JNIEnv *env, unused jobject cls, jint fd) {
-    kill(-1, SIGTERM); // Termux:X11 starts only logcat, so any other process should not be killed.
-
     log(DEBUG, "Starting logcat with output to given fd");
     system("/system/bin/logcat -c");
 
@@ -426,6 +411,7 @@ Java_com_termux_x11_LorieView_startLogcat(JNIEnv *env, unused jobject cls, jint 
         case 0:
             dup2(fd, 1);
             dup2(fd, 2);
+            prctl(PR_SET_PDEATHSIG, SIGTERM);
             execl("/system/bin/logcat", "logcat", NULL);
             log(ERROR, "exec logcat: %s", strerror(errno));
             (*env)->FatalError(env, "Exiting");
@@ -538,30 +524,6 @@ void exit(int code) {
     while(true)
         sleep(1);
 }
-
-#if 1
-bool enabled = true;
-#define no_instrument void __attribute__((no_instrument_function)) __attribute__ ((visibility ("default")))
-
-static _Thread_local int level = -1;
-no_instrument print_func(void *func, int enter) {
-    Dl_info info;
-    if (!dladdr(func, &info) || !info.dli_sname)
-        return;
-
-    log(DEBUG, "%d%*c%s %s", gettid(), level, ' ', enter ? ">" : "<", info.dli_sname);
-}
-
-unused no_instrument __cyg_profile_func_enter (void *func, unused void* caller) { // NOLINT(bugprone-reserved-identifier)
-    level++;
-    print_func(func, 1);
-}
-
-unused no_instrument __cyg_profile_func_exit (void *func, unused void* caller) { // NOLINT(bugprone-reserved-identifier)
-    print_func(func, 0);
-    level--;
-}
-#endif
 
 #if 1
 // It is needed to redirect stderr to logcat

@@ -605,7 +605,11 @@ public class TouchInputHandler {
                 v.requestPointerCapture();
 
             int action = e.getAction();
-            moveCursorToScreenPoint(e.getX(e.getActionIndex()), e.getY(e.getActionIndex()));
+            float[] imagePoint = mapScreenPointToImagePoint((int) e.getX(e.getActionIndex()), (int) e.getY(e.getActionIndex()));
+            if (mRenderData.setCursorPosition(imagePoint[0], imagePoint[1]))
+                mInjector.sendCursorMove(imagePoint[0], imagePoint[1]);
+
+
             if (action == MotionEvent.ACTION_DOWN || action == ACTION_PRIMARY_DOWN) {
                 button = STYLUS_INPUT_HELPER_MODE;
                 if (button == 1) {

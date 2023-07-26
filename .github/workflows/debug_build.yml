@@ -44,6 +44,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
+            app/.cxx
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
 
           restore-keys: |

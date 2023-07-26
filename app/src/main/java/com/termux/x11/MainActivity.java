@@ -63,6 +63,8 @@ import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
 
+import java.util.Objects;
+
 @SuppressLint("ApplySharedPref")
 @SuppressWarnings({"deprecation", "unused"})
 public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener {
@@ -96,7 +98,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     @Override
-    @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt", "ClickableViewAccessibility", "WrongConstant"})
+    @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt", "ClickableViewAccessibility", "WrongConstant", "UnspecifiedRegisterReceiverFlag"})
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
@@ -166,14 +168,15 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         });
 
         registerReceiver(new BroadcastReceiver() {
+            @SuppressLint("UnspecifiedRegisterReceiverFlag")
             @Override
             public void onReceive(Context context, Intent intent) {
                 if (ACTION_START.equals(intent.getAction())) {
                     try {
                         Log.v("LorieBroadcastReceiver", "Got new ACTION_START intent");
-                        IBinder b = intent.getBundleExtra("").getBinder("");
+                        IBinder b = Objects.requireNonNull(intent.getBundleExtra("")).getBinder("");
                         service = ICmdEntryInterface.Stub.asInterface(b);
-                        service.asBinder().linkToDeath(() -> {
+                        Objects.requireNonNull(service).asBinder().linkToDeath(() -> {
                             service = null;
                             CmdEntryPoint.requestConnection();
 
@@ -647,6 +650,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
     }
 
+    /** @noinspection NullableProblems*/
     @SuppressLint("WrongConstant")
     @Override
     public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {

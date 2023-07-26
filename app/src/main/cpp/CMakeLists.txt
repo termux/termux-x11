@@ -54,7 +54,10 @@ set(test_compile_options
         "-Werror=address"
         "-Werror=int-to-pointer-cast"
         "-Werror=pointer-to-int-cast"
-        "-fno-strict-aliasing")
+        "-fno-strict-aliasing"
+        "-Wno-unused-but-set-variable"
+        "-Wno-unused-parameter"
+        "-Wno-unused-variable")
 
 set(CMAKE_REQUIRED_QUIET_OLD ${CMAKE_REQUIRED_QUIET})
 set(CMAKE_REQUIRED_QUIET 1)

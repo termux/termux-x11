@@ -6,7 +6,7 @@
 #include <sys/signal.h>
 #include <android/log.h>
 #include <libgen.h>
-#include "whereami.c"
+#include <dlfcn.h>
 
 #define maybe_unused __attribute__((unused))
 
@@ -61,17 +61,15 @@ static char** parse_arguments(const char* line, int* argc) {
 
 void LogMessageVerb(int type, int verb, const char *format, ...);
 
-static char lib[1024];
-void init_module(void) {
-    wai_getModulePath(lib, 1024, NULL);
-}
-
 int execl_xkbcomp(const char * path, const char * arg, ...) {
     size_t argv_max = 1024;
     maybe_unused int argc;
     maybe_unused char** new_args;
+    Dl_info info;
     const char **argv = alloca(argv_max * sizeof(const char *));
     unsigned int i;
+
+    dladdr(execl_xkbcomp, &info);
 
     // It is not possible to use exec* functions with binaries inside apk.
     // But it is possible to dlopen libraries.
@@ -105,8 +103,9 @@ int execl_xkbcomp(const char * path, const char * arg, ...) {
     assert(argv[2] != NULL);
     assert(argv[3] == NULL);
     new_args = parse_arguments(argv[2], &argc);
-    setenv("LD_PRELOAD", lib, 1);
-    __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "executing xkbcomp, ldpreload %s", lib);
+
+    setenv("LD_PRELOAD", info.dli_fname, 1);
+    __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "executing xkbcomp, ldpreload %s", info.dli_fname);
 
     for(int j=1; j<= SIGUNUSED; j++)
         signal(j, SIG_DFL);

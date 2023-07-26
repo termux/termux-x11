@@ -505,7 +505,6 @@ jint JNI_OnLoad(JavaVM *jvm, unused void *reserved) {
     (*vm)->AttachCurrentThread(vm, &env, NULL);
     system_cls = (jclass) (*env)->NewGlobalRef(env, (*env)->FindClass(env, "java/lang/System"));
     exit_mid = (*env)->GetStaticMethodID(env, system_cls, "exit", "(I)V");
-    init_module();
     return JNI_VERSION_1_6;
 }
 

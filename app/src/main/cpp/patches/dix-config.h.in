@@ -1,18 +1,17 @@
 #pragma once
 
 #define _DIX_CONFIG_H_ 1
-#cmakedefine HAVE_TYPEOF
-#cmakedefine MONOTONIC_CLOCK
+#define HAVE_TYPEOF 1
+#define MONOTONIC_CLOCK 1
 #undef XSERVER_DTRACE
-#cmakedefine X_BYTE_ORDER @X_BYTE_ORDER@
-#cmakedefine _XSERVER64
+#define X_BYTE_ORDER X_LITTLE_ENDIAN
 #define _GNU_SOURCE 1
 #undef HAS_APERTURE_DRV
-#cmakedefine INPUTTHREAD @INPUTTHREAD@
-#cmakedefine HAVE_PTHREAD_SETNAME_NP_WITH_TID
-#cmakedefine HAVE_PTHREAD_SETNAME_NP_WITHOUT_TID
+#define INPUTTHREAD 1
+#define HAVE_PTHREAD_SETNAME_NP_WITH_TID 1
+#undef HAVE_PTHREAD_SETNAME_NP_WITHOUT_TID
 
-#cmakedefine HAVE_LIBBSD
+#undef HAVE_LIBBSD
 #undef HAVE_SYSTEMD_DAEMON
 #undef CONFIG_UDEV
 #undef CONFIG_UDEV_KMS
@@ -22,7 +21,6 @@
 #undef NEED_DBUS
 #undef CONFIG_WSCONS
 
-#cmakedefine DRI_DRIVER_PATH @DRI_DRIVER_PATH@
 #define HAVE_XSHMFENCE 1
 #undef WITH_LIBDRM
 #undef GLAMOR_HAS_EGL_QUERY_DMABUF
@@ -34,68 +32,65 @@
 #undef GBM_BO_WITH_MODIFIERS
 #undef GBM_BO_FD_FOR_PLANE
 
-#cmakedefine SERVER_MISC_CONFIG_PATH "@SERVER_MISC_CONFIG_PATH@"
-#cmakedefine PROJECTROOT "@PROJECTROOT@"
-#cmakedefine SYSCONFDIR "@SYSCONFDIR@"
-#cmakedefine SUID_WRAPPER_DIR "@SUID_WRAPPER_DIR@"
-#cmakedefine COMPILEDDEFAULTFONTPATH "@COMPILEDDEFAULTFONTPATH@"
-
-#cmakedefine XORG_VERSION_CURRENT @XORG_VERSION_CURRENT@
+#define SERVER_MISC_CONFIG_PATH "/usr/lib/xorg"
+#define PROJECTROOT "/usr"
+#define SYSCONFDIR "/usr/etc"
+#define SUID_WRAPPER_DIR "/usr/libexec"
+#define COMPILEDDEFAULTFONTPATH "/usr/share/fonts/X11/misc,/usr/share/fonts/X11/TTF,/usr/share/fonts/X11/OTF,/usr/share/fonts/X11/Type1,/usr/share/fonts/X11/100dpi,/usr/share/fonts/X11/75dpi"
 
 #define HASXDMAUTH 1
 #define SECURE_RPC 1
 
-#cmakedefine HAVE_DLFCN_H
-#cmakedefine HAVE_EXECINFO_H
-#cmakedefine HAVE_FNMATCH_H
-#cmakedefine HAVE_LINUX_AGPGART_H
-#cmakedefine HAVE_STRINGS_H
-#cmakedefine HAVE_SYS_AGPGART_H
-#cmakedefine HAVE_SYS_UN_H
-#cmakedefine HAVE_SYS_UTSNAME_H
-#cmakedefine HAVE_SYS_SYSMACROS_H
+#define HAVE_DLFCN_H 1
+#define HAVE_EXECINFO_H 1
+#define HAVE_FNMATCH_H 1
+#define HAVE_LINUX_AGPGART_H 1
+#define HAVE_STRINGS_H 1
+#define HAVE_SYS_AGPGART_H 1
+#define HAVE_SYS_UN_H 1
+#define HAVE_SYS_UTSNAME_H 1
+#define HAVE_SYS_SYSMACROS_H 1
 
-#cmakedefine HAVE_ARC4RANDOM_BUF
-//#cmakedefine HAVE_BACKTRACE
+#define HAVE_ARC4RANDOM_BUF 1
 #undef HAVE_BACKTRACE
 #undef HAVE_LIBUNWIND
-//#define HAVE_PSTACK
-#cmakedefine HAVE_CBRT
-#cmakedefine HAVE_EPOLL_CREATE1
-#cmakedefine HAVE_GETUID
-#cmakedefine HAVE_GETEUID
-#cmakedefine HAVE_ISASTREAM
-#cmakedefine HAVE_ISSETUGID
-#cmakedefine HAVE_GETIFADDRS
-#cmakedefine HAVE_GETPEEREID
-#cmakedefine HAVE_GETPEERUCRED
-#cmakedefine HAVE_GETPROGNAME
-#cmakedefine HAVE_GETZONEID
-#cmakedefine HAVE_MEMFD_CREATE
-#cmakedefine HAVE_MKOSTEMP
-#cmakedefine HAVE_MMAP
-#cmakedefine HAVE_OPEN_DEVICE
-#cmakedefine HAVE_POLL
-#cmakedefine HAVE_POLLSET_CREATE
-#cmakedefine HAVE_POSIX_FALLOCATE
-#cmakedefine HAVE_PORT_CREATE
-#cmakedefine HAVE_REALLOCARRAY
-#cmakedefine HAVE_SETEUID
-#cmakedefine HAVE_SETITIMER
-#cmakedefine HAVE_SHMCTL64
-#cmakedefine HAVE_SIGACTION
-#cmakedefine HAVE_SIGPROCMASK
-#cmakedefine HAVE_STRCASECMP
-#cmakedefine HAVE_STRCASESTR
-#cmakedefine HAVE_STRLCAT
-#cmakedefine HAVE_STRLCPY
-#cmakedefine HAVE_STRNCASECMP
-#cmakedefine HAVE_STRNDUP
-#cmakedefine HAVE_TIMINGSAFE_MEMCMP
-#cmakedefine HAVE_VASPRINTF
-#cmakedefine HAVE_VSNPRINTF
-#cmakedefine HAVE_WALKCONTEXT
-#cmakedefine BUSFAULT 1
+#undef HAVE_PSTACK
+#define HAVE_CBRT 1
+#define HAVE_EPOLL_CREATE1 1
+#define HAVE_GETUID 1
+#define HAVE_GETEUID 1
+#undef HAVE_ISASTREAM
+#undef HAVE_ISSETUGID
+#define HAVE_GETIFADDRS 1
+#undef HAVE_GETPEEREID
+#undef HAVE_GETPEERUCRED
+#define HAVE_GETPROGNAME 1
+#undef HAVE_GETZONEID
+#define HAVE_MEMFD_CREATE 1
+#define HAVE_MKOSTEMP 1
+#define HAVE_MMAP 1
+#undef HAVE_OPEN_DEVICE
+#define HAVE_POLL 1
+#undef HAVE_POLLSET_CREATE
+#define HAVE_POSIX_FALLOCATE 1
+#undef HAVE_PORT_CREATE
+#undef HAVE_REALLOCARRAY
+#define HAVE_SETEUID 1
+#define HAVE_SETITIMER 1
+#undef HAVE_SHMCTL64
+#define HAVE_SIGACTION 1
+#define HAVE_SIGPROCMASK 1
+#define HAVE_STRCASECMP 1
+#define HAVE_STRCASESTR 1
+#define HAVE_STRLCAT 1
+#define HAVE_STRLCPY 1
+#define HAVE_STRNCASECMP 1
+#define HAVE_STRNDUP 1
+#undef HAVE_TIMINGSAFE_MEMCMP
+#define HAVE_VASPRINTF 1
+#define HAVE_VSNPRINTF 1
+#undef HAVE_WALKCONTEXT
+#define BUSFAULT 1
 
 #define _XTYPEDEF_POINTER 1
 #define _XITYPEDEF_POINTER 1
@@ -116,7 +111,7 @@
 #define DGA 1
 #define DPMSExtension 1
 #define DRI2 1
-#define DRI3 1
+//#define DRI3 1
 #define HAS_SHM 1
 #define MITSHM 1
 #define PANORAMIX 1
@@ -172,7 +167,7 @@
 #undef PCVT_SUPPORT
 #undef SYSCONS_SUPPORT
 #undef WSCONS_SUPPORT
-// #define XSERVER_LIBPCIACCESS 1
+#undef XSERVER_LIBPCIACCESS
 #undef XSERVER_PLATFORM_BUS
 
 #ifdef ANDROID

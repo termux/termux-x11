@@ -83,7 +83,7 @@ index 8575319ff..06c44a416 100644
              SIGSYS,
              SIGXCPU,
 diff --git a/os/utils.c b/os/utils.c
-index 92a66e81a..a2e490dc0 100644
+index 92a66e81a..d2ca69684 100644
 --- a/os/utils.c
 +++ b/os/utils.c
 @@ -212,6 +212,8 @@ OsSignal(int sig, OsSigHandlerPtr handler)
@@ -113,12 +113,68 @@ index 92a66e81a..a2e490dc0 100644
          if (haslock) {
              /*
               * We're done.
-@@ -1475,7 +1477,7 @@ Popen(const char *command, const char *type)
+@@ -1412,6 +1414,10 @@ static struct pid {
+     int pid;
+ } *pidlist;
+ 
++extern char* xkbcomp_argv[];
++extern int xkbcomp_argc;
++int xkbcomp_main(int argc, char *argv[]);
++
+ void *
+ Popen(const char *command, const char *type)
+ {
+@@ -1475,8 +1481,11 @@ Popen(const char *command, const char *type)
              }
              close(pdes[1]);
          }
 -        execl("/bin/sh", "sh", "-c", command, (char *) NULL);
-+        execl_xkbcomp("/bin/sh", "sh", "-c", command, (char *) NULL);
-         _exit(127);
+-        _exit(127);
++
++        for(int j=1; j<= SIGUNUSED; j++)
++            signal(j, SIG_DFL);
++
++        _exit(xkbcomp_main(xkbcomp_argc, xkbcomp_argv));
      }
  
+     /* Avoid EINTR during stdio calls */
+diff --git a/xkb/ddxLoad.c b/xkb/ddxLoad.c
+index f9b7b06d9..f4b2aeddc 100644
+--- a/xkb/ddxLoad.c
++++ b/xkb/ddxLoad.c
+@@ -56,6 +56,9 @@ THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ #define PATHSEPARATOR "/"
+ #endif
+ 
++char* xkbcomp_argv[16] = {0};
++int xkbcomp_argc = 0;
++
+ static unsigned
+ LoadXKM(unsigned want, unsigned need, const char *keymap, XkbDescPtr *xkbRtrn);
+ 
+@@ -152,6 +155,25 @@ RunXkbComp(xkbcomp_buffer_callback callback, void *userdata)
+                  xkm_output_dir, keymap) == -1)
+         buf = NULL;
+ 
++    char buf2[256];
++    char buf3[256];
++    sprintf(buf2, "-R%s", XkbBaseDirectory);
++    sprintf(buf3, "%s%s.xkm", xkm_output_dir, keymap);
++    xkbcomp_argv[0] = "xkbcomp";
++    xkbcomp_argv[1] = "-w";
++    xkbcomp_argv[2] = "1";
++    xkbcomp_argv[3] = buf2;
++    xkbcomp_argv[4] = "-xkm";
++    xkbcomp_argv[5] = (char*) xkmfile;
++    xkbcomp_argv[6] = "-em1";
++    xkbcomp_argv[7] = PRE_ERROR_MSG;
++    xkbcomp_argv[8] = "-emp";
++    xkbcomp_argv[9] = ERROR_PREFIX;
++    xkbcomp_argv[10] = "-eml";
++    xkbcomp_argv[11] = POST_ERROR_MSG1;
++    xkbcomp_argv[12] = buf3;
++    xkbcomp_argc = 13;
++
+     free(xkbbasedirflag);
+ 
+     if (!buf) {

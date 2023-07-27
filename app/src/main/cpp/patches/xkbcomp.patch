@@ -94,7 +94,7 @@ index b3e7d18..36c1cd4 100644
          led->groups = rtrn.uval;
          led->defs.defined |= _LED_Groups;
 diff --git a/xkbcomp.c b/xkbcomp.c
-index 796fa22..d914128 100644
+index 796fa22..dda3c20 100644
 --- a/xkbcomp.c
 +++ b/xkbcomp.c
 @@ -24,6 +24,9 @@
@@ -619,7 +619,7 @@ index 796fa22..d914128 100644
  #ifndef WIN32
      else if (strchr(inputFile, ':') == NULL)
      {
-@@ -700,208 +289,30 @@ parseArgs(int argc, char *argv[])
+@@ -700,208 +289,28 @@ parseArgs(int argc, char *argv[])
                  return False;
              }
          }
@@ -821,9 +821,8 @@ index 796fa22..d914128 100644
  
 -int
 -main(int argc, char *argv[])
-+static int
-+xkbcomp_main(int argc, char *argv[])
- {
+-{
++int xkbcomp_main(int argc, char *argv[]) {
      FILE *file;         /* input file (or stdin) */
      XkbFile *rtrn;
      XkbFile *mapToUse;
@@ -833,7 +832,7 @@ index 796fa22..d914128 100644
  
      scan_set_file(stdin);
      uSetDebugFile(NullString);
-@@ -910,10 +321,6 @@ main(int argc, char *argv[])
+@@ -910,10 +319,6 @@ main(int argc, char *argv[])
      XkbInitIncludePath();
      if (!parseArgs(argc, argv))
          exit(1);
@@ -844,7 +843,7 @@ index 796fa22..d914128 100644
      if (preErrorMsg)
          uSetPreErrorMessage(preErrorMsg);
      if (errorPrefix)
-@@ -923,14 +330,6 @@ main(int argc, char *argv[])
+@@ -923,14 +328,6 @@ main(int argc, char *argv[])
      file = NULL;
      XkbInitAtoms(NULL);
      XkbAddDefaultDirectoriesToPath();
@@ -859,7 +858,7 @@ index 796fa22..d914128 100644
      if (inputFile != NULL)
      {
          if (strcmp(inputFile, "-") == 0)
-@@ -943,45 +342,11 @@ main(int argc, char *argv[])
+@@ -943,45 +340,11 @@ main(int argc, char *argv[])
              file = fopen(inputFile, "r");
          }
      }
@@ -906,7 +905,7 @@ index 796fa22..d914128 100644
          {
              fclose(file);
              mapToUse = rtrn;
-@@ -1063,61 +428,12 @@ main(int argc, char *argv[])
+@@ -1063,61 +426,12 @@ main(int argc, char *argv[])
              }
              result.xkb->device_spec = device_id;
          }
@@ -968,7 +967,7 @@ index 796fa22..d914128 100644
      else
      {
          fprintf(stderr, "Cannot open \"%s\" to compile\n", inputFile);
-@@ -1126,13 +442,6 @@ main(int argc, char *argv[])
+@@ -1126,13 +440,6 @@ main(int argc, char *argv[])
      if (ok)
      {
          FILE *out = stdout;
@@ -982,7 +981,7 @@ index 796fa22..d914128 100644
          if (outputFile != NULL)
          {
              if (strcmp(outputFile, "-") == 0)
-@@ -1152,16 +461,8 @@ main(int argc, char *argv[])
+@@ -1152,16 +459,8 @@ main(int argc, char *argv[])
                  const char *openMode = "w";
                  unlink(outputFile);
  #ifdef O_BINARY
@@ -1001,7 +1000,7 @@ index 796fa22..d914128 100644
  #endif
                  outputFileFd =
                      open(outputFile, O_WRONLY | O_CREAT | O_EXCL,
-@@ -1192,33 +493,7 @@ main(int argc, char *argv[])
+@@ -1192,33 +491,7 @@ main(int argc, char *argv[])
                  }
              }
          }
@@ -1036,7 +1035,7 @@ index 796fa22..d914128 100644
          {
              if (fclose(out))
              {
-@@ -1238,11 +513,13 @@ main(int argc, char *argv[])
+@@ -1238,11 +511,6 @@ main(int argc, char *argv[])
              }
          }
      }
@@ -1047,11 +1046,6 @@ index 796fa22..d914128 100644
 -        XCloseDisplay(outDpy);
      uFinishUp();
      return (ok == 0);
- }
-+
-+__attribute__((__used__, visibility ("default")))
-+void __libc_init(void* raw_args, void (*onexit)(void), __attribute__((__unused__)) __typeof__(xkbcomp_main)* main, void* s) {
-+    __typeof__(__libc_init)* orig;
-+    orig = dlsym(RTLD_NEXT, "__libc_init");
-+    return orig(raw_args, onexit, xkbcomp_main, s);
+-}
 +}
+\ No newline at end of file

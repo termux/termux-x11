@@ -1,21 +1,13 @@
-#add_subdirectory(freetype)
-check_include_file("unistd.h" HAVE_UNISTD_H)
-check_include_file("fcntl.h" HAVE_FCNTL_H)
-
 file(READ "freetype/builds/unix/ftconfig.h.in" FTCONFIG_H)
-if (HAVE_UNISTD_H)
-    string(REGEX REPLACE "#undef +(HAVE_UNISTD_H)" "#define \\1 1" FTCONFIG_H "${FTCONFIG_H}")
-endif ()
-if (HAVE_FCNTL_H)
-    string(REGEX REPLACE "#undef +(HAVE_FCNTL_H)" "#define \\1 1" FTCONFIG_H "${FTCONFIG_H}")
-endif ()
+string(REGEX REPLACE "#undef +(HAVE_UNISTD_H)" "#define \\1 1" FTCONFIG_H "${FTCONFIG_H}")
+string(REGEX REPLACE "#undef +(HAVE_FCNTL_H)" "#define \\1 1" FTCONFIG_H "${FTCONFIG_H}")
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/freetype/include/freetype/ftconfig")
 file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/freetype/include/freetype/config/ftconfig.h" CONTENT "${FTCONFIG_H}")
 
 file(READ "freetype/include/freetype/config/ftoption.h" FTOPTION_H)
 string(REGEX REPLACE "/\\* +(#define +FT_CONFIG_OPTION_SYSTEM_ZLIB) +\\*/" "\\1" FTOPTION_H "${FTOPTION_H}")
 string(REGEX REPLACE "/\\* +(#define +FT_CONFIG_OPTION_USE_BZIP2) +\\*/" "\\1" FTOPTION_H "${FTOPTION_H}")
-file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/freetype/include/freetype/config/ftoption.h" CONTENT "${FTOPTION_H}")
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/freetype/include/freetype/config/ftoption.h" CONTENT "${FTOPTION_H}")
 
 add_library(freetype
         "freetype/src/autofit/autofit.c"

@@ -5,10 +5,10 @@
 extern "C" {
 #endif
 
-void tx11_protocol_init(void);
-
 Bool lorieChangeWindow(ClientPtr pClient, void *closure);
 void lorieConfigureNotify(int width, int height, int framerate);
+void lorieEnableClipboardSync(Bool enable);
+void lorieSendClipboardData(const char* data);
 
 #ifdef __cplusplus
 }

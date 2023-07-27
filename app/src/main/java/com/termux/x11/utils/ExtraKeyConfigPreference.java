@@ -10,7 +10,6 @@ public class ExtraKeyConfigPreference extends DialogPreference {
     public ExtraKeyConfigPreference(Context context, AttributeSet attrs) {
         super(context, attrs);
         setDialogLayoutResource(R.layout.extra_keys_config);
-
         setDialogIcon(null);
     }
 }

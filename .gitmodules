@@ -1,7 +1,3 @@
-[submodule "app/src/main/cpp/libmd"]
-	path = app/src/main/cpp/libmd
-	url = https://git.hadrons.org/git/libmd
-	ignore = dirty
 [submodule "app/src/main/cpp/libtirpc"]
 	path = app/src/main/cpp/libtirpc
 	url = https://github.com/alisw/libtirpc
@@ -21,10 +17,6 @@
 [submodule "app/src/main/cpp/libxau"]
 	path = app/src/main/cpp/libxau
 	url = https://gitlab.freedesktop.org/xorg/lib/libxau
-	ignore = dirty
-[submodule "app/src/main/cpp/libxcb"]
-	path = app/src/main/cpp/libxcb
-	url = https://gitlab.freedesktop.org/xorg/lib/libxcb
 	ignore = dirty
 [submodule "app/src/main/cpp/libxdmcp"]
 	path = app/src/main/cpp/libxdmcp
@@ -57,10 +49,6 @@
 [submodule "app/src/main/cpp/libx11"]
 	path = app/src/main/cpp/libx11
 	url = https://gitlab.freedesktop.org/xorg/lib/libx11
-	ignore = dirty
-[submodule "app/src/main/cpp/xcbproto"]
-	path = app/src/main/cpp/xcbproto
-	url = https://gitlab.freedesktop.org/xorg/proto/xcbproto
 	ignore = dirty
 [submodule "app/src/main/cpp/xorgproto"]
 	path = app/src/main/cpp/xorgproto

@@ -1,141 +1,18 @@
-set(SERVER_MISC_CONFIG_PATH "/usr/lib/xorg")
-set(PROJECTROOT "/usr")
-set(SYSCONFDIR "/usr/etc")
-set(SUID_WRAPPER_DIR "/usr/libexec")
-set(COMPILEDDEFAULTFONTPATH "/usr/share/fonts/X11/misc,/usr/share/fonts/X11/TTF,/usr/share/fonts/X11/OTF,/usr/share/fonts/X11/Type1,/usr/share/fonts/X11/100dpi,/usr/share/fonts/X11/75dpi")
-set(DRI_DRIVER_PATH "\"/usr/lib/x86_64-linux-gnu/dri\"")
-
-check_source_compiles(C "int main() {}; int foo(int bar) { typeof(bar) baz = 1; return baz; }" HAVE_TYPEOF)
-check_function_exists("clock_gettime" HAVE_CLOCK_GETTIME)
-check_source_compiles(C "
-    #define _POSIX_C_SOURCE 200112L
-    #include <time.h>
-    #include <unistd.h>
-    #ifndef CLOCK_MONOTONIC
-    #error CLOCK_MONOTONIC not defined
-    #endif
-    int main() {}
-" HAVE_CLOCK_MONOTONIC)
-if (HAVE_CLOCK_GETTIME AND HAVE_CLOCK_MONOTONIC)
-    set(MONOTONIC_CLOCK 1)
-endif()
-TEST_BIG_ENDIAN(IS_BIG_ENDIAN)
-if(IS_BIG_ENDIAN)
-    set(X_BYTE_ORDER "X_BIG_ENDIAN")
-else()
-    set(X_BYTE_ORDER "X_LITTLE_ENDIAN")
-endif()
 check_type_size("unsigned long" SIZEOF_UNSIGNED_LONG)
-if (SIZEOF_UNSIGNED_LONG EQUAL 8)
-    set(_XSERVER64 1)
-endif ()
-check_source_compiles(C "
-    #define _GNU_SOURCE 1
-    #include <pthread.h>
-    int main() {PTHREAD_MUTEX_RECURSIVE;}
-" HAVE_PTHREAD_MUTEX_RECURSIVE)
-if (HAVE_PTHREAD_MUTEX_RECURSIVE)
-    set(INPUTTHREAD 1)
-endif()
-
-set(CMAKE_REQUIRED_FLAGS_OLD ${CMAKE_REQUIRED_FLAGS})
-set(CMAKE_REQUIRED_DEFINITIONS_OLD ${CMAKE_REQUIRED_DEFINITIONS})
-set(CMAKE_REQUIRED_LIBRARIES_OLD ${CMAKE_REQUIRED_LIBRARIES})
-set(CMAKE_REQUIRED_FLAGS "-Werror-implicit-function-declaration" "-lm")
-set(CMAKE_REQUIRED_DEFINITIONS "-D_GNU_SOURCE")
-set(CMAKE_REQUIRED_LIBRARIES m)
-check_source_compiles(C "
-    #define _GNU_SOURCE 1
-    #include <pthread.h>
-    int main() { pthread_setname_np(pthread_self(), \"example\"); }
-" HAVE_PTHREAD_SETNAME_NP_WITH_TID)
-check_source_compiles(C "
-    #define _GNU_SOURCE 1
-    #include <pthread.h>
-    int main() { pthread_setname_np(\"example\"); }
-" HAVE_PTHREAD_SETNAME_NP_WITHOUT_TID)
-
-check_include_file("bsd/stdlib.h" HAVE_LIBBSD)
-check_include_file("dlfcn.h" HAVE_DLFCN_H)
-check_include_file("execinfo.h" HAVE_EXECINFO_H)
-check_include_file("fnmatch.h" HAVE_FNMATCH_H)
-check_include_file("linux/agpgart.h" HAVE_LINUX_AGPGART_H)
-check_include_file("strings.h" HAVE_STRINGS_H)
-check_include_file("sys/agpgart.h" HAVE_SYS_AGPGART_H)
-check_include_file("sys/un.h" HAVE_SYS_UN_H)
-check_include_file("sys/utsname.h" HAVE_SYS_UTSNAME_H)
-check_include_file("sys/sysmacros.h" HAVE_SYS_SYSMACROS_H)
-
-check_function_exists("arc4random_buf" HAVE_ARC4RANDOM_BUF)
-# Android does not have `execinfo.h`. And in case of static build it is pointless, no symbol names will be available.
-check_function_exists("backtrace" HAVE_BACKTRACE)
-check_function_exists("cbrt" HAVE_CBRT)
-check_function_exists("epoll_create1" HAVE_EPOLL_CREATE1)
-check_function_exists("getuid" HAVE_GETUID)
-check_function_exists("geteuid" HAVE_GETEUID)
-check_function_exists("isastream" HAVE_ISASTREAM)
-check_function_exists("issetugid" HAVE_ISSETUGID)
-check_function_exists("getifaddrs" HAVE_GETIFADDRS)
-check_function_exists("getpeereid" HAVE_GETPEEREID)
-check_function_exists("getpeerucred" HAVE_GETPEERUCRED)
-check_function_exists("getprogname" HAVE_GETPROGNAME)
-check_function_exists("getzoneid" HAVE_GETZONEID)
-# We emulate this
-# check_function_exists("memfd_create" HAVE_MEMFD_CREATE)
-set(HAVE_MEMFD_CREATE 1)
-check_function_exists("mkostemp" HAVE_MKOSTEMP)
-check_function_exists("mmap" HAVE_MMAP)
-check_function_exists("open_device" HAVE_OPEN_DEVICE)
-check_function_exists("poll" HAVE_POLL)
-check_function_exists("pollset_create" HAVE_POLLSET_CREATE)
-check_function_exists("posix_fallocate" HAVE_POSIX_FALLOCATE)
-check_function_exists("port_create" HAVE_PORT_CREATE)
-check_function_exists("reallocarray" HAVE_REALLOCARRAY)
-check_function_exists("seteuid" HAVE_SETEUID)
-check_function_exists("setitimer" HAVE_SETITIMER)
-# Solaris-specific
-# check_function_exists("shmctl64" HAVE_SHMCTL64)
-check_function_exists("sigaction" HAVE_SIGACTION)
-check_function_exists("sigprocmask" HAVE_SIGPROCMASK)
-check_function_exists("strcasecmp" HAVE_STRCASECMP)
-check_function_exists("strcasestr" HAVE_STRCASESTR)
-check_function_exists("strlcat" HAVE_STRLCAT)
-check_function_exists("strlcpy" HAVE_STRLCPY)
-check_function_exists("strncasecmp" HAVE_STRNCASECMP)
-check_function_exists("strncasecmp" HAVE_STRNDUP)
-check_function_exists("timingsafe_memcmp" HAVE_TIMINGSAFE_MEMCMP)
-check_function_exists("vasprintf" HAVE_VASPRINTF)
-check_function_exists("vsnprintf" HAVE_VSNPRINTF)
-check_function_exists("walkcontext" HAVE_WALKCONTEXT)
-check_function_exists("shmctl" HAVE_SHMCTL)
-set(BUSFAULT ${HAVE_SIGACTION})
-
-check_source_compiles(C "
-    #include <sys/socket.h>
-    int main() { SCM_RIGHTS; }
-" XTRANS_SEND_FDS)
-set(CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS_OLD})
-set(CMAKE_REQUIRED_DEFINITIONS ${CMAKE_REQUIRED_DEFINITIONS_OLD})
-set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES_OLD})
-
 configure_file("patches/dix-config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/dix-config.h")
 
 file(GENERATE
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version-config.h
         CONTENT "
 #pragma once
-#define VENDOR_MAN_VERSION \"Version 21.1.99\"
 #define VENDOR_NAME \"The X.Org Foundation\"
-#define VENDOR_NAME_SHORT \"X.Org\"
 #define VENDOR_RELEASE 12101099
-#define VENDOR_WEB \"http://wiki.x.org\"
 ")
 
 file(GENERATE
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/xkb-config.h
         CONTENT "
 #pragma once
-// #define XKB_BASE_DIRECTORY \"/dev/null/data/data/com.termux/files/usr/share/X11/xkb\"
 #define XKB_BASE_DIRECTORY \"/usr/share/X11/xkb/\"
 #define XKB_BIN_DIRECTORY \"\"
 #define XKB_DFLT_LAYOUT \"us\"
@@ -193,8 +70,9 @@ set(compile_options
         "-DHAS_STICKY_DIR_BIT"
         "-D_PATH_TMP=getenv(\"TMPDIR\")?:\"/tmp\""
         "-include" "${CMAKE_CURRENT_SOURCE_DIR}/lorie/shm/shm.h")
-
-#set(compile_options ${compile_options} "-finstrument-functions")
+if (SIZEOF_UNSIGNED_LONG EQUAL 8)
+    set(compile_options ${compile_options} "-D_XSERVER64=1")
+endif ()
 
 set(DIX_SOURCES
         atom.c colormap.c cursor.c devices.c dispatch.c dixfonts.c main.c dixutils.c enterleave.c
@@ -254,9 +132,8 @@ set(OS_SOURCES
         busfault.c timingsafe_memcmp.c rpcauth.c xdmcp.c)
 list(TRANSFORM OS_SOURCES PREPEND "xserver/os/")
 add_library(xserver_os STATIC ${OS_SOURCES})
-# TODO: add android-specific sources to avoid incompatibility...
 target_include_directories(xserver_os PRIVATE ${inc})
-target_link_libraries(xserver_os PRIVATE md Xtrans Xdmcp Xau tirpc)
+target_link_libraries(xserver_os PRIVATE md Xdmcp Xau tirpc)
 target_compile_options(xserver_os PRIVATE ${compile_options} "-DCLIENTIDS")
 
 set(COMPOSITE_SOURCES compalloc.c compext.c compinit.c compoverlay.c compwindow.c)
@@ -277,27 +154,11 @@ add_library(xserver_miext_damage STATIC "xserver/miext/damage/damage.c")
 target_include_directories(xserver_miext_damage PRIVATE ${inc})
 target_compile_options(xserver_miext_damage PRIVATE ${compile_options})
 
-set(MIEXT_SHADOW_SOURCES
-        shadow.c sh3224.c shafb4.c shafb8.c shiplan2p4.c shiplan2p8.c shpacked.c shplanar8.c
-        shplanar.c shrot16pack_180.c shrot16pack_270.c shrot16pack_270YX.c shrot16pack_90.c
-        shrot16pack_90YX.c shrot16pack.c shrot32pack_180.c shrot32pack_270.c shrot32pack_90.c
-        shrot32pack.c shrot8pack_180.c shrot8pack_270.c shrot8pack_90.c shrot8pack.c shrotate.c)
-list(TRANSFORM MIEXT_SHADOW_SOURCES PREPEND "xserver/miext/shadow/")
-add_library(xserver_miext_shadow STATIC ${MIEXT_SHADOW_SOURCES})
-target_include_directories(xserver_miext_shadow PRIVATE ${inc})
-target_compile_options(xserver_miext_shadow PRIVATE ${compile_options})
-
-set(MIEXT_SHADOW_SOURCES misync.c misyncfd.c misyncshm.c)
-list(TRANSFORM MIEXT_SHADOW_SOURCES PREPEND "xserver/miext/sync/")
-add_library(xserver_miext_sync STATIC ${MIEXT_SHADOW_SOURCES})
+set(MIEXT_SYNC_SOURCES misync.c misyncfd.c misyncshm.c)
+list(TRANSFORM MIEXT_SYNC_SOURCES PREPEND "xserver/miext/sync/")
+add_library(xserver_miext_sync STATIC ${MIEXT_SYNC_SOURCES})
 target_include_directories(xserver_miext_sync PRIVATE ${inc})
 target_compile_options(xserver_miext_sync PRIVATE ${compile_options})
-
-set(MIEXT_ROOTLESS_SOURCES Common.c GC.c Screen.c ValTree.c Window.c)
-list(TRANSFORM MIEXT_ROOTLESS_SOURCES PREPEND "xserver/miext/rootless/rootless")
-add_library(xserver_miext_rootless STATIC ${MIEXT_ROOTLESS_SOURCES})
-target_include_directories(xserver_miext_rootless PRIVATE ${inc})
-target_compile_options(xserver_miext_rootless PRIVATE ${compile_options})
 
 set(PRESENT_SOURCES
         present.c present_event.c present_execute.c present_fake.c present_fence.c present_notify.c
@@ -393,41 +254,24 @@ add_library(xserver_glxvnd STATIC ${GLXVND_SOURCES})
 target_include_directories(xserver_glxvnd PRIVATE ${inc})
 target_compile_options(xserver_glxvnd PRIVATE ${compile_options})
 
-set(XSERVER_LIBS)
+set(XSERVER_LIBS tirpc Xdmcp Xau pixman Xfont2 fontenc GLESv2 xshmfence xkbcomp)
 foreach (part glx glxvnd fb mi dix composite damageext dbe randr miext_damage render present xext
-              miext_sync xfixes xi xkb record xi_stubs xkb_stubs os dri3)
+              miext_sync xfixes xi xkb record xi_stubs xkb_stubs os)
     set(XSERVER_LIBS ${XSERVER_LIBS} xserver_${part})
 endforeach ()
-
-set(XSERVER_LIBS ${XSERVER_LIBS} tirpc xcb Xdmcp Xau pixman Xfont2 Xtrans freetype fontenc GLESv2 xshmfence)
-
-add_custom_command(
-        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/tx11.c" "${CMAKE_CURRENT_BINARY_DIR}/tx11.h"
-        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/c_client.py"
-            "-c" "libxcb 1.15" "-l" "X Version 11" "-s" "3" "-p" "${CMAKE_CURRENT_SOURCE_DIR}/xcbproto"
-            "${CMAKE_CURRENT_SOURCE_DIR}/lorie/tx11.xml"
-        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/lorie/tx11.xml" "${CMAKE_CURRENT_SOURCE_DIR}/libxcb/src/c_client.py"
-        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-        COMMENT "Generating source code from XML (tx11)"
-        VERBATIM
-)
 
 add_library(Xlorie SHARED
         "xserver/mi/miinitext.c"
         "xserver/hw/xquartz/keysym2ucs.c"
         "libxcvt/lib/libxcvt.c"
-        "lorie/execl_xkbcomp.c"
         "lorie/shm/shmem.c"
         "lorie/android.c"
         "lorie/InitOutput.c"
         "lorie/InitInput.c"
         "lorie/InputXKB.c"
-        "lorie/renderer.c"
-        "lorie/tx11-request.c"
-        "${CMAKE_CURRENT_BINARY_DIR}/tx11.c"
-        "${CMAKE_CURRENT_BINARY_DIR}/tx11.h")
+        "lorie/renderer.c")
 target_include_directories(Xlorie PRIVATE ${inc} "libxcvt/include")
 target_link_options(Xlorie PRIVATE "-Wl,--as-needed" "-Wl,--no-undefined" "-fvisibility=hidden")
-target_link_libraries(Xlorie "-Wl,--whole-archive" ${XSERVER_LIBS} xkbcomp "-Wl,--no-whole-archive" android log m z EGL GLESv2)
+target_link_libraries(Xlorie "-Wl,--whole-archive" ${XSERVER_LIBS} "-Wl,--no-whole-archive" android log m z EGL GLESv2)
 target_compile_options(Xlorie PRIVATE ${compile_options})
 target_apply_patch(Xlorie "${CMAKE_CURRENT_SOURCE_DIR}/xserver" "${CMAKE_CURRENT_SOURCE_DIR}/patches/xserver.patch")

@@ -43,25 +43,3 @@ index a8ebf883..d716fdb0 100644
      }
      return db;
  }
-diff --git a/src/globals.c b/src/globals.c
-index c07de431..fcdf0b5e 100644
---- a/src/globals.c
-+++ b/src/globals.c
-@@ -98,17 +98,3 @@ ZEROINIT (Display *, _XHeadOfDisplayList, NULL);
- int			XTestInputActionType = 0;
- int			XTestFakeAckType   = 1;
- #endif
--
--#ifdef USE_THREAD_SAFETY_CONSTRUCTOR
--__attribute__((constructor)) static void
--xlib_ctor(void)
--{
--    XInitThreads();
--}
--
--__attribute__((destructor)) static void
--xlib_dtor(void)
--{
--    XFreeThreads();
--}
--#endif

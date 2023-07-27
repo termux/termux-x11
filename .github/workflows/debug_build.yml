@@ -24,11 +24,12 @@ jobs:
           submodules: recursive
       - uses: gradle/wrapper-validation-action@v1
   build:
+    name: "Build"
     runs-on: ubuntu-latest
     steps:
     - name: Install dependencies
       run: |
-        sudo apt update && sudo apt install -y libarchive-tools meson ninja-build python3-mako binutils-aarch64-linux-gnu binutils-arm-linux-gnueabihf
+        sudo apt update && sudo apt install -y libarchive-tools binutils-aarch64-linux-gnu binutils-arm-linux-gnueabihf
     - name: Clone repository
       uses: actions/checkout@v3
       with:
@@ -44,7 +45,6 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-            app/.cxx
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
 
           restore-keys: |

@@ -11,95 +11,13 @@ file(GENERATE
 #define PIXMAN_VERSION_MICRO 2
 
 #define PIXMAN_VERSION_STRING \"0.42.2\"
-
-#define PIXMAN_VERSION_ENCODE(major, minor, micro) (	\
-	                      ((major) * 10000)				\
-                    	+ ((minor) *   100)				\
-	                    + ((micro) *     1))
-
-#define PIXMAN_VERSION PIXMAN_VERSION_ENCODE(	\
-	PIXMAN_VERSION_MAJOR,			\
-	PIXMAN_VERSION_MINOR,			\
-	PIXMAN_VERSION_MICRO)
+#define PIXMAN_VERSION 4202
 
 #ifndef PIXMAN_API
 # define PIXMAN_API
 #endif
 ")
-
-check_source_compiles(C "
-#if defined(__GNUC__) && (__GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 2))
-#   if !defined(__amd64__) && !defined(__x86_64__)
-#      error \"Need GCC >= 4.2 for SSE2 intrinsics on x86\"
-#   endif
-#endif
-#include <mmintrin.h>
-#include <xmmintrin.h>
-#include <emmintrin.h>
-int param;
-int main () {
-    __m128i a = _mm_set1_epi32 (param), b = _mm_set1_epi32 (param + 1), c;
-    c = _mm_xor_si128 (a, b);
-    return _mm_cvtsi128_si32(c);
-}" HAVE_SSE2)
-check_source_compiles(C "
-#include <mmintrin.h>
-#include <xmmintrin.h>
-#include <emmintrin.h>
-int param;
-int main () {
-    __m128i a = _mm_set1_epi32 (param), b = _mm_set1_epi32 (param + 1), c;
-    c = _mm_xor_si128 (a, b);
-    return _mm_cvtsi128_si32(c);
-}" HAVE_SSSE3)
-set(CMAKE_REQUIRED_DEFINITIONS_OLD ${CMAKE_REQUIRED_DEFINITIONS})
-set(CMAKE_REQUIRED_DEFINITIONS ${CMAKE_REQUIRED_DEFINITIONS} "-march=iwmmxt2")
-set(CMAKE_REQUIRED_DEFINITIONS ${CMAKE_REQUIRED_DEFINITIONS_OLD})
-check_source_compiles(C "
-.text
-.arch armv6
-.object_arch armv4
-.arm
-.altmacro
-#ifndef __ARM_EABI__
-#error EABI is required (to be sure that calling conventions are compatible)
-#endif
-pld [r0]
-uqadd8 r0, r0, r0
-
-.global main
-main:
-" HAVE_SIMD SRC_EXT S)
-check_source_compiles(C "
-.text
-.fpu neon
-.arch armv7a
-.object_arch armv4
-.eabi_attribute 10, 0
-.arm
-.altmacro
-#ifndef __ARM_EABI__
-#error EABI is required (to be sure that calling conventions are compatible)
-#endif
-pld [r0]
-vmovn.u16 d0, q0
-
-.global main
-main:
-" HAVE_NEON SRC_EXT S)
-check_source_compiles(C "
-.text
-.arch armv8-a
-.altmacro
-prfm pldl2strm, [x0]
-xtn v0.8b, v0.8h
-
-.global main
-main:
-" HAVE_A64_NEON SRC_EXT S)
 check_type_size("long" SIZEOF_LONG)
-
-#message(FATAL_ERROR "HAVE_SSE2 ${HAVE_SSE2} HAVE_SSSE3 ${HAVE_SSSE3} HAVE_SIMD ${HAVE_SIMD} HAVE_NEON ${HAVE_NEON} HAVE_A64_NEON ${HAVE_A64_NEON}")
 
 set(PIXMAN_SRC
         pixman/pixman/pixman.c
@@ -141,33 +59,26 @@ set(PIXMAN_CFLAGS
         "-DSIZEOF_LONG=${SIZEOF_LONG}"
         "-DUSE_OPENMP=1")
 
-if (HAVE_SSE2)
-    set(PIXMAN_CFLAGS ${PIXMAN_CFLAGS}  "-msse2" "-Winline")
-endif()
-if (HAVE_SSSE3)
-    set(PIXMAN_CFLAGS ${PIXMAN_CFLAGS}  "-mssse3" "-Winline")
-endif()
-
-if (HAVE_NEON OR HAVE_A64_NEON)
-    set(PIXMAN_SRC ${PIXMAN_SRC} "pixman/pixman/pixman-arm-neon.c")
-endif()
-if (HAVE_SIMD)
+if("${CMAKE_ANDROID_ARCH_ABI}" STREQUAL "arm64-v8a")
     set(PIXMAN_SRC ${PIXMAN_SRC}
-            "pixman/pixman/pixman-arm-simd-asm.S"
-            "pixman/pixman/pixman-arm-simd-asm-scaled.S")
-    set(PIXMAN_CFLAGS ${PIXMAN_CFLAGS}  "-DUSE_ARM_SIMD=1")
-endif()
-if (HAVE_NEON)
-    set(PIXMAN_SRC ${PIXMAN_SRC}
-            "pixman/pixman/pixman-arm-neon-asm.S"
-            "pixman/pixman/pixman-arm-neon-asm-bilinear.S")
-    set(PIXMAN_CFLAGS ${PIXMAN_CFLAGS}  "-DUSE_ARM_NEON=1" "-fno-integrated-as" "-B" "/usr/arm-linux-gnueabihf/bin" "-v")
-endif()
-if (HAVE_A64_NEON)
-    set(PIXMAN_SRC ${PIXMAN_SRC}
+            "pixman/pixman/pixman-arm-neon.c"
             "pixman/pixman/pixman-arma64-neon-asm.S"
             "pixman/pixman/pixman-arma64-neon-asm-bilinear.S")
-    set(PIXMAN_CFLAGS ${PIXMAN_CFLAGS}  "-DUSE_ARM_A64_NEON=1" "-fno-integrated-as" "-B" "/usr/aarch64-linux-gnu/bin")
+    set(PIXMAN_CFLAGS ${PIXMAN_CFLAGS} "-DUSE_ARM_A64_NEON=1" "-fno-integrated-as" "-B" "/usr/aarch64-linux-gnu/bin")
+endif()
+
+if("${CMAKE_ANDROID_ARCH_ABI}" STREQUAL "armeabi-v7a")
+    set(PIXMAN_SRC ${PIXMAN_SRC}
+            "pixman/pixman/pixman-arm-neon.c"
+            "pixman/pixman/pixman-arm-neon-asm.S"
+            "pixman/pixman/pixman-arm-neon-asm-bilinear.S"
+            "pixman/pixman/pixman-arm-simd-asm.S"
+            "pixman/pixman/pixman-arm-simd-asm-scaled.S")
+    set(PIXMAN_CFLAGS ${PIXMAN_CFLAGS} "-DUSE_ARM_SIMD=1" "-DUSE_ARM_NEON=1" "-fno-integrated-as" "-B" "/usr/arm-linux-gnueabihf/bin" "-v")
+endif()
+
+if ("${CMAKE_ANDROID_ARCH_ABI}" STREQUAL "x86" OR "${CMAKE_ANDROID_ARCH_ABI}" STREQUAL "x86_64")
+    set(PIXMAN_CFLAGS ${PIXMAN_CFLAGS} "-msse2" "-Winline" "-mssse3" "-Winline")
 endif()
 
 add_library(pixman STATIC ${PIXMAN_SRC})

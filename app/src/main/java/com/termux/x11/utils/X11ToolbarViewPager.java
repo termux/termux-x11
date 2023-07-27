@@ -51,7 +51,6 @@ public class X11ToolbarViewPager {
                         ((mActivity.mExtraKeys.getExtraKeysInfo() == null) ? 0 : mActivity.mExtraKeys.getExtraKeysInfo().getMatrix().length);
                 extraKeysView.reload(mActivity.mExtraKeys.getExtraKeysInfo(), height);
                 extraKeysView.setExtraKeysViewClient(mActivity.mExtraKeys);
-                mActivity.setDefaultToolbarHeight(mTerminalToolbarDefaultHeight);
             } else {
                 layout = inflater.inflate(R.layout.view_terminal_toolbar_text_input, collection, false);
                 final EditText editText = layout.findViewById(R.id.terminal_toolbar_text_input);
@@ -71,9 +70,7 @@ public class X11ToolbarViewPager {
                     return false;
                 });
 
-                layout.findViewById(R.id.terminal_toolbar_back_button).setOnClickListener(v -> {
-                    mActivity.getTerminalToolbarViewPager().setCurrentItem(0, true);
-                });
+                layout.findViewById(R.id.terminal_toolbar_back_button).setOnClickListener(v -> mActivity.getTerminalToolbarViewPager().setCurrentItem(0, true));
             }
             collection.addView(layout);
             return layout;

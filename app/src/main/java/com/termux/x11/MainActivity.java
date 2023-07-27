@@ -70,15 +70,12 @@ import java.util.Objects;
 public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener {
     static final String ACTION_STOP = "com.termux.x11.ACTION_STOP";
     static final String REQUEST_LAUNCH_EXTERNAL_DISPLAY = "request_launch_external_display";
-    public static final int KeyPress = 2; // synchronized with X.h
-    public static final int KeyRelease = 3; // synchronized with X.h
 
     public static Handler handler = new Handler();
     FrameLayout frm;
     private TouchInputHandler mInputHandler;
     private ICmdEntryInterface service = null;
     public TermuxX11ExtraKeys mExtraKeys;
-    private int mTerminalToolbarDefaultHeight;
     private Notification mNotification;
     private final int mNotificationId = 7892;
     NotificationManager mNotificationManager;
@@ -131,7 +128,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
             if (k == KeyEvent.KEYCODE_BACK && (e.getSource() & InputDevice.SOURCE_MOUSE) != InputDevice.SOURCE_MOUSE) {
                 // Pass physical escape key to container...
-                Log.d("MainActivity", "Toggling keyboard visibilityasdasdasdasdasd");
+                Log.d("MainActivity", "Toggling keyboard visibility");
                 if (e.getScanCode() != 0)
                     return mInputHandler.sendKeyEvent(v, e);
                 if (e.getAction() == KeyEvent.ACTION_UP) {
@@ -439,10 +436,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         return findViewById(R.id.terminal_toolbar_view_pager);
     }
 
-    public void setDefaultToolbarHeight(int height) {
-        mTerminalToolbarDefaultHeight = height;
-    }
-
     private void setTerminalToolbarView() {
         final ViewPager terminalToolbarViewPager = getTerminalToolbarViewPager();
 
@@ -456,16 +449,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         terminalToolbarViewPager.setVisibility(showNow ? View.VISIBLE : View.GONE);
         findViewById(R.id.terminal_toolbar_view_pager).requestFocus();
 
-        if (mExtraKeys == null) {
-            handler.postDelayed(() -> {
-                if (mExtraKeys != null) {
-                    ViewGroup.LayoutParams layoutParams = terminalToolbarViewPager.getLayoutParams();
-                    layoutParams.height = Math.round(mTerminalToolbarDefaultHeight *
-                            (mExtraKeys.getExtraKeysInfo() == null ? 0 : mExtraKeys.getExtraKeysInfo().getMatrix().length));
-                    terminalToolbarViewPager.setLayoutParams(layoutParams);
-                }
-            }, 200);
-        }
+        handler.postDelayed(() -> {
+            if (mExtraKeys != null) {
+                ViewGroup.LayoutParams layoutParams = terminalToolbarViewPager.getLayoutParams();
+                layoutParams.height = Math.round(37.5f * getResources().getDisplayMetrics().density *
+                        (mExtraKeys.getExtraKeysInfo() == null ? 0 : mExtraKeys.getExtraKeysInfo().getMatrix().length));
+                terminalToolbarViewPager.setLayoutParams(layoutParams);
+            }
+        }, 200);
     }
 
     public void toggleExtraKeys(boolean visible, boolean saveState) {

@@ -5,7 +5,6 @@ import static android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 import android.graphics.Rect;
-import android.util.Log;
 import android.widget.FrameLayout;
 import android.view.View;
 import android.app.Activity;

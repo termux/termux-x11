@@ -24,6 +24,7 @@ import androidx.annotation.Keep;
 import java.io.DataInputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -158,8 +159,13 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static void requestConnection() {
         System.err.println("Requesting connection...");
         new Thread(() -> { // New thread is needed to avoid android.os.NetworkOnMainThreadException
-            try (Socket socket = new Socket("127.0.0.1", CmdEntryPoint.PORT)){
+            try (Socket socket = new Socket("127.0.0.1", CmdEntryPoint.PORT)) {
                 socket.getOutputStream().write(CmdEntryPoint.MAGIC);
+            } catch (ConnectException e) {
+                if (e.getMessage() != null && e.getMessage().contains("Connection refused")) {
+                    Log.e("CmdEntryPoint", "ECONNREFUSED: Connection has been refused by the server");
+                } else
+                    Log.e("CmdEntryPoint", "Something went wrong when we requested connection", e);
             } catch (Exception e) {
                 Log.e("CmdEntryPoint", "Something went wrong when we requested connection", e);
             }

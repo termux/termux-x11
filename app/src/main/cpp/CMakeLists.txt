@@ -72,6 +72,6 @@ foreach (option ${test_compile_options})
 endforeach ()
 set(CMAKE_REQUIRED_QUIET ${CMAKE_REQUIRED_QUIET_OLD})
 
-foreach(project xorgproto fontenc md freetype pixman tirpc xshmfence xcb Xtrans Xdmcp Xau Xfont2 xkbcomp xserver)
+foreach(project xorgproto fontenc md freetype pixman tirpc xshmfence Xdmcp Xau Xfont2 xkbcomp xserver)
     include(recipes/${project}.cmake)
 endforeach()

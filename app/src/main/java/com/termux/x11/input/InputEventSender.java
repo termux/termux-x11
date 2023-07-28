@@ -36,10 +36,11 @@ public final class InputEventSender {
     }
 
     public void sendMouseEvent(PointF pos, int button, boolean down, boolean relative) {
-        Preconditions.isTrue(button == InputStub.BUTTON_UNDEFINED
+        if (!(button == InputStub.BUTTON_UNDEFINED
                 || button == InputStub.BUTTON_LEFT
                 || button == InputStub.BUTTON_MIDDLE
-                || button == InputStub.BUTTON_RIGHT);
+                || button == InputStub.BUTTON_RIGHT))
+            throw new IllegalStateException();
         mInjector.sendMouseEvent((int) pos.x, (int) pos.y, button, down, relative);
     }
 

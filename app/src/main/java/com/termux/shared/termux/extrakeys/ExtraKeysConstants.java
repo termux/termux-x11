@@ -15,10 +15,8 @@ public class ExtraKeysConstants {
         "BKSP", "DEL",
         "PGUP", "PGDN");
 
-
-
     /** Defines the {@link KeyEvent} for common keys. */
-    public static Map<String, Integer> PRIMARY_KEY_CODES_FOR_STRINGS = new HashMap<String, Integer>() {{
+    public static Map<String, Integer> PRIMARY_KEY_CODES_FOR_STRINGS = new HashMap<>() {{
         put("SPACE", KeyEvent.KEYCODE_SPACE);
         put("ESC", KeyEvent.KEYCODE_ESCAPE);
         put("TAB", KeyEvent.KEYCODE_TAB);
@@ -48,8 +46,6 @@ public class ExtraKeysConstants {
         put("F12", KeyEvent.KEYCODE_F12);
     }};
 
-
-
     /**
      * HashMap that implements Python dict.get(key, default) function.
      * Default java.util .get(key) is then the same as .get(key, null);
@@ -64,8 +60,6 @@ public class ExtraKeysConstants {
     }
 
     public static class ExtraKeyDisplayMap extends CleverMap<String, String> {}
-
-
 
     /*
      * Multiple maps are available to quickly change
@@ -103,14 +97,6 @@ public class ExtraKeysConstants {
             put("END", "⇲"); // from IEC 9995 // ⇲ // U+21F2 ⇲ SOUTH EAST ARROW TO CORNER
             put("PGUP", "⇑"); // no ISO character exists, U+21D1 ⇑ UPWARDS DOUBLE ARROW will do the trick
             put("PGDN", "⇓"); // no ISO character exists, U+21D3 ⇓ DOWNWARDS DOUBLE ARROW will do the trick
-        }};
-
-        public static final ExtraKeyDisplayMap ARROW_TRIANGLE_VARIATION_DISPLAY = new ExtraKeyDisplayMap() {{
-            // alternative to classic arrow keys
-            put("LEFT", "◀"); // U+25C0 ◀ BLACK LEFT-POINTING TRIANGLE
-            put("RIGHT", "▶"); // U+25B6 ▶ BLACK RIGHT-POINTING TRIANGLE
-            put("UP", "▲"); // U+25B2 ▲ BLACK UP-POINTING TRIANGLE
-            put("DOWN", "▼"); // U+25BC ▼ BLACK DOWN-POINTING TRIANGLE
         }};
 
         public static final ExtraKeyDisplayMap NOT_KNOWN_ISO_CHARACTERS = new ExtraKeyDisplayMap() {{
@@ -208,5 +194,4 @@ public class ExtraKeysConstants {
         put("QUOTE", "\"");
         put("APOSTROPHE", "'");
     }};
-
 }

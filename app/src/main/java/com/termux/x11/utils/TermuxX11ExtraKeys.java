@@ -15,12 +15,12 @@ import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.View;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.viewpager.widget.ViewPager;
 
 import com.google.android.material.button.MaterialButton;
-import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.extrakeys.*;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.MainActivity;
@@ -54,9 +54,9 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
 
     @Override
     public void onExtraKeyButtonClick(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
-        Log.e("keys", "key " + buttonInfo.getDisplay());
-        if (buttonInfo.isMacro()) {
-            String[] keys = buttonInfo.getKey().split(" ");
+        Log.e("keys", "key " + buttonInfo.display);
+        if (buttonInfo.macro) {
+            String[] keys = buttonInfo.key.split(" ");
             boolean ctrlDown = false;
             boolean altDown = false;
             boolean shiftDown = false;
@@ -79,7 +79,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
                 onLorieExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, fnDown);
             }
         } else {
-            onLorieExtraKeyButtonClick(view, buttonInfo.getKey(), false, false, false, false);
+            onLorieExtraKeyButtonClick(view, buttonInfo.key, false, false, false, false);
         }
     }
 
@@ -115,7 +115,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     public boolean performExtraKeyButtonHapticFeedback(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
         MainActivity.handler.postDelayed(() -> {
             boolean pressed;
-            switch (buttonInfo.getKey()) {
+            switch (buttonInfo.key) {
                 case "CTRL":
                     pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.CTRL, false));
                     mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_CTRL_LEFT, pressed);
@@ -186,14 +186,14 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
             String extrakeys = preferences.getString("extra_keys_config", TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS);
             mExtraKeysInfo = new ExtraKeysInfo(extrakeys, "extra-keys-style", ExtraKeysConstants.CONTROL_CHARS_ALIASES);
         } catch (JSONException e) {
-            Logger.showToast(mActivity, "Could not load and set the \"extra-keys\" property from the properties file: " + e, true);
-            Logger.logStackTraceWithMessage(LOG_TAG, "Could not load and set the \"extra-keys\" property from the properties file: ", e);
+            Toast.makeText(mActivity, "Could not load and set the \"extra-keys\" property from the properties file: " + e, Toast.LENGTH_LONG).show();
+            Log.e(LOG_TAG, "Could not load and set the \"extra-keys\" property from the properties file: ", e);
 
             try {
                 mExtraKeysInfo = new ExtraKeysInfo(TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS, "default", ExtraKeysConstants.CONTROL_CHARS_ALIASES);
             } catch (JSONException e2) {
-                Logger.showToast(mActivity, "Can't create default extra keys",true);
-                Logger.logStackTraceWithMessage(LOG_TAG, "Could create default extra keys: ", e);
+                Toast.makeText(mActivity, "Can't create default extra keys", Toast.LENGTH_LONG).show();
+                Log.e(LOG_TAG, "Could create default extra keys: ", e);
                 mExtraKeysInfo = null;
             }
         }

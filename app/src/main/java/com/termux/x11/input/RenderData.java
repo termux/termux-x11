@@ -57,13 +57,4 @@ public class RenderData {
 
         return cursorMoved;
     }
-
-    /**
-     * Indicates whether all information required to render the canvas has been set.
-     *
-     * @return True if both screen and image dimensions have been set.
-     */
-    public boolean initialized() {
-        return imageWidth != 0 && imageHeight != 0 && screenWidth != 0 && screenHeight != 0;
-    }
 }

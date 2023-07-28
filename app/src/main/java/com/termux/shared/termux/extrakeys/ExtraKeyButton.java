@@ -30,23 +30,23 @@ public class ExtraKeyButton {
      * The key that will be sent to the terminal, either a control character, like defined in
      * {@link ExtraKeysConstants#PRIMARY_KEY_CODES_FOR_STRINGS} (LEFT, RIGHT, PGUP...) or some text.
      */
-    private final String key;
+    public final String key;
 
     /**
      * If the key is a macro, i.e. a sequence of keys separated by space.
      */
-    private final boolean macro;
+    public final boolean macro;
 
     /**
      * The text that will be displayed on the button.
      */
-    private final String display;
+    public final String display;
 
     /**
      * The {@link ExtraKeyButton} containing the information of the popup button (triggered by swipe up).
      */
     @Nullable
-    private final ExtraKeyButton popup;
+    public final ExtraKeyButton popup;
 
 
     /**
@@ -120,32 +120,10 @@ public class ExtraKeyButton {
         }
     }
 
-    /** Get {@link #key}. */
-    public String getKey() {
-        return key;
-    }
-
-    /** Check whether a {@link #macro} is defined or not. */
-    public boolean isMacro() {
-        return macro;
-    }
-
-    /** Get {@link #display}. */
-    public String getDisplay() {
-        return display;
-    }
-
-    /** Get {@link #popup}. */
-    @Nullable
-    public ExtraKeyButton getPopup() {
-        return popup;
-    }
-
     /**
      * Replace the alias with its actual key name if found in extraKeyAliasMap.
      */
     public static String replaceAlias(@NonNull ExtraKeysConstants.ExtraKeyDisplayMap extraKeyAliasMap, String key) {
         return extraKeyAliasMap.get(key, key);
     }
-
 }

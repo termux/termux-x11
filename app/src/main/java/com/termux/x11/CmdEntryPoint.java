@@ -178,25 +178,28 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public native ParcelFileDescriptor getLogcatOutput();
 
     static {
-        try {
-            System.loadLibrary("Xlorie");
-        } catch (UnsatisfiedLinkError e) {
-            // It is executed directly from command line, without shell-loader
-            String path = "lib/" + Build.SUPPORTED_ABIS[0] + "/libXlorie.so";
-            ClassLoader loader = CmdEntryPoint.class.getClassLoader();
-            URL res = loader != null ? loader.getResource(path) : null;
-            String libPath = res != null ? res.getFile().replace("file:", "") : null;
-            if (libPath != null) {
-                try {
-                    Looper.prepareMainLooper();
-                    System.load(libPath);
-                } catch (Exception e2) {
-                    e.printStackTrace(System.err);
-                    e2.printStackTrace(System.err);
-                }
-            } else e.printStackTrace(System.err);
+        String path = "lib/" + Build.SUPPORTED_ABIS[0] + "/libXlorie.so";
+        ClassLoader loader = CmdEntryPoint.class.getClassLoader();
+        URL res = loader != null ? loader.getResource(path) : null;
+        String libPath = res != null ? res.getFile().replace("file:", "") : null;
+        if (libPath != null) {
+            try {
+                System.load(libPath);
+            } catch (Exception e) {
+                Log.e("CmdEntryPoint", "Failed to dlopen " + libPath, e);
+                System.err.println("Failed to load native library. Did you install the right apk? Try the universal one.");
+                System.exit(134);
+            }
+        } else {
+            // It is critical only when it is not running in Android application process
+            if (MainActivity.getInstance() == null) {
+                System.err.println("Failed to acquire native library. Did you install the right apk? Try the universal one.");
+                System.exit(134);
+            }
         }
 
+        if (Looper.getMainLooper() == null)
+            Looper.prepareMainLooper();
         handler = new Handler();
     }
 }

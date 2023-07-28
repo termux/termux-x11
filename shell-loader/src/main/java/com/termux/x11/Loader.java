@@ -57,6 +57,14 @@ public class Loader {
             PackageInfo selfInfo = pm.getPackageArchiveInfo(selfPath, PackageManager.GET_SIGNATURES);
             @SuppressLint("PackageManagerGetSignatures")
             PackageInfo targetInfo = pm.getPackageInfo("com.termux.x11", PackageManager.GET_SIGNATURES);
+            if (selfInfo == null) {
+                System.err.println("Failed to get signature info of the loader.");
+                System.exit(134);
+            }
+            if (targetInfo == null) {
+                System.err.println("Failed to get signature info of `com.termux.x11`.");
+                System.exit(134);
+            }
             if (selfInfo.signatures.length != targetInfo.signatures.length
                     || selfInfo.signatures[0].hashCode() != targetInfo.signatures[0].hashCode()) {
                 System.err.println("Signatures of this loader and target application " + targetPackageName + " do not match.");
@@ -66,16 +74,13 @@ public class Loader {
 
             ApplicationInfo target = pm.getApplicationInfo(targetPackageName, 0);
             Log.i(logTag, "loading " + target.sourceDir + " of " + targetPackageName + " application");
-
-            String librarySearchPath = target.sourceDir + "!/lib/" + Build.SUPPORTED_ABIS[0] + "/";
-            PathClassLoader classLoader = new PathClassLoader(target.sourceDir, librarySearchPath,
-                                                                    ClassLoader.getSystemClassLoader());
+            PathClassLoader classLoader = new PathClassLoader(target.sourceDir, null, ClassLoader.getSystemClassLoader());
             try {
                 Class<?> targetClass = Class.forName(targetClassName, true, classLoader);
                 Log.i(logTag, "starting " + targetClassName + "::main();");
                 targetClass.getMethod("main", String[].class).invoke(null, (Object) args);
             } catch (Exception e) {
-                e.printStackTrace(System.err);
+                e.getCause().printStackTrace(System.err);
             }
         } catch (PackageManager.NameNotFoundException e) {
             Log.e(logTag, "Error", e);

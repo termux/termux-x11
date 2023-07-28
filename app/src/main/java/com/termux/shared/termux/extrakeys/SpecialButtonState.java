@@ -47,5 +47,4 @@ public class SpecialButtonState {
     public void setIsLocked(boolean value) {
         isLocked = value;
     }
-
 }

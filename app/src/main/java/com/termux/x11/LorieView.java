@@ -7,9 +7,15 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.SharedPreferences;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.ColorFilter;
 import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.Rect;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.StateListDrawable;
 import android.preference.PreferenceManager;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -18,6 +24,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.termux.x11.input.InputStub;
 
@@ -87,6 +94,15 @@ public class LorieView extends SurfaceView implements InputStub {
         setFocusable(true);
         setFocusableInTouchMode(true);
         requestFocus();
+
+        setBackground(new ColorDrawable(Color.TRANSPARENT) {
+            public boolean isStateful() {
+                return true;
+            }
+            public boolean hasFocusStateSpecified() {
+                return true;
+            }
+        });
 
         Rect r = getHolder().getSurfaceFrame();
         getActivity().runOnUiThread(() -> mSurfaceCallback.surfaceChanged(getHolder(), PixelFormat.BGRA_8888, r.width(), r.height()));

@@ -1,11 +1,16 @@
 package com.termux.x11.utils;
 
+import android.annotation.SuppressLint;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.KeyEvent;
 import android.view.KeyCharacterMap;
 
+import android.widget.Button;
 import android.widget.EditText;
 
 import androidx.annotation.NonNull;
@@ -37,6 +42,7 @@ public class X11ToolbarViewPager {
             return view == object;
         }
 
+        @SuppressLint("ClickableViewAccessibility")
         @NonNull
         @Override
         public Object instantiateItem(@NonNull ViewGroup collection, int position) {
@@ -51,9 +57,12 @@ public class X11ToolbarViewPager {
                         ((mActivity.mExtraKeys.getExtraKeysInfo() == null) ? 0 : mActivity.mExtraKeys.getExtraKeysInfo().getMatrix().length);
                 extraKeysView.reload(mActivity.mExtraKeys.getExtraKeysInfo(), height);
                 extraKeysView.setExtraKeysViewClient(mActivity.mExtraKeys);
+                extraKeysView.setOnHoverListener((v, e) -> true);
+                extraKeysView.setOnGenericMotionListener((v, e) -> true);
             } else {
                 layout = inflater.inflate(R.layout.view_terminal_toolbar_text_input, collection, false);
                 final EditText editText = layout.findViewById(R.id.terminal_toolbar_text_input);
+                final Button back = layout.findViewById(R.id.terminal_toolbar_back_button);
 
                 editText.setOnEditorActionListener((v, actionId, event) -> {
                     String textToSend = editText.getText().toString();
@@ -70,7 +79,30 @@ public class X11ToolbarViewPager {
                     return false;
                 });
 
-                layout.findViewById(R.id.terminal_toolbar_back_button).setOnClickListener(v -> mActivity.getTerminalToolbarViewPager().setCurrentItem(0, true));
+                back.setOnClickListener(v -> mActivity.getTerminalToolbarViewPager().setCurrentItem(0, true));
+                back.setTextColor(0xFFFFFFFF);
+                back.setPadding(0, 0, 0, 0);
+                back.setBackground(new ColorDrawable(Color.BLACK) {
+                    public boolean isStateful() {
+                        return true;
+                    }
+                    public boolean hasFocusStateSpecified() {
+                        return true;
+                    }
+                });
+                back.setOnTouchListener((view, event) -> {
+                    switch (event.getAction()) {
+                        case MotionEvent.ACTION_DOWN:
+                            view.setBackgroundColor(0xFF7F7F7F);
+                            break;
+
+                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_CANCEL:
+                            view.setBackgroundColor(0x00000000);
+                            break;
+                    }
+                    return false;
+                });
             }
             collection.addView(layout);
             return layout;

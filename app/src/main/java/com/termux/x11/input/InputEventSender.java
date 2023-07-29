@@ -176,8 +176,7 @@ public final class InputEventSender {
 
             if (pressed && unicode != 0 && no_modifiers) {
                 mPressedTextKeys.add(keyCode);
-                int[] codePoints = {unicode};
-                mInjector.sendTextEvent(new String(codePoints, 0, 1));
+                mInjector.sendUnicodeEvent(unicode);
                 return true;
             }
 

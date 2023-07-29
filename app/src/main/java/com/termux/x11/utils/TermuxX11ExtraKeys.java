@@ -15,12 +15,12 @@ import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.View;
+import android.widget.Button;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.viewpager.widget.ViewPager;
 
-import com.google.android.material.button.MaterialButton;
 import com.termux.shared.termux.extrakeys.*;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.MainActivity;
@@ -53,7 +53,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     static final String ACTION_START_PREFERENCES_ACTIVITY = "com.termux.x11.start_preferences_activity";
 
     @Override
-    public void onExtraKeyButtonClick(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
+    public void onExtraKeyButtonClick(View view, ExtraKeyButton buttonInfo, Button button) {
         Log.e("keys", "key " + buttonInfo.display);
         if (buttonInfo.macro) {
             String[] keys = buttonInfo.key.split(" ");
@@ -112,7 +112,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     }
 
     @Override
-    public boolean performExtraKeyButtonHapticFeedback(View view, ExtraKeyButton buttonInfo, MaterialButton button) {
+    public boolean performExtraKeyButtonHapticFeedback(View view, ExtraKeyButton buttonInfo, Button button) {
         MainActivity.handler.postDelayed(() -> {
             boolean pressed;
             switch (buttonInfo.key) {

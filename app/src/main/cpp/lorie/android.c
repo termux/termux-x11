@@ -507,6 +507,17 @@ Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, unused jobject thiz, js
     }
 }
 
+JNIEXPORT void JNICALL
+Java_com_termux_x11_LorieView_sendUnicodeEvent(JNIEnv *env, jobject thiz, jint code) {
+    if (conn_fd != -1) {
+        log(DEBUG, "Sending unicode event: %lc (U+%X)", code, code);
+        lorieEvent e = { .unicode = { .t = EVENT_UNICODE, .code = code } };
+        write(conn_fd, &e, sizeof(e));
+
+        checkConnection(env);
+    }
+}
+
 void abort(void) {
     _exit(134);
 }

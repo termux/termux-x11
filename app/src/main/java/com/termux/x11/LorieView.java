@@ -7,15 +7,10 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.SharedPreferences;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.ColorFilter;
-import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.Drawable;
-import android.graphics.drawable.StateListDrawable;
 import android.preference.PreferenceManager;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -24,7 +19,6 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 import com.termux.x11.input.InputStub;
 
@@ -211,6 +205,7 @@ public class LorieView extends SurfaceView implements InputStub {
     public native void sendTouchEvent(int action, int id, int x, int y);
     public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
     public native void sendTextEvent(String text);
+    public native void sendUnicodeEvent(int code);
 
     static {
         System.loadLibrary("Xlorie");

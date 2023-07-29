@@ -173,7 +173,8 @@ public class TouchInputHandler {
             return mStylusListener.onTouch(view, event);
         }
 
-        if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_MOUSE)
+        if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_MOUSE
+              || (event.getSource() & InputDevice.SOURCE_MOUSE ) == InputDevice.SOURCE_MOUSE)
             return mHMListener.onTouch(view, event);
 
         if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER) {
@@ -300,13 +301,12 @@ public class TouchInputHandler {
     }
 
     public void setInputMode(@InputMode int inputMode) {
-        if (inputMode == InputMode.TOUCH) {
+        if (inputMode == InputMode.TOUCH)
             mInputStrategy = new TouchInputStrategy(mRenderData, mInjector);
-        } else if (inputMode == InputMode.SIMULATED_TOUCH) {
+        else if (inputMode == InputMode.SIMULATED_TOUCH)
             mInputStrategy = new SimulatedTouchInputStrategy(mRenderData, mInjector, mContext);
-        } else {
+        else
             mInputStrategy = new TrackpadInputStrategy(mRenderData, mInjector);
-        }
     }
 
     public void setPreferScancodes(boolean enabled) {
@@ -375,7 +375,8 @@ public class TouchInputHandler {
         }
     }
 
-    /** Responds to touch events filtered by the gesture detectors. */
+    /** Responds to touch events filtered by the gesture detectors.
+     * @noinspection NullableProblems */
     private class GestureListener extends GestureDetector.SimpleOnGestureListener
             implements ScaleGestureDetector.OnScaleGestureListener,
                        TapGestureDetector.OnTapListener {
@@ -630,6 +631,7 @@ public class TouchInputHandler {
         }
     }
 
+    /** @noinspection NullableProblems*/
     private class DexListener extends GestureDetector.SimpleOnGestureListener {
         private final GestureDetector mScroller;
         private int savedBS = 0;

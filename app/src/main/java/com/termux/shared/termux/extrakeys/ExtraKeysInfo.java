@@ -4,7 +4,6 @@ import android.view.View;
 
 import androidx.annotation.NonNull;
 
-import com.google.android.material.button.MaterialButton;
 import com.termux.shared.termux.extrakeys.ExtraKeysConstants.EXTRA_KEY_DISPLAY_MAPS;
 
 import org.json.JSONArray;
@@ -67,7 +66,7 @@ import org.json.JSONObject;
  * <p>
  * Its up to the {@link ExtraKeysView.IExtraKeysView} client on how to handle individual key values
  * of an {@link ExtraKeyButton}. They are sent as is via
- * {@link ExtraKeysView.IExtraKeysView#onExtraKeyButtonClick(View, ExtraKeyButton, MaterialButton)}. The
+ * {@link ExtraKeysView.IExtraKeysView#onExtraKeyButtonClick(View, ExtraKeyButton, Button)}. The
  * {@link com.termux.x11.utils.TermuxX11ExtraKeys} which is an implementation of the interface,
  * checks if the key is one of {@link ExtraKeysConstants#PRIMARY_KEY_CODES_FOR_STRINGS} and generates
  * a {@link android.view.KeyEvent} for it, and if its not, then converts the key to code points by

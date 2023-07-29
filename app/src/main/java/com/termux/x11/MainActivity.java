@@ -44,6 +44,7 @@ import android.view.WindowInsets;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -52,7 +53,6 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.math.MathUtils;
 import androidx.viewpager.widget.ViewPager;
 
-import com.google.android.material.chip.ChipGroup;
 import com.termux.x11.input.InputEventSender;
 import com.termux.x11.input.RenderStub;
 import com.termux.x11.input.TouchInputHandler;
@@ -215,6 +215,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     //Register the needed events to handle stylus as left, middle and right click
+    @SuppressLint("ClickableViewAccessibility")
     private void initStylusAuxButtons() {
         SharedPreferences p = PreferenceManager.getDefaultSharedPreferences(this);
         boolean stylusMenuEnabled = p.getBoolean("showStylusClickOverride", false);
@@ -224,8 +225,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         Button right = findViewById(R.id.button_right_click);
         Button middle = findViewById(R.id.button_middle_click);
         Button visibility = findViewById(R.id.button_visibility);
-        ChipGroup overlay = findViewById(R.id.mouse_helper_visibility);
-        ChipGroup buttons = findViewById(R.id.mouse_helper_secondary_layer);
+        LinearLayout overlay = findViewById(R.id.mouse_helper_visibility);
+        LinearLayout buttons = findViewById(R.id.mouse_helper_secondary_layer);
+        overlay.setOnTouchListener((v, e) -> true);
+        overlay.setOnHoverListener((v, e) -> true);
+        overlay.setOnGenericMotionListener((v, e) -> true);
+        overlay.setOnCapturedPointerListener((v, e) -> true);
         overlay.setVisibility(stylusMenuEnabled ? View.VISIBLE : View.GONE);
         View.OnClickListener listener = view -> {
             TouchInputHandler.STYLUS_INPUT_HELPER_MODE = (view.equals(left) ? 1 : (view.equals(middle) ? 2 : (view.equals(right) ? 3 : 0)));
@@ -384,7 +389,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (getRequestedOrientation() != requestedOrientation)
             setRequestedOrientation(requestedOrientation);
 
-        ChipGroup buttons = findViewById(R.id.mouse_helper_visibility);
+        LinearLayout buttons = findViewById(R.id.mouse_helper_visibility);
         if (p.getBoolean("showStylusClickOverride", false)) {
             buttons.setVisibility(View.VISIBLE);
         } else {

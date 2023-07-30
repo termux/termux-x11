@@ -848,8 +848,10 @@ static void lorieInitSelectionCallback() {
 #define ATOM(name) xa##name = MakeAtom(#name, strlen(#name), TRUE)
     ATOM(CLIPBOARD); ATOM(TARGETS); ATOM(STRING); ATOM(UTF8_STRING);
 
-    origProcSendEvent = ProcVector[X_SendEvent];
-    ProcVector[X_SendEvent] = lorieProcSendEvent;
+    if (!origProcSendEvent) {
+        origProcSendEvent = ProcVector[X_SendEvent];
+        ProcVector[X_SendEvent] = lorieProcSendEvent;
+    }
 
     if (!AddCallback(&SelectionCallback, lorieSelectionCallback, NULL))
         FatalError("Adding SelectionCallback failed\n");

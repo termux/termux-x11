@@ -28,11 +28,6 @@ add_library(Xfont2 STATIC
         "libxfont/src/fontfile/renderers.c"
         "libxfont/src/fontfile/catalogue.c"
 
-        "libxfont/src/FreeType/ftenc.c"
-        "libxfont/src/FreeType/ftfuncs.c"
-        "libxfont/src/FreeType/fttools.c"
-        "libxfont/src/FreeType/xttcap.c"
-
         "libxfont/src/bitmap/bitmap.c"
         "libxfont/src/bitmap/bitmapfunc.c"
         "libxfont/src/bitmap/bitmaputil.c"
@@ -59,7 +54,7 @@ target_compile_options(Xfont2 PRIVATE
         "-DHAVE_STRLCPY"
         "-DXFONT_BDFFORMAT=1"
         "-DXFONT_BITMAP=1"
-        "-DXFONT_FREETYPE=1"
+        "-UXFONT_FREETYPE"
         "-DXFONT_PCFFORMAT=1"
         "-UXFONT_SNFFORMAT"
         "-UX_BZIP2_FONT_COMPRESSION"
@@ -72,4 +67,4 @@ target_compile_options(Xfont2 PRIVATE
         "-D_XOPEN_SOURCE"
         "-DNOFILES_MAX=512")
 target_include_directories(Xfont2 PRIVATE "libxfont" "libxfont/include" "libfontenc/include")
-target_link_libraries(Xfont2 PUBLIC freetype xorgproto)
+target_link_libraries(Xfont2 PUBLIC xorgproto)

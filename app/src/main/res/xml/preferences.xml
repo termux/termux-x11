@@ -107,7 +107,7 @@
 
         <SwitchPreferenceCompat
             android:title="Intercept system shortcuts"
-            android:summary="Samsung Dex only. Allows interception of &quot;Alt+F4&quot;, &quot;Meta+D&quot;, &quot;Meta+E&quot;, -etc. "
+            android:summary="Samsung Dex only. Allows interception of &quot;Alt+F4&quot;, &quot;Meta+D&quot;, &quot;Meta+E&quot;, etc. "
             android:defaultValue="false"
             android:key="dexMetaKeyCapture" />
 

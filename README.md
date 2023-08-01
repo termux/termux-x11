@@ -50,6 +50,11 @@ You may replace `xfce4-session` if you use other than Xfce
 If you're done using Termux:X11 just simply exit it through it's notification drawer by expanding the Termux:X11 notification then "Exit"
 But you should pay attention that `termux-x11` command is still running and can not be killed this way.
 
+For some reason some devices output only black screen with cursor instead of normal output so you should pass `-legacy-drawing` option.
+```
+~ $ termux-x11 :1 -legacy-drawing -xstartup "xfce4-session"
+```
+
 ## Using with proot environment
 If you plan to use the program with proot, keep in mind that you need to launch proot/proot-distro with the --shared-tmp option. 
 If passing this option is not possible, set the TMPDIR environment variable to point to the directory that corresponds to /tmp in the target container.
@@ -112,7 +117,7 @@ In touchpad emulation mode you can use the following gestures:
 * Two-finger horizontal swipe for horizontal scroll
 * Three-finger swipe down to show-hide additional keys bar.
 ### Mouse emulation mode.
-In touchpad emulation mode you can use the following gestures:
+In mouse emulation mode you can use the following gestures:
 * Mouse is in click mode as long as you hold finger on a screen.
 * Double tap for double click
 * Two-finger tap for right click

@@ -16,9 +16,8 @@ public interface InputStrategyInterface {
      * Called when a user tap has been detected.
      *
      * @param button The button value for the tap event.
-     * @return A boolean representing whether the event was handled.
      */
-    boolean onTap(int button);
+    void onTap(int button);
 
     /**
      * Called when the user has put one or more fingers down on the screen for a period of time.
@@ -51,22 +50,6 @@ public interface InputStrategyInterface {
      * @param y The new y coordinate of the cursor.
      */
     void injectCursorMoveEvent(int x, int y);
-
-    /**
-     * Returns the feedback animation type to use for a short press.
-     *
-     * @return The feedback to display when a short press occurs.
-     */
-    @RenderStub.InputFeedbackType
-    int getShortPressFeedbackType();
-
-    /**
-     * Returns the feedback animation type to use for a long press.
-     *
-     * @return The feedback to display when a long press occurs.
-     */
-    @RenderStub.InputFeedbackType
-    int getLongPressFeedbackType();
 
     /**
      * Indicates whether this input mode is an indirect input mode.  Indirect input modes manipulate

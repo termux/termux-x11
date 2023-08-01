@@ -30,7 +30,8 @@ public final class InputEventSender {
     private final Set<Integer> mPressedTextKeys;
 
     public InputEventSender(InputStub injector) {
-        Preconditions.notNull(injector);
+        if (injector == null)
+            throw new NullPointerException();
         mInjector = injector;
         mPressedTextKeys = new TreeSet<>();
     }
@@ -44,35 +45,29 @@ public final class InputEventSender {
         mInjector.sendMouseEvent((int) pos.x, (int) pos.y, button, down, relative);
     }
 
-    public void sendMouseDown(PointF pos, int button) {
-        sendMouseEvent(pos, button, true, false);
+    public void sendMouseDown(int button) {
+        mInjector.sendMouseEvent(0, 0, button, true, false);
     }
 
-    public void sendMouseUp(PointF pos, int button) {
-        sendMouseEvent(pos, button, false, false);
+    public void sendMouseUp(int button) {
+        mInjector.sendMouseEvent(0, 0, button, false, false);
     }
 
-    public void sendMouseClick(PointF pos, int button) {
-        sendMouseDown(pos, button);
-        sendMouseUp(pos, button);
+    public void sendMouseClick(int button) {
+        mInjector.sendMouseEvent(0, 0, button, true, false);
+        mInjector.sendMouseEvent(0, 0, button, false, false);
     }
 
     public void sendCursorMove(PointF pos) {
-        sendMouseUp(pos, InputStub.BUTTON_UNDEFINED);
+        mInjector.sendMouseEvent(pos.x, pos.y, InputStub.BUTTON_UNDEFINED, false, false);
     }
 
-    // TODO(zijiehe): This function will be eventually removed after {@link InputStrategyInterface}
-    // has been deprecated.
     public void sendCursorMove(float x, float y) {
-        sendCursorMove(new PointF(x, y));
+        mInjector.sendMouseEvent(x, y, InputStub.BUTTON_UNDEFINED, false, false);
     }
 
     public void sendMouseWheelEvent(float distanceX, float distanceY) {
         mInjector.sendMouseWheelEvent(distanceX, distanceY);
-    }
-
-    public void sendReverseMouseWheelEvent(float distanceX, float distanceY) {
-        sendMouseWheelEvent(-distanceX, -distanceY);
     }
 
     /**

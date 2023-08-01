@@ -27,9 +27,8 @@ public class TapGestureDetector {
          * @param pointerCount The number of fingers that were tapped.
          * @param x The x coordinate of the initial finger tapped.
          * @param y The y coordinate of the initial finger tapped.
-         * @return True if the event is consumed.
          */
-        boolean onTap(int pointerCount, float x, float y);
+        void onTap(int pointerCount, float x, float y);
 
         /**
          * Notified when a long-touch event occurs.
@@ -68,6 +67,7 @@ public class TapGestureDetector {
     /** Set to true whenever motion is detected in the gesture, or a long-touch is triggered. */
     private boolean mTapCancelled;
 
+    /** @noinspection NullableProblems*/
     // This static inner class holds a WeakReference to the outer object, to avoid triggering the
     // lint HandlerLeak warning.
     @SuppressWarnings("deprecation")
@@ -83,8 +83,7 @@ public class TapGestureDetector {
             TapGestureDetector detector = mDetector.get();
             if (detector != null) {
                 detector.mTapCancelled = true;
-                detector.mListener.onLongPress(
-                        detector.mPointerCount, detector.mInitialPoint.x, detector.mInitialPoint.y);
+                detector.mListener.onLongPress(detector.mPointerCount, detector.mInitialPoint.x, detector.mInitialPoint.y);
                 detector.mInitialPoint = null;
             }
         }
@@ -98,9 +97,10 @@ public class TapGestureDetector {
         mTouchSlopSquare = touchSlop * touchSlop;
     }
 
-    /** Analyzes the touch event to determine whether to notify the listener. */
-    public boolean onTouchEvent(MotionEvent event) {
-        boolean handled = false;
+    /**
+     * Analyzes the touch event to determine whether to notify the listener.
+     */
+    public void onTouchEvent(MotionEvent event) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 reset();
@@ -127,9 +127,8 @@ public class TapGestureDetector {
 
             case MotionEvent.ACTION_UP:
                 cancelLongTouchNotification();
-                if (!mTapCancelled) {
-                    handled = mListener.onTap(mPointerCount, mInitialPoint.x, mInitialPoint.y);
-                }
+                if (!mTapCancelled)
+                    mListener.onTap(mPointerCount, mInitialPoint.x, mInitialPoint.y);
                 mInitialPoint = null;
                 break;
 
@@ -145,7 +144,6 @@ public class TapGestureDetector {
             default:
                 break;
         }
-        return handled;
     }
 
     /** Stores the location of the ACTION_DOWN or ACTION_POINTER_DOWN event. */

@@ -8,11 +8,6 @@ import android.content.Context;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
 
-import androidx.annotation.IntDef;
-
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-
 /**
  * Helper class for disambiguating whether to treat a two-finger gesture as a swipe or a pinch.
  * Initially, the status will be unknown, until the fingers have moved sufficiently far to
@@ -20,14 +15,7 @@ import java.lang.annotation.RetentionPolicy;
  */
 @SuppressWarnings("ConstantConditions")
 public class SwipeDetector {
-    /** Current state of the gesture. */
-    @IntDef({State.UNKNOWN, State.SWIPE})
-    @Retention(RetentionPolicy.SOURCE)
-    private @interface State {
-        int UNKNOWN = 0;
-        int SWIPE = 1;
-    }
-    private @State int mState = State.UNKNOWN;
+    private boolean mInSwipe = false;
 
     /** Initial coordinates of the two pointers in the current gesture. */
     private float mFirstX0;
@@ -47,7 +35,7 @@ public class SwipeDetector {
     private final int mTouchSlopSquare;
 
     private void reset() {
-        mState = State.UNKNOWN;
+        mInSwipe = false;
         mInGesture = false;
     }
 
@@ -60,7 +48,7 @@ public class SwipeDetector {
 
     /** Returns whether a swipe is in progress. */
     public boolean isSwiping() {
-        return mState == State.SWIPE;
+        return mInSwipe;
     }
 
     /**
@@ -84,16 +72,14 @@ public class SwipeDetector {
         int action = event.getActionMasked();
         if (action != MotionEvent.ACTION_MOVE) {
             reset();
-            if (action != MotionEvent.ACTION_POINTER_DOWN) {
+            if (action != MotionEvent.ACTION_POINTER_DOWN)
                 return;
-            }
         }
 
         // If the gesture is known, there is no need for further processing - the state should
         // remain the same until the gesture is complete, as tested above.
-        if (mState != State.UNKNOWN) {
+        if (mInSwipe)
             return;
-        }
 
         float currentX0 = event.getX(0);
         float currentY0 = event.getY(0);
@@ -117,7 +103,6 @@ public class SwipeDetector {
         float squaredDistance0 = deltaX0 * deltaX0 + deltaY0 * deltaY0;
         float squaredDistance1 = deltaX1 * deltaX1 + deltaY1 * deltaY1;
 
-
         // If both fingers have moved beyond the touch-slop, it is safe to recognize the gesture.
         // However, one finger might be held stationary whilst the other finger is moved a long
         // distance. In this case, it is preferable to trigger a PINCH. This should be detected
@@ -127,14 +112,7 @@ public class SwipeDetector {
         boolean finger0Moved = squaredDistance0 > mTouchSlopSquare;
         boolean finger1Moved = squaredDistance1 > mTouchSlopSquare;
 
-        if (!finger0Moved && !finger1Moved) {
-            return;
-        }
-
-        if (finger0Moved && !finger1Moved)
-            return;
-
-        if (!finger0Moved && finger1Moved)
+        if ((!finger0Moved && !finger1Moved) || (finger0Moved && !finger1Moved) || (!finger0Moved && finger1Moved))
             return;
 
         // Both fingers have moved, so determine SWIPE/PINCH status. If the fingers have moved in
@@ -143,6 +121,6 @@ public class SwipeDetector {
         // vectors are pointing in the same direction, and negative if they're in opposite
         // directions.
         float scalarProduct = deltaX0 * deltaX1 + deltaY0 * deltaY1;
-        mState = (scalarProduct > 0) ? State.SWIPE: State.UNKNOWN;
+        mInSwipe = scalarProduct > 0;
     }
 }

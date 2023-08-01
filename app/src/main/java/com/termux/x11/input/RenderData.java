@@ -19,9 +19,6 @@ public class RenderData {
     public int imageWidth;
     public int imageHeight;
 
-    /** Determines whether the local cursor should be drawn. */
-    public boolean drawCursor;
-
     /**
      * Specifies the position, in image coordinates, at which the cursor image will be drawn.
      * This will normally be at the location of the most recently injected motion event.

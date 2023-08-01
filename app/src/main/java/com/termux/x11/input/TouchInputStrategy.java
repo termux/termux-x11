@@ -5,7 +5,6 @@
 package com.termux.x11.input;
 
 import android.graphics.Matrix;
-import android.graphics.PointF;
 import android.view.MotionEvent;
 
 import androidx.core.math.MathUtils;
@@ -54,23 +53,21 @@ public class TouchInputStrategy implements InputStrategyInterface {
     private final InputEventSender mInjector;
 
     public TouchInputStrategy(RenderData renderData, InputEventSender injector) {
-        Preconditions.notNull(injector);
+        if (injector == null)
+            throw new NullPointerException();
         mRenderData = renderData;
         mInjector = injector;
-
-        mRenderData.drawCursor = false;
     }
 
     @Override
-    public boolean onTap(int button) {
-        if (mQueuedEvents.isEmpty() || mIgnoreTouchEvents) {
-            return false;
-        }
+    public void onTap(int button) {
+        if (mQueuedEvents.isEmpty() || mIgnoreTouchEvents)
+            return;
 
         switch (button) {
             case InputStub.BUTTON_LEFT:
                 injectQueuedEvents();
-                return true;
+                return;
 
             case InputStub.BUTTON_RIGHT:
                 // Using the mouse for right-clicking is consistent across all host platforms.
@@ -80,22 +77,19 @@ public class TouchInputStrategy implements InputStrategyInterface {
                 MotionEvent downEvent = mQueuedEvents.peek();
                 assert Objects.requireNonNull(downEvent).getActionMasked() == MotionEvent.ACTION_DOWN;
 
-                mInjector.sendMouseClick(new PointF(downEvent.getX(), downEvent.getY()), InputStub.BUTTON_RIGHT);
+                mInjector.sendMouseClick(InputStub.BUTTON_RIGHT);
                 clearQueuedEvents();
-                return true;
+                return;
 
             default:
                 // Tap gestures for > 2 fingers are not supported.
-                return false;
         }
     }
 
     @Override
     public boolean onPressAndHold(int button) {
-        if (button != InputStub.BUTTON_LEFT || mQueuedEvents.isEmpty()
-                || mIgnoreTouchEvents) {
+        if (button != InputStub.BUTTON_LEFT || mQueuedEvents.isEmpty() || mIgnoreTouchEvents)
             return false;
-        }
 
         mInRemoteGesture = true;
         injectQueuedEvents();
@@ -104,9 +98,8 @@ public class TouchInputStrategy implements InputStrategyInterface {
 
     @Override
     public void onScroll(float distanceX, float distanceY) {
-        if (mIgnoreTouchEvents || mInRemoteGesture) {
+        if (mIgnoreTouchEvents || mInRemoteGesture)
             return;
-        }
 
         mInRemoteGesture = true;
         injectQueuedEvents();
@@ -122,9 +115,9 @@ public class TouchInputStrategy implements InputStrategyInterface {
         // a remote gesture, then the queue is cleared and we will wait until the start of the next
         // gesture to begin queueing again.
         int action = event.getActionMasked();
-        if (mIgnoreTouchEvents && action != MotionEvent.ACTION_DOWN) {
+        if (mIgnoreTouchEvents && action != MotionEvent.ACTION_DOWN)
             return;
-        } else if (mQueuedEvents.size() > QUEUED_EVENT_THRESHOLD) {
+        else if (mQueuedEvents.size() > QUEUED_EVENT_THRESHOLD) {
             // Since we maintain a queue of events to replay once the gesture is known, we need to
             // ensure that we do not continue to queue events when we are reasonably sure that the
             // user action is not going to be sent to the remote host.
@@ -172,16 +165,6 @@ public class TouchInputStrategy implements InputStrategyInterface {
 
     @Override
     public void injectCursorMoveEvent(int x, int y) {}
-
-    @Override
-    public @RenderStub.InputFeedbackType int getShortPressFeedbackType() {
-        return RenderStub.InputFeedbackType.NONE;
-    }
-
-    @Override
-    public @RenderStub.InputFeedbackType int getLongPressFeedbackType() {
-        return RenderStub.InputFeedbackType.LONG_TOUCH_ANIMATION;
-    }
 
     @Override
     public boolean isIndirectInputMode() {

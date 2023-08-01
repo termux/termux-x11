@@ -33,15 +33,13 @@ public class TouchInputHandler {
 
     /** Used to set/store the selected input mode. */
     @SuppressWarnings("unused")
-    @IntDef({InputMode.UNKNOWN, InputMode.TRACKPAD, InputMode.SIMULATED_TOUCH, InputMode.TOUCH})
+    @IntDef({InputMode.TRACKPAD, InputMode.SIMULATED_TOUCH, InputMode.TOUCH})
     @Retention(RetentionPolicy.SOURCE)
     public @interface InputMode {
         // Values are starting from 0 and don't have gaps.
-        int UNKNOWN = 0;
         int TRACKPAD = 1;
         int SIMULATED_TOUCH = 2;
         int TOUCH = 3;
-        int NUM_ENTRIES = 4;
     }
 
     private final RenderData mRenderData;
@@ -74,18 +72,6 @@ public class TouchInputHandler {
      */
     private final float mSwipeThreshold;
 
-//    /**
-//     * Distance, in pixels, from the edge of the screen in which a touch event should be considered
-//     * as having originated from that edge.
-//     */
-//    private final int mEdgeSlopInPx;
-
-//    /**
-//     * Defines an inset boundary within which pan gestures are allowed.  Pan gestures which
-//     * originate outside of this boundary will be ignored.
-//     */
-//    private Rect mPanGestureBounds = new Rect();
-
     /**
      * Set to true to prevent any further movement of the cursor, for example, when showing the
      * keyboard to prevent the cursor wandering from the area where keystrokes should be sent.
@@ -106,15 +92,13 @@ public class TouchInputHandler {
 
     private TouchInputHandler(Context ctx, RenderData renderData, RenderStub renderStub,
                               final InputEventSender injector, boolean isTouchpad) {
-        Preconditions.notNull(renderStub);
-        Preconditions.notNull(injector);
+        if (renderStub == null || injector == null)
+            throw new NullPointerException();
 
-//        mDesktop = desktop;
         mRenderStub = renderStub;
         mRenderData = renderData != null ? renderData :new RenderData();
         mInjector = injector;
         mContext = ctx;
-//        mDesktopCanvas = new DesktopCanvas(renderStub, mRenderData);
 
         GestureListener listener = new GestureListener();
         mScroller = new GestureDetector(/*desktop*/ ctx, listener, null, false);
@@ -245,17 +229,14 @@ public class TouchInputHandler {
                 newPos.set(
                         MathUtils.clamp(newPos.x, 0, mRenderData.screenWidth),
                         MathUtils.clamp(newPos.y, 0, mRenderData.screenHeight));
-                boolean cursorMoved = mRenderData.setCursorPosition(newPos.x, newPos.y);
-                if (cursorMoved)
+                if (mRenderData.setCursorPosition(newPos.x, newPos.y))
                     mInjector.sendCursorMove(mRenderData.getCursorPosition());
-
-                mRenderStub.moveCursor(mRenderData.getCursorPosition());
                 break;
             case MotionEvent.ACTION_BUTTON_PRESS:
-                mInjector.sendMouseDown(mRenderData.getCursorPosition(), button);
+                mInjector.sendMouseDown(button);
                 break;
             case MotionEvent.ACTION_BUTTON_RELEASE:
-                mInjector.sendMouseUp(mRenderData.getCursorPosition(), button);
+                mInjector.sendMouseUp(button);
                 break;
             case MotionEvent.ACTION_SCROLL:
                 float scrollY = -100 * e.getAxisValue(MotionEvent.AXIS_VSCROLL);
@@ -306,7 +287,7 @@ public class TouchInputHandler {
         else if (inputMode == InputMode.SIMULATED_TOUCH)
             mInputStrategy = new SimulatedTouchInputStrategy(mRenderData, mInjector, mContext);
         else
-            mInputStrategy = new TrackpadInputStrategy(mRenderData, mInjector);
+            mInputStrategy = new TrackpadInputStrategy(mInjector);
     }
 
     public void setPreferScancodes(boolean enabled) {
@@ -331,11 +312,8 @@ public class TouchInputHandler {
 
     /** Moves the cursor to the specified position on the remote host. */
     private void moveCursor(float newX, float newY) {
-        boolean cursorMoved = mRenderData.setCursorPosition(newX, newY);
-        if (cursorMoved)
+        if (mRenderData.setCursorPosition(newX, newY))
             mInputStrategy.injectCursorMoveEvent((int) newX, (int) newY);
-
-        mRenderStub.moveCursor(mRenderData.getCursorPosition());
     }
 
     /** Processes a (multi-finger) swipe gesture. */
@@ -386,15 +364,6 @@ public class TouchInputHandler {
         @Override
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
             int pointerCount = e2.getPointerCount();
-
-            // Check to see if the motion originated at the edge of the screen.
-            // If so, then the user is likely swiping in to display system UI.
-            // Also we should check if we are in touchpad handler since it can send events in coordinates of itself
-//            if (!mPanGestureBounds.contains((int) e1.getX(), (int) e1.getY())) {
-//                 // Prevent the cursor being moved or flung by the gesture.
-//                mSuppressCursorMovement = true;
-//                return false;
-//            }
 
             if (pointerCount >= 3 && !mSwipeCompleted) {
                 // Note that distance values are reversed. For example, dragging a finger in the
@@ -463,26 +432,23 @@ public class TouchInputHandler {
         public void onScaleEnd(ScaleGestureDetector detector) {
         }
 
-        /** Called when the user taps the screen with one or more fingers. */
+        /**
+         * Called when the user taps the screen with one or more fingers.
+         */
         @Override
-        public boolean onTap(int pointerCount, float x, float y) {
+        public void onTap(int pointerCount, float x, float y) {
             int button = mouseButtonFromPointerCount(pointerCount);
-            if (button == InputStub.BUTTON_UNDEFINED) {
-                return false;
-            }
+            if (button == InputStub.BUTTON_UNDEFINED)
+                return;
 
             if (!mInputStrategy.isIndirectInputMode()) {
-                if (screenPointLiesOutsideImageBoundary(x, y)) {
-                    return false;
-                }
+                if (screenPointLiesOutsideImageBoundary(x, y))
+                    return;
+
                 moveCursorToScreenPoint(x, y);
             }
 
-            if (mInputStrategy.onTap(button)) {
-                PointF pos = mRenderData.getCursorPosition();
-                mRenderStub.showInputFeedback(mInputStrategy.getShortPressFeedbackType(), pos);
-            }
-            return true;
+            mInputStrategy.onTap(button);
         }
 
         /** Called when a long-press is triggered for one or more fingers. */
@@ -499,12 +465,8 @@ public class TouchInputHandler {
                 moveCursorToScreenPoint(x, y);
             }
 
-            if (mInputStrategy.onPressAndHold(button)) {
-                PointF pos = mRenderData.getCursorPosition();
-
-                mRenderStub.showInputFeedback(mInputStrategy.getLongPressFeedbackType(), pos);
+            if (mInputStrategy.onPressAndHold(button))
                 mIsDragging = true;
-            }
         }
 
         /** Maps the number of fingers in a tap or long-press gesture to a mouse-button. */
@@ -724,6 +686,27 @@ public class TouchInputHandler {
             mInjector.sendMouseEvent(mRenderData.getCursorPosition(), 1, true, false);
             mInjector.sendMouseEvent(mRenderData.getCursorPosition(), 1, false, false);
             return true;
+        }
+    }
+
+
+    /**
+     * Interface with a set of functions to control the behavior of the remote host renderer.
+     */
+    public interface RenderStub {
+        /**
+         * Informs the stub that swipe was performed.
+         */
+        void swipeUp();
+
+        /**
+         * Informs the stub that swipe was performed.
+         */
+        void swipeDown();
+
+        class NullStub implements RenderStub {
+            @Override public void swipeUp() {}
+            @Override public void swipeDown() {}
         }
     }
 }

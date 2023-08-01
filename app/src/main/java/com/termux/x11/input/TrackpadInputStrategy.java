@@ -4,7 +4,6 @@
 
 package com.termux.x11.input;
 
-import android.graphics.PointF;
 import android.view.MotionEvent;
 
 /**
@@ -13,29 +12,25 @@ import android.view.MotionEvent;
  * to the remote host for injection there.
  */
 public class TrackpadInputStrategy implements InputStrategyInterface {
-    private final RenderData mRenderData;
     private final InputEventSender mInjector;
 
     /** Mouse-button currently held down, or BUTTON_UNDEFINED otherwise. */
     private int mHeldButton = InputStub.BUTTON_UNDEFINED;
 
-    public TrackpadInputStrategy(RenderData renderData, InputEventSender injector) {
-        Preconditions.notNull(injector);
-        mRenderData = renderData;
+    public TrackpadInputStrategy(InputEventSender injector) {
+        if (injector == null)
+            throw new NullPointerException();
         mInjector = injector;
-
-        mRenderData.drawCursor = true;
     }
 
     @Override
-    public boolean onTap(int button) {
-        mInjector.sendMouseClick(getCursorPosition(), button);
-        return true;
+    public void onTap(int button) {
+        mInjector.sendMouseClick(button);
     }
 
     @Override
     public boolean onPressAndHold(int button) {
-        mInjector.sendMouseDown(getCursorPosition(), button);
+        mInjector.sendMouseDown(button);
         mHeldButton = button;
         return true;
     }
@@ -47,9 +42,8 @@ public class TrackpadInputStrategy implements InputStrategyInterface {
 
     @Override
     public void onMotionEvent(MotionEvent event) {
-        if (event.getActionMasked() == MotionEvent.ACTION_UP
-                && mHeldButton != InputStub.BUTTON_UNDEFINED) {
-            mInjector.sendMouseUp(getCursorPosition(), mHeldButton);
+        if (event.getActionMasked() == MotionEvent.ACTION_UP && mHeldButton != InputStub.BUTTON_UNDEFINED) {
+            mInjector.sendMouseUp(mHeldButton);
             mHeldButton = InputStub.BUTTON_UNDEFINED;
         }
     }
@@ -60,21 +54,7 @@ public class TrackpadInputStrategy implements InputStrategyInterface {
     }
 
     @Override
-    public @RenderStub.InputFeedbackType int getShortPressFeedbackType() {
-        return RenderStub.InputFeedbackType.NONE;
-    }
-
-    @Override
-    public @RenderStub.InputFeedbackType int getLongPressFeedbackType() {
-        return RenderStub.InputFeedbackType.LONG_TRACKPAD_ANIMATION;
-    }
-
-    @Override
     public boolean isIndirectInputMode() {
         return true;
-    }
-
-    private PointF getCursorPosition() {
-        return mRenderData.getCursorPosition();
     }
 }

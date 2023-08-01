@@ -49,7 +49,8 @@ public class SimulatedTouchInputStrategy implements InputStrategyInterface {
 
     public SimulatedTouchInputStrategy(
             RenderData renderData, InputEventSender injector, Context context) {
-        Preconditions.notNull(injector);
+        if (injector == null)
+            throw new NullPointerException();
         mRenderData = renderData;
         mInjector = injector;
 
@@ -76,12 +77,10 @@ public class SimulatedTouchInputStrategy implements InputStrategyInterface {
         int scaledDoubleTapSlopInPx = config.getScaledDoubleTapSlop();
         scaledDoubleTapSlopInPx = (int) (scaledDoubleTapSlopInPx * DOUBLE_TAP_SLOP_SCALE_FACTOR);
         mDoubleTapSlopSquareInPx = scaledDoubleTapSlopInPx * scaledDoubleTapSlopInPx;
-
-        mRenderData.drawCursor = false;
     }
 
     @Override
-    public boolean onTap(int button) {
+    public void onTap(int button) {
         PointF currentTapPoint = getCursorPosition();
         if (button == InputStub.BUTTON_LEFT) {
             // Left clicks are handled a little differently than the events for other buttons.
@@ -94,7 +93,6 @@ public class SimulatedTouchInputStrategy implements InputStrategyInterface {
             // attempting a double tap, we use the original event's location for that second tap.
             long tapInterval = SystemClock.uptimeMillis() - mLastTapTimeInMs;
             if (isDoubleTap(currentTapPoint.x, currentTapPoint.y, tapInterval)) {
-                currentTapPoint = new PointF(mLastTapPoint.x, mLastTapPoint.y);
                 mLastTapPoint = null;
                 mLastTapTimeInMs = 0;
             } else {
@@ -106,13 +104,12 @@ public class SimulatedTouchInputStrategy implements InputStrategyInterface {
             mLastTapTimeInMs = 0;
         }
 
-        mInjector.sendMouseClick(currentTapPoint, button);
-        return true;
+        mInjector.sendMouseClick(button);
     }
 
     @Override
     public boolean onPressAndHold(int button) {
-        mInjector.sendMouseDown(getCursorPosition(), button);
+        mInjector.sendMouseDown(button);
         mHeldButton = button;
         return true;
     }
@@ -124,9 +121,8 @@ public class SimulatedTouchInputStrategy implements InputStrategyInterface {
 
     @Override
     public void onMotionEvent(MotionEvent event) {
-        if (event.getActionMasked() == MotionEvent.ACTION_UP
-                && mHeldButton != InputStub.BUTTON_UNDEFINED) {
-            mInjector.sendMouseUp(getCursorPosition(), mHeldButton);
+        if (event.getActionMasked() == MotionEvent.ACTION_UP && mHeldButton != InputStub.BUTTON_UNDEFINED) {
+            mInjector.sendMouseUp(mHeldButton);
             mHeldButton = InputStub.BUTTON_UNDEFINED;
         }
     }
@@ -134,16 +130,6 @@ public class SimulatedTouchInputStrategy implements InputStrategyInterface {
     @Override
     public void injectCursorMoveEvent(int x, int y) {
         mInjector.sendCursorMove(x, y);
-    }
-
-    @Override
-    public @RenderStub.InputFeedbackType int getShortPressFeedbackType() {
-        return RenderStub.InputFeedbackType.SHORT_TOUCH_ANIMATION;
-    }
-
-    @Override
-    public @RenderStub.InputFeedbackType int getLongPressFeedbackType() {
-        return RenderStub.InputFeedbackType.LONG_TOUCH_ANIMATION;
     }
 
     @Override

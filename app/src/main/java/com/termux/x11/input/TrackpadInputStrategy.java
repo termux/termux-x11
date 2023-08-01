@@ -18,9 +18,8 @@ public class TrackpadInputStrategy implements InputStrategyInterface {
     private int mHeldButton = InputStub.BUTTON_UNDEFINED;
 
     public TrackpadInputStrategy(InputEventSender injector) {
-        if (injector == null)
+        if ((mInjector = injector) == null)
             throw new NullPointerException();
-        mInjector = injector;
     }
 
     @Override
@@ -46,15 +45,5 @@ public class TrackpadInputStrategy implements InputStrategyInterface {
             mInjector.sendMouseUp(mHeldButton);
             mHeldButton = InputStub.BUTTON_UNDEFINED;
         }
-    }
-
-    @Override
-    public void injectCursorMoveEvent(int x, int y) {
-        mInjector.sendCursorMove(x, y);
-    }
-
-    @Override
-    public boolean isIndirectInputMode() {
-        return true;
     }
 }

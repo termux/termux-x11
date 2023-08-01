@@ -42,21 +42,4 @@ public interface InputStrategyInterface {
      * @param distanceY The distance moved along the y-axis.
      */
     void onScroll(float distanceX, float distanceY);
-
-    /**
-     * Called to update the remote cursor position.
-     *
-     * @param x The new x coordinate of the cursor.
-     * @param y The new y coordinate of the cursor.
-     */
-    void injectCursorMoveEvent(int x, int y);
-
-    /**
-     * Indicates whether this input mode is an indirect input mode.  Indirect input modes manipulate
-     * the cursor in a detached fashion (such as a trackpad) and direct input modes will update the
-     * cursor/screen position to match the location of the touch point.
-     *
-     * @return A boolean representing whether this input mode is indirect (true) or direct (false).
-     */
-    boolean isIndirectInputMode();
 }

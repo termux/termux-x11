@@ -163,14 +163,6 @@ public class TouchInputStrategy implements InputStrategyInterface {
         injectQueuedEvents();
     }
 
-    @Override
-    public void injectCursorMoveEvent(int x, int y) {}
-
-    @Override
-    public boolean isIndirectInputMode() {
-        return false;
-    }
-
     private void injectQueuedEvents() {
         while (!mQueuedEvents.isEmpty()) {
             MotionEvent event = mQueuedEvents.remove();

@@ -81,7 +81,7 @@ public class SimulatedTouchInputStrategy implements InputStrategyInterface {
 
     @Override
     public void onTap(int button) {
-        PointF currentTapPoint = getCursorPosition();
+        PointF currentTapPoint = mRenderData.getCursorPosition();
         if (button == InputStub.BUTTON_LEFT) {
             // Left clicks are handled a little differently than the events for other buttons.
             // This is needed because translating touch events to mouse events has a problem with
@@ -125,20 +125,6 @@ public class SimulatedTouchInputStrategy implements InputStrategyInterface {
             mInjector.sendMouseUp(mHeldButton);
             mHeldButton = InputStub.BUTTON_UNDEFINED;
         }
-    }
-
-    @Override
-    public void injectCursorMoveEvent(int x, int y) {
-        mInjector.sendCursorMove(x, y);
-    }
-
-    @Override
-    public boolean isIndirectInputMode() {
-        return false;
-    }
-
-    private PointF getCursorPosition() {
-        return mRenderData.getCursorPosition();
     }
 
     private boolean isDoubleTap(float currentX, float currentY, long tapInterval) {

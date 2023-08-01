@@ -52,6 +52,8 @@ from The Open Group.
 #include <sys/wait.h>
 #include <selection.h>
 #include <X11/Xatom.h>
+#include <present.h>
+#include <present_priv.h>
 #include "scrnintstr.h"
 #include "servermd.h"
 #include "fb.h"
@@ -605,6 +607,9 @@ void lorieConfigureNotify(int width, int height, int framerate) {
         struct itimerspec spec = { { 0, nsecs }, { 0, nsecs } };
         timerfd_settime(lorieScreen.timerFd, 0, &spec, NULL);
         log(VERBOSE, "New framerate is %d", framerate);
+
+        FakeScreenFps = framerate;
+        present_fake_screen_init(pScreen);
     }
 }
 

@@ -35,6 +35,8 @@ from The Open Group.
 #include "xkbsrv.h"
 #include "xserver-properties.h"
 #include "exevents.h"
+#include "renderer.h"
+
 #define unused __attribute__((unused))
 
 unused DeviceIntPtr lorieMouse, lorieMouseRelative, lorieTouch, lorieKeyboard;
@@ -97,10 +99,10 @@ lorieInitPointerButtons(DeviceIntPtr device)
 }
 
 static int
-lorieMouseProc(DeviceIntPtr pDevice, int onoff) {
-#define NAXES 4
+lorieMouseProc(DeviceIntPtr device, int onoff) {
+#define NAXES 2
 #define NBUTTONS 7
-    DevicePtr pDev = (DevicePtr) pDevice;
+    DevicePtr pDev = (DevicePtr) device;
 
     switch (onoff) {
     case DEVICE_INIT: {
@@ -108,26 +110,20 @@ lorieMouseProc(DeviceIntPtr pDevice, int onoff) {
 
         axes_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X);
         axes_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
-        axes_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_HWHEEL);
-        axes_labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_WHEEL);
 
-        if (!lorieInitPointerButtons(pDevice))
-            return BadValue;
+//        if (!lorieInitPointerButtons(pDevice))
+//            return BadValue;
 
-        if (!InitValuatorClassDeviceStruct(pDevice, NAXES, axes_labels, GetMotionHistorySize(), Absolute))
+        if (!InitValuatorClassDeviceStruct(device, NAXES, axes_labels, GetMotionHistorySize(), Absolute))
             return BadValue;
 
         /* Valuators */
-        InitValuatorAxisStruct(pDevice, 0, axes_labels[0], 0, 0xFFFF, 10000, 0, 10000, Absolute);
-        InitValuatorAxisStruct(pDevice, 1, axes_labels[1], 0, 0xFFFF, 10000, 0, 10000, Absolute);
-        InitValuatorAxisStruct(pDevice, 2, axes_labels[2], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative);
-        InitValuatorAxisStruct(pDevice, 3, axes_labels[3], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative);
+        InitValuatorAxisStruct(device, 0, axes_labels[0], 0, 0xFFFF, 10000, 0, 10000, Absolute);
+        InitValuatorAxisStruct(device, 1, axes_labels[1], 0, 0xFFFF, 10000, 0, 10000, Absolute);
 
-        SetScrollValuator(pDevice, 2, SCROLL_TYPE_HORIZONTAL, 1.0, SCROLL_FLAG_NONE);
-        SetScrollValuator(pDevice, 3, SCROLL_TYPE_VERTICAL, 1.0, SCROLL_FLAG_PREFERRED);
-
-        if (!InitPtrFeedbackClassDeviceStruct(pDevice, (PtrCtrlProcPtr) NoopDDA))
-            return BadValue;
+//        if (!InitPtrFeedbackClassDeviceStruct(pDevice, (PtrCtrlProcPtr) NoopDDA))
+//            return BadValue;
+        InitPointerAccelerationScheme(device, PtrAccelNoOp);
         break;
     }
     case DEVICE_ON:
@@ -150,7 +146,7 @@ lorieMouseProc(DeviceIntPtr pDevice, int onoff) {
 unused static int
 lorieMouseRelativeProc(DeviceIntPtr device, int what)
 {
-#define NAXES 2
+#define NAXES 4
     Atom axes_labels[NAXES] = { 0 };
 
     switch (what) {
@@ -159,22 +155,20 @@ lorieMouseRelativeProc(DeviceIntPtr device, int what)
 
             axes_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_X);
             axes_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_Y);
+            axes_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_HWHEEL);
+            axes_labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_WHEEL);
 
-            /*
-             * We'll never send buttons, but XGetPointerMapping might in certain
-             * situations make the client think we have no buttons.
-             */
-            if (!lorieInitPointerButtons(device))
-                return BadValue;
-
-            if (!InitValuatorClassDeviceStruct(device, NAXES, axes_labels, GetMotionHistorySize(), Relative))
-                return BadValue;
-
+            if (!lorieInitPointerButtons(device)
+            ||  !InitValuatorClassDeviceStruct(device, NAXES, axes_labels, GetMotionHistorySize(), Relative)
             /* Valuators */
-            InitValuatorAxisStruct(device, 0, axes_labels[0], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative);
-            InitValuatorAxisStruct(device, 1, axes_labels[1], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative);
-
-            if (!InitPtrFeedbackClassDeviceStruct(device, (PtrCtrlProcPtr) NoopDDA))
+            ||  !InitValuatorAxisStruct(device, 0, axes_labels[0], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative)
+            ||  !InitValuatorAxisStruct(device, 1, axes_labels[1], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative)
+            ||  !InitValuatorAxisStruct(device, 2, axes_labels[2], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative)
+            ||  !InitValuatorAxisStruct(device, 3, axes_labels[3], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative)
+            ||  !SetScrollValuator(device, 2, SCROLL_TYPE_HORIZONTAL, 1.0, SCROLL_FLAG_NONE)
+            ||  !SetScrollValuator(device, 3, SCROLL_TYPE_VERTICAL, 1.0, SCROLL_FLAG_PREFERRED)
+            ||  !InitPtrFeedbackClassDeviceStruct(device, (PtrCtrlProcPtr) NoopDDA)
+            ||  !InitPointerAccelerationScheme(device, PtrAccelPredictable))
                 return BadValue;
 
             return Success;
@@ -190,8 +184,6 @@ lorieMouseRelativeProc(DeviceIntPtr device, int what)
         default:
             return BadMatch;
     }
-
-    return BadMatch;
 #undef NAXES
 }
 
@@ -201,9 +193,9 @@ lorieTouchProc(DeviceIntPtr device, int what)
 #define NTOUCHPOINTS 20
 #define NBUTTONS 1
 #define NAXES 2
-    Atom btn_labels[NBUTTONS] = { 0 };
+//    Atom btn_labels[NBUTTONS] = { 0 };
+//    BYTE map[NBUTTONS + 1] = { 0 };
     Atom axes_labels[NAXES] = { 0 };
-    BYTE map[NBUTTONS + 1] = { 0 };
 
     switch (what) {
         case DEVICE_INIT:
@@ -215,8 +207,8 @@ lorieTouchProc(DeviceIntPtr device, int what)
             if (!InitValuatorClassDeviceStruct(device, NAXES, axes_labels, GetMotionHistorySize(), Absolute))
                 return BadValue;
 
-            if (!InitButtonClassDeviceStruct(device, NBUTTONS, btn_labels, map))
-                return BadValue;
+//            if (!InitButtonClassDeviceStruct(device, NBUTTONS, btn_labels, map))
+//                return BadValue;
 
             if (!InitTouchClassDeviceStruct(device, NTOUCHPOINTS, XIDirectTouch, NAXES))
                 return BadValue;
@@ -225,8 +217,8 @@ lorieTouchProc(DeviceIntPtr device, int what)
             InitValuatorAxisStruct(device, 0, axes_labels[0], 0, 0xFFFF, 10000, 0, 10000, Absolute);
             InitValuatorAxisStruct(device, 1, axes_labels[1], 0, 0xFFFF, 10000, 0, 10000, Absolute);
 
-            if (!InitPtrFeedbackClassDeviceStruct(device, (PtrCtrlProcPtr) NoopDDA))
-                return BadValue;
+//            if (!InitPtrFeedbackClassDeviceStruct(device, (PtrCtrlProcPtr) NoopDDA))
+//                return BadValue;
 
             return Success;
 
@@ -248,14 +240,14 @@ lorieTouchProc(DeviceIntPtr device, int what)
 
 void
 InitInput(unused int argc, unused char *argv[]) {
+    lorieMouseRelative = AddInputDevice(serverClient, lorieMouseRelativeProc, TRUE);
     lorieMouse = AddInputDevice(serverClient, lorieMouseProc, TRUE);
-//    lorieMouseRelative = AddInputDevice(serverClient, lorieMouseRelativeProc, TRUE);
     lorieTouch = AddInputDevice(serverClient, lorieTouchProc, TRUE);
     lorieKeyboard = AddInputDevice(serverClient, lorieKeybdProc, TRUE);
-    AssignTypeAndName(lorieMouse, MakeAtom(XI_MOUSE, sizeof(XI_MOUSE) - 1, TRUE), "Xvfb mouse");
-//    AssignTypeAndName(lorieMouseRelative, MakeAtom(XI_MOUSE, sizeof(XI_MOUSE) - 1, TRUE), "Xvfb relative mouse");
-    AssignTypeAndName(lorieTouch, MakeAtom(XI_TOUCHSCREEN, sizeof(XI_TOUCHSCREEN) - 1, TRUE), "Xvfb touch");
-    AssignTypeAndName(lorieKeyboard, MakeAtom(XI_KEYBOARD, sizeof(XI_KEYBOARD) - 1, TRUE), "Xvfb keyboard");
+    AssignTypeAndName(lorieMouseRelative, MakeAtom(XI_MOUSE, sizeof(XI_MOUSE) - 1, TRUE), "Lorie mouse");
+    AssignTypeAndName(lorieMouse, MakeAtom(XI_MOUSE, sizeof(XI_MOUSE) - 1, FALSE), "Lorie absolute mouse");
+    AssignTypeAndName(lorieTouch, MakeAtom(XI_TOUCHSCREEN, sizeof(XI_TOUCHSCREEN) - 1, TRUE), "Lorie touch");
+    AssignTypeAndName(lorieKeyboard, MakeAtom(XI_KEYBOARD, sizeof(XI_KEYBOARD) - 1, TRUE), "Lorie keyboard");
     (void) mieqInit();
 }
 

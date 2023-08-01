@@ -424,16 +424,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         super.onPause();
     }
 
-    @Override
-    public void setTheme(int resId) {
-        boolean externalDisplayRequested = getIntent().getBooleanExtra(REQUEST_LAUNCH_EXTERNAL_DISPLAY, false);
-
-        // for some reason, calling setTheme() in onCreate() wasn't working.
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        super.setTheme(externalDisplayRequested || preferences.getBoolean("fullscreen", true) ?
-                R.style.FullScreen_ExternalDisplay : R.style.NoActionBar);
-    }
-
     public LorieView getLorieView() {
         return findViewById(R.id.lorieView);
     }

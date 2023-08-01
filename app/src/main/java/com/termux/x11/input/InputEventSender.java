@@ -58,12 +58,8 @@ public final class InputEventSender {
         mInjector.sendMouseEvent(0, 0, button, false, false);
     }
 
-    public void sendCursorMove(PointF pos) {
-        mInjector.sendMouseEvent(pos.x, pos.y, InputStub.BUTTON_UNDEFINED, false, false);
-    }
-
-    public void sendCursorMove(float x, float y) {
-        mInjector.sendMouseEvent(x, y, InputStub.BUTTON_UNDEFINED, false, false);
+    public void sendCursorMove(float x, float y, boolean relative) {
+        mInjector.sendMouseEvent(x, y, InputStub.BUTTON_UNDEFINED, false, relative);
     }
 
     public void sendMouseWheelEvent(float distanceX, float distanceY) {

@@ -572,7 +572,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             setRequestedOrientation(requestedOrientation);
 
         if (hasFocus) {
-
             if (SDK_INT >= VERSION_CODES.P) {
                 if (p.getBoolean("hideCutout", false))
                     getWindow().getAttributes().layoutInDisplayCutoutMode = (SDK_INT >= VERSION_CODES.R) ?
@@ -611,6 +610,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         else
             window.setSoftInputMode(SOFT_INPUT_ADJUST_PAN | SOFT_INPUT_STATE_HIDDEN);
 
+        ((FrameLayout) findViewById(android.R.id.content)).getChildAt(0).setFitsSystemWindows(!fullscreen);
+        android.util.Log.d("asdasdass", "fullscreen " + fullscreen);
         SamsungDexUtils.dexMetaKeyCapture(this, hasFocus && p.getBoolean("dexMetaKeyCapture", false));
 
         if (hasFocus)

@@ -36,12 +36,6 @@ void lorieKeysymKeyboardEvent(KeySym keysym, int down);
 
 char *xtrans_unix_path_x11 = NULL;
 char *xtrans_unix_dir_x11 = NULL;
-char *xtrans_unix_path_xim = NULL;
-char *xtrans_unix_dir_xim = NULL;
-char *xtrans_unix_path_fs = NULL;
-char *xtrans_unix_dir_fs = NULL;
-char *xtrans_unix_path_ice = NULL;
-char *xtrans_unix_dir_ice = NULL;
 
 typedef enum {
     EVENT_SCREEN_SIZE, EVENT_TOUCH, EVENT_MOUSE, EVENT_KEY, EVENT_UNICODE, EVENT_CLIPBOARD_SYNC
@@ -137,14 +131,9 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectA
     {
         char* path = getenv("TMPDIR");
 
+        chdir(path);
         asprintf(&xtrans_unix_path_x11, "%s/.X11-unix/X", path);
         asprintf(&xtrans_unix_dir_x11, "%s/.X11-unix/", path);
-        asprintf(&xtrans_unix_path_xim, "%s/.XIM-unix/XIM", path);
-        asprintf(&xtrans_unix_dir_xim, "%s/.XIM-unix", path);
-        asprintf(&xtrans_unix_path_fs, "%s/.font-unix/fs", path);
-        asprintf(&xtrans_unix_dir_fs, "%s/.font-unix", path);
-        asprintf(&xtrans_unix_path_ice, "%s/.ICE-unix/", path);
-        asprintf(&xtrans_unix_dir_ice, "%s/.ICE-unix", path);
     }
 
     log(VERBOSE, "Using TMPDIR=\"%s\"", getenv("TMPDIR"));

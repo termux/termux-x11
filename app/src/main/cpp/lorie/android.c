@@ -287,7 +287,6 @@ void handleLorieEvents(int fd, maybe_unused int ready, maybe_unused void *data) 
                         QueuePointerEvents(lorieMouseRelative, e.mouse.down ? ButtonPress : ButtonRelease, e.mouse.detail, 0, &mask);
                         break;
                     case 4: // BUTTON_SCROLL
-                        // dprintf(2, "Got mouse scroll %f %f (%d) (%d) \n", stuff->x, stuff->y, (int) stuff->x, (int) stuff->y);
                         if (e.mouse.x) {
                             valuator_mask_zero(&mask);
                             valuator_mask_set_double(&mask, 2, (double) e.mouse.x / 120);
@@ -459,7 +458,7 @@ Java_com_termux_x11_LorieView_sendMouseEvent(unused JNIEnv* env, unused jobject 
 
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_sendTouchEvent(unused JNIEnv* env, unused jobject cls, jint action, jint id, jint x, jint y) {
-    if (conn_fd != -1) {
+    if (conn_fd != -1 && action != -1) {
         lorieEvent e = { .touch = { .t = EVENT_TOUCH, .type = action, .id = id, .x = x, .y = y } };
         write(conn_fd, &e, sizeof(e));
         checkConnection(env);

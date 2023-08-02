@@ -66,29 +66,6 @@ public final class InputEventSender {
         mInjector.sendMouseWheelEvent(distanceX, distanceY);
     }
 
-    /**
-     * Converts an Android MotionEvent masked action value into the corresponding
-     * native touch event value.
-     */
-    public static int eventTypeFromMaskedAction(int action) {
-        switch (action) {
-            case MotionEvent.ACTION_DOWN:
-            case MotionEvent.ACTION_POINTER_DOWN:
-                return XI_TouchBegin;
-
-            case MotionEvent.ACTION_MOVE:
-                return XI_TouchUpdate;
-
-            case MotionEvent.ACTION_UP:
-            case MotionEvent.ACTION_POINTER_UP:
-            case MotionEvent.ACTION_CANCEL:
-                return XI_TouchEnd;
-
-            default:
-                return -1;
-        }
-    }
-
     final boolean[] pointers = new boolean[10];
     /**
      * Extracts the touch point data from a MotionEvent, converts each point into a marshallable
@@ -100,7 +77,6 @@ public final class InputEventSender {
      */
     public void sendTouchEvent(MotionEvent event) {
         int action = event.getActionMasked();
-        int touchEventType = eventTypeFromMaskedAction(action);
 
         if (action == MotionEvent.ACTION_MOVE) {
             // In order to process all of the events associated with an ACTION_MOVE event, we need
@@ -113,7 +89,7 @@ public final class InputEventSender {
 
             for (int p = 0; p < pointerCount; p++) {
                 pointers[event.getPointerId(p)] = true;
-                mInjector.sendTouchEvent(touchEventType, event.getPointerId(p), (int) event.getX(p), (int) event.getY(p));
+                mInjector.sendTouchEvent(XI_TouchUpdate, event.getPointerId(p), (int) event.getX(p), (int) event.getY(p));
             }
 
             // Sometimes Android does not send ACTION_POINTER_UP/ACTION_UP so some pointers are "stuck" in pressed state.
@@ -129,7 +105,10 @@ public final class InputEventSender {
             int id = event.getPointerId(activePointerIndex);
             int x = (int) event.getX(activePointerIndex);
             int y = (int) event.getY(activePointerIndex);
-            mInjector.sendTouchEvent(touchEventType, id, x, y);
+            int a = (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) ? XI_TouchBegin : XI_TouchEnd;
+            if (a == XI_TouchEnd)
+                mInjector.sendTouchEvent(XI_TouchUpdate, id, x, y);
+            mInjector.sendTouchEvent(a, id, x, y);
         }
 
         mInjector.sendTouchEvent(-1, 0, 0, 0);

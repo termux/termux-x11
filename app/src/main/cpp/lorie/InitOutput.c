@@ -794,7 +794,7 @@ static void lorieHandleSelection(Atom target) {
     if (dixLookupProperty(&prop, pScreenPtr->root, target, serverClient, DixReadAccess) != Success)
         return;
 
-    dprintf(2, "Selection notification for CLIPBOARD (target %s, type %s)\n", NameForAtom(target), NameForAtom(prop->type));
+    log(DEBUG, "Selection notification for CLIPBOARD (target %s, type %s)\n", NameForAtom(target), NameForAtom(prop->type));
 
     if (target == xaTARGETS && prop->type == XA_ATOM && prop->format == 32) {
         if (lorieHasAtom(xaUTF8_STRING, (const Atom*)prop->data, prop->size))
@@ -811,7 +811,7 @@ static void lorieHandleSelection(Atom target) {
 
         lorieConvertLF(prop->data,  filtered, prop->size);
         lorieLatin1ToUTF8((unsigned char*) utf8, (unsigned char*) filtered);
-        dprintf(2, "Sending clipboard to clients (%d bytes)\n", strlen(utf8));
+        log(DEBUG, "Sending clipboard to clients (%d bytes)\n", strlen(utf8));
         lorieSendClipboardData(utf8);
     } else if (target == xaUTF8_STRING && prop->type == xaUTF8_STRING && prop->format == 8) {
         char filtered[prop->size + 1];
@@ -824,7 +824,7 @@ static void lorieHandleSelection(Atom target) {
         memset(filtered, 0, prop->size + 1);
         lorieConvertLF(prop->data, filtered, prop->size);
 
-        dprintf(2, "Sending clipboard to clients (%d bytes)\n", strlen(filtered));
+        log(DEBUG, "Sending clipboard to clients (%d bytes)\n", strlen(filtered));
         lorieSendClipboardData(filtered);
     }
 }

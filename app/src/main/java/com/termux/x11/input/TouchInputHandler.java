@@ -5,6 +5,7 @@
 package com.termux.x11.input;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.Matrix;
 import android.graphics.PointF;
@@ -13,6 +14,7 @@ import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
+import android.view.Surface;
 import android.view.View;
 
 import androidx.annotation.IntDef;
@@ -212,26 +214,45 @@ public class TouchInputHandler {
     }
 
     public boolean handleCapturedEvent(View v, MotionEvent e) {
-        if (((e.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) || ((e.getSource() & InputDevice.SOURCE_BLUETOOTH_STYLUS) == InputDevice.SOURCE_BLUETOOTH_STYLUS)) {
-            if (mTouchpadHandler != null)
-                mTouchpadHandler.handleTouchEvent(v, v, e);
-            return true;
-        }
-
         int button = mouseButtonFromMotionEvent(e);
         switch(e.getAction()) {
             case MotionEvent.ACTION_MOVE:
-                if (e.getAxisValue(MotionEvent.AXIS_RELATIVE_X) == 0 && e.getAxisValue(MotionEvent.AXIS_RELATIVE_Y) == 0)
-                    return true;
+                if (e.getPointerCount() != 1 || (e.getAxisValue(MotionEvent.AXIS_RELATIVE_X) == 0 && e.getAxisValue(MotionEvent.AXIS_RELATIVE_Y) == 0))
+                    break;
 
-                mInjector.sendCursorMove(2 * e.getAxisValue(MotionEvent.AXIS_RELATIVE_X), 2 * e.getAxisValue(MotionEvent.AXIS_RELATIVE_Y), true);
-                break;
+                int rot = (int) (e.getOrientation() * 2 / Math.PI);
+                float x = 2 * e.getAxisValue(MotionEvent.AXIS_RELATIVE_X);
+                float y = 2 * e.getAxisValue(MotionEvent.AXIS_RELATIVE_Y);
+
+                /* Getting */
+                rot = (rot == -1) ? Surface.ROTATION_90 : ((rot == 1) ? Surface.ROTATION_270 : rot);
+                /* Get rotation of event relative to display rotation */
+                rot = (4 + rot - v.getDisplay().getRotation()) % 4;
+                /* Send events, flipped and transformed according to relative rotation */
+                switch(rot) {
+                    case Surface.ROTATION_0:
+                        mInjector.sendCursorMove(x, y, true);
+                        break;
+                    case Surface.ROTATION_90:
+                        mInjector.sendCursorMove(-y, -x, true);
+                        break;
+                    case Surface.ROTATION_180:
+                        mInjector.sendCursorMove(-x, -y, true);
+                        break;
+                    case Surface.ROTATION_270:
+                        //noinspection SuspiciousNameCombination
+                        mInjector.sendCursorMove(y, -x, true);
+                        break;
+                }
+
+                android.util.Log.d("EVENT", "screen " + 0 + " ev " + rot + " event " + e);
+                return true;
             case MotionEvent.ACTION_BUTTON_PRESS:
                 mInjector.sendMouseDown(button);
-                break;
+                return true;
             case MotionEvent.ACTION_BUTTON_RELEASE:
                 mInjector.sendMouseUp(button);
-                break;
+                return true;
             case MotionEvent.ACTION_SCROLL:
                 float scrollY = -100 * e.getAxisValue(MotionEvent.AXIS_VSCROLL);
                 float scrollX = -100 * e.getAxisValue(MotionEvent.AXIS_HSCROLL);
@@ -240,6 +261,11 @@ public class TouchInputHandler {
                 return true;
             default:
                 break;
+        }
+
+        if (((e.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) || ((e.getSource() & InputDevice.SOURCE_BLUETOOTH_STYLUS) == InputDevice.SOURCE_BLUETOOTH_STYLUS)) {
+            if (mTouchpadHandler != null)
+                mTouchpadHandler.handleTouchEvent(v, v, e);
         }
 
         return true;

@@ -101,7 +101,6 @@ lorieInitPointerButtons(DeviceIntPtr device)
 static int
 lorieMouseProc(DeviceIntPtr device, int onoff) {
 #define NAXES 2
-#define NBUTTONS 7
     DevicePtr pDev = (DevicePtr) device;
 
     switch (onoff) {
@@ -111,19 +110,11 @@ lorieMouseProc(DeviceIntPtr device, int onoff) {
         axes_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X);
         axes_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
 
-//        if (!lorieInitPointerButtons(pDevice))
-//            return BadValue;
-
-        if (!InitValuatorClassDeviceStruct(device, NAXES, axes_labels, GetMotionHistorySize(), Absolute))
+        if (!InitValuatorClassDeviceStruct(device, NAXES, axes_labels, GetMotionHistorySize(), Absolute)
+        ||  !InitValuatorAxisStruct(device, 0, axes_labels[0], 0, 0xFFFF, 10000, 0, 10000, Absolute)
+        ||  !InitValuatorAxisStruct(device, 1, axes_labels[1], 0, 0xFFFF, 10000, 0, 10000, Absolute)
+        ||  !InitPointerAccelerationScheme(device, PtrAccelNoOp))
             return BadValue;
-
-        /* Valuators */
-        InitValuatorAxisStruct(device, 0, axes_labels[0], 0, 0xFFFF, 10000, 0, 10000, Absolute);
-        InitValuatorAxisStruct(device, 1, axes_labels[1], 0, 0xFFFF, 10000, 0, 10000, Absolute);
-
-//        if (!InitPtrFeedbackClassDeviceStruct(pDevice, (PtrCtrlProcPtr) NoopDDA))
-//            return BadValue;
-        InitPointerAccelerationScheme(device, PtrAccelNoOp);
         break;
     }
     case DEVICE_ON:
@@ -138,8 +129,6 @@ lorieMouseProc(DeviceIntPtr device, int onoff) {
         return BadMatch;
     }
     return Success;
-
-#undef NBUTTONS
 #undef NAXES
 }
 
@@ -160,7 +149,6 @@ lorieMouseRelativeProc(DeviceIntPtr device, int what)
 
             if (!lorieInitPointerButtons(device)
             ||  !InitValuatorClassDeviceStruct(device, NAXES, axes_labels, GetMotionHistorySize(), Relative)
-            /* Valuators */
             ||  !InitValuatorAxisStruct(device, 0, axes_labels[0], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative)
             ||  !InitValuatorAxisStruct(device, 1, axes_labels[1], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative)
             ||  !InitValuatorAxisStruct(device, 2, axes_labels[2], NO_AXIS_LIMITS, NO_AXIS_LIMITS, 0, 0, 0, Relative)
@@ -193,32 +181,25 @@ lorieTouchProc(DeviceIntPtr device, int what)
 #define NTOUCHPOINTS 20
 #define NBUTTONS 1
 #define NAXES 2
-//    Atom btn_labels[NBUTTONS] = { 0 };
-//    BYTE map[NBUTTONS + 1] = { 0 };
+    Atom btn_labels[NBUTTONS] = { 0 };
+    BYTE map[NBUTTONS + 1] = { 0 };
     Atom axes_labels[NAXES] = { 0 };
 
     switch (what) {
         case DEVICE_INIT:
             device->public.on = FALSE;
 
+            map[0] = 1;
+            btn_labels[0] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_LEFT);
             axes_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X);
             axes_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y);
 
-            if (!InitValuatorClassDeviceStruct(device, NAXES, axes_labels, GetMotionHistorySize(), Absolute))
+            if (!InitValuatorClassDeviceStruct(device, NAXES, axes_labels, GetMotionHistorySize(), Absolute)
+            ||  !InitButtonClassDeviceStruct(device, NBUTTONS, btn_labels, map)
+            ||  !InitTouchClassDeviceStruct(device, NTOUCHPOINTS, XIDirectTouch, NAXES)
+            ||  !InitValuatorAxisStruct(device, 0, axes_labels[0], 0, 0xFFFF, 10000, 0, 10000, Absolute)
+            ||  !InitValuatorAxisStruct(device, 1, axes_labels[1], 0, 0xFFFF, 10000, 0, 10000, Absolute))
                 return BadValue;
-
-//            if (!InitButtonClassDeviceStruct(device, NBUTTONS, btn_labels, map))
-//                return BadValue;
-
-            if (!InitTouchClassDeviceStruct(device, NTOUCHPOINTS, XIDirectTouch, NAXES))
-                return BadValue;
-
-            /* Valuators */
-            InitValuatorAxisStruct(device, 0, axes_labels[0], 0, 0xFFFF, 10000, 0, 10000, Absolute);
-            InitValuatorAxisStruct(device, 1, axes_labels[1], 0, 0xFFFF, 10000, 0, 10000, Absolute);
-
-//            if (!InitPtrFeedbackClassDeviceStruct(device, (PtrCtrlProcPtr) NoopDDA))
-//                return BadValue;
 
             return Success;
 

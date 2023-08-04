@@ -111,7 +111,7 @@
 #define DGA 1
 #define DPMSExtension 1
 #define DRI2 1
-//#define DRI3 1
+#define DRI3 1
 #define HAS_SHM 1
 #define MITSHM 1
 #define PANORAMIX 1

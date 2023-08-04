@@ -54,6 +54,9 @@ from The Open Group.
 #include <X11/Xatom.h>
 #include <present.h>
 #include <present_priv.h>
+#include <dri3.h>
+#include <sys/mman.h>
+#include <busfault.h>
 #include "scrnintstr.h"
 #include "servermd.h"
 #include "fb.h"
@@ -524,6 +527,73 @@ static Bool resetRootCursor(unused ClientPtr pClient, unused void *closure) {
     return TRUE;
 }
 
+static void
+ShmBusfaultNotify(void *context)
+{
+    ShmDescPtr shmdesc = context;
+
+    ErrorF("shared memory 0x%x truncated by client\n",
+           (unsigned int) shmdesc->resource);
+    busfault_unregister(shmdesc->busfault);
+    shmdesc->busfault = NULL;
+    FreeResource (shmdesc->resource, RT_NONE);
+}
+
+static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *fds, CARD16 width, CARD16 height,
+                                    const CARD32 *strides, const CARD32 *offsets, CARD8 depth, CARD8 bpp, CARD64 modifier) {
+    const CARD64 RAW_MMAPPABLE_FD = 1274;
+    ShmDescPtr shmdesc;
+    PixmapPtr pixmap;
+    if (num_fds != 1 || modifier != RAW_MMAPPABLE_FD) {
+        log(ERROR, "DRI3: More than 1 fd or modifier is not RAW_MMAPPABLE_FD");
+        return NULL;
+    }
+
+    shmdesc = malloc(sizeof(ShmDescRec));
+    if (!shmdesc) {
+        log(ERROR, "DRI3: malloc failed");
+        return NULL;
+    }
+
+    shmdesc->is_fd = TRUE;
+    shmdesc->refcnt = 1;
+    shmdesc->writable = FALSE;
+    shmdesc->resource = FakeClientID(GetCurrentClient()->index);
+    shmdesc->busfault = busfault_register_mmap(shmdesc->addr, shmdesc->size, ShmBusfaultNotify, shmdesc);
+    shmdesc->next = shmdesc;
+    if (!shmdesc->busfault) {
+        free(shmdesc);
+        return NULL;
+    }
+
+    shmdesc->addr = mmap(NULL, strides[0] * height, PROT_READ, MAP_SHARED, fds[0], offsets[0]);
+    if (!shmdesc->addr || shmdesc->addr == MAP_FAILED) {
+        log(ERROR, "DRI3: mmap failed");
+        free(shmdesc);
+        return NULL;
+    }
+
+    if (!AddResource(shmdesc->resource, ShmSegType, (void *) shmdesc)) {
+        log(ERROR, "DRI3: adding resource failed");
+        free(shmdesc);
+        return NULL;
+    }
+
+    pixmap = fbCreatePixmap(screen, 0, 0, depth, 0);
+    if (!pixmap) {
+        log(ERROR, "DRI3: failed to create pixmap");
+        munmap(shmdesc->addr, strides[0] * height);
+        free(shmdesc);
+        return NULL;
+    }
+
+    dixSetPrivate(&pixmap->devPrivates, ShmGetDevPrivateKeyRec(), shmdesc);
+
+    screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, strides[0], shmdesc->addr);
+
+    return pixmap;
+}
+
 static Bool
 lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     static int timerFd = -1;
@@ -541,6 +611,7 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     miSetZeroLineBias(pScreen, 0);
     pScreen->blackPixel = 0;
     pScreen->whitePixel = 1;
+    static dri3_screen_info_rec dri3Info = { .pixmap_from_fds = loriePixmapFromFds };
 
     if (FALSE
           || !miSetVisualTypesAndMasks(24, ((1 << TrueColor) | (1 << DirectColor)), 8, TrueColor, 0xFF0000, 0x00FF00, 0x0000FF)
@@ -549,7 +620,8 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
           || !fbPictureInit(pScreen, 0, 0)
           || !lorieRandRInit(pScreen)
           || !miPointerInitialize(pScreen, &loriePointerSpriteFuncs, &loriePointerCursorFuncs, TRUE)
-          || !fbCreateDefColormap(pScreen))
+          || !fbCreateDefColormap(pScreen)
+          || !dri3_screen_init(pScreen, &dri3Info))
         return FALSE;
 
     wrap(pvfb, pScreen, CreateScreenResources, lorieCreateScreenResources)

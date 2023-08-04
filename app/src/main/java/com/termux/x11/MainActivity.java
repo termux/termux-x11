@@ -8,6 +8,7 @@ import static android.view.WindowManager.LayoutParams.*;
 import static com.termux.x11.CmdEntryPoint.ACTION_START;
 import static com.termux.x11.LoriePreferences.ACTION_PREFERENCES_CHANGED;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AppOpsManager;
@@ -121,18 +122,18 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
         }, new InputEventSender(lorieView));
         mLorieKeyListener = (v, k, e) -> {
-            if (k == KeyEvent.KEYCODE_VOLUME_DOWN && preferences.getBoolean("hideEKOnVolDown", false)) {
-                if (e.getAction() == KeyEvent.ACTION_UP)
+            if (k == KEYCODE_VOLUME_DOWN && preferences.getBoolean("hideEKOnVolDown", false)) {
+                if (e.getAction() == ACTION_UP)
                     toggleExtraKeys();
                 return true;
             }
 
-            if (k == KeyEvent.KEYCODE_BACK && (e.getSource() & InputDevice.SOURCE_MOUSE) != InputDevice.SOURCE_MOUSE) {
+            if (k == KEYCODE_BACK && (e.getSource() & InputDevice.SOURCE_MOUSE) != InputDevice.SOURCE_MOUSE) {
                 // Pass physical escape key to container...
                 Log.d("MainActivity", "Toggling keyboard visibility");
                 if (e.getScanCode() != 0)
                     return mInputHandler.sendKeyEvent(v, e);
-                if (e.getAction() == KeyEvent.ACTION_UP) {
+                if (e.getAction() == ACTION_UP) {
                     Log.d("MainActivity", "Toggling keyboard visibility");
                     toggleKeyboardVisibility(MainActivity.this);
                 }
@@ -213,6 +214,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         checkXEvents();
 
         initStylusAuxButtons();
+
+        if (SDK_INT >= VERSION_CODES.TIRAMISU
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PERMISSION_GRANTED
+                && !shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+            requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 0);
+        }
     }
 
     //Register the needed events to handle stylus as left, middle and right click
@@ -508,16 +515,15 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         PendingIntent pIntent = PendingIntent.getActivity(this, 0, preferencesIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         PendingIntent pExitIntent = PendingIntent.getBroadcast(this, 0, exitIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        int priority = Notification.PRIORITY_MIN;
         NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        String channelId = SDK_INT >= VERSION_CODES.O ? getNotificationChannel(notificationManager) : "";
-        return new NotificationCompat.Builder(this, channelId)
+        return new NotificationCompat.Builder(this, getNotificationChannel(notificationManager))
                 .setContentTitle("Termux:X11")
                 .setSmallIcon(R.drawable.ic_x11_icon)
                 .setContentText("Pull down to show options")
                 .setContentIntent(pIntent)
                 .setOngoing(true)
-                .setPriority(priority)
+                .setPriority(Notification.PRIORITY_MAX)
+                .setSilent(true)
                 .setShowWhen(false)
                 .setColor(0xFF607D8B)
                 .addAction(0, "Exit", pExitIntent)
@@ -528,9 +534,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private String getNotificationChannel(NotificationManager notificationManager){
         String channelId = getResources().getString(R.string.app_name);
         String channelName = getResources().getString(R.string.app_name);
-        NotificationChannel channel = new NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_MIN);
-        channel.setImportance(NotificationManager.IMPORTANCE_NONE);
+        NotificationChannel channel = new NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_DEFAULT);
+        channel.setImportance(NotificationManager.IMPORTANCE_DEFAULT);
         channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+        if (SDK_INT >= VERSION_CODES.Q)
+            channel.setAllowBubbles(false);
         notificationManager.createNotificationChannel(channel);
         return channelId;
     }
@@ -611,7 +619,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             window.setSoftInputMode(SOFT_INPUT_ADJUST_PAN | SOFT_INPUT_STATE_HIDDEN);
 
         ((FrameLayout) findViewById(android.R.id.content)).getChildAt(0).setFitsSystemWindows(!fullscreen);
-        android.util.Log.d("asdasdass", "fullscreen " + fullscreen);
         SamsungDexUtils.dexMetaKeyCapture(this, hasFocus && p.getBoolean("dexMetaKeyCapture", false));
 
         if (hasFocus)

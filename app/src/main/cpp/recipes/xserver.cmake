@@ -256,7 +256,7 @@ target_compile_options(xserver_glxvnd PRIVATE ${compile_options})
 
 set(XSERVER_LIBS tirpc Xdmcp Xau pixman Xfont2 fontenc GLESv2 xshmfence xkbcomp)
 foreach (part glx glxvnd fb mi dix composite damageext dbe randr miext_damage render present xext
-              miext_sync xfixes xi xkb record xi_stubs xkb_stubs os)
+         dri3 miext_sync xfixes xi xkb record xi_stubs xkb_stubs os)
     set(XSERVER_LIBS ${XSERVER_LIBS} xserver_${part})
 endforeach ()
 

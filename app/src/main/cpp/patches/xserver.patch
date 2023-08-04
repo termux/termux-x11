@@ -1,3 +1,31 @@
+diff --git a/Xext/shm.c b/Xext/shm.c
+index 071bd1a41..011969283 100644
+--- a/Xext/shm.c
++++ b/Xext/shm.c
+@@ -193,6 +193,10 @@ CheckForShmSyscall(void)
+ 
+ #endif
+ 
++const DevPrivateKey ShmGetDevPrivateKeyRec(void) {
++    return shmPixmapPrivateKey;
++}
++
+ static Bool
+ ShmCloseScreen(ScreenPtr pScreen)
+ {
+diff --git a/Xext/shmint.h b/Xext/shmint.h
+index 9dadea756..e4e6f4db6 100644
+--- a/Xext/shmint.h
++++ b/Xext/shmint.h
+@@ -80,6 +80,8 @@ typedef struct _ShmDesc {
+ #define SHMDESC_IS_FD(shmdesc)  (0)
+ #endif
+ 
++extern const DevPrivateKey ShmGetDevPrivateKeyRec(void);
++
+ extern _X_EXPORT void
+  ShmRegisterFuncs(ScreenPtr pScreen, ShmFuncsPtr funcs);
+ 
 diff --git a/dix/main.c b/dix/main.c
 index bfc8addbe..56fb30b63 100644
 --- a/dix/main.c

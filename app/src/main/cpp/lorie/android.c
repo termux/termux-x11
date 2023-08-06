@@ -381,18 +381,47 @@ Java_com_termux_x11_LorieView_connect(unused JNIEnv* env, unused jobject cls, ji
     log(DEBUG, "XCB connection is successfull");
 }
 
+static char clipboard[1024*1024] = {0};
+
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, maybe_unused jobject thiz) {
     checkConnection(env);
     if (conn_fd != -1) {
-        char string[4096] = {0}, none;
-        if (read(conn_fd, string, sizeof(string)) > 0) {
-            log(DEBUG, "Clipboard content is %s", string);
+        char none;
+        memset(clipboard, 0, sizeof(clipboard));
+        if (read(conn_fd, clipboard, sizeof(clipboard)) > 0) {
+            clipboard[sizeof(clipboard) - 1] = 0;
+            log(DEBUG, "Clipboard content (%d symbols) is %s", strlen(clipboard), clipboard);
             jmethodID id = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, thiz), "setClipboardText","(Ljava/lang/String;)V");
-            if (id)
-                (*env)->CallVoidMethod(env, thiz, id, (*env)->NewStringUTF(env, string));
-            else
+
+            jclass cls_Charset = (*env)->FindClass(env, "java/nio/charset/Charset");
+            jclass cls_CharBuffer = (*env)->FindClass(env, "java/nio/CharBuffer");
+            jmethodID mid_Charset_forName = cls_Charset ? (*env)->GetStaticMethodID(env, cls_Charset, "forName", "(Ljava/lang/String;)Ljava/nio/charset/Charset;") : NULL;
+            jmethodID mid_Charset_decode = cls_Charset ? (*env)->GetMethodID(env, cls_Charset, "decode", "(Ljava/nio/ByteBuffer;)Ljava/nio/CharBuffer;") : NULL;
+            jmethodID mid_CharBuffer_toString = cls_CharBuffer ? (*env)->GetMethodID(env, cls_CharBuffer, "toString", "()Ljava/lang/String;") : NULL;
+
+            if (!id)
                 log(ERROR, "setClipboardText method not found");
+            if (!cls_Charset)
+                log(ERROR, "java.nio.charset.Charset class not found");
+            if (!cls_CharBuffer)
+                log(ERROR, "java.nio.CharBuffer class not found");
+            if (!mid_Charset_forName)
+                log(ERROR, "java.nio.charset.Charset.forName method not found");
+            if (!mid_Charset_decode)
+                log(ERROR, "java.nio.charset.Charset.decode method not found");
+            if (!mid_CharBuffer_toString)
+                log(ERROR, "java.nio.CharBuffer.toString method not found");
+
+            if (id && cls_Charset && cls_CharBuffer && mid_Charset_forName && mid_Charset_decode && mid_CharBuffer_toString) {
+                jobject bb = (*env)->NewDirectByteBuffer(env, clipboard, strlen(clipboard));
+                jobject charset = (*env)->CallStaticObjectMethod(env, cls_Charset, mid_Charset_forName, (*env)->NewStringUTF(env, "UTF-8"));
+                jobject cb = (*env)->CallObjectMethod(env, charset, mid_Charset_decode, bb);
+                (*env)->DeleteLocalRef(env, bb);
+
+                jstring str = (*env)->CallObjectMethod(env, cb, mid_CharBuffer_toString);
+                (*env)->CallVoidMethod(env, thiz, id, str);
+            }
         }
 
         while(read(conn_fd, &none, sizeof(none)) > 0);
@@ -499,7 +528,7 @@ Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, unused jobject thiz, js
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendUnicodeEvent(JNIEnv *env, jobject thiz, jint code) {
+Java_com_termux_x11_LorieView_sendUnicodeEvent(JNIEnv *env, unused jobject thiz, jint code) {
     if (conn_fd != -1) {
         log(DEBUG, "Sending unicode event: %lc (U+%X)", code, code);
         lorieEvent e = { .unicode = { .t = EVENT_UNICODE, .code = code } };

@@ -783,11 +783,10 @@ __GLXprovider __glXDRISWRastProvider = {
 
 static int (*origProcSendEvent)(ClientPtr) = NULL;
 static Atom xaCLIPBOARD = 0, xaTARGETS = 0, xaSTRING = 0, xaUTF8_STRING = 0;
-static Bool clipboardEnabled = TRUE;
+static Bool clipboardEnabled = FALSE;
 
 void lorieEnableClipboardSync(Bool enable) {
     clipboardEnabled = enable;
-    clipboardEnabled = TRUE;
 }
 
 static void lorieSelectionRequest(Atom selection, Atom target) {

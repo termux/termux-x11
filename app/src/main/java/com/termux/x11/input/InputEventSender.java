@@ -9,6 +9,8 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 
+import androidx.core.math.MathUtils;
+
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -75,10 +77,10 @@ public final class InputEventSender {
      *              updated to represent the remote machine's coordinate system before calling this
      *              function.
      */
-    public void sendTouchEvent(MotionEvent event) {
+    public void sendTouchEvent(MotionEvent event, RenderData renderData) {
         int action = event.getActionMasked();
 
-        if (action == MotionEvent.ACTION_MOVE) {
+        if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_HOVER_MOVE || action == MotionEvent.ACTION_HOVER_ENTER || action == MotionEvent.ACTION_HOVER_EXIT) {
             // In order to process all of the events associated with an ACTION_MOVE event, we need
             // to walk the list of historical events in order and add each event to our list, then
             // retrieve the current move event data.
@@ -88,8 +90,10 @@ public final class InputEventSender {
                 pointers[event.getPointerId(p)] = false;
 
             for (int p = 0; p < pointerCount; p++) {
+                int x = MathUtils.clamp((int) (event.getX(p) * renderData.scale.x), 0, renderData.screenWidth);
+                int y = MathUtils.clamp((int) (event.getY(p) * renderData.scale.y), 0, renderData.screenHeight);
                 pointers[event.getPointerId(p)] = true;
-                mInjector.sendTouchEvent(XI_TouchUpdate, event.getPointerId(p), (int) event.getX(p), (int) event.getY(p));
+                mInjector.sendTouchEvent(XI_TouchUpdate, event.getPointerId(p), x, y);
             }
 
             // Sometimes Android does not send ACTION_POINTER_UP/ACTION_UP so some pointers are "stuck" in pressed state.
@@ -103,15 +107,13 @@ public final class InputEventSender {
             // cause confusion on the remote OS side and result in broken touch gestures.
             int activePointerIndex = event.getActionIndex();
             int id = event.getPointerId(activePointerIndex);
-            int x = (int) event.getX(activePointerIndex);
-            int y = (int) event.getY(activePointerIndex);
+            int x =  MathUtils.clamp((int) (event.getX(activePointerIndex) * renderData.scale.x), 0, renderData.screenWidth);
+            int y =  MathUtils.clamp((int) (event.getY(activePointerIndex) * renderData.scale.y), 0, renderData.screenHeight);
             int a = (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) ? XI_TouchBegin : XI_TouchEnd;
             if (a == XI_TouchEnd)
                 mInjector.sendTouchEvent(XI_TouchUpdate, id, x, y);
             mInjector.sendTouchEvent(a, id, x, y);
         }
-
-        mInjector.sendTouchEvent(-1, 0, 0, 0);
     }
 
     /**

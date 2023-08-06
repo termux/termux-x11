@@ -245,6 +245,10 @@ void handleLorieEvents(int fd, maybe_unused int ready, maybe_unused void *data) 
                         break;
                 }
 
+                // Sometimes activity part does not send XI_TouchBegin and sends only XI_TouchUpdate.
+                if (e.touch.type == XI_TouchUpdate && (!touch || !touch->active))
+                    e.touch.type = XI_TouchBegin;
+
                 if (e.touch.type == XI_TouchEnd && (!touch || !touch->active))
                     break;
 
@@ -390,7 +394,7 @@ Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, maybe_unused jobject th
         memset(clipboard, 0, sizeof(clipboard));
         if (read(conn_fd, clipboard, sizeof(clipboard)) > 0) {
             clipboard[sizeof(clipboard) - 1] = 0;
-            log(DEBUG, "Clipboard content (%d symbols) is %s", strlen(clipboard), clipboard);
+            log(DEBUG, "Clipboard content (%zu symbols) is %s", strlen(clipboard), clipboard);
             jmethodID id = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, thiz), "setClipboardText","(Ljava/lang/String;)V");
 
             jclass cls_Charset = (*env)->FindClass(env, "java/nio/charset/Charset");

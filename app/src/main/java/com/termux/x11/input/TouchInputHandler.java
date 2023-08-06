@@ -5,9 +5,7 @@
 package com.termux.x11.input;
 
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.content.Context;
-import android.graphics.Matrix;
 import android.graphics.PointF;
 import android.view.GestureDetector;
 import android.view.InputDevice;
@@ -176,7 +174,10 @@ public class TouchInputHandler {
             // Give the underlying input strategy a chance to observe the current motion event before
             // passing it to the gesture detectors.  This allows the input strategy to react to the
             // event or save the payload for use in recreating the gesture remotely.
-            mInputStrategy.onMotionEvent(event);
+            if (mInputStrategy instanceof InputStrategyInterface.NullInputStrategy)
+                mInjector.sendTouchEvent(event, mRenderData);
+            else
+                mInputStrategy.onMotionEvent(event);
 
             // Avoid short-circuit logic evaluation - ensure all gesture detectors see all events so
             // that they generate correct notifications.
@@ -271,9 +272,9 @@ public class TouchInputHandler {
     }
 
     private void resetTransformation() {
-        float sx = (float) mRenderData.imageWidth / mRenderData.screenWidth;
-        float sy = (float) mRenderData.imageHeight / mRenderData.screenHeight;
-        mRenderData.transform.setScale(sx, sy);
+        float sx = (float) mRenderData.screenWidth / mRenderData.imageWidth;
+        float sy = (float) mRenderData.screenHeight / mRenderData.imageHeight;
+        mRenderData.scale.set(sx, sy);
     }
 
     public void handleClientSizeChanged(int w, int h) {
@@ -302,11 +303,11 @@ public class TouchInputHandler {
 
     public void setInputMode(@InputMode int inputMode) {
         if (inputMode == InputMode.TOUCH)
-            mInputStrategy = new TouchInputStrategy(mRenderData, mInjector);
+            mInputStrategy = new InputStrategyInterface.NullInputStrategy();
         else if (inputMode == InputMode.SIMULATED_TOUCH)
-            mInputStrategy = new SimulatedTouchInputStrategy(mRenderData, mInjector, mContext);
+            mInputStrategy = new InputStrategyInterface.SimulatedTouchInputStrategy(mRenderData, mInjector, mContext);
         else
-            mInputStrategy = new TrackpadInputStrategy(mInjector);
+            mInputStrategy = new InputStrategyInterface.TrackpadInputStrategy(mInjector);
     }
 
     public void setPreferScancodes(boolean enabled) {
@@ -318,9 +319,9 @@ public class TouchInputHandler {
     }
 
     private void moveCursorByOffset(float deltaX, float deltaY) {
-        if (mInputStrategy instanceof TrackpadInputStrategy)
+        if (mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy)
             mInjector.sendCursorMove((int) -deltaX, (int) -deltaY, true);
-        else if (mInputStrategy instanceof SimulatedTouchInputStrategy) {
+        else if (mInputStrategy instanceof InputStrategyInterface.SimulatedTouchInputStrategy) {
             PointF cursorPos = mRenderData.getCursorPosition();
             cursorPos.offset(-deltaX, -deltaY);
             cursorPos.set(MathUtils.clamp(cursorPos.x, 0, mRenderData.screenWidth), MathUtils.clamp(cursorPos.y, 0, mRenderData.screenHeight));
@@ -331,8 +332,8 @@ public class TouchInputHandler {
 
     /** Moves the cursor to the specified position on the screen. */
     private void moveCursorToScreenPoint(float screenX, float screenY) {
-        if (mInputStrategy instanceof TrackpadInputStrategy || mInputStrategy instanceof SimulatedTouchInputStrategy) {
-            float[] imagePoint = mapScreenPointToImagePoint(screenX, screenY);
+        if (mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy || mInputStrategy instanceof InputStrategyInterface.SimulatedTouchInputStrategy) {
+            float[] imagePoint = {screenX * mRenderData.scale.x, screenY * mRenderData.scale.y};
             if (mRenderData.setCursorPosition(imagePoint[0], imagePoint[1]))
                 mInjector.sendCursorMove((int) imagePoint[0], imagePoint[1], false);
         }
@@ -352,16 +353,6 @@ public class TouchInputHandler {
         return true;
     }
 
-    /** Translates a point in screen coordinates to a location on the desktop image. */
-    private float[] mapScreenPointToImagePoint(float screenX, float screenY) {
-        float[] mappedPoints = {screenX, screenY};
-        Matrix screenToImage = new Matrix();
-
-        mRenderData.transform.invert(screenToImage);
-        screenToImage.mapPoints(mappedPoints);
-
-        return mappedPoints;
-    }
     private int mouseButtonFromMotionEvent(MotionEvent e) {
         switch (e.getActionButton()) {
             case MotionEvent.BUTTON_PRIMARY:
@@ -396,7 +387,7 @@ public class TouchInputHandler {
             }
 
             if (pointerCount == 2 && mSwipePinchDetector.isSwiping()) {
-                if (!(mInputStrategy instanceof TrackpadInputStrategy)) {
+                if (!(mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy)) {
                     // Ensure the cursor is located at the coordinates of the original event,
                     // otherwise the target window may not receive the scroll event correctly.
                     moveCursorToScreenPoint(e1.getX(), e1.getY());
@@ -412,15 +403,9 @@ public class TouchInputHandler {
                 return false;
             }
 
-            float[] delta = {distanceX, distanceY};
-
-            Matrix canvasToImage = new Matrix();
-            mRenderData.transform.invert(canvasToImage);
-            canvasToImage.mapVectors(delta);
-
-            if (mInputStrategy instanceof TrackpadInputStrategy)
-                moveCursorByOffset(delta[0], delta[1]);
-            if (!(mInputStrategy instanceof TrackpadInputStrategy) && mIsDragging) {
+            if (mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy)
+                moveCursorByOffset(distanceX * mRenderData.scale.x, distanceY * mRenderData.scale.y);
+            if (!(mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) && mIsDragging) {
                 // Ensure the cursor follows the user's finger when the user is dragging under
                 // direct input mode.
                 moveCursorToScreenPoint(e2.getX(), e2.getY());
@@ -463,7 +448,7 @@ public class TouchInputHandler {
             if (button == InputStub.BUTTON_UNDEFINED)
                 return;
 
-            if (!(mInputStrategy instanceof TrackpadInputStrategy)) {
+            if (!(mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy)) {
                 if (screenPointLiesOutsideImageBoundary(x, y))
                     return;
 
@@ -481,7 +466,7 @@ public class TouchInputHandler {
                 return;
             }
 
-            if (!(mInputStrategy instanceof TrackpadInputStrategy)) {
+            if (!(mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy)) {
                 if (screenPointLiesOutsideImageBoundary(x, y))
                     return;
                 moveCursorToScreenPoint(x, y);
@@ -507,13 +492,12 @@ public class TouchInputHandler {
 
         /** Determines whether the given screen point lies outside the desktop image. */
         private boolean screenPointLiesOutsideImageBoundary(float screenX, float screenY) {
-            float[] mappedPoints = mapScreenPointToImagePoint(screenX, screenY);
+            float scaledX = screenX * mRenderData.scale.x, scaledY = screenY * mRenderData.scale.y;
 
             float imageWidth = (float) mRenderData.imageWidth + EPSILON;
             float imageHeight = (float) mRenderData.imageHeight + EPSILON;
 
-            return mappedPoints[0] < -EPSILON || mappedPoints[0] > imageWidth
-                    || mappedPoints[1] < -EPSILON || mappedPoints[1] > imageHeight;
+            return scaledX < -EPSILON || scaledX > imageWidth || scaledY < -EPSILON || scaledY > imageHeight;
         }
     }
 
@@ -561,9 +545,9 @@ public class TouchInputHandler {
                 return true;
             }
 
-            float[] imagePoint = mapScreenPointToImagePoint((int) e.getX(), (int) e.getY());
-            if (mRenderData.setCursorPosition(imagePoint[0], imagePoint[1]))
-                mInjector.sendCursorMove(imagePoint[0], imagePoint[1], false);
+            float scaledX = e.getX() * mRenderData.scale.x, scaledY = e.getY() * mRenderData.scale.y;
+            if (mRenderData.setCursorPosition(scaledX, scaledY))
+                mInjector.sendCursorMove(scaledX, scaledY, false);
 
             currentBS = e.getButtonState();
             if (isMouseButtonChanged(MotionEvent.BUTTON_PRIMARY))
@@ -590,9 +574,9 @@ public class TouchInputHandler {
                 v.requestPointerCapture();
 
             int action = e.getAction();
-            float[] imagePoint = mapScreenPointToImagePoint((int) e.getX(e.getActionIndex()), (int) e.getY(e.getActionIndex()));
-            if (mRenderData.setCursorPosition(imagePoint[0], imagePoint[1]))
-                mInjector.sendCursorMove(imagePoint[0], imagePoint[1], false);
+            float scaledX = e.getX(e.getActionIndex()) * mRenderData.scale.x, scaledY = e.getY(e.getActionIndex()) * mRenderData.scale.y;
+            if (mRenderData.setCursorPosition(scaledX, scaledY))
+                mInjector.sendCursorMove(scaledX, scaledY, false);
 
 
             if (action == MotionEvent.ACTION_DOWN || action == ACTION_PRIMARY_DOWN) {
@@ -650,9 +634,9 @@ public class TouchInputHandler {
                     savedBS = currentBS;
                     break;
                 case MotionEvent.ACTION_HOVER_MOVE:
-                    float[] imagePoint = mapScreenPointToImagePoint((int) e.getX(), (int) e.getY());
-                    if (mRenderData.setCursorPosition(imagePoint[0], imagePoint[1]))
-                        mInjector.sendCursorMove(imagePoint[0], imagePoint[1], false);
+                    float scaledX = e.getX() * mRenderData.scale.x, scaledY = e.getY() * mRenderData.scale.y;
+                    if (mRenderData.setCursorPosition(scaledX, scaledY))
+                        mInjector.sendCursorMove(scaledX, scaledY, false);
                     break;
                 case MotionEvent.ACTION_DOWN:
                     if ((e.getFlags() & 0x14000000) == 0x14000000) {
@@ -681,9 +665,9 @@ public class TouchInputHandler {
                     if (mIsScrolling && (e.getFlags() & 0x14000000) == 0x14000000)
                         mScroller.onTouchEvent(e);
                     else if (mIsDragging && (e.getFlags() & 0x4000000) == 0x4000000) {
-                        imagePoint = mapScreenPointToImagePoint((int) e.getX(), (int) e.getY());
-                        if (mRenderData.setCursorPosition(imagePoint[0], imagePoint[1]))
-                            mInjector.sendCursorMove(imagePoint[0], imagePoint[1], false);
+                        scaledX = e.getX() * mRenderData.scale.x; scaledY = e.getY() * mRenderData.scale.y;
+                        if (mRenderData.setCursorPosition(scaledX, scaledY))
+                            mInjector.sendCursorMove(scaledX, scaledY, false);
                     }
                     break;
             }

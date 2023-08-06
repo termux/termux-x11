@@ -11,8 +11,7 @@ import android.graphics.PointF;
  * This class stores UI configuration that will be used when rendering the remote desktop.
  */
 public class RenderData {
-    /** Stores pan and zoom configuration and converts image coordinates to screen coordinates. */
-    public Matrix transform = new Matrix();
+    public PointF scale = new PointF();
 
     public int screenWidth;
     public int screenHeight;

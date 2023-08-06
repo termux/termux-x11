@@ -88,6 +88,7 @@ from The Open Group.
 extern DeviceIntPtr lorieMouse, lorieKeyboard;
 
 typedef struct {
+    DestroyPixmapProcPtr DestroyPixmap;
     CloseScreenProcPtr CloseScreen;
     CreateScreenResourcesProcPtr CreateScreenResources;
 
@@ -110,6 +111,7 @@ ScreenPtr pScreenPtr;
 static lorieScreenInfo lorieScreen = { .root.width = 1280, .root.height = 1024 };
 static lorieScreenInfoPtr pvfb = &lorieScreen;
 static char *xstartup = NULL;
+static DevPrivateKeyRec loriePixmapPrivateKeyRec;
 
 static Bool TrueNoop() { return TRUE; }
 static Bool FalseNoop() { return FALSE; }
@@ -457,6 +459,26 @@ lorieCloseScreen(ScreenPtr pScreen) {
 }
 
 static Bool
+lorieDestroyPixmap(PixmapPtr pPixmap) {
+    Bool ret;
+    void *ptr = NULL;
+    size_t size = 0;
+
+    if (pPixmap->refcnt == 1) {
+        ptr = dixLookupPrivate(&pPixmap->devPrivates, &loriePixmapPrivateKeyRec);
+        size = pPixmap->devKind * pPixmap->drawable.height;
+    }
+
+    unwrap(pvfb, pScreenPtr, DestroyPixmap)
+    ret = (*pScreenPtr->DestroyPixmap) (pPixmap);
+    wrap(pvfb, pScreenPtr, DestroyPixmap, lorieDestroyPixmap)
+
+    if (ptr)
+        munmap(ptr, size);
+    return ret;
+}
+
+static Bool
 lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD32 mmWidth, unused CARD32 mmHeight) {
     SetRootClip(pScreen, ROOT_CLIP_NONE);
 
@@ -527,71 +549,45 @@ static Bool resetRootCursor(unused ClientPtr pClient, unused void *closure) {
     return TRUE;
 }
 
-static void
-ShmBusfaultNotify(void *context)
-{
-    ShmDescPtr shmdesc = context;
-
-    ErrorF("shared memory 0x%x truncated by client\n",
-           (unsigned int) shmdesc->resource);
-    busfault_unregister(shmdesc->busfault);
-    shmdesc->busfault = NULL;
-    FreeResource (shmdesc->resource, RT_NONE);
-}
-
 static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *fds, CARD16 width, CARD16 height,
-                                    const CARD32 *strides, const CARD32 *offsets, CARD8 depth, CARD8 bpp, CARD64 modifier) {
+                                    const CARD32 *strides, const CARD32 *offsets, CARD8 depth, unused CARD8 bpp, CARD64 modifier) {
     const CARD64 RAW_MMAPPABLE_FD = 1274;
-    ShmDescPtr shmdesc;
     PixmapPtr pixmap;
+    void *addr = NULL;
     if (num_fds != 1 || modifier != RAW_MMAPPABLE_FD) {
         log(ERROR, "DRI3: More than 1 fd or modifier is not RAW_MMAPPABLE_FD");
         return NULL;
     }
 
-    shmdesc = malloc(sizeof(ShmDescRec));
-    if (!shmdesc) {
-        log(ERROR, "DRI3: malloc failed");
-        return NULL;
-    }
-
-    shmdesc->is_fd = TRUE;
-    shmdesc->refcnt = 1;
-    shmdesc->writable = FALSE;
-    shmdesc->resource = FakeClientID(GetCurrentClient()->index);
-    shmdesc->busfault = busfault_register_mmap(shmdesc->addr, shmdesc->size, ShmBusfaultNotify, shmdesc);
-    shmdesc->next = shmdesc;
-    if (!shmdesc->busfault) {
-        free(shmdesc);
-        return NULL;
-    }
-
-    shmdesc->addr = mmap(NULL, strides[0] * height, PROT_READ, MAP_SHARED, fds[0], offsets[0]);
-    if (!shmdesc->addr || shmdesc->addr == MAP_FAILED) {
+    addr = mmap(NULL, strides[0] * height, PROT_READ, MAP_SHARED, fds[0], offsets[0]);
+    if (!addr || addr == MAP_FAILED) {
         log(ERROR, "DRI3: mmap failed");
-        free(shmdesc);
-        return NULL;
-    }
-
-    if (!AddResource(shmdesc->resource, ShmSegType, (void *) shmdesc)) {
-        log(ERROR, "DRI3: adding resource failed");
-        free(shmdesc);
         return NULL;
     }
 
     pixmap = fbCreatePixmap(screen, 0, 0, depth, 0);
     if (!pixmap) {
         log(ERROR, "DRI3: failed to create pixmap");
-        munmap(shmdesc->addr, strides[0] * height);
-        free(shmdesc);
+        munmap(addr, strides[0] * height);
         return NULL;
     }
 
-    dixSetPrivate(&pixmap->devPrivates, ShmGetDevPrivateKeyRec(), shmdesc);
-
-    screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, strides[0], shmdesc->addr);
+    dixSetPrivate(&pixmap->devPrivates, &loriePixmapPrivateKeyRec, addr);
+    screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, strides[0], addr);
 
     return pixmap;
+}
+
+static int lorieGetFormats(unused ScreenPtr screen, CARD32 *num_formats, CARD32 **formats) {
+    *num_formats = 0;
+    *formats = NULL;
+    return TRUE;
+}
+
+static int lorieGetModifiers(unused ScreenPtr screen, unused uint32_t format, uint32_t *num_modifiers, uint64_t **modifiers) {
+    *num_modifiers = 0;
+    *modifiers = NULL;
+    return TRUE;
 }
 
 static Bool
@@ -611,7 +607,14 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     miSetZeroLineBias(pScreen, 0);
     pScreen->blackPixel = 0;
     pScreen->whitePixel = 1;
-    static dri3_screen_info_rec dri3Info = { .pixmap_from_fds = loriePixmapFromFds };
+    static dri3_screen_info_rec dri3Info = {
+            .version = 2,
+            .fds_from_pixmap = FalseNoop,
+            .pixmap_from_fds = loriePixmapFromFds,
+            .get_formats = lorieGetFormats,
+            .get_modifiers = lorieGetModifiers,
+            .get_drawable_modifiers = FalseNoop
+    };
 
     if (FALSE
           || !miSetVisualTypesAndMasks(24, ((1 << TrueColor) | (1 << DirectColor)), 8, TrueColor, 0xFF0000, 0x00FF00, 0x0000FF)
@@ -621,11 +624,14 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
           || !lorieRandRInit(pScreen)
           || !miPointerInitialize(pScreen, &loriePointerSpriteFuncs, &loriePointerCursorFuncs, TRUE)
           || !fbCreateDefColormap(pScreen)
-          || !dri3_screen_init(pScreen, &dri3Info))
+          || !dri3_screen_init(pScreen, &dri3Info)
+          || !dixRegisterPrivateKey(&loriePixmapPrivateKeyRec, PRIVATE_PIXMAP, 0))
         return FALSE;
 
     wrap(pvfb, pScreen, CreateScreenResources, lorieCreateScreenResources)
     wrap(pvfb, pScreen, CloseScreen, lorieCloseScreen)
+    wrap(pvfb, pScreen, DestroyPixmap, lorieDestroyPixmap)
+
     QueueWorkProc(resetRootCursor, NULL, NULL);
     ShmRegisterFbFuncs(pScreen);
 
@@ -882,7 +888,7 @@ static void lorieHandleSelection(Atom target) {
 
         lorieConvertLF(prop->data,  filtered, prop->size);
         lorieLatin1ToUTF8((unsigned char*) utf8, (unsigned char*) filtered);
-        log(DEBUG, "Sending clipboard to clients (%d bytes)\n", strlen(utf8));
+        log(DEBUG, "Sending clipboard to clients (%zu bytes)\n", strlen(utf8));
         lorieSendClipboardData(utf8);
     } else if (target == xaUTF8_STRING && prop->type == xaUTF8_STRING && prop->format == 8) {
         char filtered[prop->size + 1];
@@ -895,7 +901,7 @@ static void lorieHandleSelection(Atom target) {
         memset(filtered, 0, prop->size + 1);
         lorieConvertLF(prop->data, filtered, prop->size);
 
-        log(DEBUG, "Sending clipboard to clients (%d bytes)\n", strlen(filtered));
+        log(DEBUG, "Sending clipboard to clients (%zu bytes)\n", strlen(filtered));
         lorieSendClipboardData(filtered);
     }
 }

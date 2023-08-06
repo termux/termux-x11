@@ -21,7 +21,6 @@
 #include <randrstr.h>
 #include "renderer.h"
 #include "lorie.h"
-#include "android-to-linux-keycodes.h"
 
 #define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
 

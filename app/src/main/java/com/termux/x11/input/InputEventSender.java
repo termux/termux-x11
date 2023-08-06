@@ -45,17 +45,17 @@ public final class InputEventSender {
         mInjector.sendMouseEvent((int) pos.x, (int) pos.y, button, down, relative);
     }
 
-    public void sendMouseDown(int button) {
-        mInjector.sendMouseEvent(0, 0, button, true, false);
+    public void sendMouseDown(int button, boolean relative) {
+        mInjector.sendMouseEvent(0, 0, button, true, relative);
     }
 
-    public void sendMouseUp(int button) {
-        mInjector.sendMouseEvent(0, 0, button, false, false);
+    public void sendMouseUp(int button, boolean relative) {
+        mInjector.sendMouseEvent(0, 0, button, false, relative);
     }
 
-    public void sendMouseClick(int button) {
-        mInjector.sendMouseEvent(0, 0, button, true, false);
-        mInjector.sendMouseEvent(0, 0, button, false, false);
+    public void sendMouseClick(int button, boolean relative) {
+        mInjector.sendMouseEvent(0, 0, button, true, relative);
+        mInjector.sendMouseEvent(0, 0, button, false, relative);
     }
 
     public void sendCursorMove(float x, float y, boolean relative) {

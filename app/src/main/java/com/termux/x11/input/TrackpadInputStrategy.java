@@ -24,12 +24,12 @@ public class TrackpadInputStrategy implements InputStrategyInterface {
 
     @Override
     public void onTap(int button) {
-        mInjector.sendMouseClick(button);
+        mInjector.sendMouseClick(button, true);
     }
 
     @Override
     public boolean onPressAndHold(int button) {
-        mInjector.sendMouseDown(button);
+        mInjector.sendMouseDown(button, true);
         mHeldButton = button;
         return true;
     }
@@ -42,7 +42,7 @@ public class TrackpadInputStrategy implements InputStrategyInterface {
     @Override
     public void onMotionEvent(MotionEvent event) {
         if (event.getActionMasked() == MotionEvent.ACTION_UP && mHeldButton != InputStub.BUTTON_UNDEFINED) {
-            mInjector.sendMouseUp(mHeldButton);
+            mInjector.sendMouseUp(mHeldButton, true);
             mHeldButton = InputStub.BUTTON_UNDEFINED;
         }
     }

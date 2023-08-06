@@ -245,13 +245,12 @@ public class TouchInputHandler {
                         break;
                 }
 
-                android.util.Log.d("EVENT", "screen " + 0 + " ev " + rot + " event " + e);
                 return true;
             case MotionEvent.ACTION_BUTTON_PRESS:
-                mInjector.sendMouseDown(button);
+                mInjector.sendMouseDown(button, true);
                 return true;
             case MotionEvent.ACTION_BUTTON_RELEASE:
-                mInjector.sendMouseUp(button);
+                mInjector.sendMouseUp(button, true);
                 return true;
             case MotionEvent.ACTION_SCROLL:
                 float scrollY = -100 * e.getAxisValue(MotionEvent.AXIS_VSCROLL);
@@ -568,11 +567,11 @@ public class TouchInputHandler {
 
             currentBS = e.getButtonState();
             if (isMouseButtonChanged(MotionEvent.BUTTON_PRIMARY))
-                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, mouseButtonDown(MotionEvent.BUTTON_PRIMARY), false);
+                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, mouseButtonDown(MotionEvent.BUTTON_PRIMARY), true);
             if (isMouseButtonChanged(MotionEvent.BUTTON_TERTIARY))
-                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_MIDDLE, mouseButtonDown(MotionEvent.BUTTON_TERTIARY), false);
+                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_MIDDLE, mouseButtonDown(MotionEvent.BUTTON_TERTIARY), true);
             if (isMouseButtonChanged(MotionEvent.BUTTON_SECONDARY))
-                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_RIGHT, mouseButtonDown(MotionEvent.BUTTON_SECONDARY), false);
+                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_RIGHT, mouseButtonDown(MotionEvent.BUTTON_SECONDARY), true);
             savedBS = currentBS;
             return true;
         }

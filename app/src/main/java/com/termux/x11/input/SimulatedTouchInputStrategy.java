@@ -104,12 +104,12 @@ public class SimulatedTouchInputStrategy implements InputStrategyInterface {
             mLastTapTimeInMs = 0;
         }
 
-        mInjector.sendMouseClick(button);
+        mInjector.sendMouseClick(button, false);
     }
 
     @Override
     public boolean onPressAndHold(int button) {
-        mInjector.sendMouseDown(button);
+        mInjector.sendMouseDown(button, false);
         mHeldButton = button;
         return true;
     }
@@ -122,7 +122,7 @@ public class SimulatedTouchInputStrategy implements InputStrategyInterface {
     @Override
     public void onMotionEvent(MotionEvent event) {
         if (event.getActionMasked() == MotionEvent.ACTION_UP && mHeldButton != InputStub.BUTTON_UNDEFINED) {
-            mInjector.sendMouseUp(mHeldButton);
+            mInjector.sendMouseUp(mHeldButton, false);
             mHeldButton = InputStub.BUTTON_UNDEFINED;
         }
     }

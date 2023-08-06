@@ -77,7 +77,7 @@ public class TouchInputStrategy implements InputStrategyInterface {
                 MotionEvent downEvent = mQueuedEvents.peek();
                 assert Objects.requireNonNull(downEvent).getActionMasked() == MotionEvent.ACTION_DOWN;
 
-                mInjector.sendMouseClick(InputStub.BUTTON_RIGHT);
+                mInjector.sendMouseClick(InputStub.BUTTON_RIGHT, false);
                 clearQueuedEvents();
                 return;
 

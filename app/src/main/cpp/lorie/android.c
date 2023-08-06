@@ -196,8 +196,12 @@ Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, unused jobject cls,
     static jobject cached = NULL;
     ANativeWindow* win = surface ? ANativeWindow_fromSurface(env, surface) : NULL;
 
-    if (cached)
+    if (cached) {
+        jmethodID release = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, cached), "release", "()V");
+        if (release)
+            (*env)->CallVoidMethod(env, cached, release);
         (*env)->DeleteGlobalRef(env, cached);
+    }
 
     if (surface)
         cached = (*env)->NewGlobalRef(env, surface);

@@ -500,7 +500,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public boolean handleKey(KeyEvent e) {
         if (filterOutWinKey && (e.getKeyCode() == KEYCODE_META_LEFT || e.getKeyCode() == KEYCODE_META_RIGHT || e.isMetaPressed()))
             return false;
-        mLorieKeyListener.onKey(null, e.getKeyCode(), e);
+        mLorieKeyListener.onKey(getLorieView(), e.getKeyCode(), e);
         return true;
     }
 

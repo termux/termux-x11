@@ -40,10 +40,9 @@ public class KeyInterceptor extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent e) {
-        if (e.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED){
-            intercept = "com.termux.x11.MainActivity".equals(e.getClassName().toString()) &&
-                    MainActivity.getInstance().getLorieView().isFocused();
-            Log.d("AccessibilityEvent","TYPE_WINDOW_STATE_CHANGED " + intercept + " " + e.getPackageName().toString() + " " + e.getClassName());
+        if (e.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && e.getClassName() != null){
+            intercept = getPackageName().contentEquals(e.getPackageName()) && MainActivity.getInstance().hasWindowFocus();
+            Log.d("AccessibilityEvent", "TYPE_WINDOW_STATE_CHANGED " + intercept + " " + e.getPackageName());
         }
     }
 

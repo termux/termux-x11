@@ -624,6 +624,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         if (hasFocus)
             getLorieView().regenerate();
+
+        getLorieView().requestFocus();
     }
 
     @Override

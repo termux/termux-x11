@@ -11,13 +11,11 @@ TERMUX_PKG_VERSION=$(grep versionName app/build.gradle | cut -d '"' -f 2)
 TERMUX_PKG_DEPENDS="xkeyboard-config"
 
 TERMUX_PKG_FULLVERSION="$TERMUX_PKG_VERSION-$TERMUX_PKG_REVISION"
-TERMUX_APT_ARCH=all
-TERMUX_PACMAN_ARCH=any
 
 ### Deploy .deb package
 
-DEB_PACKAGE_PATH=app/build/outputs/apk/debug/${TERMUX_PKG_NAME}-${TERMUX_PKG_FULLVERSION}-${TERMUX_APT_ARCH}.deb
-PACMAN_PACKAGE_PATH=app/build/outputs/apk/debug/${TERMUX_PKG_NAME}-${TERMUX_PKG_FULLVERSION}-${TERMUX_PACMAN_ARCH}.pkg.tar.xz
+DEB_PACKAGE_PATH=app/build/outputs/apk/debug/${TERMUX_PKG_NAME}-${TERMUX_PKG_FULLVERSION}-all.deb
+PACMAN_PACKAGE_PATH=app/build/outputs/apk/debug/${TERMUX_PKG_NAME}-${TERMUX_PKG_FULLVERSION}-any.pkg.tar.xz
 
 INTERMEDIATES=shell-loader/build/intermediates
 DATA_DIR=$INTERMEDIATES/data
@@ -38,12 +36,17 @@ cp shell-loader/build/outputs/apk/debug/shell-loader-debug.apk \
 mkdir -p $CONTROL_DIR
 cat <<EOF > $CONTROL_DIR/control
 Package: $TERMUX_PKG_NAME
-Architecture: $TERMUX_APT_ARCH
+Architecture: all
 Maintainer: $TERMUX_PKG_MAINTAINER
 Version: $TERMUX_PKG_FULLVERSION
 Homepage: $TERMUX_PKG_HOMEPAGE
 Depends: $TERMUX_PKG_DEPENDS
 Description: $TERMUX_PKG_DESCRIPTION
+EOF
+
+cat <<EOF > $CONTROL_DIR/postinst
+#!/data/data/com.termux/files/usr/bin/sh
+chmod -w /data/data/com.termux/files/usr/libexec/termux-x11/loader.apk
 EOF
 
 mkdir -p $PACKAGE_DIR
@@ -68,7 +71,7 @@ BUILD_DATE=$(date +%s)
   echo "url = $TERMUX_PKG_HOMEPAGE"
   echo "builddate = $BUILD_DATE"
   echo "packager = $TERMUX_PKG_MAINTAINER"
-  echo "arch = $TERMUX_PACMAN_ARCH"
+  echo "arch = any"
   echo "license = TERMUX_PKG_LICENSE"
   tr ',' '\n' <<< "$TERMUX_PKG_DEPENDS" | sed 's|(||g; s|)||g; s| ||g; s|>>|>|g; s|<<|<|g' | awk '{ printf "depend = " $1; if ( ($1 ~ /</ || $1 ~ />/ || $1 ~ /=/) && $1 !~ /-/ ) printf "-0"; printf "\n" }' | sed 's/|.*//'
 } > $DATA_DIR/.PKGINFO
@@ -78,10 +81,16 @@ BUILD_DATE=$(date +%s)
   echo "pkgname = $TERMUX_PKG_NAME"
   echo "pkgbase = $TERMUX_PKG_NAME"
   echo "pkgver = $TERMUX_PKG_FULLVERSION"
-  echo "pkgarch = $TERMUX_PACMAN_ARCH"
+  echo "pkgarch = any"
   echo "packager = $TERMUX_PKG_MAINTAINER"
   echo "builddate = $BUILD_DATE"
 } > $DATA_DIR/.BUILDINFO
+
+{
+  echo "post_install() {"
+  echo "    chmod -w /data/data/com.termux/files/usr/libexec/termux-x11/loader.apk"
+  echo "}"
+} > $DATA_DIR/.INSTALL
 
 PACMAN_PACKAGE_PATH=`realpath $PACMAN_PACKAGE_PATH`
 

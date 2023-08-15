@@ -121,6 +121,8 @@ static void lorieInitSelectionCallback();
 void
 ddxGiveUp(unused enum ExitCode error) {
     log(ERROR, "Server stopped (%d)", error);
+    CloseWellKnownConnections();
+    UnlockServer();
     exit(error);
 }
 
@@ -141,7 +143,7 @@ static void* ddxReadyThread(unused void* cookie) {
                 pid_t w = waitpid(pid, &status, 0);
                 if (w == -1) {
                     perror("waitpid");
-                    raise(SIGKILL);
+                    GiveUp(SIGKILL);
                 }
 
                 if (WIFEXITED(status)) {
@@ -154,7 +156,7 @@ static void* ddxReadyThread(unused void* cookie) {
                     printf("%d continued\n", w);
                 }
             } while (!WIFEXITED(status) && !WIFSIGNALED(status));
-            raise(SIGINT);
+            GiveUp(SIGINT);
         }
     }
 

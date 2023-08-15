@@ -2,6 +2,7 @@ package com.termux.x11.utils;
 
 import static com.termux.shared.termux.extrakeys.ExtraKeysConstants.PRIMARY_KEY_CODES_FOR_STRINGS;
 import static com.termux.x11.MainActivity.toggleKeyboardVisibility;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import android.annotation.SuppressLint;
 import android.content.ClipData;
@@ -107,7 +108,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
             mActivity.getLorieView().sendKeyEvent(0, keyCode, false);
         } else {
             // not a control char
-            mActivity.getLorieView().sendTextEvent(key);
+            mActivity.getLorieView().sendTextEvent(key.getBytes(UTF_8));
         }
     }
 

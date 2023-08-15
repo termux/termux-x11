@@ -3,6 +3,9 @@
 #pragma ide diagnostic ignored "DanglingPointer"
 #pragma ide diagnostic ignored "ConstantConditionsOC"
 #pragma ide diagnostic ignored "OCUnusedGlobalDeclarationInspection"
+#pragma ide diagnostic ignored "UnreachableCode"
+#pragma ide diagnostic ignored "OCUnusedMacroInspection"
+#pragma ide diagnostic ignored "misc-no-recursion"
 #define EGL_EGLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES
 
@@ -16,7 +19,6 @@
 #include "renderer.h"
 #include "os.h"
 
-//#define log(...) logMessage(X_ERROR, -1, __VA_ARGS__)
 #define log(...) __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", __VA_ARGS__)
 #define loge(...) __android_log_print(ANDROID_LOG_ERROR, "gles-renderer", __VA_ARGS__)
 
@@ -147,6 +149,15 @@ int renderer_init(void) {
             EGL_RED_SIZE, 8,
             EGL_GREEN_SIZE, 8,
             EGL_BLUE_SIZE, 8,
+            EGL_ALPHA_SIZE, 0,
+            EGL_NONE
+    };
+    const EGLint configAttribs2[] = {
+            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+            EGL_RED_SIZE, 8,
+            EGL_GREEN_SIZE, 8,
+            EGL_BLUE_SIZE, 8,
             EGL_ALPHA_SIZE, 8,
             EGL_NONE
     };
@@ -172,7 +183,8 @@ int renderer_init(void) {
     log("Xlorie: Initialized EGL version %d.%d\n", major, minor);
     eglCheckError(__LINE__);
 
-    if (eglChooseConfig(egl_display, configAttribs, &cfg, 1, &numConfigs) != EGL_TRUE) {
+    if (eglChooseConfig(egl_display, configAttribs, &cfg, 1, &numConfigs) != EGL_TRUE &&
+            eglChooseConfig(egl_display, configAttribs2, &cfg, 1, &numConfigs) != EGL_TRUE) {
         log("Xlorie: eglChooseConfig failed.\n");
         eglCheckError(__LINE__);
         return 0;
@@ -199,11 +211,7 @@ int renderer_init(void) {
     return 1;
 }
 
-void renderer_set_buffer(AHardwareBuffer* buf) {
-    const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
-    EGLClientBuffer clientBuffer;
-    AHardwareBuffer_Desc desc = {0};
-
+static void renderer_unset_buffer(void) {
     if (eglGetCurrentContext() == EGL_NO_CONTEXT) {
         loge("There is no current context, `renderer_set_buffer` call is cancelled");
         return;
@@ -214,6 +222,21 @@ void renderer_set_buffer(AHardwareBuffer* buf) {
         eglDestroyImageKHR(egl_display, image);
     if (buffer)
         AHardwareBuffer_release(buffer);
+
+    buffer = NULL;
+}
+
+void renderer_set_buffer(AHardwareBuffer* buf) {
+    const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
+    EGLClientBuffer clientBuffer;
+    AHardwareBuffer_Desc desc = {0};
+
+    if (eglGetCurrentContext() == EGL_NO_CONTEXT) {
+        loge("There is no current context, `renderer_set_buffer` call is cancelled");
+        return;
+    }
+
+    renderer_unset_buffer();
 
     buffer = buf;
 
@@ -261,7 +284,7 @@ void renderer_set_buffer(AHardwareBuffer* buf) {
     log("renderer_set_buffer %p %d %d", buffer, desc.width, desc.height);
 }
 
-void renderer_set_window(EGLNativeWindowType window, AHardwareBuffer* buffer) {
+void renderer_set_window(EGLNativeWindowType window, AHardwareBuffer* new_buffer) {
     log("renderer_set_window %p %d %d", window, window ? ANativeWindow_getWidth(window) : 0, window ? ANativeWindow_getHeight(window) : 0);
     if (window && win == window)
         return;
@@ -318,15 +341,15 @@ void renderer_set_window(EGLNativeWindowType window, AHardwareBuffer* buffer) {
 
     eglSwapInterval(egl_display, 0);
 
-    if (win && ctx && ANativeWindow_getWidth(win) && ANativeWindow_getHeight(win))
+    if (win && ctx && ANativeWindow_getWidth(win) > 0 && ANativeWindow_getHeight(win) > 0)
         glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win)); checkGlError();
 
     log("Xlorie: new surface applied: %p\n", sfc);
 
-    if (!buffer) {
+    if (!new_buffer) {
         glClearColor(0.f, 0.f, 0.f, 0.0f); checkGlError();
         glClear(GL_COLOR_BUFFER_BIT); checkGlError();
-    } else renderer_set_buffer(buffer);
+    } else renderer_set_buffer(new_buffer);
 }
 
 void renderer_update_root(int w, int h, void* data) {

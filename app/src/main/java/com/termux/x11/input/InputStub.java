@@ -36,7 +36,7 @@ public interface InputStub {
      * Sends a string literal. This function is useful to handle outputs from Android input
      * methods.
      */
-    void sendTextEvent(String text);
+    void sendTextEvent(byte[] utf8Bytes);
     void sendUnicodeEvent(int code);
 
     /** Sends an event, not flushing connection. */

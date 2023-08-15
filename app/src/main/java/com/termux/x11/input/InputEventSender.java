@@ -4,14 +4,18 @@
 
 package com.termux.x11.input;
 
+import static android.view.KeyEvent.*;
+import static android.view.MotionEvent.*;
+import static androidx.core.math.MathUtils.clamp;
+import static com.termux.x11.input.InputStub.*;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import android.graphics.PointF;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 
-import androidx.core.math.MathUtils;
-
-import java.util.Set;
+import java.util.List;
 import java.util.TreeSet;
 
 /**
@@ -29,7 +33,7 @@ public final class InputEventSender {
     public boolean pointerCapture = false;
 
     /** Set of pressed keys for which we've sent TextEvent. */
-    private final Set<Integer> mPressedTextKeys;
+    private final TreeSet<Integer> mPressedTextKeys;
 
     public InputEventSender(InputStub injector) {
         if (injector == null)
@@ -38,30 +42,34 @@ public final class InputEventSender {
         mPressedTextKeys = new TreeSet<>();
     }
 
+    private static final List<Integer> buttons = List.of(BUTTON_UNDEFINED, BUTTON_LEFT, BUTTON_MIDDLE, BUTTON_RIGHT);
     public void sendMouseEvent(PointF pos, int button, boolean down, boolean relative) {
-        if (!(button == InputStub.BUTTON_UNDEFINED
-                || button == InputStub.BUTTON_LEFT
-                || button == InputStub.BUTTON_MIDDLE
-                || button == InputStub.BUTTON_RIGHT))
-            throw new IllegalStateException();
-        mInjector.sendMouseEvent((int) pos.x, (int) pos.y, button, down, relative);
+        if (!buttons.contains(button))
+            return;
+        mInjector.sendMouseEvent(pos != null ? (int) pos.x : 0, pos != null ? (int) pos.y : 0, button, down, relative);
     }
 
     public void sendMouseDown(int button, boolean relative) {
+        if (!buttons.contains(button)) 
+            return;
         mInjector.sendMouseEvent(0, 0, button, true, relative);
     }
 
     public void sendMouseUp(int button, boolean relative) {
+        if (!buttons.contains(button))
+            return;
         mInjector.sendMouseEvent(0, 0, button, false, relative);
     }
 
     public void sendMouseClick(int button, boolean relative) {
+        if (!buttons.contains(button))
+            return;
         mInjector.sendMouseEvent(0, 0, button, true, relative);
         mInjector.sendMouseEvent(0, 0, button, false, relative);
     }
 
     public void sendCursorMove(float x, float y, boolean relative) {
-        mInjector.sendMouseEvent(x, y, InputStub.BUTTON_UNDEFINED, false, relative);
+        mInjector.sendMouseEvent(x, y, BUTTON_UNDEFINED, false, relative);
     }
 
     public void sendMouseWheelEvent(float distanceX, float distanceY) {
@@ -80,7 +88,7 @@ public final class InputEventSender {
     public void sendTouchEvent(MotionEvent event, RenderData renderData) {
         int action = event.getActionMasked();
 
-        if (action == MotionEvent.ACTION_MOVE || action == MotionEvent.ACTION_HOVER_MOVE || action == MotionEvent.ACTION_HOVER_ENTER || action == MotionEvent.ACTION_HOVER_EXIT) {
+        if (action == ACTION_MOVE || action == ACTION_HOVER_MOVE || action == ACTION_HOVER_ENTER || action == ACTION_HOVER_EXIT) {
             // In order to process all of the events associated with an ACTION_MOVE event, we need
             // to walk the list of historical events in order and add each event to our list, then
             // retrieve the current move event data.
@@ -90,8 +98,8 @@ public final class InputEventSender {
                 pointers[event.getPointerId(p)] = false;
 
             for (int p = 0; p < pointerCount; p++) {
-                int x = MathUtils.clamp((int) (event.getX(p) * renderData.scale.x), 0, renderData.screenWidth);
-                int y = MathUtils.clamp((int) (event.getY(p) * renderData.scale.y), 0, renderData.screenHeight);
+                int x = clamp((int) (event.getX(p) * renderData.scale.x), 0, renderData.screenWidth);
+                int y = clamp((int) (event.getY(p) * renderData.scale.y), 0, renderData.screenHeight);
                 pointers[event.getPointerId(p)] = true;
                 mInjector.sendTouchEvent(XI_TouchUpdate, event.getPointerId(p), x, y);
             }
@@ -107,9 +115,9 @@ public final class InputEventSender {
             // cause confusion on the remote OS side and result in broken touch gestures.
             int activePointerIndex = event.getActionIndex();
             int id = event.getPointerId(activePointerIndex);
-            int x =  MathUtils.clamp((int) (event.getX(activePointerIndex) * renderData.scale.x), 0, renderData.screenWidth);
-            int y =  MathUtils.clamp((int) (event.getY(activePointerIndex) * renderData.scale.y), 0, renderData.screenHeight);
-            int a = (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) ? XI_TouchBegin : XI_TouchEnd;
+            int x =  clamp((int) (event.getX(activePointerIndex) * renderData.scale.x), 0, renderData.screenWidth);
+            int y =  clamp((int) (event.getY(activePointerIndex) * renderData.scale.y), 0, renderData.screenHeight);
+            int a = (action == MotionEvent.ACTION_DOWN || action == ACTION_POINTER_DOWN) ? XI_TouchBegin : XI_TouchEnd;
             if (a == XI_TouchEnd)
                 mInjector.sendTouchEvent(XI_TouchUpdate, id, x, y);
             mInjector.sendTouchEvent(a, id, x, y);
@@ -121,9 +129,9 @@ public final class InputEventSender {
      * key-events or text-events. This contains some logic for handling some special keys, and
      * avoids sending a key-up event for a key that was previously injected as a text-event.
      */
-    public boolean sendKeyEvent(View view, KeyEvent event) {
-        int keyCode = event.getKeyCode();
-        boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
+    public boolean sendKeyEvent(View v, KeyEvent e) {
+        int keyCode = e.getKeyCode();
+        boolean pressed = e.getAction() == KeyEvent.ACTION_DOWN;
 
         // Events received from software keyboards generate TextEvent in two
         // cases:
@@ -132,23 +140,31 @@ public final class InputEventSender {
         // This ensures that on-screen keyboard always injects input that
         // correspond to what user sees on the screen, while physical keyboard
         // acts as if it is connected to the remote host.
-        if (event.getAction() == KeyEvent.ACTION_MULTIPLE) {
-            mInjector.sendTextEvent(event.getCharacters());
+        if (e.getAction() == ACTION_MULTIPLE) {
+            if (e.getCharacters() != null)
+                mInjector.sendTextEvent(e.getCharacters().getBytes(UTF_8));
+            else if (e.getUnicodeChar() != 0)
+                mInjector.sendTextEvent(String.valueOf((char)e.getUnicodeChar()).getBytes(UTF_8));
             return true;
         }
 
+        boolean no_modifiers = (!e.isAltPressed() && !e.isCtrlPressed() && !e.isMetaPressed())
+                || ((e.getMetaState() & META_ALT_RIGHT_ON) != 0 && (e.getCharacters() != null || e.getUnicodeChar() != 0)); // For layouts with AltGr
         // For Enter getUnicodeChar() returns 10 (line feed), but we still
         // want to send it as KeyEvent.
-        int unicode = keyCode != KeyEvent.KEYCODE_ENTER ? event.getUnicodeChar() : 0;
-        int scancode = preferScancodes ? event.getScanCode(): 0;
+        char unicode = keyCode != KEYCODE_ENTER ? (char) e.getUnicodeChar() : 0;
+        int scancode = (preferScancodes || !no_modifiers) ? e.getScanCode(): 0;
 
         if (!preferScancodes) {
-            boolean no_modifiers =
-                    !event.isAltPressed() && !event.isCtrlPressed() && !event.isMetaPressed();
-
             if (pressed && unicode != 0 && no_modifiers) {
                 mPressedTextKeys.add(keyCode);
-                mInjector.sendUnicodeEvent(unicode);
+                if ((e.getMetaState() & META_ALT_RIGHT_ON) != 0)
+                    mInjector.sendKeyEvent(0, KEYCODE_ALT_RIGHT, false); // For layouts with AltGr
+
+                mInjector.sendTextEvent(String.valueOf(unicode).getBytes(UTF_8));
+
+                if ((e.getMetaState() & META_ALT_RIGHT_ON) != 0)
+                    mInjector.sendKeyEvent(0, KEYCODE_ALT_RIGHT, true); // For layouts with AltGr
                 return true;
             }
 
@@ -158,41 +174,37 @@ public final class InputEventSender {
             }
         }
 
-        switch (keyCode) {
-            // KEYCODE_AT, KEYCODE_POUND, KEYCODE_STAR and KEYCODE_PLUS are
-            // deprecated, but they still need to be here for older devices and
-            // third-party keyboards that may still generate these events. See
-            // https://source.android.com/devices/input/keyboard-devices.html#legacy-unsupported-keys
-            case KeyEvent.KEYCODE_AT:
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_2, pressed);
+        // KEYCODE_AT, KEYCODE_POUND, KEYCODE_STAR and KEYCODE_PLUS are
+        // deprecated, but they still need to be here for older devices and
+        // third-party keyboards that may still generate these events. See
+        // https://source.android.com/devices/input/keyboard-devices.html#legacy-unsupported-keys
+        char[][] chars = {
+                { KEYCODE_AT, '@', KEYCODE_2 },
+                { KEYCODE_POUND, '#', KEYCODE_3 },
+                { KEYCODE_STAR, '*', KEYCODE_8 },
+                { KEYCODE_PLUS, '+', KEYCODE_EQUALS }
+        };
+
+        for (char[] i: chars) {
+            if (e.getKeyCode() != i[0])
+                continue;
+
+            if ((e.getCharacters() != null && String.valueOf(i[1]).contentEquals(e.getCharacters()))
+                    || e.getUnicodeChar() == i[1]) {
+                mInjector.sendKeyEvent(0, KEYCODE_SHIFT_LEFT, pressed);
+                mInjector.sendKeyEvent(0, i[2], pressed);
                 return true;
-
-            case KeyEvent.KEYCODE_POUND:
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_3, pressed);
-                return true;
-
-            case KeyEvent.KEYCODE_STAR:
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_8, pressed);
-                return true;
-
-            case KeyEvent.KEYCODE_PLUS:
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
-                mInjector.sendKeyEvent(0, KeyEvent.KEYCODE_EQUALS, pressed);
-                return true;
-
-            default:
-                // Ignoring Android's autorepeat.
-                if (event.getRepeatCount() > 0)
-                    return true;
-
-                if (pointerCapture && keyCode == KeyEvent.KEYCODE_ESCAPE && !pressed)
-                    view.releasePointerCapture();
-
-                // We try to send all other key codes to the host directly.
-                return mInjector.sendKeyEvent(scancode, keyCode, pressed);
+            }
         }
+
+        // Ignoring Android's autorepeat.
+        if (e.getRepeatCount() > 0)
+            return true;
+
+        if (pointerCapture && keyCode == KEYCODE_ESCAPE && !pressed)
+            v.releasePointerCapture();
+
+        // We try to send all other key codes to the host directly.
+        return mInjector.sendKeyEvent(scancode, keyCode, pressed);
     }
 }

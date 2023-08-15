@@ -496,7 +496,7 @@ JNIEXPORT jboolean JNICALL
 Java_com_termux_x11_LorieView_sendKeyEvent(unused JNIEnv* env, unused jobject cls, jint scan_code, jint key_code, jboolean key_down) {
     if (conn_fd != -1) {
         int code = (scan_code) ?: android_to_linux_keycode[key_code];
-        log(DEBUG, "Sending key: %d", code + 8);
+        log(DEBUG, "Sending key: %d (%d %d %d)", code + 8, scan_code, key_code, key_down);
         lorieEvent e = { .key = { .t = EVENT_KEY, .key = code + 8, .state = key_down } };
         write(conn_fd, &e, sizeof(e));
         checkConnection(env);
@@ -506,12 +506,13 @@ Java_com_termux_x11_LorieView_sendKeyEvent(unused JNIEnv* env, unused jobject cl
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, unused jobject thiz, jstring text) {
+Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, unused jobject thiz, jbyteArray text) {
     if (conn_fd != -1 && text) {
-        char *str = (char*) (*env)->GetStringUTFChars(env, text, NULL);
-        char *p = str;
+        jsize length = (*env)->GetArrayLength(env, text);
+        jbyte *str = (*env)->GetByteArrayElements(env, text, JNI_FALSE);
+        char *p = (char*) str;
         mbstate_t state = { 0 };
-        log(DEBUG, "Parsing text: %s", str);
+        log(DEBUG, "Parsing text: %.*s", length, str);
 
         while (*p) {
             wchar_t wc;
@@ -519,6 +520,7 @@ Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, unused jobject thiz, js
 
             if (len == (size_t)-1 || len == (size_t)-2) {
                 log(ERROR, "Invalid UTF-8 sequence encountered");
+                break;
             }
 
             if (len == 0)
@@ -528,10 +530,12 @@ Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, unused jobject thiz, js
             lorieEvent e = { .unicode = { .t = EVENT_UNICODE, .code = wc } };
             write(conn_fd, &e, sizeof(e));
             p += len;
+            if (p - (char*) str >= length)
+                break;
             usleep(30000);
         }
 
-        (*env)->ReleaseStringUTFChars(env, text, str);
+        (*env)->ReleaseByteArrayElements(env, text, str, JNI_ABORT);
         checkConnection(env);
     }
 }

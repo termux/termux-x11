@@ -8,15 +8,18 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.preference.PreferenceManager;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 
 import androidx.annotation.NonNull;
 
@@ -190,6 +193,12 @@ public class LorieView extends SurfaceView implements InputStub {
         sendMouseEvent(deltaX, deltaY, BUTTON_SCROLL, false, true);
     }
 
+    @Override
+    public boolean dispatchKeyEventPreIme(KeyEvent event) {
+        Activity a = getActivity();
+        return (a instanceof MainActivity) && ((MainActivity) a).handleKey(event);
+    }
+
     // It is used in native code
     void setClipboardText(String text) {
         ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
@@ -204,7 +213,7 @@ public class LorieView extends SurfaceView implements InputStub {
     public native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
     public native void sendTouchEvent(int action, int id, int x, int y);
     public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
-    public native void sendTextEvent(String text);
+    public native void sendTextEvent(byte[] text);
     public native void sendUnicodeEvent(int code);
 
     static {

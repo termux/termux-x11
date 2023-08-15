@@ -57,6 +57,7 @@ import androidx.core.math.MathUtils;
 import androidx.viewpager.widget.ViewPager;
 
 import com.termux.x11.input.InputEventSender;
+import com.termux.x11.input.InputStub;
 import com.termux.x11.input.TouchInputHandler.RenderStub;
 import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.FullscreenWorkaround;
@@ -84,6 +85,37 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private boolean mClientConnected = false;
     private View.OnKeyListener mLorieKeyListener;
     private boolean filterOutWinKey = false;
+
+    private final BroadcastReceiver receiver = new BroadcastReceiver() {
+        @SuppressLint("UnspecifiedRegisterReceiverFlag")
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (ACTION_START.equals(intent.getAction())) {
+                try {
+                    Log.v("LorieBroadcastReceiver", "Got new ACTION_START intent");
+                    IBinder b = Objects.requireNonNull(intent.getBundleExtra("")).getBinder("");
+                    service = ICmdEntryInterface.Stub.asInterface(b);
+                    Objects.requireNonNull(service).asBinder().linkToDeath(() -> {
+                        service = null;
+                        CmdEntryPoint.requestConnection();
+
+                        Log.v("Lorie", "Disconnected");
+                        runOnUiThread(() -> clientConnectedStateChanged(false)); //recreate()); //onPreferencesChanged(""));
+                    }, 0);
+
+                    onReceiveConnection();
+                } catch (Exception e) {
+                    Log.e("MainActivity", "Something went wrong while we extracted connection details from binder.", e);
+                }
+            } else if (ACTION_STOP.equals(intent.getAction())) {
+                finishAffinity();
+            } else if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction())) {
+                Log.d("MainActivity", "preference: " + intent.getStringExtra("key"));
+                if (!"additionalKbdVisible".equals(intent.getStringExtra("key")))
+                    onPreferencesChanged("");
+            }
+        }
+    };
 
     @SuppressLint("StaticFieldLeak")
     private static MainActivity instance;
@@ -128,9 +160,16 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 return true;
             }
 
-            if (k == KEYCODE_BACK && (e.getSource() & InputDevice.SOURCE_MOUSE) != InputDevice.SOURCE_MOUSE) {
+            if (k == KEYCODE_BACK) {
+                if ((e.getSource() & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE
+                || (e.getSource() & InputDevice.SOURCE_MOUSE_RELATIVE) == InputDevice.SOURCE_MOUSE_RELATIVE) {
+                    if (e.getRepeatCount() != 0) // ignore auto-repeat
+                        return true;
+                    if (e.getAction() == KeyEvent.ACTION_UP || e.getAction() == KeyEvent.ACTION_DOWN)
+                        lorieView.sendMouseEvent(-1, -1, InputStub.BUTTON_RIGHT, e.getAction() == KeyEvent.ACTION_DOWN, true);
+                    return true;
+                }
                 // Pass physical escape key to container...
-                Log.d("MainActivity", "Toggling keyboard visibility");
                 if (e.getScanCode() != 0)
                     return mInputHandler.sendKeyEvent(v, e);
                 if (e.getAction() == ACTION_UP) {
@@ -146,8 +185,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         lorieParent.setOnTouchListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));
         lorieParent.setOnHoverListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));
         lorieParent.setOnGenericMotionListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));
-        lorieView.setOnCapturedPointerListener((v, e) -> mInputHandler.handleCapturedEvent(lorieView, e));
-        lorieParent.setOnCapturedPointerListener((v, e) -> mInputHandler.handleCapturedEvent(lorieView, e));
+        lorieView.setOnCapturedPointerListener((v, e) -> mInputHandler.handleTouchEvent(lorieView, lorieView, e));
+        lorieParent.setOnCapturedPointerListener((v, e) -> mInputHandler.handleTouchEvent(lorieView, lorieView, e));
         lorieView.setOnKeyListener(mLorieKeyListener);
 
         lorieView.setCallback((sfc, surfaceWidth, surfaceHeight, screenWidth, screenHeight) -> {
@@ -166,37 +205,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
         });
 
-        registerReceiver(new BroadcastReceiver() {
-            @SuppressLint("UnspecifiedRegisterReceiverFlag")
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if (ACTION_START.equals(intent.getAction())) {
-                    try {
-                        Log.v("LorieBroadcastReceiver", "Got new ACTION_START intent");
-                        IBinder b = Objects.requireNonNull(intent.getBundleExtra("")).getBinder("");
-                        service = ICmdEntryInterface.Stub.asInterface(b);
-                        Objects.requireNonNull(service).asBinder().linkToDeath(() -> {
-                            service = null;
-                            CmdEntryPoint.requestConnection();
-
-                            Log.v("Lorie", "Disconnected");
-                            runOnUiThread(() -> recreate());
-                        }, 0);
-
-                        onReceiveConnection();
-                    } catch (Exception e) {
-                        Log.e("MainActivity", "Something went wrong while we extracted connection details from binder.", e);
-                    }
-                } else if (ACTION_STOP.equals(intent.getAction())) {
-                    finishAffinity();
-                } else if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction())) {
-                    Log.d("MainActivity", "preference: " + intent.getStringExtra("key"));
-                    if (!"additionalKbdVisible".equals(intent.getStringExtra("key")))
-                        recreate();
-//                    onPreferencesChanged();
-                }
-            }
-        }, new IntentFilter(ACTION_START) {{
+        registerReceiver(receiver, new IntentFilter(ACTION_START) {{
             addAction(ACTION_PREFERENCES_CHANGED);
             addAction(ACTION_STOP);
         }});
@@ -220,6 +229,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 && !shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
             requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 0);
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        unregisterReceiver(receiver);
+        super.onDestroy();
     }
 
     //Register the needed events to handle stylus as left, middle and right click
@@ -684,6 +699,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             toggleExtraKeys(connected && preferences.getBoolean("additionalKbdVisible", true), true);
             findViewById(R.id.stub).setVisibility(connected?View.INVISIBLE:View.VISIBLE);
             getLorieView().setVisibility(connected?View.VISIBLE:View.INVISIBLE);
+            getLorieView().regenerate();
 
             // We should recover connection in the case if file descriptor for some reason was broken...
             if (!connected)

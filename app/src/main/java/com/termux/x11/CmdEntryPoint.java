@@ -16,14 +16,13 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
+import android.os.RemoteException;
 import android.util.Log;
 import android.view.Surface;
 
 import androidx.annotation.Keep;
 
 import java.io.DataInputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -31,13 +30,14 @@ import java.net.Socket;
 import java.net.URL;
 import java.util.Arrays;
 
+/** @noinspection CommentedOutCode*/
 @Keep @SuppressLint({"StaticFieldLeak", "UnsafeDynamicallyLoadedCode"})
 public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static final String ACTION_START = "com.termux.x11.CmdEntryPoint.ACTION_START";
     public static final int PORT = 7892;
     public static final byte[] MAGIC = "0xDEADBEEF".getBytes();
     private static final Handler handler;
-    public static Context ctx;
+    public static Context ctx = createContext();
 
     /**
      * Command-line entry point.
@@ -50,19 +50,6 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     }
 
     CmdEntryPoint(String[] args) {
-        try {
-            if (ctx == null) {
-                // Hiding harmless framework errors, like this:
-                // java.io.FileNotFoundException: /data/system/theme_config/theme_compatibility.xml: open failed: ENOENT (No such file or directory)
-                PrintStream err = System.err;
-                System.setErr(new PrintStream(new OutputStream() { public void write(int arg0) {} }));
-                ctx = android.app.ActivityThread.systemMain().getSystemContext();
-                System.setErr(err);
-            }
-        } catch (Exception e) {
-            Log.e("CmdEntryPoint", "Problem during obtaining Context: ", e);
-        }
-
         if (!start(args))
             System.exit(1);
 
@@ -90,7 +77,12 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         try {
             ctx.sendBroadcast(intent);
         } catch (IllegalArgumentException e) {
-            String packageName = ctx.getPackageManager().getPackagesForUid(getuid())[0];
+            String packageName;
+            try {
+                packageName = android.app.ActivityThread.getPackageManager().getPackagesForUid(getuid())[0];
+            } catch (RemoteException ex) {
+                throw new RuntimeException(ex);
+            }
             IActivityManager am;
             try {
                 //noinspection JavaReflectionMemberAccess
@@ -170,6 +162,23 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
                 Log.e("CmdEntryPoint", "Something went wrong when we requested connection", e);
             }
         }).start();
+    }
+
+    /** @noinspection DataFlowIssue*/
+    @SuppressLint("DiscouragedPrivateApi")
+    public static Context createContext() {
+        try {
+            java.lang.reflect.Field f = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            f.setAccessible(true);
+            Object unsafe = f.get(null);
+            return ((android.app.ActivityThread) Class.
+                    forName("sun.misc.Unsafe").
+                    getMethod("allocateInstance", Class.class).
+                    invoke(unsafe, android.app.ActivityThread.class))
+                    .getSystemContext();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static native boolean start(String[] args);

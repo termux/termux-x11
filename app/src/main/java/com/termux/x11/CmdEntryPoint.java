@@ -30,7 +30,6 @@ import java.net.Socket;
 import java.net.URL;
 import java.util.Arrays;
 
-/** @noinspection CommentedOutCode*/
 @Keep @SuppressLint({"StaticFieldLeak", "UnsafeDynamicallyLoadedCode"})
 public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static final String ACTION_START = "com.termux.x11.CmdEntryPoint.ACTION_START";

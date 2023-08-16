@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
     <PreferenceCategory android:key="output" android:title="Output">
-
         <ListPreference
             android:title="Display resolution mode"
             android:key="displayResolutionMode"
@@ -65,10 +64,8 @@
 	        android:title="Keep Screen On"
             android:defaultValue="true"
             android:key="keepScreenOn" />
-
     </PreferenceCategory>
-    <PreferenceCategory android:key="input" android:title="Input">
-
+    <PreferenceCategory android:key="pointer" android:title="Pointer">
         <ListPreference
             android:title="Touchscreen input mode"
             android:key="touchMode"
@@ -82,6 +79,18 @@
             android:defaultValue="false"
             android:key="showStylusClickOverride" />
 
+        <SwitchPreferenceCompat
+            android:title="Capture external mouse when possible"
+            android:summary="Intercept all hardware mouse events. Pointer is back to Android after pressing Escape key."
+            android:defaultValue="false"
+            android:key="pointerCapture" />
+
+        <SwitchPreferenceCompat
+            android:title="Enable tap-to-move for touchpads"
+            android:defaultValue="false"
+            android:key="tapToMove" />
+    </PreferenceCategory>
+    <PreferenceCategory android:key="kbd" android:title="Keyboard">
         <SwitchPreferenceCompat
             android:title="Show additional keyboard"
             android:summary="Show keyboard with additional keys."
@@ -111,12 +120,6 @@
             android:defaultValue="false"
             android:key="dexMetaKeyCapture" />
 
-        <SwitchPreferenceCompat
-            android:title="Capture external mouse when possible"
-            android:summary="Intercept all hardware mouse events. Pointer is back to Android after pressing Escape key."
-            android:defaultValue="false"
-            android:key="pointerCapture" />
-
         <Preference
             android:title="Enable Accessibility service for intercepting system shortcuts manually."
             android:summary="Open Accessibility settings."
@@ -139,12 +142,14 @@
             android:key="extra_keys_config" />
     </PreferenceCategory>
 
-    <SwitchPreferenceCompat
-        android:title="Automatic uploading clipboard to Android"
-        android:defaultValue="false"
-        android:key="clipboardSync" />
+    <PreferenceCategory android:key="other" android:title="Other">
+        <SwitchPreferenceCompat
+            android:title="Automatic uploading clipboard to Android"
+            android:defaultValue="false"
+            android:key="clipboardSync" />
 
-    <Preference
-        android:title="Request notification permission"
-        android:key="requestNotificationPermission" />
+        <Preference
+            android:title="Request notification permission"
+            android:key="requestNotificationPermission" />
+    </PreferenceCategory>
 </PreferenceScreen>

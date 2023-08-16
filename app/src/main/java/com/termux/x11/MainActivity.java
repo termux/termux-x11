@@ -373,6 +373,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         int mode = Integer.parseInt(p.getString("touchMode", "1"));
         mInputHandler.setInputMode(mode);
+        mInputHandler.setTapToMove(p.getBoolean("tapToMove", false));
         mInputHandler.setPreferScancodes(p.getBoolean("preferScancodes", false));
         mInputHandler.setPointerCaptureEnabled(p.getBoolean("pointerCapture", false));
         if (!p.getBoolean("pointerCapture", false) && lorieView.hasPointerCapture())

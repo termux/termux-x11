@@ -29,6 +29,7 @@ public final class InputEventSender {
 
     private final InputStub mInjector;
 
+    public boolean tapToMove = false;
     public boolean preferScancodes = false;
     public boolean pointerCapture = false;
 

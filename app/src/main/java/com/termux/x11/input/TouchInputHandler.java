@@ -13,6 +13,7 @@ import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 
 import androidx.annotation.IntDef;
 import androidx.core.math.MathUtils;
@@ -65,7 +66,7 @@ public class TouchInputHandler {
 
     /**
      * Distance in pixels beyond which a motion gesture is considered to be a swipe. This is
-     * initialized using the Context passed into the ctor.
+     * initialized using the Context passed into the constructor.
      */
     private final float mSwipeThreshold;
 
@@ -82,7 +83,7 @@ public class TouchInputHandler {
     private boolean mSwipeCompleted;
 
     /**
-     * Set to true when a 1 finger pan gesture originates with a longpress.  This means the user
+     * Set to true when a 1 finger pan gesture originates with a long-press.  This means the user
      * is performing a drag operation.
      */
     private boolean mIsDragging;
@@ -253,6 +254,10 @@ public class TouchInputHandler {
             mInputStrategy = new InputStrategyInterface.TrackpadInputStrategy(mInjector);
     }
 
+    public void setTapToMove(boolean enabled) {
+        mInjector.tapToMove = enabled;
+    }
+
     public void setPreferScancodes(boolean enabled) {
         mInjector.preferScancodes = enabled;
     }
@@ -300,6 +305,12 @@ public class TouchInputHandler {
      * @noinspection NullableProblems */
     private class GestureListener extends GestureDetector.SimpleOnGestureListener
             implements TapGestureDetector.OnTapListener {
+        private final Handler mGestureListenerHandler = new Handler(msg -> {
+            if (msg.what == InputStub.BUTTON_LEFT)
+                mInputStrategy.onTap(InputStub.BUTTON_LEFT);
+            return true;
+        });
+
         /**
          * Called when the user drags one or more fingers across the touchscreen.
          */
@@ -363,7 +374,35 @@ public class TouchInputHandler {
                 moveCursorToScreenPoint(x, y);
             }
 
-            mInputStrategy.onTap(button);
+            if (button != InputStub.BUTTON_LEFT || !(mInjector.tapToMove && mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy))
+                mInputStrategy.onTap(button);
+            else
+                mGestureListenerHandler.sendEmptyMessageDelayed(InputStub.BUTTON_LEFT, ViewConfiguration.getDoubleTapTimeout());
+        }
+
+
+        private float mLastFocusX;
+        private float mLastFocusY;
+        @Override
+        public boolean onDoubleTapEvent(MotionEvent e) {
+            if (e.getPointerCount() == 1) {
+                switch(e.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        if (mInjector.tapToMove && mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) {
+                            mGestureListenerHandler.removeMessages(InputStub.BUTTON_LEFT);
+                            onLongPress(1, e.getX(), e.getY());
+                        }
+                        break;
+                    case MotionEvent.ACTION_MOVE:
+                        onScroll(null, e, mLastFocusX - e.getX(), mLastFocusY - e.getY());
+                        break;
+                }
+
+                mLastFocusX = e.getX();
+                mLastFocusY = e.getY();
+            }
+
+            return true;
         }
 
         /** Called when a long-press is triggered for one or more fingers. */

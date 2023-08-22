@@ -488,7 +488,8 @@ public class TouchInputHandler {
                 if (e.getDevice().getMotionRange(MotionEvent.AXIS_RELATIVE_X) != null) {
                     float x = e.getAxisValue(MotionEvent.AXIS_RELATIVE_X), y = e.getAxisValue(MotionEvent.AXIS_RELATIVE_Y);
                     mInjector.sendCursorMove(2 * x, 2 * y, true);
-                    mTouchpadHandler.mTapDetector.onTouchEvent(e);
+                    if (mTouchpadHandler != null)
+                        mTouchpadHandler.mTapDetector.onTouchEvent(e);
                 } else if ((e.getSource() & InputDevice.SOURCE_MOUSE_RELATIVE) == InputDevice.SOURCE_MOUSE_RELATIVE) {
                     mInjector.sendCursorMove(2 * e.getX(), 2 * e.getY(), true);
                 }

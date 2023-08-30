@@ -1,3 +1,4 @@
+//file:noinspection UnnecessaryQualifiedReference
 apply plugin: 'com.android.application'
 
 android.namespace 'com.termux.x11'
@@ -6,3 +7,12 @@ android.buildTypes.debug.signingConfig project(':app').android.signingConfigs.de
 android.compileOptions.sourceCompatibility JavaVersion.VERSION_1_8
 android.compileOptions.targetCompatibility JavaVersion.VERSION_1_8
 dependencies.compileOnly project(':shell-loader:stub')
+
+
+def keyStore = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
+project(':app').android.signingConfigs.debug.storeFile.withInputStream { is ->
+     keyStore.load(is, project(':app').android.signingConfigs.debug.keyPassword.toCharArray())
+}
+
+android.buildFeatures.buildConfig true
+android.defaultConfig.buildConfigField "String", "SIGNATURE", "\"" + new BigInteger(1, java.security.MessageDigest.getInstance("MD5").digest(keyStore.getCertificate(project(':app').android.signingConfigs.debug.keyAlias).getEncoded())).toString(16) + "\""

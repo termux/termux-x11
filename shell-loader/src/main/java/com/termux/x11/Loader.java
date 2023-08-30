@@ -5,20 +5,19 @@ import android.content.Context;
 import android.content.pm.IPackageManager;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.content.pm.PackageParser;
-import android.content.pm.PackageUserState;
-import android.content.pm.pkg.FrameworkPackageUserState;
 import android.os.Build;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.util.Log;
 
-import java.io.File;
+import java.math.BigInteger;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 
 import dalvik.system.PathClassLoader;
 
-/** @noinspection CommentedOutCode, deprecation*/
+/** @noinspection deprecation */
 @SuppressLint("UnsafeDynamicallyLoadedCode")
 public class Loader {
     private final static String targetPackageName = "com.termux.x11";
@@ -52,35 +51,17 @@ public class Loader {
         Context ctx = createContext();
 
         try {
-            String selfPath = System.getProperty("java.class.path");
             @SuppressLint("PackageManagerGetSignatures")
-            PackageInfo selfInfo, targetInfo;
+            PackageInfo targetInfo;
 
             try {
                 PackageManager pm = Objects.requireNonNull(ctx).getPackageManager();
-                selfInfo = Objects.requireNonNull(pm).getPackageArchiveInfo(selfPath, PackageManager.GET_SIGNATURES);
                 targetInfo = Objects.requireNonNull(pm).getPackageInfo(targetPackageName, PackageManager.GET_SIGNATURES);
             } catch (PackageManager.NameNotFoundException e) {
                 throw e;
             } catch (Throwable e) {
                 android.util.Log.e("Loader", "Failed to get package info traditional way, trying again using reflections.", e);
                 IPackageManager ipm = android.app.ActivityThread.getPackageManager();
-                PackageParser parser = new PackageParser();
-                parser.setCallback(new PackageParser.Callback() {
-                    @Override public boolean hasFeature(String feature) { return false; }
-                    @Override public String[] getOverlayPaths(String targetPackageName, String targetPath) { return new String[0]; }
-                    @Override public String[] getOverlayApks(String targetPackageName) { return new String[0]; }
-                });
-                PackageParser.Package pkg = parser.parsePackage(new File(System.getProperty("java.class.path")), 0, false);
-                if (Build.VERSION.SDK_INT <= 27)
-                    PackageParser.collectCertificates(pkg, 0);
-                else
-                    PackageParser.collectCertificates(pkg, false);
-
-                if (Build.VERSION.SDK_INT <= 31)
-                    selfInfo = PackageParser.generatePackageInfo(pkg, null, PackageManager.GET_SIGNATURES, 0, 0, null, new PackageUserState());
-                else
-                    selfInfo = PackageParser.generatePackageInfo(pkg, null, PackageManager.GET_SIGNATURES, 0, 0, null, FrameworkPackageUserState.DEFAULT);
 
                 if (Build.VERSION.SDK_INT <= 32)
                     targetInfo = ipm.getPackageInfo(targetPackageName, PackageManager.GET_SIGNATURES, 0);
@@ -88,18 +69,14 @@ public class Loader {
                     targetInfo = ipm.getPackageInfo(targetPackageName, (long) PackageManager.GET_SIGNATURES, 0);
             }
 
-            if (selfInfo == null) {
-                System.err.println("Failed to get signature info of the loader.");
-                System.exit(134);
-                return;
-            }
             if (targetInfo == null) {
                 System.err.println("Failed to get signature info of `" + targetPackageName + "`.");
                 System.exit(134);
                 return;
             }
-            if (selfInfo.signatures.length != targetInfo.signatures.length
-                    || selfInfo.signatures[0].hashCode() != targetInfo.signatures[0].hashCode()) {
+
+            String signature = new BigInteger(1, MessageDigest.getInstance("MD5").digest(targetInfo.signatures[0].toByteArray())).toString(16);
+            if (targetInfo.signatures.length != 1 || !BuildConfig.SIGNATURE.equals(signature)) {
                 System.err.println("Signatures of this loader and target application " + targetPackageName + " do not match.");
                 System.err.println("Please, reinstall both termux-x11 package and Termux:X11 application from the same source");
                 System.exit(134);
@@ -117,7 +94,7 @@ public class Loader {
         } catch (PackageManager.NameNotFoundException e) {
             Log.e(logTag, "Error", e);
             System.err.println(packageNotInstalledErrorText);
-        } catch (RemoteException e) {
+        } catch (RemoteException | NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
         System.exit(0);

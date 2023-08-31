@@ -1,18 +1,18 @@
-//file:noinspection UnnecessaryQualifiedReference
+//file:noinspection UnnecessaryQualifiedReference, GrDeprecatedAPIUsage
 apply plugin: 'com.android.application'
 
 android.namespace 'com.termux.x11'
 android.compileSdkVersion 28
-android.buildTypes.debug.signingConfig project(':app').android.signingConfigs.debug
+android.buildTypes.debug.signingConfig null
+android.buildFeatures.buildConfig true
 android.compileOptions.sourceCompatibility JavaVersion.VERSION_1_8
 android.compileOptions.targetCompatibility JavaVersion.VERSION_1_8
 dependencies.compileOnly project(':shell-loader:stub')
+android.applicationVariants.configureEach { outputs.configureEach { outputFileName = "shell-loader-debug.apk" } }
 
-
+def signingConfig = project(':app').android.signingConfigs.debug
 def keyStore = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
-project(':app').android.signingConfigs.debug.storeFile.withInputStream { is ->
-     keyStore.load(is, project(':app').android.signingConfigs.debug.keyPassword.toCharArray())
-}
+keyStore.load(new FileInputStream(signingConfig.storeFile), signingConfig.keyPassword.toCharArray())
 
-android.buildFeatures.buildConfig true
-android.defaultConfig.buildConfigField "String", "SIGNATURE", "\"" + new BigInteger(1, java.security.MessageDigest.getInstance("MD5").digest(keyStore.getCertificate(project(':app').android.signingConfigs.debug.keyAlias).getEncoded())).toString(16) + "\""
+android.defaultConfig.buildConfigField "int", "SIGNATURE", String.valueOf(Arrays.hashCode(keyStore.getCertificate(signingConfig.keyAlias).getEncoded()))
+android.defaultConfig.buildConfigField "String", "CLASS_ID", "\"com.termux.x11.CmdEntryPoint\""

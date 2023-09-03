@@ -183,7 +183,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     return true;
                 }
                 // Pass physical escape key to container...
-                if (e.getDeviceId() != -1 && e.isFromSource(InputDevice.SOURCE_KEYBOARD))
+                if (e.getScanCode() != 0 || !(e.getScanCode() == 186 /* KEY_BACK */ && e.getDevice().getKeyboardType() == InputDevice.KEYBOARD_TYPE_ALPHABETIC))
                     return mInputHandler.sendKeyEvent(v, e);
                 if (e.getAction() == ACTION_UP) {
                     Log.d("MainActivity", "Toggling keyboard visibility");

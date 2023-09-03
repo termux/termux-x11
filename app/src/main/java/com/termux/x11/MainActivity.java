@@ -3,6 +3,7 @@ package com.termux.x11;
 import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.os.Build.VERSION.SDK_INT;
+import static android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC;
 import static android.view.KeyEvent.*;
 import static android.view.WindowManager.LayoutParams.*;
 import static com.termux.x11.CmdEntryPoint.ACTION_START;
@@ -26,8 +27,6 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Point;
-import android.graphics.PointF;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
@@ -56,7 +55,6 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
-import android.widget.TableLayout;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -75,11 +73,8 @@ import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
 
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 
 @SuppressLint("ApplySharedPref")
 @SuppressWarnings({"deprecation", "unused"})
@@ -98,6 +93,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private boolean mClientConnected = false;
     private View.OnKeyListener mLorieKeyListener;
     private boolean filterOutWinKey = false;
+    private static final int KEY_BACK = 158;
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @SuppressLint("UnspecifiedRegisterReceiverFlag")
@@ -174,22 +170,20 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
 
             if (k == KEYCODE_BACK) {
-                if ((e.getSource() & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE
-                || (e.getSource() & InputDevice.SOURCE_MOUSE_RELATIVE) == InputDevice.SOURCE_MOUSE_RELATIVE) {
+                if (e.isFromSource(InputDevice.SOURCE_MOUSE) || e.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) {
                     if (e.getRepeatCount() != 0) // ignore auto-repeat
                         return true;
                     if (e.getAction() == KeyEvent.ACTION_UP || e.getAction() == KeyEvent.ACTION_DOWN)
                         lorieView.sendMouseEvent(-1, -1, InputStub.BUTTON_RIGHT, e.getAction() == KeyEvent.ACTION_DOWN, true);
                     return true;
                 }
-                // Pass physical escape key to container...
-                if (e.getScanCode() != 0 || !(e.getScanCode() == 186 /* KEY_BACK */ && e.getDevice().getKeyboardType() == InputDevice.KEYBOARD_TYPE_ALPHABETIC))
-                    return mInputHandler.sendKeyEvent(v, e);
-                if (e.getAction() == ACTION_UP) {
-                    Log.d("MainActivity", "Toggling keyboard visibility");
-                    toggleKeyboardVisibility(MainActivity.this);
+
+                if (e.getScanCode() == KEY_BACK && e.getDevice().getKeyboardType() != KEYBOARD_TYPE_ALPHABETIC || e.getScanCode() == 0) {
+                    if (e.getAction() == ACTION_UP)
+                        toggleKeyboardVisibility(MainActivity.this);
+
+                    return true;
                 }
-                return true;
             }
 
             return mInputHandler.sendKeyEvent(v, e);
@@ -381,23 +375,22 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }, 10);
         });
 
-        Map.of(left, InputStub.BUTTON_LEFT, middle, InputStub.BUTTON_MIDDLE, right, InputStub.BUTTON_RIGHT).forEach((v, b) -> {
-            v.setOnTouchListener((__, e) -> {
-                switch(e.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                    case MotionEvent.ACTION_POINTER_DOWN:
-                        getLorieView().sendMouseEvent(0, 0, b, true, true);
-                        v.setPressed(true);
-                        break;
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_POINTER_UP:
-                        getLorieView().sendMouseEvent(0, 0, b, false, true);
-                        v.setPressed(false);
-                        break;
-                }
-                return true;
-            });
-        });
+        Map.of(left, InputStub.BUTTON_LEFT, middle, InputStub.BUTTON_MIDDLE, right, InputStub.BUTTON_RIGHT)
+                .forEach((v, b) -> v.setOnTouchListener((__, e) -> {
+            switch(e.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                case MotionEvent.ACTION_POINTER_DOWN:
+                    getLorieView().sendMouseEvent(0, 0, b, true, true);
+                    v.setPressed(true);
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_POINTER_UP:
+                    getLorieView().sendMouseEvent(0, 0, b, false, true);
+                    v.setPressed(false);
+                    break;
+            }
+            return true;
+        }));
 
         pos.setOnTouchListener(new View.OnTouchListener() {
             final int touchSlop = (int) Math.pow(ViewConfiguration.get(MainActivity.this).getScaledTouchSlop(), 2);
@@ -805,6 +798,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
      */
     public static void toggleKeyboardVisibility(Context context) {
         InputMethodManager inputMethodManager = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
+        Log.d("MainActivity", "Toggling keyboard visibility");
         if(inputMethodManager != null)
             inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
     }

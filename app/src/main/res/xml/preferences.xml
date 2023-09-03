@@ -80,6 +80,12 @@
             android:key="showStylusClickOverride" />
 
         <SwitchPreferenceCompat
+            android:title="Show mouse click helper overlay"
+            android:summary="Onscreen mouse buttons usable with touchpad"
+            android:defaultValue="false"
+            android:key="showMouseHelper" />
+
+        <SwitchPreferenceCompat
             android:title="Capture external mouse when possible"
             android:summary="Intercept all hardware mouse events. Pointer is back to Android after pressing Escape key."
             android:defaultValue="false"

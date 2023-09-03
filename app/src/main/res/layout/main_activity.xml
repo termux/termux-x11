@@ -166,6 +166,97 @@
         </LinearLayout>
     </LinearLayout>
 
+    <LinearLayout
+        android:id="@+id/mouse_buttons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center"
+        android:layout_marginBottom="40dp"
+        android:orientation="vertical"
+        android:alpha="0.7"
+        android:translationX="0px"
+        android:translationY="0px">
+
+        <LinearLayout
+            android:id="@+id/mouse_buttons_secondary_layer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            tools:visibility="visible">
+
+            <Button
+                android:id="@+id/mouse_button_left_click"
+                android:layout_width="96dp"
+                android:layout_height="48dp"
+                android:minWidth="48dp"
+                android:minHeight="48dp"
+                android:padding="0px"
+                android:paddingStart="0px"
+                android:paddingLeft="0px"
+                android:paddingTop="0px"
+                android:paddingEnd="0px"
+                android:paddingRight="0px"
+                android:paddingBottom="0px"
+                android:text="L"
+                android:textColor="@android:color/black"
+                android:background="@drawable/mouse_buttons"
+                android:textSize="8sp"
+                tools:ignore="HardcodedText,PxUsage,SmallSp" />
+
+            <Button
+                android:id="@+id/mouse_button_middle_click"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:minWidth="48dp"
+                android:minHeight="48dp"
+                android:padding="0px"
+                android:paddingStart="0px"
+                android:paddingLeft="0px"
+                android:paddingTop="0px"
+                android:paddingEnd="0px"
+                android:paddingRight="0px"
+                android:paddingBottom="0px"
+                android:text="M"
+                android:textColor="@android:color/black"
+                android:background="@drawable/mouse_buttons"
+                android:textSize="8sp"
+                tools:ignore="HardcodedText,PxUsage,SmallSp" />
+
+            <Button
+                android:id="@+id/mouse_button_right_click"
+                android:layout_width="96dp"
+                android:layout_height="48dp"
+                android:minWidth="48dp"
+                android:minHeight="48dp"
+                android:padding="0px"
+                android:paddingStart="0px"
+                android:paddingLeft="0px"
+                android:paddingTop="0px"
+                android:paddingEnd="0px"
+                android:paddingRight="0px"
+                android:paddingBottom="0px"
+                android:text="R"
+                android:textColor="@android:color/black"
+                android:background="@drawable/mouse_buttons"
+                android:textSize="8sp"
+                tools:ignore="HardcodedText,PxUsage,SmallSp" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/mouse_buttons_position"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:minWidth="40dp"
+            android:minHeight="40dp"
+            android:adjustViewBounds="true"
+            android:padding="2dp"
+            android:scaleType="fitCenter"
+            android:src="@android:drawable/ic_menu_mylocation"
+            android:contentDescription="MOVE"
+            android:layout_gravity="center"
+            android:background="@drawable/mouse_buttons"
+            tools:ignore="HardcodedText,PxUsage,SmallSp" />
+    </LinearLayout>
+
     <androidx.viewpager.widget.ViewPager
         android:id="@+id/terminal_toolbar_view_pager"
         android:visibility="gone"

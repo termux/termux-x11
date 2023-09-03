@@ -440,7 +440,6 @@ Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, maybe_unused jobject th
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_startLogcat(JNIEnv *env, unused jobject cls, jint fd) {
     log(DEBUG, "Starting logcat with output to given fd");
-    system("/system/bin/logcat -c");
 
     switch(fork()) {
         case -1:
@@ -450,7 +449,9 @@ Java_com_termux_x11_LorieView_startLogcat(JNIEnv *env, unused jobject cls, jint 
             dup2(fd, 1);
             dup2(fd, 2);
             prctl(PR_SET_PDEATHSIG, SIGTERM);
-            execl("/system/bin/logcat", "logcat", NULL);
+            char buf[64] = {0};
+            sprintf(buf, "--pid=%d", getppid());
+            execl("/system/bin/logcat", "logcat", buf, NULL);
             log(ERROR, "exec logcat: %s", strerror(errno));
             (*env)->FatalError(env, "Exiting");
     }

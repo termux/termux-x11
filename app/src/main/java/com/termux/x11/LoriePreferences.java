@@ -133,6 +133,7 @@ public class LoriePreferences extends AppCompatActivity {
             int modeValue = Integer.parseInt(p.getString("touchMode", "1")) - 1;
             String mode = getResources().getStringArray(R.array.touchscreenInputModesEntries)[modeValue];
             findPreference("touchMode").setSummary(mode);
+            findPreference("showMouseHelper").setEnabled("1".equals(p.getString("touchMode", "1")));
 
             boolean requestNotificationPermissionVisible =
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU

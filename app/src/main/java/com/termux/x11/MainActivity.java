@@ -360,7 +360,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         LinearLayout secondaryLayer = findViewById(R.id.mouse_buttons_secondary_layer);
 
         SharedPreferences p = PreferenceManager.getDefaultSharedPreferences(this);
-        boolean mouseHelperEnabled = p.getBoolean("showMouseHelper", false);
+        boolean mouseHelperEnabled = p.getBoolean("showMouseHelper", false) && "1".equals(p.getString("touchMode", "1"));
         primaryLayer.setVisibility(mouseHelperEnabled ? View.VISIBLE : View.GONE);
 
         pos.setOnClickListener((v) -> {
@@ -530,7 +530,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (getRequestedOrientation() != requestedOrientation)
             setRequestedOrientation(requestedOrientation);
 
-        findViewById(R.id.mouse_buttons).setVisibility(p.getBoolean("showMouseHelper", false) ? View.VISIBLE : View.GONE);
+        findViewById(R.id.mouse_buttons).setVisibility(p.getBoolean("showMouseHelper", false) && "1".equals(p.getString("touchMode", "1")) ? View.VISIBLE : View.GONE);
         LinearLayout buttons = findViewById(R.id.mouse_helper_visibility);
         if (p.getBoolean("showStylusClickOverride", false)) {
             buttons.setVisibility(View.VISIBLE);

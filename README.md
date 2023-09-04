@@ -117,9 +117,10 @@ In touchpad emulation mode you can use the following gestures:
 * Two-finger vertical swipe for vertical scroll
 * Two-finger horizontal swipe for horizontal scroll
 * Three-finger swipe down to show-hide additional keys bar.
-### Mouse emulation mode.
-In mouse emulation mode you can use the following gestures:
-* Mouse is in click mode as long as you hold finger on a screen.
+### Simulated touchscreen mode.
+In simulated touchscreen mode you can use the following gestures:
+* Single tap for left button click.
+* Long tap for mouse holding.
 * Double tap for double click
 * Two-finger tap for right click
 * Three-finger tap for middle click

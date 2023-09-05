@@ -19,7 +19,7 @@ jobs:
     name: "Validation"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: gradle/wrapper-validation-action@v1
@@ -31,7 +31,7 @@ jobs:
       run: |
         sudo apt update && sudo apt install -y libarchive-tools binutils-aarch64-linux-gnu binutils-arm-linux-gnueabihf
     - name: Clone repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         submodules: recursive
     - uses: actions/setup-java@v3

@@ -1,7 +1,14 @@
 # Normally xkbcomp is build as executable, but in our case it is better to embed it.
 
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/X11")
-file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/patches/ks_tables.h" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
+
+add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/ks_tables.h"
+        COMMAND "/usr/bin/gcc" "-o" "${CMAKE_CURRENT_BINARY_DIR}/makekeys" "${CMAKE_CURRENT_SOURCE_DIR}/libx11/src/util/makekeys.c" "&&"
+            "${CMAKE_CURRENT_BINARY_DIR}/makekeys" "keysymdef.h" "XF86keysym.h" "Sunkeysym.h" "DECkeysym.h" "HPkeysym.h" ">" "${CMAKE_CURRENT_BINARY_DIR}/ks_tables.h"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/xorgproto/include/X11"
+        COMMENT "Generating source code (ks_tables.h)"
+        VERBATIM)
 
 BISON_TARGET(xkbcomp_parser xkbcomp/xkbparse.y ${CMAKE_CURRENT_BINARY_DIR}/xkbparse.c)
 add_library(xkbcomp STATIC
@@ -43,6 +50,7 @@ add_library(xkbcomp STATIC
         "xkbcomp/xkbparse.y"
         "xkbcomp/xkbpath.c"
         "xkbcomp/xkbscan.c"
+        "${CMAKE_CURRENT_BINARY_DIR}/ks_tables.h"
         "${CMAKE_CURRENT_BINARY_DIR}/xkbparse.c")
 target_include_directories(xkbcomp
         PUBLIC

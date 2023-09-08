@@ -28,7 +28,7 @@ file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/xserver/GL")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/xserver/GL/glext.h" CONTENT "#include <GL/gl.h>")
 add_custom_command(
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/xserver/GL/gl.h"
-        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/lorie/gen_stubs.py"
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/libepoxy/gen_dispatch.py"
         "--outputdir=${CMAKE_CURRENT_BINARY_DIR}/xserver/GL" "${CMAKE_CURRENT_SOURCE_DIR}/libepoxy/registry/gl.xml"
         COMMENT "Generating source code (GL/gl.h)"
         VERBATIM)

@@ -523,7 +523,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (getRequestedOrientation() != requestedOrientation)
             setRequestedOrientation(requestedOrientation);
 
-        findViewById(R.id.mouse_buttons).setVisibility(p.getBoolean("showMouseHelper", false) && "1".equals(p.getString("touchMode", "1")) ? View.VISIBLE : View.GONE);
+        findViewById(R.id.mouse_buttons).setVisibility(p.getBoolean("showMouseHelper", false) && "1".equals(p.getString("touchMode", "1")) && mClientConnected ? View.VISIBLE : View.GONE);
         LinearLayout buttons = findViewById(R.id.mouse_helper_visibility);
         if (p.getBoolean("showStylusClickOverride", false)) {
             buttons.setVisibility(View.VISIBLE);
@@ -806,9 +806,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @SuppressWarnings("SameParameterValue")
     void clientConnectedStateChanged(boolean connected) {
         runOnUiThread(()-> {
-            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+            SharedPreferences p = PreferenceManager.getDefaultSharedPreferences(this);
             mClientConnected = connected;
-            toggleExtraKeys(connected && preferences.getBoolean("additionalKbdVisible", true), true);
+            toggleExtraKeys(connected && p.getBoolean("additionalKbdVisible", true), true);
+            findViewById(R.id.mouse_buttons).setVisibility(p.getBoolean("showMouseHelper", false) && "1".equals(p.getString("touchMode", "1")) && mClientConnected ? View.VISIBLE : View.GONE);
             findViewById(R.id.stub).setVisibility(connected?View.INVISIBLE:View.VISIBLE);
             getLorieView().setVisibility(connected?View.VISIBLE:View.INVISIBLE);
             getLorieView().regenerate();

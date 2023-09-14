@@ -103,4 +103,22 @@ jobs:
       with:
         name: termux-x11-unstripped-libraries-for-ndk-stack
         path: ./app/build/intermediates/cxx/Debug/*
-    
+
+    - name: Update Nightly Release
+      uses: andelf/nightly-release@main
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: nightly
+        name: 'Desktop/Android APP Nightly Release $$'
+        draft: false
+        prerelease: true
+        body: |
+          This is a nightly release of the termux-x11 app.
+          It's unstable compared to the official releases, **use it with caution**!
+          Based on ${{ github.sha }}
+        files: |
+          ./app/build/outputs/apk/debug/app-*-debug.apk
+          ./app/build/outputs/apk/debug/shell-loader-nightly.apk
+          ./app/build/outputs/apk/debug/termux-x11-*-all.deb
+          ./app/build/outputs/apk/debug/termux-x11-*-any.pkg.tar.xz

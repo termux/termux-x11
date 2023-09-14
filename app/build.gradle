@@ -9,6 +9,7 @@ android {
         targetSdkVersion 33
         versionCode 14
         versionName "1.03.00"
+        buildConfigField "String", "COMMIT", "\"" + "git rev-parse HEAD\n".execute().getText().trim() + "\""
     }
 
     signingConfigs.debug {
@@ -31,6 +32,7 @@ android {
     externalNativeBuild.cmake.path "src/main/cpp/CMakeLists.txt"
     packagingOptions.jniLibs.useLegacyPackaging false
     buildFeatures.aidl true
+    buildFeatures.buildConfig true
     buildTypes.debug {
         signingConfig signingConfigs.debug
         postprocessing {

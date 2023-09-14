@@ -44,6 +44,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
      * @param args The command-line arguments
      */
     public static void main(String[] args) {
+        android.util.Log.i("CmdEntryPoint", "commit " + BuildConfig.COMMIT);
         handler.post(() -> new CmdEntryPoint(args));
         Looper.loop();
     }

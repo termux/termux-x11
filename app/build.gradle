@@ -9,7 +9,7 @@ android {
         targetSdkVersion 33
         versionCode 14
         versionName "1.03.00"
-        buildConfigField "String", "COMMIT", "\"" + "git rev-parse HEAD\n".execute().getText().trim() + "\""
+        buildConfigField "String", "COMMIT", "\"" + ("git rev-parse HEAD\n".execute().getText().trim() ?: (System.getenv('CURRENT_COMMIT') ?: "NO_COMMIT")) + "\""
     }
 
     signingConfigs.debug {

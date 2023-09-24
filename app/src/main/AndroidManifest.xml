@@ -16,6 +16,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         android:hardwareAccelerated="true"
+        android:allowAudioPlaybackCapture="true"
         tools:ignore="GoogleAppIndexingWarning">
         <activity
             android:name=".MainActivity"

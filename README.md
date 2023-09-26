@@ -94,17 +94,17 @@ You can access preferences menu three ways:
 <details>
 <summary>By clicking "PREFERENCES" button on main screen when no client connected.</summary>
 
-![image](./img/1.jpg)
+![image](./.github/static/1.jpg)
 </details>
 <details>
 <summary>By clicking "Preferences" button in notification, if available.</summary>
 
-![image](./img/2.jpg)
+![image](./.github/static/2.jpg)
 </details>
 <details>
 <summary>By clicking "Preferences" application shortcut (long tap `Termux:X11` icon in launcher). </summary>
 
-![image](./img/3.jpg)
+![image](./.github/static/3.jpg)
 </details>
 
 ## Touch gestures
@@ -135,7 +135,7 @@ You can fix this in your window manager settings (in the case of xfce4 and lxqt 
 <details>
 <summary> Screenshot </summary>
 
-![image](./img/dpi-scale.png) 
+![image](./.github/static/dpi-scale.png) 
 </details>
 
 Also you can start `termux-x11` with `-dpi` option.

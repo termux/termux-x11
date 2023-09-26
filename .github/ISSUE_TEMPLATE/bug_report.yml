@@ -6,15 +6,23 @@ body:
   - type: markdown
     attributes:
       value: |
-        This is a bug tracker of the official Termux:X11. Please do not report issues of third-party software there, but ask in [Termux Packages GitHub Discussions](https://github.com/termux/termux-packages/discussions) or [Community Social Media](https://wiki.termux.com/wiki/Community) instead. Use search to check whether your issue has been already reported and perhaps solved.
+        This is a bug tracker of the official Termux:X11. 
+        Please do not report issues of third-party software there, but ask in [Termux Packages GitHub Discussions](https://github.com/termux/termux-packages/discussions) or [Community Social Media](https://wiki.termux.com/wiki/Community) instead. 
+        Also you can ask questions in [Discord](https://discord.gg/termux-641256914684084234).
+        Use search to check whether your issue has been already reported and perhaps solved.
 
-        Android versions below 8.x are not supported anymore. Issues happening on these operating system versions will not be resolved.
+        Android versions below 8.x are not supported.
 
         To submit a bug report, fill the form below. 
         Provide as much as possible information about the encountered issue. 
-        We may request extended information such as `strace` logs if considered necessary. 
+        We may request extended information such as logs if considered necessary. 
         This will help package maintainers to understand the problem correctly and provide a solution. 
         Be patient, do not expect that issue could get resolved immediately.
+        
+        ### Logs
+        If you need to obtain logs from the `com.termux.x11` application,
+        set the `TERMUX_X11_DEBUG` environment variable to 1, like this:
+        `TERMUX_X11_DEBUG=1 termux-x11 :0`
 
   - type: textarea
     attributes:

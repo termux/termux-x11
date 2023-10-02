@@ -81,6 +81,14 @@ public class LoriePreferences extends AppCompatActivity {
     public static class LoriePreferenceFragment extends PreferenceFragmentCompat implements OnPreferenceChangeListener, Preference.OnPreferenceClickListener {
         @Override
         public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+            SharedPreferences p = getPreferenceManager().getSharedPreferences();
+            int modeValue = p == null ? 0 : Integer.parseInt(p.getString("touchMode", "1")) - 1;
+            if (modeValue > 2) {
+                SharedPreferences.Editor e = Objects.requireNonNull(p).edit();
+                e.putString("touchMode", "1");
+                e.apply();
+            }
+
             addPreferencesFromResource(R.xml.preferences);
         }
 

@@ -143,6 +143,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         super.onCreate(savedInstanceState);
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        int modeValue = Integer.parseInt(preferences.getString("touchMode", "1")) - 1;
+        if (modeValue > 2) {
+            SharedPreferences.Editor e = Objects.requireNonNull(preferences).edit();
+            e.putString("touchMode", "1");
+            e.apply();
+        }
+        
         preferences.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> onPreferencesChanged(key));
 
         getWindow().setFlags(FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS | FLAG_KEEP_SCREEN_ON | FLAG_TRANSLUCENT_STATUS, 0);

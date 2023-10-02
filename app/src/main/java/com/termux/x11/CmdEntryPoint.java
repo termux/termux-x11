@@ -54,7 +54,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
             System.exit(1);
 
         spawnListeningThread();
-        sendBroadcast();
+        sendBroadcastDelayed();
     }
 
     @SuppressLint({"WrongConstant", "PrivateApi"})
@@ -113,6 +113,15 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
                 throw new RuntimeException(ex);
             }
         }
+    }
+
+    // In some cases Android Activity part can not connect opened port.
+    // In this case opened port works like a lock file.
+    private void sendBroadcastDelayed() {
+        if (!connected())
+            sendBroadcast();
+
+        handler.postDelayed(this::sendBroadcastDelayed, 1000);
     }
 
     void spawnListeningThread() {
@@ -185,6 +194,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public native void windowChanged(Surface surface);
     public native ParcelFileDescriptor getXConnection();
     public native ParcelFileDescriptor getLogcatOutput();
+    private static native boolean connected();
 
     static {
         String path = "lib/" + Build.SUPPORTED_ABIS[0] + "/libXlorie.so";

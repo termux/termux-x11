@@ -364,6 +364,11 @@ Java_com_termux_x11_CmdEntryPoint_getLogcatOutput(JNIEnv *env, unused jobject cl
     return NULL;
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_termux_x11_CmdEntryPoint_connected(JNIEnv *env, jclass clazz) {
+    return conn_fd != -1;
+}
+
 static inline void checkConnection(JNIEnv* env) {
     int retval, b = 0;
 
@@ -585,4 +590,6 @@ __attribute__((constructor)) static void init(void) {
     if (!strcmp("com.termux.x11", __progname))
         pthread_create(&t, NULL, stderrToLogcatThread, NULL);
 }
+
 #endif
+

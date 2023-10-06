@@ -112,13 +112,17 @@ static const char vertex_shader[] =
     "   outTexCoords = texCoords;\n"
     "   gl_Position = position;\n"
     "}\n";
-static const char fragment_shader[] =
-    "precision mediump float;\n"
-    "varying vec2 outTexCoords;\n"
-    "uniform sampler2D texture;\n"
-    "void main(void) {\n"
-    "   gl_FragColor = texture2D(texture, outTexCoords);\n"
-    "}\n";
+
+#define FRAGMENT_SHADER(texture) \
+    "precision mediump float;\n" \
+    "varying vec2 outTexCoords;\n" \
+    "uniform sampler2D texture;\n" \
+    "void main(void) {\n" \
+    "   gl_FragColor = texture2D(texture, outTexCoords)" texture ";\n" \
+    "}\n"
+
+static const char fragment_shader[] = FRAGMENT_SHADER();
+static const char fragment_shader_bgra[] = FRAGMENT_SHADER(".bgra");
 
 static EGLDisplay egl_display = EGL_NO_DISPLAY;
 static EGLContext ctx = EGL_NO_CONTEXT;
@@ -139,8 +143,9 @@ static struct {
 } cursor;
 
 GLuint g_texture_program = 0, gv_pos = 0, gv_coords = 0;
+GLuint g_texture_program_bgra = 0, gv_pos_bgra = 0, gv_coords_bgra = 0;
 
-int renderer_init(void) {
+int renderer_init(int* legacy_drawing, uint8_t* flip) {
     EGLint major, minor;
     EGLint numConfigs;
     const EGLint configAttribs[] = {
@@ -208,6 +213,49 @@ int renderer_init(void) {
     }
     eglCheckError(__LINE__);
 
+    {
+        // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
+        const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
+        EGLClientBuffer clientBuffer;
+        AHardwareBuffer *new = NULL;
+        int status;
+        AHardwareBuffer_Desc d0 = {
+                .width = 64,
+                .height = 64,
+                .layers = 1,
+                .usage = AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
+                .format = AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM
+        };
+
+        status = AHardwareBuffer_allocate(&d0, &new);
+        if (status != 0 || new == NULL) {
+            loge("Failed to allocate native buffer (%p, error %d)", new, status);
+            loge("Forcing legacy drawing");
+            *legacy_drawing = 1;
+            return 1;
+        }
+
+        clientBuffer = eglGetNativeClientBufferANDROID(new);
+        if (!clientBuffer) {
+            eglCheckError(__LINE__);
+            loge("Failed to obtain EGLClientBuffer from AHardwareBuffer");
+            loge("Forcing legacy drawing");
+            *legacy_drawing = 1;
+            return 1;
+        }
+
+        if (!eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes)) {
+            if (eglGetError() == EGL_BAD_PARAMETER) {
+                loge("Sampling from HAL_PIXEL_FORMAT_BGRA_8888 is not supported, forcing AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM");
+                *flip = 1;
+            } else {
+                loge("Failed to obtain EGLImageKHR from EGLClientBuffer");
+                loge("Forcing legacy drawing");
+                *legacy_drawing = 1;
+            }
+        }
+    }
+
     return 1;
 }
 
@@ -230,6 +278,7 @@ void renderer_set_buffer(AHardwareBuffer* buf) {
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     EGLClientBuffer clientBuffer;
     AHardwareBuffer_Desc desc = {0};
+    uint8_t flip = 0;
 
     if (eglGetCurrentContext() == EGL_NO_CONTEXT) {
         loge("There is no current context, `renderer_set_buffer` call is cancelled");
@@ -258,11 +307,14 @@ void renderer_set_buffer(AHardwareBuffer* buf) {
             loge("Failed to obtain EGLClientBuffer from AHardwareBuffer");
         }
         image = clientBuffer ? eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes) : NULL;
-        if (image != NULL)
+        if (image != NULL) {
             glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
-        else {
-            eglCheckError(__LINE__);
-            loge("Binding AHardwareBuffer to an EGLImage failed.");
+            flip = desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
+        } else {
+            if (clientBuffer) {
+                eglCheckError(__LINE__);
+                loge("Binding AHardwareBuffer to an EGLImage failed.");
+            }
 
             display.width = 1;
             display.height = 1;
@@ -279,7 +331,7 @@ void renderer_set_buffer(AHardwareBuffer* buf) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data); checkGlError();
     }
 
-    renderer_redraw();
+    renderer_redraw(flip);
 
     log("renderer_set_buffer %p %d %d", buffer, desc.width, desc.height);
 }
@@ -331,8 +383,18 @@ void renderer_set_window(EGLNativeWindowType window, AHardwareBuffer* new_buffer
             return;
         }
 
+        g_texture_program_bgra = create_program(vertex_shader, fragment_shader_bgra);
+        if (!g_texture_program_bgra) {
+            log("Xlorie: GLESv2: Unable to create bgra shader program.\n");
+            eglCheckError(__LINE__);
+            return;
+        }
+
         gv_pos = (GLuint) glGetAttribLocation(g_texture_program, "position"); checkGlError();
         gv_coords = (GLuint) glGetAttribLocation(g_texture_program, "texCoords"); checkGlError();
+
+        gv_pos_bgra = (GLuint) glGetAttribLocation(g_texture_program_bgra, "position"); checkGlError();
+        gv_coords_bgra = (GLuint) glGetAttribLocation(g_texture_program_bgra, "texCoords"); checkGlError();
 
         glActiveTexture(GL_TEXTURE0); checkGlError();
         glGenTextures(1, &display.id); checkGlError();
@@ -398,7 +460,7 @@ void renderer_set_cursor_coordinates(int x, int y) {
     cursor.y = (float) y;
 }
 
-static void draw(GLuint id, float x0, float y0, float x1, float y1);
+static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip);
 static void draw_cursor(void);
 
 float ia = 0;
@@ -407,13 +469,13 @@ int renderer_should_redraw(void) {
     return sfc != EGL_NO_SURFACE && eglGetCurrentContext() != EGL_NO_CONTEXT;
 }
 
-int renderer_redraw(void) {
+int renderer_redraw(uint8_t flip) {
     int err = EGL_SUCCESS;
 
     if (!sfc || eglGetCurrentContext() == EGL_NO_CONTEXT)
         return FALSE;
 
-    draw(display.id,  -1.f, -1.f, 1.f, 1.f);
+    draw(display.id,  -1.f, -1.f, 1.f, 1.f, flip);
     draw_cursor();
     if (eglSwapBuffers(egl_display, sfc) != EGL_TRUE) {
         err = eglGetError();
@@ -496,7 +558,7 @@ static GLuint create_program(const char* p_vertex_source, const char* p_fragment
     return program;
 }
 
-static void draw(GLuint id, float x0, float y0, float x1, float y1) {
+static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip) {
     float coords[20] = {
         x0, -y0, 0.f, 0.f, 0.f,
         x1, -y0, 0.f, 1.f, 0.f,
@@ -504,14 +566,16 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1) {
         x1, -y1, 0.f, 1.f, 1.f,
     };
 
+    GLuint p = flip ? gv_pos_bgra : gv_pos, c = flip ? gv_coords_bgra : gv_coords;
+
     glActiveTexture(GL_TEXTURE0); checkGlError();
-    glUseProgram(g_texture_program); checkGlError();
+    glUseProgram(flip ? g_texture_program_bgra : g_texture_program); checkGlError();
     glBindTexture(GL_TEXTURE_2D, id); checkGlError();
 
-    glVertexAttribPointer(gv_pos, 3, GL_FLOAT, GL_FALSE, 20, coords); checkGlError();
-    glVertexAttribPointer(gv_coords, 2, GL_FLOAT, GL_FALSE, 20, &coords[3]); checkGlError();
-    glEnableVertexAttribArray(gv_pos); checkGlError();
-    glEnableVertexAttribArray(gv_coords); checkGlError();
+    glVertexAttribPointer(p, 3, GL_FLOAT, GL_FALSE, 20, coords); checkGlError();
+    glVertexAttribPointer(c, 2, GL_FLOAT, GL_FALSE, 20, &coords[3]); checkGlError();
+    glEnableVertexAttribArray(p); checkGlError();
+    glEnableVertexAttribArray(c); checkGlError();
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); checkGlError();
 }
 
@@ -527,7 +591,7 @@ maybe_unused static void draw_cursor(void) {
     h = 2.f * cursor.height / display.height;
     glEnable(GL_BLEND); checkGlError();
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); checkGlError();
-    draw(cursor.id, x, y, x + w, y + h);
+    draw(cursor.id, x, y, x + w, y + h, false);
     glDisable(GL_BLEND); checkGlError();
 }
 

@@ -463,7 +463,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             return;
         try {
             Log.v("LorieBroadcastReceiver", "Extracting X connection socket.");
-            ParcelFileDescriptor fd = service.getXConnection();
+            ParcelFileDescriptor fd = service == null ? null : service.getXConnection();
             if (fd != null) {
                 LorieView.connect(fd.detachFd());
                 getLorieView().triggerCallback();

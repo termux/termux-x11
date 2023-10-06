@@ -103,6 +103,7 @@ typedef struct {
         AHardwareBuffer* buffer;
         Bool locked;
         Bool legacyDrawing;
+        uint8_t flip;
         uint32_t width, height;
     } root;
 } lorieScreenInfo, *lorieScreenInfoPtr;
@@ -323,7 +324,9 @@ static void lorieUpdateBuffer(void) {
         d0.height = pScreenPtr->height;
         d0.layers = 1;
         d0.usage = USAGE;
-        d0.format = 5; // Stands to HAL_PIXEL_FORMAT_BGRA_8888
+        d0.format = pvfb->root.flip
+                ? AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM
+                : AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
 
         /* I could use this, but in this case I must swap colours in the shader. */
         // desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
@@ -418,11 +421,11 @@ static void lorieTimerCallback(int fd, unused int r, void *arg) {
         ScreenPtr pScreen = (ScreenPtr) arg;
 
         loriePixmapUnlock(pScreen->GetScreenPixmap(pScreen));
-        redrawn = renderer_redraw();
+        redrawn = renderer_redraw(pvfb->root.flip);
         if (loriePixmapLock(pScreen->GetScreenPixmap(pScreen)) && redrawn)
             DamageEmpty(pvfb->damage);
     } else if (pvfb->cursorMoved)
-        renderer_redraw();
+        renderer_redraw(pvfb->root.flip);
 
     pvfb->cursorMoved = FALSE;
 }
@@ -662,7 +665,7 @@ Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
 
     if (pvfb->root.legacyDrawing) {
         renderer_update_root(pScreenPtr->width, pScreenPtr->height, ((PixmapPtr) pScreenPtr->devPrivate)->devPrivate.ptr);
-        renderer_redraw();
+        renderer_redraw(pvfb->root.flip);
     }
 
     return TRUE;
@@ -714,7 +717,7 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     screen_info->bitmapBitOrder = BITMAP_BIT_ORDER;
     screen_info->numPixmapFormats = ARRAY_SIZE(depths);
 
-    renderer_init();
+    renderer_init(&pvfb->root.legacyDrawing, &pvfb->root.flip);
     xorgGlxCreateVendor();
     lorieInitSelectionCallback();
 

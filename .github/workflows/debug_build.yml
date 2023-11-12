@@ -106,7 +106,7 @@ jobs:
         tag_name: nightly
         name: 'Nightly Release $$'
         draft: false
-        prerelease: true
+        prerelease: false
         body: |
           This is a nightly release of the termux-x11 app.
           Based on ${{ github.sha }}

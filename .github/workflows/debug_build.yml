@@ -109,7 +109,6 @@ jobs:
         prerelease: true
         body: |
           This is a nightly release of the termux-x11 app.
-          It's unstable compared to the official releases, **use it with caution**!
           Based on ${{ github.sha }}
         files: |
           ./app/build/outputs/apk/debug/app-*-debug.apk

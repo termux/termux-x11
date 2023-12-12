@@ -107,6 +107,9 @@ You can access preferences menu three ways:
 ![image](./.github/static/3.jpg)
 </details>
 
+## Toggling keyboard
+Just press "Back" button.
+
 ## Touch gestures
 ### Touchpad emulation mode.
 In touchpad emulation mode you can use the following gestures:

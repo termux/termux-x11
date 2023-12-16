@@ -13,8 +13,8 @@ import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.IBinder;
 import android.os.Looper;
+import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.util.Log;
@@ -197,29 +197,29 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     private static native boolean connected();
 
     static {
-    if (Looper.myLooper() == null) {
-        Looper.prepareMainLooper();
-    }
-    handler = new Handler();
-
-    String path = "lib/" + Build.SUPPORTED_ABIS[0] + "/libXlorie.so";
-    ClassLoader loader = CmdEntryPoint.class.getClassLoader();
-    URL res = loader != null ? loader.getResource(path) : null;
-    String libPath = res != null ? res.getFile().replace("file:", "") : null;
-    if (libPath != null) {
-        try {
-            System.load(libPath);
-        } catch (Exception e) {
-            Log.e("CmdEntryPoint", "Failed to dlopen " + libPath, e);
-            System.err.println("Failed to load native library. Did you install the right apk? Try the universal one.");
-            System.exit(134);
+        if (Looper.myLooper() == null) {
+            Looper.prepareMainLooper();
         }
-    } else {
-        // It is critical only when it is not running in Android application process
-        if (MainActivity.getInstance() == null) {
-            System.err.println("Failed to acquire native library. Did you install the right apk? Try the universal one.");
-            System.exit(134);
+        handler = new Handler();
+
+        String path = "lib/" + Build.SUPPORTED_ABIS[0] + "/libXlorie.so";
+        ClassLoader loader = CmdEntryPoint.class.getClassLoader();
+        URL res = loader != null ? loader.getResource(path) : null;
+        String libPath = res != null ? res.getFile().replace("file:", "") : null;
+        if (libPath != null) {
+            try {
+                System.load(libPath);
+            } catch (Exception e) {
+                Log.e("CmdEntryPoint", "Failed to dlopen " + libPath, e);
+                System.err.println("Failed to load native library. Did you install the right apk? Try the universal one.");
+                System.exit(134);
+            }
+        } else {
+            // It is critical only when it is not running in Android application process
+            if (MainActivity.getInstance() == null) {
+                System.err.println("Failed to acquire native library. Did you install the right apk? Try the universal one.");
+                System.exit(134);
+            }
         }
     }
 }
-

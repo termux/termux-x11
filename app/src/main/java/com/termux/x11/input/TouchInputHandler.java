@@ -7,7 +7,9 @@ package com.termux.x11.input;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.PointF;
+import android.os.Build;
 import android.os.Handler;
+import android.util.Log;
 import android.view.GestureDetector;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -30,6 +32,8 @@ public class TouchInputHandler {
     private static final float EPSILON = 0.001f;
 
     public static int STYLUS_INPUT_HELPER_MODE = 1; //1 = Left Click, 2 Middle Click, 3 Right Click
+
+    public float lastTwoFingerDownX, lastTwoFingerDownY;
 
     /** Used to set/store the selected input mode. */
     @SuppressWarnings("unused")
@@ -161,7 +165,7 @@ public class TouchInputHandler {
                 || (event.getSource() & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE)
                 || (event.getSource() & InputDevice.SOURCE_MOUSE_RELATIVE) == InputDevice.SOURCE_MOUSE_RELATIVE
                 || (event.getPointerCount() == 1 && mTouchpadHandler == null
-                   && (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD))
+                && (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD))
             return mHMListener.onTouch(view, event);
 
         if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER) {
@@ -564,10 +568,14 @@ public class TouchInputHandler {
             currentBS = e.getButtonState();
             if (isMouseButtonChanged(MotionEvent.BUTTON_PRIMARY))
                 mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, mouseButtonDown(MotionEvent.BUTTON_PRIMARY), false);
-            if (isMouseButtonChanged(MotionEvent.BUTTON_TERTIARY))
+            else if (isMouseButtonChanged(MotionEvent.BUTTON_TERTIARY))
                 mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_MIDDLE, mouseButtonDown(MotionEvent.BUTTON_TERTIARY), false);
-            if (isMouseButtonChanged(MotionEvent.BUTTON_SECONDARY))
+            else if (isMouseButtonChanged(MotionEvent.BUTTON_SECONDARY))
                 mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_RIGHT, mouseButtonDown(MotionEvent.BUTTON_SECONDARY), false);
+            else if (e.getActionMasked()==MotionEvent.ACTION_DOWN)
+                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, true, false);
+            else if (e.getActionMasked()==MotionEvent.ACTION_HOVER_ENTER)
+                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, false, false);
             savedBS = currentBS;
         }
 
@@ -576,8 +584,38 @@ public class TouchInputHandler {
         }
 
         boolean onTouch(@SuppressWarnings("unused") View v, MotionEvent e) {
+//            String msg;
+//            msg = String.format("event:%s",e);
+//            Log.d("dex",msg);
+            // 双指触控板操作
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                if(e.getClassification() == 3){     // 3 == MotionEvent.CLASSIFICATION_TWO_FINGER_SWIPE
+                    // 记录双指按下的初始位置
+                    if(e.getAction() == MotionEvent.ACTION_DOWN){
+                        lastTwoFingerDownX = e.getX(0);
+                        lastTwoFingerDownY = e.getY(0);
+                    }
+                    else if(e.getAction() == MotionEvent.ACTION_MOVE){
+                        // 模拟鼠标滚轮
+                        float distanceY = 2 * (lastTwoFingerDownY - e.getY(0));
+                        float distanceX = 2 * (lastTwoFingerDownX - e.getX(0));
+                        mInputStrategy.onScroll(distanceX, distanceY);
+                        lastTwoFingerDownY = e.getY(0);
+                        lastTwoFingerDownX = e.getX(0);
+                    }
+                }
+            }
+
+
             switch(e.getActionMasked()) {
                 case MotionEvent.ACTION_BUTTON_PRESS:
+                    if(e.getActionButton() == MotionEvent.BUTTON_PRIMARY)
+                        mIsDragging = true;
+                    return true;
+                case MotionEvent.ACTION_HOVER_ENTER:
+
+                    checkButtons(e);
+                    return true;
                 case MotionEvent.ACTION_BUTTON_RELEASE:
                     mScroller.onGenericMotionEvent(e);
                     handler.removeCallbacks(mouseDownRunnable);
@@ -615,7 +653,7 @@ public class TouchInputHandler {
                 case MotionEvent.ACTION_MOVE:
                     if (mIsScrolling && hasFlags(e, 0x14000000))
                         mScroller.onTouchEvent(e);
-                    else if (mIsDragging && hasFlags(e, 0x4000000)) {
+                    else if (mIsDragging && hasFlags(e, 0x10000000)) {
                         scaledX = e.getX() * mRenderData.scale.x; scaledY = e.getY() * mRenderData.scale.y;
                         if (mRenderData.setCursorPosition(scaledX, scaledY))
                             mInjector.sendCursorMove(scaledX, scaledY, false);

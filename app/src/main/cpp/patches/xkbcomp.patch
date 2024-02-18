@@ -1,5 +1,5 @@
 diff --git a/alias.c b/alias.c
-index b9d44ef..dc7c947 100644
+index c914cbc..713067f 100644
 --- a/alias.c
 +++ b/alias.c
 @@ -155,6 +155,52 @@ MergeAliases(AliasInfo ** into, AliasInfo ** merge, unsigned how_merge)
@@ -56,10 +56,10 @@ index b9d44ef..dc7c947 100644
  ApplyAliases(XkbDescPtr xkb, Bool toGeom, AliasInfo ** info_in)
  {
 diff --git a/compat.c b/compat.c
-index 757ef42..dbfd61a 100644
+index 26f4249..c1884b0 100644
 --- a/compat.c
 +++ b/compat.c
-@@ -579,7 +579,7 @@ SetInterpField(SymInterpInfo * si,
+@@ -571,7 +571,7 @@ SetInterpField(SymInterpInfo *si, XkbDescPtr xkb, const char *field,
      return ok;
  }
  
@@ -81,10 +81,10 @@ index 799b215..900de43 100644
  
  #endif /* COMPAT_H */
 diff --git a/indicators.c b/indicators.c
-index b3e7d18..36c1cd4 100644
+index 470091e..215529d 100644
 --- a/indicators.c
 +++ b/indicators.c
-@@ -223,7 +223,7 @@ SetIndicatorMapField(LEDInfo * led,
+@@ -223,7 +223,7 @@ SetIndicatorMapField(LEDInfo *led, XkbDescPtr xkb, const char *field,
          if (arrayNdx != NULL)
              return ReportIndicatorNotArray(xkb->dpy, led, field);
          if (!ExprResolveMask
@@ -94,7 +94,7 @@ index b3e7d18..36c1cd4 100644
          led->groups = rtrn.uval;
          led->defs.defined |= _LED_Groups;
 diff --git a/xkbcomp.c b/xkbcomp.c
-index 796fa22..dda3c20 100644
+index 6aedb67..12b0f27 100644
 --- a/xkbcomp.c
 +++ b/xkbcomp.c
 @@ -24,6 +24,9 @@
@@ -104,10 +104,10 @@ index 796fa22..dda3c20 100644
 +#pragma clang diagnostic ignored "-Wunknown-pragmas"
 +#pragma ide diagnostic ignored "bugprone-reserved-identifier"
 +
+ #include "utils.h"
  #include <stdio.h>
  #include <ctype.h>
- #include <X11/keysym.h>
-@@ -46,6 +49,7 @@
+@@ -43,6 +46,7 @@
  #include "misc.h"
  #include "tokens.h"
  #include <X11/extensions/XKBgeom.h>
@@ -115,7 +115,7 @@ index 796fa22..dda3c20 100644
  
  
  #ifdef WIN32
-@@ -59,44 +63,16 @@
+@@ -56,46 +60,17 @@
  
  /***====================================================================***/
  
@@ -129,8 +129,10 @@ index 796fa22..dda3c20 100644
 -#define	INPUT_UNKNOWN	0
 -#define	INPUT_XKB	1
 -#define	INPUT_XKM	2
- 
+-
+ #ifdef DEBUG
  unsigned int debugFlags;
+ #endif
  
 -static const char *fileTypeExt[] = {
 -    "XXX",
@@ -141,12 +143,12 @@ index 796fa22..dda3c20 100644
 -};
 -
 -static unsigned inputFormat, outputFormat;
- char *rootDir;
+ static const char *rootDir;
  static char *inputFile;
- static char *inputMap;
+ static const char *inputMap;
  static char *outputFile;
--static char *inDpyName;
--static char *outDpyName;
+-static const char *inDpyName;
+-static const char *outDpyName;
 -static Display *inDpy;
 -static Display *outDpy;
 -static Bool showImplicit = False;
@@ -156,11 +158,11 @@ index 796fa22..dda3c20 100644
  unsigned warningLevel = 5;
  unsigned verboseLevel = 0;
  unsigned dirsToStrip = 0;
--unsigned optionalParts = 0;
- static char *preErrorMsg = NULL;
- static char *postErrorMsg = NULL;
- static char *errorPrefix = NULL;
-@@ -104,192 +80,24 @@ static unsigned int device_id = XkbUseCoreKbd;
+-static unsigned optionalParts = 0;
+ static const char *preErrorMsg = NULL;
+ static const char *postErrorMsg = NULL;
+ static const char *errorPrefix = NULL;
+@@ -103,192 +78,24 @@ static unsigned int device_id = XkbUseCoreKbd;
  
  /***====================================================================***/
  
@@ -238,7 +240,7 @@ index 796fa22..dda3c20 100644
 -/***====================================================================***/
 -
 -static void
--setVerboseFlags(char *str)
+-setVerboseFlags(const char *str)
 -{
 -    for (; *str; str++)
 -    {
@@ -274,7 +276,7 @@ index 796fa22..dda3c20 100644
  static Bool
  parseArgs(int argc, char *argv[])
  {
--    register int i, tmp;
+-    int i, tmp;
 -
 -    i = strlen(argv[0]);
 -    tmp = strlen("xkblist");
@@ -308,7 +310,7 @@ index 796fa22..dda3c20 100644
                          ("Compiling %s, writing to %s, ignoring %s\n",
                           inputFile, outputFile, argv[i]);
 -                }
--            }
+             }
 -            else if (!AddMatchingFiles(argv[i]))
 -                return False;
 -        }
@@ -346,7 +348,7 @@ index 796fa22..dda3c20 100644
 -            if ((i >= (argc - 1)) || (!isdigit(argv[i + 1][0])))
 -            {
 -                debugFlags = 1;
-             }
+-            }
 -            else
 -            {
 -                if (sscanf(argv[++i], "%i", &itmp) == 1)
@@ -361,7 +363,7 @@ index 796fa22..dda3c20 100644
          }
          else if (strcmp(argv[i], "-em1") == 0)
          {
-@@ -357,173 +165,6 @@ parseArgs(int argc, char *argv[])
+@@ -356,172 +163,6 @@ parseArgs(int argc, char *argv[])
              else
                  postErrorMsg = argv[i];
          }
@@ -473,8 +475,7 @@ index 796fa22..dda3c20 100644
 -            }
 -            else
 -            {
--                char *tmp2;
--                for (tmp2 = argv[i]; (*tmp2 != '\0'); tmp2++)
+-                for (const char *tmp2 = argv[i]; (*tmp2 != '\0'); tmp2++)
 -                {
 -                    switch (*tmp2)
 -                    {
@@ -535,7 +536,7 @@ index 796fa22..dda3c20 100644
          else if (strncmp(argv[i], "-R", 2) == 0)
          {
              if (argv[i][2] == '\0')
-@@ -560,23 +201,6 @@ parseArgs(int argc, char *argv[])
+@@ -558,23 +199,6 @@ parseArgs(int argc, char *argv[])
                  }
              }
          }
@@ -546,7 +547,7 @@ index 796fa22..dda3c20 100644
 -        }
 -        else if (strncmp(argv[i], "-v", 2) == 0)
 -        {
--            char *str;
+-            const char *str;
 -            if (argv[i][2] != '\0')
 -                str = &argv[i][2];
 -            else if ((i < (argc - 1)) && (argv[i + 1][0] != '-'))
@@ -559,7 +560,7 @@ index 796fa22..dda3c20 100644
          else if (strncmp(argv[i], "-w", 2) == 0)
          {
              unsigned long utmp;
-@@ -607,57 +231,22 @@ parseArgs(int argc, char *argv[])
+@@ -605,57 +229,22 @@ parseArgs(int argc, char *argv[])
                  else
                  {
                      ERROR("Unknown flag \"%s\" on command line\n", argv[i]);
@@ -619,7 +620,7 @@ index 796fa22..dda3c20 100644
  #ifndef WIN32
      else if (strchr(inputFile, ':') == NULL)
      {
-@@ -700,208 +289,28 @@ parseArgs(int argc, char *argv[])
+@@ -698,214 +287,26 @@ parseArgs(int argc, char *argv[])
                  return False;
              }
          }
@@ -628,8 +629,7 @@ index 796fa22..dda3c20 100644
 -            inputFormat = INPUT_XKM;
 -        }
 -        else
-+        if (!access(inputFile, R_OK))
-         {
+-        {
 -            FILE *file;
 -            file = fopen(inputFile, "r");
 -            if (file)
@@ -677,29 +677,33 @@ index 796fa22..dda3c20 100644
 -        if (outputFile == NULL)
 -            outputFile = uStringDup("-");
 -        else if (strchr(outputFile, ':') != NULL)
--        {
++        if (!access(inputFile, R_OK))
+         {
 -            ERROR("Cannot write a listing to an X connection\n");
-+            fprintf(stderr, "Cannot open \"%s\" for reading\n",
-+                    inputFile);
              return False;
          }
      }
 -    else if ((!outputFile) && (inputFile) && (strcmp(inputFile, "-") == 0))
 -    {
--        int len = strlen("stdin") + strlen(fileTypeExt[outputFormat]) + 2;
--        outputFile = uTypedCalloc(len, char);
--        if (outputFile == NULL)
+-#ifdef HAVE_ASPRINTF
+-        if (asprintf(&outputFile, "stdin.%s", fileTypeExt[outputFormat]) < 0)
+-#else
+-        size_t len = strlen("stdin") + strlen(fileTypeExt[outputFormat]) + 2;
+-        outputFile = calloc(len, sizeof(char));
+-        if (outputFile != NULL)
+-            snprintf(outputFile, len, "stdin.%s", fileTypeExt[outputFormat]);
+-        else
+-#endif
 -        {
 -            WSGO("Cannot allocate space for output file name\n");
 -            ACTION("Exiting\n");
 -            exit(1);
 -        }
--        snprintf(outputFile, len, "stdin.%s", fileTypeExt[outputFormat]);
 -    }
 -    else if ((outputFile == NULL) && (inputFile != NULL))
 -    {
 -        int len;
--        char *base, *ext;
+-        const char *base, *ext;
 -
 -        if (inputMap == NULL)
 -        {
@@ -713,7 +717,7 @@ index 796fa22..dda3c20 100644
 -            base = inputMap;
 -
 -        len = strlen(base) + strlen(fileTypeExt[outputFormat]) + 2;
--        outputFile = uTypedCalloc(len, char);
+-        outputFile = calloc(len, sizeof(char));
 -        if (outputFile == NULL)
 -        {
 -            WSGO("Cannot allocate space for output file name\n");
@@ -732,14 +736,15 @@ index 796fa22..dda3c20 100644
 -    else if (outputFile == NULL)
 -    {
 -        int len;
--        char *ch, *name, buf[128];
+-        char *ch, buf[128];
+-        const char *name = buf;
 -        if (inDpyName[0] == ':')
--            snprintf(name = buf, sizeof(buf), "server%s", inDpyName);
+-            snprintf(buf, sizeof(buf), "server%s", inDpyName);
 -        else
 -            name = inDpyName;
 -
 -        len = strlen(name) + strlen(fileTypeExt[outputFormat]) + 2;
--        outputFile = uTypedCalloc(len, char);
+-        outputFile = calloc(len, sizeof(char));
 -        if (outputFile == NULL)
 -        {
 -            WSGO("Cannot allocate space for output file name\n");
@@ -774,7 +779,7 @@ index 796fa22..dda3c20 100644
  }
  
 -static Display *
--GetDisplay(char *program, char *dpyName)
+-GetDisplay(const char *program, const char *dpyName)
 -{
 -    int mjr, mnr, error;
 -    Display *dpy;
@@ -831,8 +836,8 @@ index 796fa22..dda3c20 100644
 -    Status status;
  
      scan_set_file(stdin);
-     uSetDebugFile(NullString);
-@@ -910,10 +319,6 @@ main(int argc, char *argv[])
+ #ifdef DEBUG
+@@ -916,10 +317,6 @@ main(int argc, char *argv[])
      XkbInitIncludePath();
      if (!parseArgs(argc, argv))
          exit(1);
@@ -843,7 +848,7 @@ index 796fa22..dda3c20 100644
      if (preErrorMsg)
          uSetPreErrorMessage(preErrorMsg);
      if (errorPrefix)
-@@ -923,14 +328,6 @@ main(int argc, char *argv[])
+@@ -929,14 +326,6 @@ main(int argc, char *argv[])
      file = NULL;
      XkbInitAtoms(NULL);
      XkbAddDefaultDirectoriesToPath();
@@ -858,7 +863,7 @@ index 796fa22..dda3c20 100644
      if (inputFile != NULL)
      {
          if (strcmp(inputFile, "-") == 0)
-@@ -943,45 +340,11 @@ main(int argc, char *argv[])
+@@ -949,45 +338,11 @@ main(int argc, char *argv[])
              file = fopen(inputFile, "r");
          }
      }
@@ -905,14 +910,14 @@ index 796fa22..dda3c20 100644
          {
              fclose(file);
              mapToUse = rtrn;
-@@ -1063,61 +426,12 @@ main(int argc, char *argv[])
+@@ -1069,61 +424,12 @@ main(int argc, char *argv[])
              }
              result.xkb->device_spec = device_id;
          }
 -        else if (inputFormat == INPUT_XKM) /* parse xkm file */
 -        {
 -            unsigned tmp;
--            bzero((char *) &result, sizeof(result));
+-            bzero(&result, sizeof(result));
 -            if ((result.xkb = XkbAllocKeyboard()) == NULL)
 -            {
 -                WSGO("Cannot allocate keyboard description\n");
@@ -934,7 +939,7 @@ index 796fa22..dda3c20 100644
      }
 -    else if (inDpy != NULL)
 -    {
--        bzero((char *) &result, sizeof(result));
+-        bzero(&result, sizeof(result));
 -        result.type = XkmKeymapFile;
 -        result.xkb = XkbGetMap(inDpy, XkbAllMapComponentsMask, device_id);
 -        if (result.xkb == NULL)
@@ -967,7 +972,7 @@ index 796fa22..dda3c20 100644
      else
      {
          fprintf(stderr, "Cannot open \"%s\" to compile\n", inputFile);
-@@ -1126,13 +440,6 @@ main(int argc, char *argv[])
+@@ -1132,13 +438,6 @@ main(int argc, char *argv[])
      if (ok)
      {
          FILE *out = stdout;
@@ -981,7 +986,7 @@ index 796fa22..dda3c20 100644
          if (outputFile != NULL)
          {
              if (strcmp(outputFile, "-") == 0)
-@@ -1152,16 +459,8 @@ main(int argc, char *argv[])
+@@ -1158,16 +457,8 @@ main(int argc, char *argv[])
                  const char *openMode = "w";
                  unlink(outputFile);
  #ifdef O_BINARY
@@ -1000,7 +1005,7 @@ index 796fa22..dda3c20 100644
  #endif
                  outputFileFd =
                      open(outputFile, O_WRONLY | O_CREAT | O_EXCL,
-@@ -1192,33 +491,7 @@ main(int argc, char *argv[])
+@@ -1198,33 +489,7 @@ main(int argc, char *argv[])
                  }
              }
          }
@@ -1035,7 +1040,7 @@ index 796fa22..dda3c20 100644
          {
              if (fclose(out))
              {
-@@ -1238,11 +511,6 @@ main(int argc, char *argv[])
+@@ -1244,11 +509,6 @@ main(int argc, char *argv[])
              }
          }
      }
@@ -1046,6 +1051,4 @@ index 796fa22..dda3c20 100644
 -        XCloseDisplay(outDpy);
      uFinishUp();
      return (ok == 0);
--}
-+}
-\ No newline at end of file
+ }

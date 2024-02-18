@@ -4,6 +4,7 @@
 #include "linux/input-event-codes.h"
 #define unused __attribute__((unused))
 
+void lorieSetVM(JavaVM* vm);
 Bool lorieChangeWindow(ClientPtr pClient, void *closure);
 void lorieConfigureNotify(int width, int height, int framerate);
 void lorieEnableClipboardSync(Bool enable);

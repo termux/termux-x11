@@ -40,6 +40,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     private boolean ctrlDown;
     private boolean altDown;
     private boolean shiftDown;
+    private boolean metaDown;
 
     /** Defines the key for extra keys */
     public static final String DEFAULT_IVALUE_EXTRA_KEYS = "[['ESC','/',{key: '-', popup: '|'},'HOME','UP','END','PGUP'], ['TAB','CTRL','ALT','LEFT','DOWN','RIGHT','PGDN']]"; // Double row
@@ -61,6 +62,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
             boolean ctrlDown = false;
             boolean altDown = false;
             boolean shiftDown = false;
+            boolean metaDown = false;
             boolean fnDown = false;
             for (String key : keys) {
                 if (SpecialButton.CTRL.getKey().equals(key)) {
@@ -69,22 +71,25 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
                     altDown = true;
                 } else if (SpecialButton.SHIFT.getKey().equals(key)) {
                     shiftDown = true;
+                } else if (SpecialButton.META.getKey().equals(key)) {
+                    metaDown = true;
                 } else if (SpecialButton.FN.getKey().equals(key)) {
                     fnDown = true;
                 } else {
                     ctrlDown = false;
                     altDown = false;
                     shiftDown = false;
+                    metaDown = false;
                     fnDown = false;
                 }
-                onLorieExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, fnDown);
+                onLorieExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, metaDown, fnDown);
             }
         } else {
-            onLorieExtraKeyButtonClick(view, buttonInfo.key, false, false, false, false);
+            onLorieExtraKeyButtonClick(view, buttonInfo.key, false, false, false, false, false);
         }
     }
 
-    protected void onTerminalExtraKeyButtonClick(@SuppressWarnings("unused") View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, @SuppressWarnings("unused") boolean fnDown) {
+    protected void onTerminalExtraKeyButtonClick(@SuppressWarnings("unused") View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean metaDown, @SuppressWarnings("unused") boolean fnDown) {
         if (this.ctrlDown != ctrlDown) {
             this.ctrlDown = ctrlDown;
             mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_CTRL_LEFT, ctrlDown);
@@ -98,6 +103,11 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
         if (this.shiftDown != shiftDown) {
             this.shiftDown = shiftDown;
             mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, shiftDown);
+        }
+
+        if (this.metaDown != metaDown) {
+            this.metaDown = metaDown;
+            mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_META_LEFT, metaDown);
         }
 
         if (PRIMARY_KEY_CODES_FOR_STRINGS.containsKey(key)) {
@@ -129,6 +139,10 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
                     pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.SHIFT, false));
                     mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, pressed);
                     break;
+                case "META":
+                    pressed = Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.META, false));
+                    mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_META_LEFT, pressed);
+                    break;
             }
         }, 100);
 
@@ -150,7 +164,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     }
 
     @SuppressLint("RtlHardcoded")
-    public void onLorieExtraKeyButtonClick(View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean fnDown) {
+    public void onLorieExtraKeyButtonClick(View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean metaDown, boolean fnDown) {
         if ("KEYBOARD".equals(key)) {
             if (getToolbarViewPager()!=null) {
                 getToolbarViewPager().requestFocus();
@@ -168,7 +182,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
                 if (!TextUtils.isEmpty(pasted)) paste(pasted);
             }
         } else {
-            onTerminalExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, fnDown);
+            onTerminalExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, metaDown, fnDown);
         }
     }
 

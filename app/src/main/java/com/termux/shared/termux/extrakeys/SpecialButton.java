@@ -12,6 +12,7 @@ public class SpecialButton {
     public static final SpecialButton CTRL = new SpecialButton("CTRL");
     public static final SpecialButton ALT = new SpecialButton("ALT");
     public static final SpecialButton SHIFT = new SpecialButton("SHIFT");
+    public static final SpecialButton META = new SpecialButton("META");
     public static final SpecialButton FN = new SpecialButton("FN");
 
     /** The special button key. */

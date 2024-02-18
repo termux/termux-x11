@@ -126,8 +126,8 @@ public class LorieView extends SurfaceView implements InputStub {
         switch(preferences.getString("displayResolutionMode", "native")) {
             case "scaled": {
                 int scale = preferences.getInt("displayScale", 100);
-                w = width / scale * 100;
-                h = height / scale * 100;
+                w = width * 100 / scale;
+                h = height * 100 / scale;
                 break;
             }
             case "exact": {

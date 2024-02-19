@@ -492,6 +492,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         mInputHandler.setTapToMove(p.getBoolean("tapToMove", false));
         mInputHandler.setPreferScancodes(p.getBoolean("preferScancodes", false));
         mInputHandler.setPointerCaptureEnabled(p.getBoolean("pointerCapture", false));
+        mInputHandler.setApplyDisplayScaleFactorToTouchpad(p.getBoolean("scaleTouchpad", true));
         if (!p.getBoolean("pointerCapture", false) && lorieView.hasPointerCapture())
             lorieView.releasePointerCapture();
 

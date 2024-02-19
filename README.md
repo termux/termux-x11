@@ -56,7 +56,7 @@ For some reason some devices output only black screen with cursor instead of nor
 ~ $ termux-x11 :1 -legacy-drawing -xstartup "xfce4-session"
 ```
 
-For some reason some devices show screen with swapped colours, in this case you should pass `-legacy-drawing` option.
+For some reason some devices show screen with swapped colours, in this case you should pass `-force-bgra` option.
 ```
 ~ $ termux-x11 :1 -force-bgra -xstartup "xfce4-session"
 ```

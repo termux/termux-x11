@@ -199,6 +199,7 @@ ddxInputThreadInit(void) {}
 void ddxUseMsg(void) {
     ErrorF("-xstartup \"command\"    start `command` after server startup\n");
     ErrorF("-legacy-drawing        use legacy drawing, without using AHardwareBuffers\n");
+    ErrorF("-force-bgra            force flipping colours (RGBA->BGRA)\n");
 }
 
 int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
@@ -210,6 +211,11 @@ int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
 
     if (strcmp(argv[i], "-legacy-drawing") == 0) {
         pvfb->root.legacyDrawing = TRUE;
+        return 1;
+    }
+
+    if (strcmp(argv[i], "-force-bgra") == 0) {
+        pvfb->root.flip = TRUE;
         return 1;
     }
 

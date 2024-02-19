@@ -106,6 +106,9 @@ typedef struct {
         uint8_t flip;
         uint32_t width, height;
     } root;
+
+    JavaVM* vm;
+    JNIEnv* env;
 } lorieScreenInfo, *lorieScreenInfoPtr;
 
 ScreenPtr pScreenPtr;
@@ -345,7 +348,7 @@ static void lorieUpdateBuffer(void) {
 
         pScreenPtr->ModifyPixmapHeader(pScreenPtr->devPrivate, d0.width, d0.height, 32, 32, d0.stride * 4, data0);
 
-        renderer_set_buffer(new);
+        renderer_set_buffer(pvfb->env, new);
     }
 
     if (old) {
@@ -421,11 +424,11 @@ static void lorieTimerCallback(int fd, unused int r, void *arg) {
         ScreenPtr pScreen = (ScreenPtr) arg;
 
         loriePixmapUnlock(pScreen->GetScreenPixmap(pScreen));
-        redrawn = renderer_redraw(pvfb->root.flip);
+        redrawn = renderer_redraw(pvfb->env, pvfb->root.flip);
         if (loriePixmapLock(pScreen->GetScreenPixmap(pScreen)) && redrawn)
             DamageEmpty(pvfb->damage);
     } else if (pvfb->cursorMoved)
-        renderer_redraw(pvfb->root.flip);
+        renderer_redraw(pvfb->env, pvfb->root.flip);
 
     pvfb->cursorMoved = FALSE;
 }
@@ -659,13 +662,13 @@ CursorForDevice(DeviceIntPtr pDev) {
 }
 
 Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
-    struct ANativeWindow* win = (struct ANativeWindow*) closure;
-    renderer_set_window(win, pvfb->root.buffer);
+    jobject surface = (jobject) closure;
+    renderer_set_window(pvfb->env, surface, pvfb->root.buffer);
     lorieSetCursor(NULL, NULL, CursorForDevice(GetMaster(lorieMouse, MASTER_POINTER)), -1, -1);
 
     if (pvfb->root.legacyDrawing) {
         renderer_update_root(pScreenPtr->width, pScreenPtr->height, ((PixmapPtr) pScreenPtr->devPrivate)->devPrivate.ptr);
-        renderer_redraw(pvfb->root.flip);
+        renderer_redraw(pvfb->env, pvfb->root.flip);
     }
 
     return TRUE;
@@ -724,6 +727,11 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     if (-1 == AddScreen(lorieScreenInit, argc, argv)) {
         FatalError("Couldn't add screen %d\n", i);
     }
+}
+
+void lorieSetVM(JavaVM* vm) {
+    pvfb->vm = vm;
+    (*vm)->AttachCurrentThread(vm, &pvfb->env, NULL);
 }
 
 static GLboolean drawableSwapBuffers(unused ClientPtr client, unused __GLXdrawable * drawable) { return TRUE; }

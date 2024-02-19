@@ -222,7 +222,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         registerReceiver(receiver, new IntentFilter(ACTION_START) {{
             addAction(ACTION_PREFERENCES_CHANGED);
             addAction(ACTION_STOP);
-        }});
+        }}, SDK_INT >= VERSION_CODES.TIRAMISU ? RECEIVER_EXPORTED : 0);
 
         // Taken from Stackoverflow answer https://stackoverflow.com/questions/7417123/android-how-to-adjust-layout-in-full-screen-mode-when-softkeyboard-is-visible/7509285#
         FullscreenWorkaround.assistActivity(this);

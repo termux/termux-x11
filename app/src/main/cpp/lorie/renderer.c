@@ -13,7 +13,7 @@
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
-#include <android/native_window.h>
+#include <android/native_window_jni.h>
 #include <android/log.h>
 #include <dlfcn.h>
 #include "renderer.h"
@@ -129,6 +129,7 @@ static EGLContext ctx = EGL_NO_CONTEXT;
 static EGLSurface sfc = EGL_NO_SURFACE;
 static EGLConfig cfg = 0;
 static EGLNativeWindowType win = 0;
+static jobject surface = NULL;
 static AHardwareBuffer *buffer = NULL;
 static EGLImageKHR image = NULL;
 static int renderedFrames = 0;
@@ -274,7 +275,7 @@ static void renderer_unset_buffer(void) {
     buffer = NULL;
 }
 
-void renderer_set_buffer(AHardwareBuffer* buf) {
+void renderer_set_buffer(JNIEnv* env, AHardwareBuffer* buf) {
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     EGLClientBuffer clientBuffer;
     AHardwareBuffer_Desc desc = {0};
@@ -331,12 +332,20 @@ void renderer_set_buffer(AHardwareBuffer* buf) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data); checkGlError();
     }
 
-    renderer_redraw(flip);
+    renderer_redraw(env, flip);
 
     log("renderer_set_buffer %p %d %d", buffer, desc.width, desc.height);
 }
 
-void renderer_set_window(EGLNativeWindowType window, AHardwareBuffer* new_buffer) {
+void renderer_set_window(JNIEnv* env, jobject new_surface, AHardwareBuffer* new_buffer) {
+    EGLNativeWindowType window;
+    if (new_surface && surface && new_surface != surface && (*env)->IsSameObject(env, new_surface, surface)) {
+        (*env)->DeleteGlobalRef(env, new_surface);
+        return;
+    }
+
+    window = new_surface ? ANativeWindow_fromSurface(env, new_surface) : NULL;
+
     log("renderer_set_window %p %d %d", window, window ? ANativeWindow_getWidth(window) : 0, window ? ANativeWindow_getHeight(window) : 0);
     if (window && win == window)
         return;
@@ -357,7 +366,20 @@ void renderer_set_window(EGLNativeWindowType window, AHardwareBuffer* new_buffer
 
     if (win)
         ANativeWindow_release(win);
+
+    if (surface) {
+        jmethodID release = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, surface), "release", "()V");
+        jmethodID destroy = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, surface), "destroy", "()V");
+        if (release)
+            (*env)->CallVoidMethod(env, surface, release);
+        if (destroy)
+            (*env)->CallVoidMethod(env, surface, destroy);
+
+        (*env)->DeleteGlobalRef(env, surface);
+    }
+
     win = window;
+    surface = new_surface;
 
     if (!win)
         return;
@@ -411,7 +433,7 @@ void renderer_set_window(EGLNativeWindowType window, AHardwareBuffer* new_buffer
     if (!new_buffer) {
         glClearColor(0.f, 0.f, 0.f, 0.0f); checkGlError();
         glClear(GL_COLOR_BUFFER_BIT); checkGlError();
-    } else renderer_set_buffer(new_buffer);
+    } else renderer_set_buffer(env, new_buffer);
 }
 
 void renderer_update_root(int w, int h, void* data) {
@@ -469,7 +491,7 @@ int renderer_should_redraw(void) {
     return sfc != EGL_NO_SURFACE && eglGetCurrentContext() != EGL_NO_CONTEXT;
 }
 
-int renderer_redraw(uint8_t flip) {
+int renderer_redraw(JNIEnv* env, uint8_t flip) {
     int err = EGL_SUCCESS;
 
     if (!sfc || eglGetCurrentContext() == EGL_NO_CONTEXT)
@@ -484,7 +506,7 @@ int renderer_redraw(uint8_t flip) {
             log("We've got %s so window is to be destroyed. "
                 "Native window disconnected/abandoned, probably activity is destroyed or in background",
                 eglErrorLabel(err));
-            renderer_set_window(NULL, NULL);
+            renderer_set_window(env, NULL, NULL);
             return FALSE;
         }
     }

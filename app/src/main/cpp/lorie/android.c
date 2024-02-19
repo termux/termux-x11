@@ -70,6 +70,7 @@ typedef union {
 } lorieEvent;
 
 static void* startServer(unused void* cookie) {
+    lorieSetVM((JavaVM*) cookie);
     char* envp[] = { NULL };
     exit(dix_main(argc, (char**) argv, envp));
 }
@@ -77,6 +78,7 @@ static void* startServer(unused void* cookie) {
 JNIEXPORT jboolean JNICALL
 Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectArray args) {
     pthread_t t;
+    JavaVM* vm = NULL;
     // execv's argv array is a bit incompatible with Java's String[], so we do some converting here...
     argc = (*env)->GetArrayLength(env, args) + 1; // Leading executable path
     argv = (char**) calloc(argc, sizeof(char*));
@@ -189,30 +191,15 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectA
         return JNI_FALSE;
     }
 
-    pthread_create(&t, NULL, startServer, NULL);
+    (*env)->GetJavaVM(env, &vm);
+
+    pthread_create(&t, NULL, startServer, vm);
     return JNI_TRUE;
 }
 
 JNIEXPORT void JNICALL
 Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, unused jobject cls, jobject surface) {
-    static jobject cached = NULL;
-    ANativeWindow* win = surface ? ANativeWindow_fromSurface(env, surface) : NULL;
-
-    if (cached) {
-        jmethodID release = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, cached), "release", "()V");
-        if (release)
-            (*env)->CallVoidMethod(env, cached, release);
-        (*env)->DeleteGlobalRef(env, cached);
-    }
-
-    if (surface)
-        cached = (*env)->NewGlobalRef(env, surface);
-
-    if (win)
-        ANativeWindow_acquire(win);
-    log(DEBUG, "window change: %p", win);
-
-    QueueWorkProc(lorieChangeWindow, NULL, win);
+    QueueWorkProc(lorieChangeWindow, NULL, surface ? (*env)->NewGlobalRef(env, surface) : NULL);
 }
 
 void handleLorieEvents(int fd, maybe_unused int ready, maybe_unused void *data) {
@@ -221,7 +208,8 @@ void handleLorieEvents(int fd, maybe_unused int ready, maybe_unused void *data) 
     valuator_mask_zero(&mask);
 
     if (ready & X_NOTIFY_ERROR) {
-        RemoveNotifyFd(fd);
+//        RemoveNotifyFd(fd);
+        InputThreadUnregisterDev(fd);
         close(fd);
         conn_fd = -1;
         lorieEnableClipboardSync(FALSE);
@@ -322,7 +310,8 @@ void lorieSendClipboardData(const char* data) {
 }
 
 static Bool addFd(unused ClientPtr pClient, void *closure) {
-    SetNotifyFd((int) (int64_t) closure, handleLorieEvents, X_NOTIFY_READ, NULL);
+//    SetNotifyFd((int) (int64_t) closure, handleLorieEvents, X_NOTIFY_READ, NULL);
+    InputThreadRegisterDev((int) (int64_t) closure, handleLorieEvents, NULL);
     conn_fd = (int) (int64_t) closure;
     return TRUE;
 }
@@ -365,7 +354,7 @@ Java_com_termux_x11_CmdEntryPoint_getLogcatOutput(JNIEnv *env, unused jobject cl
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_termux_x11_CmdEntryPoint_connected(JNIEnv *env, jclass clazz) {
+Java_com_termux_x11_CmdEntryPoint_connected(__unused JNIEnv *env, __unused jclass clazz) {
     return conn_fd != -1;
 }
 

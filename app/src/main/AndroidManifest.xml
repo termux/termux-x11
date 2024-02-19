@@ -16,7 +16,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         android:hardwareAccelerated="true"
-        tools:ignore="GoogleAppIndexingWarning">
+        tools:ignore="DataExtractionRules,GoogleAppIndexingWarning">
         <activity
             android:name=".MainActivity"
             android:taskAffinity=".MainActivity"
@@ -64,6 +64,11 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <receiver android:name=".LoriePreferences$Receiver" android:exported="true" tools:ignore="ExportedReceiver" android:enabled="true">
+            <intent-filter>
+                <action android:name="com.termux.x11.CHANGE_PREFERENCE" />
+            </intent-filter>
+        </receiver>
     </application>
     <queries>
         <package android:name="com.termux" />

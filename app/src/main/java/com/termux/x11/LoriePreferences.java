@@ -4,10 +4,15 @@ import static android.Manifest.permission.POST_NOTIFICATIONS;
 import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
 import static android.content.pm.PackageManager.PERMISSION_DENIED;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
+import static android.os.Build.VERSION.SDK_INT;
 
 import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.res.XmlResourceParser;
 import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
@@ -18,6 +23,7 @@ import androidx.core.content.ContextCompat;
 import androidx.preference.Preference;
 
 import android.os.Handler;
+import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
 
@@ -43,6 +49,15 @@ import com.termux.x11.utils.KeyInterceptor;
 import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+
+
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.PrintWriter;
+import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 import java.util.regex.PatternSyntaxException;
 
@@ -51,6 +66,19 @@ public class LoriePreferences extends AppCompatActivity {
     static final String ACTION_PREFERENCES_CHANGED = "com.termux.x11.ACTION_PREFERENCES_CHANGED";
     static final String SHOW_IME_WITH_HARD_KEYBOARD = "show_ime_with_hard_keyboard";
     LoriePreferenceFragment loriePreferenceFragment;
+
+    private final BroadcastReceiver receiver = new BroadcastReceiver() {
+        @SuppressLint("UnspecifiedRegisterReceiverFlag")
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction())) {
+                if (intent.getBooleanExtra("fromBroadcast", false)) {
+                    loriePreferenceFragment.getPreferenceScreen().removeAll();
+                    loriePreferenceFragment.addPreferencesFromResource(R.xml.preferences);
+                }
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,6 +92,20 @@ public class LoriePreferences extends AppCompatActivity {
             actionBar.setHomeButtonEnabled(true);
             actionBar.setTitle("Preferences");
         }
+    }
+
+    @SuppressLint("WrongConstant")
+    @Override
+    protected void onResume() {
+        super.onResume();
+        IntentFilter filter = new IntentFilter(ACTION_PREFERENCES_CHANGED);
+        registerReceiver(receiver, filter, SDK_INT >= Build.VERSION_CODES.TIRAMISU ? RECEIVER_NOT_EXPORTED : 0);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        unregisterReceiver(receiver);
     }
 
     @Override
@@ -278,7 +320,7 @@ public class LoriePreferences extends AppCompatActivity {
                 }
             }
 
-            if ("showAdditionalKbd".contentEquals(key)) {
+            if ("showAdditionalKbd".contentEquals(key) && (Boolean) newValue) {
                 SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(requireContext());
                 SharedPreferences.Editor edit = preferences.edit();
                 edit.putBoolean("additionalKbdVisible", true);
@@ -308,6 +350,213 @@ public class LoriePreferences extends AppCompatActivity {
 
             handler.postAtTime(this::updatePreferencesLayout, 100);
             return true;
+        }
+    }
+
+    public static class Receiver extends BroadcastReceiver {
+        public Receiver() {
+            super();
+        }
+
+        @Override
+        public IBinder peekService(Context myContext, Intent service) {
+            return super.peekService(myContext, service);
+        }
+
+        @SuppressLint("ApplySharedPref")
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            try {
+                if (intent.getExtras() != null) {
+                    SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+                    if (intent.getStringExtra("list") != null) {
+                        String result = "";
+                        try {
+                            XmlResourceParser parser = context.getResources().getXml(R.xml.preferences);
+                            String namespace = "http://schemas.android.com/apk/res/android";
+                            Map<String, ?> p = preferences.getAll();
+                            int eventType = parser.getEventType();
+                            while (eventType != XmlPullParser.END_DOCUMENT) {
+                                if (eventType == XmlPullParser.START_TAG) {
+                                    String tagName = parser.getName();
+                                    if (tagName.contains("Preference") && !tagName.equals("PreferenceScreen") && !tagName.equals("PreferenceCategory")) {
+                                        String key = parser.getAttributeValue(namespace, "key");
+                                        String value = p.containsKey(key) ? Objects.requireNonNull(p.get(key)).toString() : parser.getAttributeValue(namespace, "defaultValue");
+                                        if (key.equals("extra_keys_config") && !p.containsKey(key))
+                                            value = TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS;
+
+                                        //noinspection StringConcatenationInLoop
+                                        result += "\"" + key + "\"=\"" + value + "\"\n";
+                                    }
+                                }
+                                eventType = parser.next();
+                            }
+                        } catch (XmlPullParserException | IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                        setResultCode(2);
+                        setResultData(result);
+
+                        return;
+                    }
+
+                    SharedPreferences.Editor edit = preferences.edit();
+                    for (String key : intent.getExtras().keySet()) {
+                        String newValue = intent.getStringExtra(key);
+                        if (newValue == null)
+                            continue;
+
+                        switch (key) {
+                            case "showIMEWhileExternalConnected": {
+                                boolean enabled = "true".contentEquals(newValue);
+                                try {
+                                    Settings.Secure.putString(context.getContentResolver(), SHOW_IME_WITH_HARD_KEYBOARD, enabled ? "1" : "0");
+                                } catch (Exception e) {
+                                    if (e instanceof SecurityException) {
+                                        setResultCode(1);
+                                        setResultData("Permission denied.\n" +
+                                                "Android requires WRITE_SECURE_SETTINGS permission to change `show_ime_with_hard_keyboard` setting.\n" +
+                                                "Please, launch this command using ADB:\n" +
+                                                "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS");
+                                        return;
+                                    } else e.printStackTrace();
+                                }
+                                break;
+                            }
+                            case "displayScale": {
+                                int scale = Integer.parseInt(newValue);
+                                if (scale % 10 != 0) {
+                                    scale = Math.round(((float) scale) / 10) * 10;
+                                    edit.putInt("displayScale", scale);
+                                } else
+                                    edit.putInt("displayScale", scale);
+                                break;
+                            }
+                            case "displayDensity": {
+                                int v;
+                                try {
+                                    v = Integer.parseInt(newValue);
+                                } catch (NumberFormatException | PatternSyntaxException ignored) {
+                                    v = 0;
+                                }
+
+                                if (!(v > 96 && v < 800)) {
+                                    setResultCode(1);
+                                    setResultData("displayDensity accepts only numerics between 96 and 800.");
+                                    return;
+                                }
+
+                                edit.putInt("displayDensity", v);
+                                break;
+                            }
+                            case "displayResolutionCustom": {
+                                try {
+                                    String[] resolution = newValue.split("x");
+                                    Integer.parseInt(resolution[0]);
+                                    Integer.parseInt(resolution[1]);
+                                } catch (NumberFormatException | PatternSyntaxException ignored) {
+                                    setResultCode(1);
+                                    setResultData("displayResolutionCustom: Wrong resolution format.");
+                                    return;
+                                }
+
+                                edit.putString("displayResolutionCustom", newValue);
+                                break;
+                            }
+                            case "showAdditionalKbd": {
+                                if ("true".contentEquals(newValue))
+                                    edit.putBoolean("additionalKbdVisible", true);
+                                edit.putBoolean("showAdditionalKbd", "true".contentEquals(newValue));
+                                break;
+                            }
+                            case "enableAccessibilityServiceAutomatically": {
+                                if (!"true".equals(newValue))
+                                    KeyInterceptor.shutdown();
+                                else if (context.checkSelfPermission(WRITE_SECURE_SETTINGS) != PERMISSION_GRANTED) {
+                                    setResultCode(1);
+                                    setResultData("Permission denied.\n" +
+                                            "Android requires WRITE_SECURE_SETTINGS permission to change `show_ime_with_hard_keyboard` setting.\n" +
+                                            "Please, launch this command using ADB:\n" +
+                                            "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS");
+                                    return;
+                                }
+
+                                edit.putBoolean("enableAccessibilityServiceAutomatically", "true".contentEquals(newValue));
+                                break;
+                            }
+                            case "extra_keys_config": {
+                                edit.putString(key, newValue);
+                                break;
+                            }
+
+                            case "displayResolutionMode":
+                            case "displayResolutionExact":
+                            case "touchMode": {
+                                int array = 0;
+                                switch (key) {
+                                    case "displayResolutionMode":
+                                        array = R.array.displayResolutionVariants;
+                                        break;
+                                    case "displayResolutionExact":
+                                        array = R.array.displayResolution;
+                                        break;
+                                    case "touchMode":
+                                        array = R.array.touchscreenInputModesEntries;
+                                        break;
+                                }
+                                String[] options = context.getResources().getStringArray(array);
+                                if (!Arrays.asList(options).contains(newValue)) {
+                                    setResultCode(1);
+                                    setResultData(key + ": can not be set to " + newValue);
+                                    return;
+                                }
+                                edit.putString(key, newValue);
+                                break;
+                            }
+                            case "displayStretch":
+                            case "Reseed":
+                            case "PIP":
+                            case "fullscreen":
+                            case "forceLandscape":
+                            case "hideCutout":
+                            case "keepScreenOn":
+                            case "scaleTouchpad":
+                            case "showStylusClickOverride":
+                            case "showMouseHelper":
+                            case "pointerCapture":
+                            case "tapToMove":
+                            case "preferScancodes":
+                            case "dexMetaKeyCapture":
+                            case "filterOutWinkey":
+                            case "clipboardSync": {
+                                edit.putBoolean(key, "true".contentEquals(newValue));
+                                break;
+                            }
+                            default: {
+                                setResultCode(4);
+                                setResultData(key + ": unrecognised option");
+                                return;
+                            }
+                        }
+
+                        Intent intent0 = new Intent(ACTION_PREFERENCES_CHANGED);
+                        intent0.putExtra("key", key);
+                        intent0.putExtra("fromBroadcast", true);
+                        intent0.setPackage("com.termux.x11");
+                        context.sendBroadcast(intent0);
+                    }
+                    edit.commit();
+                }
+
+                setResultCode(2);
+                setResultData("Done");
+            } catch (Exception e) {
+                setResultCode(4);
+                StringWriter sw = new StringWriter();
+                PrintWriter pw = new PrintWriter(sw);
+                e.printStackTrace(pw);
+                setResultData(sw.toString());
+            }
         }
     }
 

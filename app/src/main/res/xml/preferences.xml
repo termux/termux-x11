@@ -33,13 +33,13 @@
             android:key="displayStretch" />
 
         <SwitchPreferenceCompat
-            android:title="Reseed Screen While Soft Keyboard is open"
+            android:title="Reseed screen while soft keyboard is open"
             android:summary="The screen size will be adjusted while Soft Keyboard is open."
             android:defaultValue="true"
             android:key="Reseed" />
 
         <SwitchPreferenceCompat
-            android:title="PIP Mode"
+            android:title="PIP mode"
             android:summary="Show app in picture-in-picture mode when home button or recents button is pressed"
             android:defaultValue="false"
             android:key="PIP" />

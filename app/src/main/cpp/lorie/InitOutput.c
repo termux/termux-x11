@@ -389,7 +389,7 @@ static void lorieUpdateBuffer(void) {
 
 static inline void loriePixmapUnlock(PixmapPtr pixmap) {
     if (pvfb->root.legacyDrawing)
-        return renderer_update_root(pixmap->drawable.width, pixmap->drawable.height, pixmap->devPrivate.ptr);
+        return renderer_update_root(pixmap->drawable.width, pixmap->drawable.height, pixmap->devPrivate.ptr, pvfb->root.flip);
 
     if (pvfb->root.locked)
         AHardwareBuffer_unlock(pvfb->root.buffer, NULL);
@@ -673,7 +673,7 @@ Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
     lorieSetCursor(NULL, NULL, CursorForDevice(GetMaster(lorieMouse, MASTER_POINTER)), -1, -1);
 
     if (pvfb->root.legacyDrawing) {
-        renderer_update_root(pScreenPtr->width, pScreenPtr->height, ((PixmapPtr) pScreenPtr->devPrivate)->devPrivate.ptr);
+        renderer_update_root(pScreenPtr->width, pScreenPtr->height, ((PixmapPtr) pScreenPtr->devPrivate)->devPrivate.ptr, pvfb->root.flip);
         renderer_redraw(pvfb->env, pvfb->root.flip);
     }
 
@@ -726,7 +726,7 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     screen_info->bitmapBitOrder = BITMAP_BIT_ORDER;
     screen_info->numPixmapFormats = ARRAY_SIZE(depths);
 
-    renderer_init(&pvfb->root.legacyDrawing, &pvfb->root.flip);
+    renderer_init(pvfb->env, &pvfb->root.legacyDrawing, &pvfb->root.flip);
     xorgGlxCreateVendor();
     lorieInitSelectionCallback();
 

@@ -134,6 +134,9 @@ static AHardwareBuffer *buffer = NULL;
 static EGLImageKHR image = NULL;
 static int renderedFrames = 0;
 
+static jmethodID Surface_release = NULL;
+static jmethodID Surface_destroy = NULL;
+
 static struct {
     GLuint id;
     float width, height;
@@ -146,7 +149,7 @@ static struct {
 GLuint g_texture_program = 0, gv_pos = 0, gv_coords = 0;
 GLuint g_texture_program_bgra = 0, gv_pos_bgra = 0, gv_coords_bgra = 0;
 
-int renderer_init(int* legacy_drawing, uint8_t* flip) {
+int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
     EGLint major, minor;
     EGLint numConfigs;
     const EGLint configAttribs[] = {
@@ -174,6 +177,18 @@ int renderer_init(int* legacy_drawing, uint8_t* flip) {
     if (ctx)
         return 1;
 
+    jclass Surface = (*env)->FindClass(env, "android/view/Surface");
+    Surface_release = (*env)->GetMethodID(env, Surface, "release", "()V");
+    Surface_destroy = (*env)->GetMethodID(env, Surface, "destroy", "()V");
+    if (!Surface_release) {
+        loge("Failed to find required Surface.release method. Aborting.\n");
+        abort();
+    }
+    if (!Surface_destroy) {
+        loge("Failed to find required Surface.destroy method. Aborting.\n");
+        abort();
+    }
+
     egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (egl_display == EGL_NO_DISPLAY) {
         log("Xlorie: Got no EGL display.\n");
@@ -187,7 +202,7 @@ int renderer_init(int* legacy_drawing, uint8_t* flip) {
         return 0;
     }
     log("Xlorie: Initialized EGL version %d.%d\n", major, minor);
-    eglCheckError(__LINE__);
+    eglBindAPI(EGL_OPENGL_ES_API);
 
     if (eglChooseConfig(egl_display, configAttribs, &cfg, 1, &numConfigs) != EGL_TRUE &&
             eglChooseConfig(egl_display, configAttribs2, &cfg, 1, &numConfigs) != EGL_TRUE) {
@@ -196,11 +211,7 @@ int renderer_init(int* legacy_drawing, uint8_t* flip) {
         return 0;
     }
 
-    eglBindAPI(EGL_OPENGL_ES_API);
-    eglCheckError(__LINE__);
-
     ctx = eglCreateContext(egl_display, cfg, NULL, ctxattribs);
-    eglCheckError(__LINE__);
     if (ctx == EGL_NO_CONTEXT) {
         log("Xlorie: eglCreateContext failed.\n");
         eglCheckError(__LINE__);
@@ -212,12 +223,12 @@ int renderer_init(int* legacy_drawing, uint8_t* flip) {
         eglCheckError(__LINE__);
         return 0;
     }
-    eglCheckError(__LINE__);
 
     {
         // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
         const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
         EGLClientBuffer clientBuffer;
+        EGLImageKHR img;
         AHardwareBuffer *new = NULL;
         int status;
         AHardwareBuffer_Desc d0 = {
@@ -236,6 +247,17 @@ int renderer_init(int* legacy_drawing, uint8_t* flip) {
             return 1;
         }
 
+        uint32_t *pixels;
+        if (AHardwareBuffer_lock(new, d0.usage, -1, NULL, (void **) &pixels) == 0) {
+            pixels[0] = 0xAABBCCDD;
+            AHardwareBuffer_unlock(new, NULL);
+        } else {
+            loge("Failed to lock native buffer (%p, error %d)", new, status);
+            loge("Forcing legacy drawing");
+            *legacy_drawing = 1;
+            return 1;
+        }
+
         clientBuffer = eglGetNativeClientBufferANDROID(new);
         if (!clientBuffer) {
             eglCheckError(__LINE__);
@@ -245,7 +267,7 @@ int renderer_init(int* legacy_drawing, uint8_t* flip) {
             return 1;
         }
 
-        if (!eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes)) {
+        if (!(img = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes))) {
             if (eglGetError() == EGL_BAD_PARAMETER) {
                 loge("Sampling from HAL_PIXEL_FORMAT_BGRA_8888 is not supported, forcing AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM");
                 *flip = 1;
@@ -254,6 +276,71 @@ int renderer_init(int* legacy_drawing, uint8_t* flip) {
                 loge("Forcing legacy drawing");
                 *legacy_drawing = 1;
             }
+        } else {
+            // For some reason all devices I checked had no GL_EXT_texture_format_BGRA8888 support, but some of them still provided BGRA extension.
+            // EGL does not provide functions to query texture format in runtime.
+            // Workarounds are less performant but at least they let us use Termux:X11 on devices with missing BGRA support.
+            // We handle two cases.
+            // If resulting texture has BGRA format but still drawing RGBA we should flip format to RGBA and flip pixels manually in shader.
+            // In the case if for some reason we can not use HAL_PIXEL_FORMAT_BGRA_8888 we should fallback to legacy drawing method (uploading pixels via glTexImage2D).
+            const EGLint configAttributes[] = {
+                    EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+                    EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                    EGL_RED_SIZE, 8,
+                    EGL_GREEN_SIZE, 8,
+                    EGL_BLUE_SIZE, 8,
+                    EGL_ALPHA_SIZE, 8,
+                    EGL_NONE
+            };
+            EGLConfig checkcfg = 0;
+            GLuint fbo = 0, texture = 0;
+            if (eglChooseConfig(egl_display, configAttributes, &checkcfg, 1, &numConfigs) != EGL_TRUE) {
+                log("Xlorie: check eglChooseConfig failed.\n");
+                eglCheckError(__LINE__);
+                return 0;
+            }
+
+            EGLContext testctx = eglCreateContext(egl_display, checkcfg, NULL, ctxattribs);
+            if (testctx == EGL_NO_CONTEXT) {
+                log("Xlorie: check eglCreateContext failed.\n");
+                eglCheckError(__LINE__);
+                return 0;
+            }
+
+            const EGLint pbufferAttributes[] = {
+                    EGL_WIDTH, 64,
+                    EGL_HEIGHT, 64,
+                    EGL_NONE,
+            };
+            EGLSurface checksfc = eglCreatePbufferSurface(egl_display, checkcfg, pbufferAttributes);
+
+            if (eglMakeCurrent(egl_display, checksfc, checksfc, testctx) != EGL_TRUE) {
+                log("Xlorie: check eglMakeCurrent failed.\n");
+                eglCheckError(__LINE__);
+                return 0;
+            }
+
+            glActiveTexture(GL_TEXTURE0); checkGlError();
+            glGenTextures(1, &texture); checkGlError();
+            glBindTexture(GL_TEXTURE_2D, texture); checkGlError();
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); checkGlError();
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); checkGlError();
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
+            glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, img); checkGlError();
+            glGenFramebuffers(1, &fbo); checkGlError();
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo); checkGlError();
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0); checkGlError();
+            uint32_t pixel[64*64];
+            glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel); checkGlError();
+            if (pixel[0] == 0xAABBCCDD) {
+                log("Xlorie: GLES draws pixels unchanged, probably system does not support AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM. Forcing bgra.\n");
+                *flip = 1;
+            } else if (pixel[0] != 0xAADDCCBB) {
+                log("Xlorie: GLES receives broken pixels. Forcing legacy drawing. 0x%X\n", pixel[0]);
+                *legacy_drawing = 1;
+            }
+            eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         }
     }
 
@@ -341,12 +428,14 @@ void renderer_set_window(JNIEnv* env, jobject new_surface, AHardwareBuffer* new_
     EGLNativeWindowType window;
     if (new_surface && surface && new_surface != surface && (*env)->IsSameObject(env, new_surface, surface)) {
         (*env)->DeleteGlobalRef(env, new_surface);
+        new_surface = NULL;
         return;
     }
 
     window = new_surface ? ANativeWindow_fromSurface(env, new_surface) : NULL;
-
-    log("renderer_set_window %p %d %d", window, window ? ANativeWindow_getWidth(window) : 0, window ? ANativeWindow_getHeight(window) : 0);
+    int width = window ? ANativeWindow_getWidth(window) : 0;
+    int height = window ? ANativeWindow_getHeight(window) : 0;
+    log("renderer_set_window %p %d %d", window, width, height);
     if (window && win == window)
         return;
 
@@ -363,19 +452,25 @@ void renderer_set_window(JNIEnv* env, jobject new_surface, AHardwareBuffer* new_
         }
     }
     sfc = EGL_NO_SURFACE;
-
     if (win)
         ANativeWindow_release(win);
 
     if (surface) {
-        jmethodID release = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, surface), "release", "()V");
-        jmethodID destroy = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, surface), "destroy", "()V");
-        if (release)
-            (*env)->CallVoidMethod(env, surface, release);
-        if (destroy)
-            (*env)->CallVoidMethod(env, surface, destroy);
-
+        (*env)->CallVoidMethod(env, surface, Surface_release);
+        (*env)->CallVoidMethod(env, surface, Surface_destroy);
         (*env)->DeleteGlobalRef(env, surface);
+    }
+
+    if (window && (width <= 0 || height <= 0)) {
+        log("Xlorie: We've got invalid surface. Probably it became invalid before we started working with it.\n");
+        ANativeWindow_release(window);
+        window = NULL;
+        if (new_surface) {
+            (*env)->CallVoidMethod(env, new_surface, Surface_release);
+            (*env)->CallVoidMethod(env, new_surface, Surface_destroy);
+            (*env)->DeleteGlobalRef(env, new_surface);
+            new_surface = NULL;
+        }
     }
 
     win = window;
@@ -436,7 +531,7 @@ void renderer_set_window(JNIEnv* env, jobject new_surface, AHardwareBuffer* new_
     } else renderer_set_buffer(env, new_buffer);
 }
 
-void renderer_update_root(int w, int h, void* data) {
+void renderer_update_root(int w, int h, void* data, uint8_t flip) {
     if (eglGetCurrentContext() == EGL_NO_CONTEXT || !w || !h)
         return;
 
@@ -449,11 +544,11 @@ void renderer_update_root(int w, int h, void* data) {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); checkGlError();
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_BGRA_EXT, w, h, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, data); checkGlError();
+        glTexImage2D(GL_TEXTURE_2D, 0, flip ? GL_RGBA : GL_BGRA_EXT, w, h, 0, flip ? GL_RGBA : GL_BGRA_EXT, GL_UNSIGNED_BYTE, data); checkGlError();
     } else {
         glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
 
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_BGRA_EXT, GL_UNSIGNED_BYTE, data);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, flip ? GL_RGBA : GL_BGRA_EXT, GL_UNSIGNED_BYTE, data);
         checkGlError();
     }
 }

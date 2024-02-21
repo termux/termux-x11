@@ -351,7 +351,7 @@ public class TouchInputHandler {
                     distanceX *= mRenderData.scale.x;
                     distanceY *= mRenderData.scale.y;
                 }
-                moveCursorByOffset(distanceX * mRenderData.scale.x, distanceY * mRenderData.scale.y);
+                moveCursorByOffset(distanceX, distanceY);
             }
             if (!(mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) && mIsDragging) {
                 // Ensure the cursor follows the user's finger when the user is dragging under

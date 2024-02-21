@@ -272,7 +272,7 @@ public class TouchInputHandler {
 
     private void moveCursorByOffset(float deltaX, float deltaY) {
         if (mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy)
-            mInjector.sendCursorMove((int) -deltaX, (int) -deltaY, true);
+            mInjector.sendCursorMove(-deltaX, -deltaY, true);
         else if (mInputStrategy instanceof InputStrategyInterface.SimulatedTouchInputStrategy) {
             PointF cursorPos = mRenderData.getCursorPosition();
             cursorPos.offset(-deltaX, -deltaY);

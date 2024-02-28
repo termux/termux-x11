@@ -379,11 +379,19 @@ public class LoriePreferences extends AppCompatActivity {
                             while (eventType != XmlPullParser.END_DOCUMENT) {
                                 if (eventType == XmlPullParser.START_TAG) {
                                     String tagName = parser.getName();
+
                                     if (tagName.contains("Preference") && !tagName.equals("PreferenceScreen") && !tagName.equals("PreferenceCategory")) {
                                         String key = parser.getAttributeValue(namespace, "key");
                                         String value = p.containsKey(key) ? Objects.requireNonNull(p.get(key)).toString() : parser.getAttributeValue(namespace, "defaultValue");
                                         if (key.equals("extra_keys_config") && !p.containsKey(key))
                                             value = TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS;
+                                        if (key.equals("touchMode")) {
+                                            String[] options0 = context.getResources().getStringArray(R.array.touchscreenInputModesEntries);
+                                            String[] options1 = context.getResources().getStringArray(R.array.touchscreenInputModesValues);
+                                            for (int i=0; i<options0.length; i++)
+                                                if (value.contentEquals(options1[i]))
+                                                    value = options0[i];
+                                        }
 
                                         //noinspection StringConcatenationInLoop
                                         result += "\"" + key + "\"=\"" + value + "\"\n";
@@ -490,8 +498,7 @@ public class LoriePreferences extends AppCompatActivity {
                             }
 
                             case "displayResolutionMode":
-                            case "displayResolutionExact":
-                            case "touchMode": {
+                            case "displayResolutionExact":{
                                 int array = 0;
                                 switch (key) {
                                     case "displayResolutionMode":
@@ -499,9 +506,6 @@ public class LoriePreferences extends AppCompatActivity {
                                         break;
                                     case "displayResolutionExact":
                                         array = R.array.displayResolution;
-                                        break;
-                                    case "touchMode":
-                                        array = R.array.touchscreenInputModesEntries;
                                         break;
                                 }
                                 String[] options = context.getResources().getStringArray(array);
@@ -511,6 +515,25 @@ public class LoriePreferences extends AppCompatActivity {
                                     return;
                                 }
                                 edit.putString(key, newValue);
+                                break;
+                            }
+                            case "touchMode": {
+                                String[] options0 = context.getResources().getStringArray(R.array.touchscreenInputModesEntries);
+                                String[] options1 = context.getResources().getStringArray(R.array.touchscreenInputModesValues);
+                                boolean found = false;
+                                for (int i=0; i<options0.length; i++) {
+                                    if (newValue.contentEquals(options0[i])) {
+                                        found = true;
+                                        edit.putString(key, options1[i]);
+                                        break;
+                                    }
+                                }
+
+                                if (!found) {
+                                    setResultCode(1);
+                                    setResultData(key + ": can not be set to " + newValue);
+                                    return;
+                                }
                                 break;
                             }
                             case "displayStretch":

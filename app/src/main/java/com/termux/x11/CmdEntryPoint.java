@@ -36,7 +36,15 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static final int PORT = 7892;
     public static final byte[] MAGIC = "0xDEADBEEF".getBytes();
     private static final Handler handler;
-    public static Context ctx = createContext();
+    public static Context ctx;
+    static {
+        try {
+            ctx = createContext();
+        } catch (Throwable e) {
+            Log.e("Context", "Failed to instantiate context:", e);
+            ctx = null;
+        }
+    }
 
     /**
      * Command-line entry point.
@@ -76,7 +84,12 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
 
         try {
             ctx.sendBroadcast(intent);
-        } catch (IllegalArgumentException e) {
+        } catch (Exception e) {
+            if (e instanceof NullPointerException && ctx == null)
+                Log.i("Broadcast", "Context is null, falling back to manual broadcasting");
+            else
+                Log.e("Broadcast", "Falling back to manual broadcasting, failed to broadcast intent through Context:", e);
+
             String packageName;
             try {
                 packageName = android.app.ActivityThread.getPackageManager().getPackagesForUid(getuid())[0];

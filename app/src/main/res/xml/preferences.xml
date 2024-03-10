@@ -103,6 +103,11 @@
     </PreferenceCategory>
     <PreferenceCategory android:key="kbd" android:title="Keyboard">
         <SwitchPreferenceCompat
+            android:title="Toggle keyboard using back key"
+            android:defaultValue="true"
+            android:key="toggleIMEUsingBackKey" />
+
+        <SwitchPreferenceCompat
             android:title="Show additional keyboard"
             android:summary="Show keyboard with additional keys."
             android:defaultValue="true"

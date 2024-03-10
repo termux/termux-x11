@@ -93,6 +93,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private boolean mClientConnected = false;
     private View.OnKeyListener mLorieKeyListener;
     private boolean filterOutWinKey = false;
+    private boolean hideEKOnVolDown = false;
+    private boolean toggleIMEUsingBackKey = false;
     private static final int KEY_BACK = 158;
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -170,7 +172,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
         }, new InputEventSender(lorieView));
         mLorieKeyListener = (v, k, e) -> {
-            if (k == KEYCODE_VOLUME_DOWN && preferences.getBoolean("hideEKOnVolDown", false)) {
+            if (hideEKOnVolDown && k == KEYCODE_VOLUME_DOWN) {
                 if (e.getAction() == ACTION_UP)
                     toggleExtraKeys();
                 return true;
@@ -186,7 +188,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 }
 
                 if (e.getScanCode() == KEY_BACK && e.getDevice().getKeyboardType() != KEYBOARD_TYPE_ALPHABETIC || e.getScanCode() == 0) {
-                    if (e.getAction() == ACTION_UP)
+                    if (toggleIMEUsingBackKey && e.getAction() == ACTION_UP)
                         toggleKeyboardVisibility(MainActivity.this);
 
                     return true;
@@ -214,7 +216,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 try {
                     service.windowChanged(sfc);
                 } catch (RemoteException e) {
-                    e.printStackTrace();
+                    Log.e("MainActivity", "failed to send windowChanged request", e);
                 }
             }
         });
@@ -311,7 +313,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         visibility.setOnLongClickListener(v -> {
             v.startDragAndDrop(ClipData.newPlainText("", ""), new View.DragShadowBuilder(visibility) {
-                public void onDrawShadow(Canvas canvas) {}
+                public void onDrawShadow(@NonNull Canvas canvas) {}
             }, null, View.DRAG_FLAG_GLOBAL);
 
             frm.setOnDragListener((v2, event) -> {
@@ -525,6 +527,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
         } else if (checkSelfPermission(WRITE_SECURE_SETTINGS) == PERMISSION_GRANTED)
             KeyInterceptor.shutdown();
+
+        hideEKOnVolDown = p.getBoolean("hideEKOnVolDown", false);
+        toggleIMEUsingBackKey = p.getBoolean("toggleIMEUsingBackKey", true);
 
         int requestedOrientation = p.getBoolean("forceLandscape", false) ?
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;

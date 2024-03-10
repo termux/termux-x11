@@ -23,6 +23,8 @@ import android.view.Surface;
 import androidx.annotation.Keep;
 
 import java.io.DataInputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -182,10 +184,14 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     @SuppressLint("DiscouragedPrivateApi")
     public static Context createContext() {
         Context context = null;
+        PrintStream err = System.err;
         try {
             java.lang.reflect.Field f = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
             f.setAccessible(true);
             Object unsafe = f.get(null);
+            // Hiding harmless framework errors, like this:
+            // java.io.FileNotFoundException: /data/system/theme_config/theme_compatibility.xml: open failed: ENOENT (No such file or directory)
+            System.setErr(new PrintStream(new OutputStream() { public void write(int arg0) {} }));
             context = ((android.app.ActivityThread) Class.
                     forName("sun.misc.Unsafe").
                     getMethod("allocateInstance", Class.class).
@@ -194,6 +200,8 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         } catch (Exception e) {
             Log.e("Context", "Failed to instantiate context:", e);
             context = null;
+        } finally {
+            System.setErr(err);
         }
         return context;
     }

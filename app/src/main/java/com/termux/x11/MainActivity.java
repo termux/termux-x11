@@ -144,6 +144,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        if (XrActivity.isSupported() && !(this instanceof XrActivity)) {
+            XrActivity.openIntent(this);
+            return;
+        }
+
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         int modeValue = Integer.parseInt(preferences.getString("touchMode", "1")) - 1;
         if (modeValue > 2) {
@@ -250,7 +255,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     protected void onDestroy() {
-        unregisterReceiver(receiver);
+        if (!XrActivity.isSupported() || (this instanceof XrActivity)) {
+            unregisterReceiver(receiver);
+        }
         super.onDestroy();
     }
 

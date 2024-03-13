@@ -1,5 +1,8 @@
 #include "input.h"
-#include "math.h"
+
+extern "C" {
+    #include "math.h"
+}
 
 #include <cstring>
 

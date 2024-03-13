@@ -150,11 +150,9 @@ void Base::EnterXR()
 
   // Create the OpenXR Session.
   XrSessionCreateInfo session_info = {};
-#ifdef ANDROID
-  XrGraphicsBindingOpenGLESAndroidKHR graphics_binding_gl = {};
-#endif
   memset(&session_info, 0, sizeof(session_info));
-#ifdef ANDROID
+#ifdef XR_USE_GRAPHICS_API_OPENGL_ES
+  XrGraphicsBindingOpenGLESAndroidKHR graphics_binding_gl = {};
   graphics_binding_gl.type = XR_TYPE_GRAPHICS_BINDING_OPENGL_ES_ANDROID_KHR;
   graphics_binding_gl.next = NULL;
   graphics_binding_gl.display = eglGetCurrentDisplay();

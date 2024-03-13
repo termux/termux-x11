@@ -78,7 +78,6 @@ private:
   bool m_passthrough_running = false;
   XrViewConfigurationProperties m_viewport_config = {};
   XrViewConfigurationView m_view_config[MaxNumEyes] = {};
-  Framebuffer m_framebuffer[MaxNumEyes] = {};
 
   XrFovf m_fov;
   XrView* m_projections;

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "framebuffer.h"
-
 #define _USE_MATH_DEFINES
 #include <cassert>
 #include <cmath>
@@ -21,14 +19,21 @@ void OXRCheckErrors(XrResult result, const char* file, int line);
 
 #ifdef ANDROID
 #include <android/log.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
 #include <jni.h>
 #define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, "OpenXR", __VA_ARGS__);
 #define ALOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "OpenXR", __VA_ARGS__);
+#define XR_USE_PLATFORM_ANDROID 1
+#define XR_USE_GRAPHICS_API_OPENGL_ES 1
 #else
 #include <cstdio>
 #define ALOGE(...) printf(__VA_ARGS__)
 #define ALOGV(...) printf(__VA_ARGS__)
 #endif
+
+#include <openxr/openxr.h>
+#include <openxr/openxr_platform.h>
 
 enum
 {

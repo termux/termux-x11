@@ -2,12 +2,17 @@
 #include <cmath>
 
 #include "base.h"
-#include "math.h"
 #include "renderer.h"
 
 #include <cstdlib>
 #include <cstring>
 
+extern "C" {
+    #include "framebuffer.h"
+    #include "math.h"
+
+    XrFramebuffer m_framebuffer[MaxNumEyes] = {};
+};
 
 #define DECL_PFN(pfn) PFN_##pfn pfn = nullptr
 #define INIT_PFN(pfn) OXR(xrGetInstanceProcAddr(engine->GetInstance(), #pfn, (PFN_xrVoidFunction*)(&pfn)))
@@ -159,7 +164,7 @@ void Renderer::Init(Base* engine)
   int height = m_view_config[0].recommendedImageRectHeight;
   for (int i = 0; i < MaxNumEyes; i++)
   {
-    m_framebuffer[i].Create(engine->GetSession(), width, height);
+    XrFramebufferCreate(&m_framebuffer[i], engine->GetSession(), width, height);
   }
 
   if (engine->GetPlatformFlag(PlatformFlag::PLATFORM_EXTENSION_PASSTHROUGH))
@@ -197,7 +202,7 @@ void Renderer::Destroy(Base* engine)
 
   for (int i = 0; i < MaxNumEyes; i++)
   {
-    m_framebuffer[i].Destroy();
+    XrFramebufferDestroy(&m_framebuffer[i]);
     m_framebuffer[i] = {};
   }
   free(m_projections);
@@ -268,7 +273,7 @@ bool Renderer::InitFrame(Base* engine)
     m_inverted_view_pose[eye] = m_projections[eye].pose;
   }
 
-  m_hmd_orientation = EulerAngles(m_inverted_view_pose[0].orientation);
+  m_hmd_orientation = XrQuaternionfEulerAngles(m_inverted_view_pose[0].orientation);
   m_layer_count = 0;
   memset(m_layers, 0, sizeof(CompositorLayer) * MaxLayerCount);
   return true;
@@ -277,13 +282,13 @@ bool Renderer::InitFrame(Base* engine)
 void Renderer::BeginFrame(int fbo_index)
 {
   m_config_int[CONFIG_CURRENT_FBO] = fbo_index;
-  m_framebuffer[fbo_index].Acquire();
+  XrFramebufferAcquire(&m_framebuffer[fbo_index]);
 }
 
 void Renderer::EndFrame()
 {
   int fbo_index = m_config_int[CONFIG_CURRENT_FBO];
-  m_framebuffer[fbo_index].Release();
+  XrFramebufferRelease(&m_framebuffer[fbo_index]);
 }
 
 void Renderer::FinishFrame(Base* engine)
@@ -296,7 +301,7 @@ void Renderer::FinishFrame(Base* engine)
 
     for (int eye = 0; eye < MaxNumEyes; eye++)
     {
-      Framebuffer* framebuffer = &m_framebuffer[0];
+      XrFramebuffer* framebuffer = &m_framebuffer[0];
       XrPosef pose = m_inverted_view_pose[0];
       if (mode != RENDER_MODE_MONO_6DOF)
       {
@@ -310,11 +315,11 @@ void Renderer::FinishFrame(Base* engine)
       projection_layer_elements[eye].fov = m_fov;
 
       memset(&projection_layer_elements[eye].subImage, 0, sizeof(XrSwapchainSubImage));
-      projection_layer_elements[eye].subImage.swapchain = framebuffer->GetHandle();
+      projection_layer_elements[eye].subImage.swapchain = framebuffer->Handle;
       projection_layer_elements[eye].subImage.imageRect.offset.x = 0;
       projection_layer_elements[eye].subImage.imageRect.offset.y = 0;
-      projection_layer_elements[eye].subImage.imageRect.extent.width = framebuffer->GetWidth();
-      projection_layer_elements[eye].subImage.imageRect.extent.height = framebuffer->GetHeight();
+      projection_layer_elements[eye].subImage.imageRect.extent.width = framebuffer->Width;
+      projection_layer_elements[eye].subImage.imageRect.extent.height = framebuffer->Height;
       projection_layer_elements[eye].subImage.imageArrayIndex = 0;
     }
 
@@ -337,11 +342,11 @@ void Renderer::FinishFrame(Base* engine)
     XrVector3f pos = {m_inverted_view_pose[0].position.x - sinf(menu_yaw) * cosf(menu_pitch) * distance,
                       m_inverted_view_pose[0].position.y - sinf(menu_pitch) * distance,
                       m_inverted_view_pose[0].position.z - cosf(menu_yaw) * cosf(menu_pitch) * distance};
-    XrQuaternionf pitch = CreateFromVectorAngle({1, 0, 0}, -menu_pitch);
-    XrQuaternionf yaw = CreateFromVectorAngle({0, 1, 0}, menu_yaw);
+    XrQuaternionf pitch = XrQuaternionfCreateFromVectorAngle({1, 0, 0}, -menu_pitch);
+    XrQuaternionf yaw = XrQuaternionfCreateFromVectorAngle({0, 1, 0}, menu_yaw);
 
     // Setup quad layer
-    Framebuffer* framebuffer = &m_framebuffer[0];
+    XrFramebuffer* framebuffer = &m_framebuffer[0];
     XrCompositionLayerQuad quad_layer = {};
     quad_layer.type = XR_TYPE_COMPOSITION_LAYER_QUAD;
     quad_layer.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
@@ -349,11 +354,11 @@ void Renderer::FinishFrame(Base* engine)
     memset(&quad_layer.subImage, 0, sizeof(XrSwapchainSubImage));
     quad_layer.subImage.imageRect.offset.x = 0;
     quad_layer.subImage.imageRect.offset.y = 0;
-    quad_layer.subImage.imageRect.extent.width = framebuffer->GetWidth();
-    quad_layer.subImage.imageRect.extent.height = framebuffer->GetHeight();
-    quad_layer.subImage.swapchain = framebuffer->GetHandle();
+    quad_layer.subImage.imageRect.extent.width = framebuffer->Width;
+    quad_layer.subImage.imageRect.extent.height = framebuffer->Height;
+    quad_layer.subImage.swapchain = framebuffer->Handle;
     quad_layer.subImage.imageArrayIndex = 0;
-    quad_layer.pose.orientation = Multiply(pitch, yaw);
+    quad_layer.pose.orientation = XrQuaternionfMultiply(pitch, yaw);
     quad_layer.pose.position = pos;
     quad_layer.size.width = 4;
     quad_layer.size.height = 4;
@@ -369,7 +374,7 @@ void Renderer::FinishFrame(Base* engine)
       quad_layer.eyeVisibility = XR_EYE_VISIBILITY_LEFT;
       m_layers[m_layer_count++].quad = quad_layer;
       quad_layer.eyeVisibility = XR_EYE_VISIBILITY_RIGHT;
-      quad_layer.subImage.swapchain = m_framebuffer[1].GetHandle();
+      quad_layer.subImage.swapchain = m_framebuffer[1].Handle;
       m_layers[m_layer_count++].quad = quad_layer;
     }
   }
@@ -419,7 +424,7 @@ void Renderer::BindFramebuffer(Base* engine)
   if (!m_initialized)
     return;
   int fbo_index = GetConfigInt(CONFIG_CURRENT_FBO);
-  m_framebuffer[fbo_index].SetCurrent();
+  XrFramebufferSetCurrent(&m_framebuffer[fbo_index]);
 }
 
 XrView Renderer::GetView(int eye)
@@ -561,7 +566,7 @@ void Renderer::Recenter(Base* engine)
     loc.type = XR_TYPE_SPACE_LOCATION;
     OXR(xrLocateSpace(engine->GetHeadSpace(), engine->GetCurrentSpace(),
                       engine->GetPredictedDisplayTime(), &loc));
-    m_hmd_orientation = EulerAngles(loc.pose.orientation);
+    m_hmd_orientation = XrQuaternionfEulerAngles(loc.pose.orientation);
     float yaw = m_hmd_orientation.y;
 
     SetConfigFloat(CONFIG_RECENTER_YAW, GetConfigFloat(CONFIG_RECENTER_YAW) + yaw);

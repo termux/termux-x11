@@ -10,7 +10,7 @@ Input* s_module_input = NULL;
 Renderer* s_module_renderer = NULL;
 
 #if defined(_DEBUG)
-#include <GLES3/gl3.h>
+#include <GLES2/gl2.h>
 void GLCheckErrors(const char* file, int line) {
 	for (int i = 0; i < 10; i++) {
 		const GLenum error = glGetError();

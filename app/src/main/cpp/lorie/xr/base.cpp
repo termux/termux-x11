@@ -152,8 +152,6 @@ void Base::EnterXR()
   XrSessionCreateInfo session_info = {};
 #ifdef ANDROID
   XrGraphicsBindingOpenGLESAndroidKHR graphics_binding_gl = {};
-#elif XR_USE_GRAPHICS_API_OPENGL
-  XrGraphicsBindingOpenGLWin32KHR graphicsBindingGL = {};
 #endif
   memset(&session_info, 0, sizeof(session_info));
 #ifdef ANDROID

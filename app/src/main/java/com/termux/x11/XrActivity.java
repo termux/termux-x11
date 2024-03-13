@@ -13,6 +13,12 @@ public class XrActivity extends MainActivity {
     private static boolean isDeviceSupported = false;
 
     @Override
+    public void onResume() {
+        super.onResume();
+        init();
+    }
+
+    @Override
     public void onPause() {
         super.onPause();
         // Going back to the Android 2D rendering isn't supported.
@@ -64,4 +70,6 @@ public class XrActivity extends MainActivity {
         }
         return -1;
     }
+
+    private native void init();
 }

@@ -21,6 +21,7 @@ void OXRCheckErrors(XrResult result, const char* file, int line);
 
 #ifdef ANDROID
 #include <android/log.h>
+#include <jni.h>
 #define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, "OpenXR", __VA_ARGS__);
 #define ALOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "OpenXR", __VA_ARGS__);
 #else

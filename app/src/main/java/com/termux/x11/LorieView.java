@@ -211,7 +211,7 @@ public class LorieView extends SurfaceView implements InputStub {
     ClipboardManager.OnPrimaryClipChangedListener clipboardListener = this::handleClipboardChange;
 
     static void setClipboardSyncEnabled(boolean enabled) {
-        clipboardSyncEnabled = true;
+        clipboardSyncEnabled = enabled;
         setClipboardSyncEnabled(enabled, enabled);
     }
 
@@ -241,13 +241,12 @@ public class LorieView extends SurfaceView implements InputStub {
     }
 
     public void handleClipboardChange() {
-        if (clipboardSyncEnabled)
-            checkForClipboardChange();
+        checkForClipboardChange();
     }
 
     public void checkForClipboardChange() {
         ClipDescription desc = clipboard.getPrimaryClipDescription();
-        if (desc != null &&
+        if (clipboardSyncEnabled && desc != null &&
                 lastClipboardTimestamp < desc.getTimestamp() &&
                 desc.getMimeTypeCount() == 1 &&
                 desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)) {

@@ -1,4 +1,6 @@
 
+#include <stdbool.h>
+
 void bindXrFramebuffer(void);
 bool beginXrFrame(void);
 void endXrFrame(void);

@@ -3,13 +3,14 @@
 #if XR_USE_GRAPHICS_API_OPENGL_ES
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 
-#endif
-
 bool XrFramebufferCreate(struct XrFramebuffer *framebuffer, XrSession session, int width, int height)
 {
+    memset(framebuffer, 0, sizeof(framebuffer));
 #if XR_USE_GRAPHICS_API_OPENGL_ES
     return XrFramebufferCreateGL(framebuffer, session, width, height);
 #else

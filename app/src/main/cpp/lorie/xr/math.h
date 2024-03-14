@@ -1,6 +1,5 @@
 #pragma once
 
-#include <math.h>
 #include <openxr/openxr.h>
 
 #ifndef EPSILON

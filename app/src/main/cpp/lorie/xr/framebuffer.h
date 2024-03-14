@@ -1,20 +1,6 @@
 #pragma once
 
-//TODO:remove once base.h is in C
-#define XR_USE_PLATFORM_ANDROID 1
-#define XR_USE_GRAPHICS_API_OPENGL_ES 1
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-#include <android/log.h>
-#include <jni.h>
-#define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, "OpenXR", __VA_ARGS__);
-#define ALOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "OpenXR", __VA_ARGS__);
-#define GL(func) func;
-#define OXR(func) func;
-
-#include <openxr/openxr.h>
-#include <openxr/openxr_platform.h>
-#include <stdbool.h>
+#include "engine.h"
 
 struct XrFramebuffer {
     int Width;

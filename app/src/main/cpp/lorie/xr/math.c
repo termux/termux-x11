@@ -1,5 +1,7 @@
-#include <string.h>
 #include "math.h"
+
+#include <math.h>
+#include <string.h>
 
 double FromXrTime(const XrTime time)
 {

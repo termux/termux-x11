@@ -27,6 +27,7 @@
 #include <windowstr.h>
 #include <selection.h>
 #include <propertyst.h>
+#include <xacestr.h>
 
 #include "lorie.h"
 
@@ -203,6 +204,8 @@ void lorieEnableClipboardSync(Bool enable) {
     clipboardEnabled = enable;
 }
 
+/* functions related to clipboard receiving */
+
 static void lorieSelectionRequest(Atom selection, Atom target) {
     Selection *pSel;
 
@@ -289,13 +292,281 @@ static void lorieSelectionCallback(__unused CallbackListPtr *callbacks, __unused
         lorieSelectionRequest(xaCLIPBOARD, xaTARGETS);
 }
 
+/* end functions related to clipboard receiving */
+
+/* functions related to clipboard announcing and sending */
+
+static int lorieConvertSelection(ClientPtr client, Atom selection, Atom target, Atom property, Window requestor, CARD32 time, const char* data) {
+    Selection *pSel;
+    WindowPtr pWin;
+    int rc;
+
+    Atom realProperty;
+
+    xEvent event;
+
+    if (data == NULL) {
+        log(DEBUG, "Selection request for %s (type %s)",
+            NameForAtom(selection), NameForAtom(target));
+    } else {
+        log(DEBUG, "Sending data for selection request for %s (type %s)",
+            NameForAtom(selection), NameForAtom(target));
+    }
+
+    rc = dixLookupSelection(&pSel, selection, client, DixGetAttrAccess);
+    if (rc != Success)
+        return rc;
+
+    /* We do not validate the time argument because neither does
+     * dix/selection.c and some clients (e.g. Qt) relies on this */
+
+    rc = dixLookupWindow(&pWin, requestor, client, DixSetAttrAccess);
+    if (rc != Success)
+        return rc;
+
+    if (property != None)
+        realProperty = property;
+    else
+        realProperty = target;
+
+    /* FIXME: MULTIPLE target */
+
+    if (target == xaTARGETS) {
+        Atom targets[] = { xaTARGETS, xaTIMESTAMP,
+                           xaSTRING, xaTEXT, xaUTF8_STRING };
+
+        rc = dixChangeWindowProperty(serverClient, pWin, realProperty,
+                                     XA_ATOM, 32, PropModeReplace,
+                                     sizeof(targets)/sizeof(targets[0]),
+                                     targets, TRUE);
+        if (rc != Success)
+            return rc;
+    } else if (target == xaTIMESTAMP) {
+        rc = dixChangeWindowProperty(serverClient, pWin, realProperty,
+                                     XA_INTEGER, 32, PropModeReplace, 1,
+                                     &pSel->lastTimeChanged.milliseconds,
+                                     TRUE);
+        if (rc != Success)
+            return rc;
+    } else {
+        if (data == NULL) {
+            struct LorieDataTarget* ldt;
+
+            if ((target != xaSTRING) && (target != xaTEXT) &&
+                (target != xaUTF8_STRING))
+                return BadMatch;
+
+            ldt = calloc(1, sizeof(struct LorieDataTarget));
+            if (ldt == NULL)
+                return BadAlloc;
+
+            ldt->client = client;
+            ldt->selection = selection;
+            ldt->target = target;
+            ldt->property = property;
+            ldt->requestor = requestor;
+            ldt->time = time;
+
+            ldt->next = lorieDataTargetHead;
+            lorieDataTargetHead = ldt;
+
+            log(DEBUG, "Requesting clipboard data from client");
+            lorieRequestClipboard();
+
+            return Success;
+        } else {
+            if ((target == xaSTRING) || (target == xaTEXT)) {
+                const char* latin1 = lorieUtf8ToLatin1(data);
+                if (latin1 == NULL)
+                    return BadAlloc;
+
+                rc = dixChangeWindowProperty(serverClient, pWin, realProperty,
+                                             XA_STRING, 8, PropModeReplace,
+                                             strlen(latin1), latin1, TRUE);
+
+                free((void*) latin1);
+
+                if (rc != Success)
+                    return rc;
+            } else if (target == xaUTF8_STRING) {
+                rc = dixChangeWindowProperty(serverClient, pWin, realProperty,
+                                             xaUTF8_STRING, 8, PropModeReplace,
+                                             strlen(data), data, TRUE);
+                if (rc != Success)
+                    return rc;
+            } else {
+                return BadMatch;
+            }
+        }
+    }
+
+    event.u.u.type = SelectionNotify;
+    event.u.selectionNotify.time = time;
+    event.u.selectionNotify.requestor = requestor;
+    event.u.selectionNotify.selection = selection;
+    event.u.selectionNotify.target = target;
+    event.u.selectionNotify.property = property;
+    WriteEventsToClient(client, 1, &event);
+    return Success;
+}
+
+static int lorieProcConvertSelection(ClientPtr client) {
+    Bool paramsOkay;
+    WindowPtr pWin;
+    Selection *pSel;
+    int rc;
+
+    REQUEST(xConvertSelectionReq)
+    REQUEST_SIZE_MATCH(xConvertSelectionReq);
+
+    rc = dixLookupWindow(&pWin, stuff->requestor, client, DixSetAttrAccess);
+    if (rc != Success)
+        return rc;
+
+    paramsOkay = ValidAtom(stuff->selection) && ValidAtom(stuff->target);
+    paramsOkay &= (stuff->property == None) || ValidAtom(stuff->property);
+    if (!paramsOkay) {
+        client->errorValue = stuff->property;
+        return BadAtom;
+    }
+
+    /* Do we own this selection? */
+    rc = dixLookupSelection(&pSel, stuff->selection, client, DixReadAccess);
+    if (rc == Success && pSel->client == serverClient && pSel->window == pScreenPtr->root->drawable.id) {
+        /* cachedData will be NULL for the first request, but can then be
+         * reused once we've gotten the data once from the client */
+        rc = lorieConvertSelection(client, stuff->selection,
+                                   stuff->target, stuff->property,
+                                   stuff->requestor, stuff->time,
+                                   cachedData);
+        if (rc != Success) {
+            xEvent event;
+
+            memset(&event, 0, sizeof(xEvent));
+            event.u.u.type = SelectionNotify;
+            event.u.selectionNotify.time = stuff->time;
+            event.u.selectionNotify.requestor = stuff->requestor;
+            event.u.selectionNotify.selection = stuff->selection;
+            event.u.selectionNotify.target = stuff->target;
+            event.u.selectionNotify.property = None;
+            WriteEventsToClient(client, 1, &event);
+        }
+
+        return Success;
+    }
+
+    return origProcConvertSelection(client);
+}
+
+static int lorieOwnSelection(Atom selection) {
+    Selection *pSel;
+    int rc;
+
+    SelectionInfoRec info;
+
+    rc = dixLookupSelection(&pSel, selection, serverClient, DixSetAttrAccess);
+    if (rc == Success) {
+        if (pSel->client && (pSel->client != serverClient)) {
+            xEvent event = {
+                    .u.selectionClear.time = currentTime.milliseconds,
+                    .u.selectionClear.window = pSel->window,
+                    .u.selectionClear.atom = pSel->selection
+            };
+            event.u.u.type = SelectionClear;
+            WriteEventsToClient(pSel->client, 1, &event);
+        }
+    } else if (rc == BadMatch) {
+        pSel = dixAllocateObjectWithPrivates(Selection, PRIVATE_SELECTION);
+        if (!pSel)
+            return BadAlloc;
+
+        pSel->selection = selection;
+
+        rc = XaceHookSelectionAccess(serverClient, &pSel, DixCreateAccess | DixSetAttrAccess);
+        if (rc != Success) {
+            free(pSel);
+            return rc;
+        }
+
+        pSel->next = CurrentSelections;
+        CurrentSelections = pSel;
+    }
+    else
+        return rc;
+
+    pSel->lastTimeChanged = currentTime;
+    pSel->window = pScreenPtr->root->drawable.id;
+    pSel->pWin = pScreenPtr->root;
+    pSel->client = serverClient;
+
+    log(DEBUG, "Grabbed %s selection", NameForAtom(selection));
+
+    info.selection = pSel;
+    info.client = serverClient;
+    info.kind = SelectionSetOwner;
+    CallCallbacks(&SelectionCallback, &info);
+
+    return Success;
+}
+
+void lorieHandleClipboardAnnounce(void) {
+    // The data has changed in some way, so whatever is in our cache is now stale
+    free((void*) cachedData);
+    cachedData = NULL;
+
+    int rc;
+
+    log(DEBUG, "Remote clipboard announced, grabbing local ownership");
+
+    rc = lorieOwnSelection(xaCLIPBOARD);
+    if (rc != Success)
+        log(ERROR, "Could not set CLIPBOARD selection");
+}
+
+void lorieHandleClipboardData(const char* data) {
+    struct LorieDataTarget* next;
+
+    log(DEBUG, "Got remote clipboard data, sending to X11 clients");
+
+    free((void*) cachedData);
+    cachedData = data;
+
+    while (lorieDataTargetHead != NULL) {
+        int rc;
+        xEvent event;
+
+        rc = lorieConvertSelection(lorieDataTargetHead->client,
+                                   lorieDataTargetHead->selection,
+                                   lorieDataTargetHead->target,
+                                   lorieDataTargetHead->property,
+                                   lorieDataTargetHead->requestor,
+                                   lorieDataTargetHead->time,
+                                 cachedData);
+        if (rc != Success) {
+            event.u.u.type = SelectionNotify;
+            event.u.selectionNotify.time = lorieDataTargetHead->time;
+            event.u.selectionNotify.requestor = lorieDataTargetHead->requestor;
+            event.u.selectionNotify.selection = lorieDataTargetHead->selection;
+            event.u.selectionNotify.target = lorieDataTargetHead->target;
+            event.u.selectionNotify.property = None;
+            WriteEventsToClient(lorieDataTargetHead->client, 1, &event);
+        }
+
+        next = lorieDataTargetHead->next;
+        free(lorieDataTargetHead);
+        lorieDataTargetHead = next;
+    }
+}
+
+/* end functions related to clipboard announcing and sending */
+
 void lorieInitClipboard(void) {
 #define ATOM(name) xa##name = MakeAtom(#name, strlen(#name), TRUE)
     ATOM(TIMESTAMP); ATOM(TEXT); ATOM(CLIPBOARD); ATOM(TARGETS); ATOM(STRING); ATOM(UTF8_STRING);
 
     if (!origProcConvertSelection) {
         origProcConvertSelection = ProcVector[X_ConvertSelection];
-//        ProcVector[X_ConvertSelection] = lorieProcConvertSelection;
+        ProcVector[X_ConvertSelection] = lorieProcConvertSelection;
     }
 
     if (!origProcSendEvent) {

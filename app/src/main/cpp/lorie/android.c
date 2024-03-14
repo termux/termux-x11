@@ -45,6 +45,7 @@ typedef enum {
     EVENT_UNICODE,
     EVENT_CLIPBOARD_ENABLE,
     EVENT_CLIPBOARD_ANNOUNCE,
+    EVENT_CLIPBOARD_REQUEST,
     EVENT_CLIPBOARD_SEND,
 } eventType;
 typedef union {
@@ -253,7 +254,8 @@ Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, unused jobject cls,
     QueueWorkProc(lorieChangeWindow, NULL, surface ? (*env)->NewGlobalRef(env, surface) : NULL);
 }
 
-static Bool lorieSendConfigureNotify(unused ClientPtr pClient, void *closure) {
+static Bool sendConfigureNotify(unused ClientPtr pClient, void *closure) {
+    // This must be done only on X server thread.
     lorieEvent* e = closure;
     __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "window changed: %d %d", e->screenSize.width, e->screenSize.height);
     lorieConfigureNotify(e->screenSize.width, e->screenSize.height, e->screenSize.framerate);
@@ -261,7 +263,19 @@ static Bool lorieSendConfigureNotify(unused ClientPtr pClient, void *closure) {
     return TRUE;
 }
 
-void handleLorieEvents(int fd, __unused int ready, __unused void *data) {
+static Bool handleClipboardAnnounce(unused ClientPtr pClient, void *closure) {
+    // This must be done only on X server thread.
+    lorieHandleClipboardAnnounce();
+    return TRUE;
+}
+
+static Bool handleClipboardData(unused ClientPtr pClient, void *closure) {
+    // This must be done only on X server thread.
+    lorieHandleClipboardData(closure);
+    return TRUE;
+}
+
+void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
     ValuatorMask mask;
     lorieEvent e = {0};
     valuator_mask_zero(&mask);
@@ -280,7 +294,7 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *data) {
             case EVENT_SCREEN_SIZE: {
                 lorieEvent *copy = calloc(1, sizeof(lorieEvent));
                 *copy = e;
-                QueueWorkProc(lorieSendConfigureNotify, NULL, copy);
+                QueueWorkProc(sendConfigureNotify, NULL, copy);
                 break;
             }
             case EVENT_TOUCH: {
@@ -361,6 +375,15 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *data) {
             case EVENT_CLIPBOARD_ENABLE:
                 lorieEnableClipboardSync(e.clipboardEnable.enable);
                 break;
+            case EVENT_CLIPBOARD_ANNOUNCE:
+                QueueWorkProc(handleClipboardAnnounce, NULL, NULL);
+                break;
+            case EVENT_CLIPBOARD_SEND: {
+                char *data = calloc(1, e.clipboardSend.count + 1);
+                read(conn_fd, data, e.clipboardSend.count);
+                data[e.clipboardSend.count] = 0;
+                QueueWorkProc(handleClipboardData, NULL, data);
+            }
         }
 
         int n;
@@ -375,6 +398,13 @@ void lorieSendClipboardData(const char* data) {
         lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = len } };
         write(conn_fd, &e, sizeof(e));
         write(conn_fd, data, len);
+    }
+}
+
+void lorieRequestClipboard(void) {
+    if (conn_fd != -1) {
+        lorieEvent e = { .type = EVENT_CLIPBOARD_REQUEST };
+        write(conn_fd, &e, sizeof(e));
     }
 }
 
@@ -463,7 +493,7 @@ Java_com_termux_x11_LorieView_connect(unused JNIEnv* env, unused jobject cls, ji
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, __unused jobject thiz) {
+Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, jobject thiz) {
     checkConnection(env);
     if (conn_fd != -1) {
         lorieEvent e = {0};
@@ -484,6 +514,11 @@ Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, __unused jobject thiz) 
 
                     jstring str = (*env)->CallObjectMethod(env, cb, CharBuffer.toString);
                     (*env)->CallVoidMethod(env, thiz, id, str);
+                    break;
+                }
+                case EVENT_CLIPBOARD_REQUEST: {
+                    (*env)->CallVoidMethod(env, thiz, (*env)->GetMethodID(env, (*env)->GetObjectClass(env, thiz), "requestClipboard", "()V"));
+                    break;
                 }
             }
         }
@@ -515,10 +550,32 @@ Java_com_termux_x11_LorieView_startLogcat(JNIEnv *env, unused jobject cls, jint 
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_setClipboardSyncEnabled(unused JNIEnv* env, unused jobject cls, jboolean enable) {
+Java_com_termux_x11_LorieView_setClipboardSyncEnabled(unused JNIEnv* env, unused jobject cls, jboolean enable, __unused jboolean ignored) {
     if (conn_fd != -1) {
         lorieEvent e = { .clipboardEnable = { .t = EVENT_CLIPBOARD_ENABLE, .enable = enable } };
         write(conn_fd, &e, sizeof(e));
+        checkConnection(env);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_termux_x11_LorieView_sendClipboardAnnounce(JNIEnv *env, jobject thiz) {
+    if (conn_fd != -1) {
+        lorieEvent e = { .type = EVENT_CLIPBOARD_ANNOUNCE };
+        write(conn_fd, &e, sizeof(e));
+        checkConnection(env);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_termux_x11_LorieView_sendClipboardEvent(JNIEnv *env, unused jobject thiz, jbyteArray text) {
+    if (conn_fd != -1 && text) {
+        jsize length = (*env)->GetArrayLength(env, text);
+        jbyte* str = (*env)->GetByteArrayElements(env, text, NULL);
+        lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = length } };
+        write(conn_fd, &e, sizeof(e));
+        write(conn_fd, str, length);
+        (*env)->ReleaseByteArrayElements(env, text, str, JNI_ABORT);
         checkConnection(env);
     }
 }

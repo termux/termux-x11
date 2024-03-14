@@ -3,6 +3,7 @@ package com.termux.x11;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ClipData;
+import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.ContextWrapper;
@@ -19,13 +20,15 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
+import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 
 import com.termux.x11.input.InputStub;
 
+import java.nio.charset.StandardCharsets;
 import java.util.regex.PatternSyntaxException;
 
-@SuppressLint("WrongConstant")
+@Keep @SuppressLint("WrongConstant")
 @SuppressWarnings("deprecation")
 public class LorieView extends SurfaceView implements InputStub {
     public interface Callback {
@@ -205,9 +208,53 @@ public class LorieView extends SurfaceView implements InputStub {
         return (a instanceof MainActivity) && ((MainActivity) a).handleKey(event);
     }
 
+    ClipboardManager.OnPrimaryClipChangedListener clipboardListener = this::handleClipboardChange;
+
+    static void setClipboardSyncEnabled(boolean enabled) {
+        clipboardSyncEnabled = true;
+        setClipboardSyncEnabled(enabled, enabled);
+    }
+
     // It is used in native code
     void setClipboardText(String text) {
         clipboard.setPrimaryClip(ClipData.newPlainText("X11 clipboard", text));
+
+        // Android does not send PrimaryClipChanged event to the window which posted event
+        // But in the case we are owning focus and clipboard is unchanged it will be replaced by the same value on X server side.
+        // Not cool in the case if user installed some clipboard manager, clipboard content will be doubled.
+        lastClipboardTimestamp = System.currentTimeMillis() + 150;
+    }
+
+    // It is used in native code
+    void requestClipboard() {
+        if (!clipboardSyncEnabled) {
+            sendClipboardEvent("".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+
+        CharSequence clip = clipboard.getText();
+        if (clip != null) {
+            String text = String.valueOf(clipboard.getText());
+            sendClipboardEvent(text.getBytes(StandardCharsets.UTF_8));
+            Log.d("CLIP", "sending clipboard contents: " + text);
+        }
+    }
+
+    public void handleClipboardChange() {
+        if (clipboardSyncEnabled)
+            checkForClipboardChange();
+    }
+
+    public void checkForClipboardChange() {
+        ClipDescription desc = clipboard.getPrimaryClipDescription();
+        if (desc != null &&
+                lastClipboardTimestamp < desc.getTimestamp() &&
+                desc.getMimeTypeCount() == 1 &&
+                desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)) {
+            lastClipboardTimestamp = desc.getTimestamp();
+            sendClipboardAnnounce();
+            Log.d("CLIP", "sending clipboard announce");
+        }
     }
 
     @Override
@@ -218,12 +265,19 @@ public class LorieView extends SurfaceView implements InputStub {
 
         requestFocus();
 
+        if (clipboardSyncEnabled && hasFocus) {
+            clipboard.addPrimaryClipChangedListener(clipboardListener);
+            checkForClipboardChange();
+        } else
+            clipboard.removePrimaryClipChangedListener(clipboardListener);
     }
 
     static native void connect(int fd);
     native void handleXEvents();
     static native void startLogcat(int fd);
-    static native void setClipboardSyncEnabled(boolean enabled);
+    static native void setClipboardSyncEnabled(boolean enabled, boolean ignored);
+    public native void sendClipboardAnnounce();
+    public native void sendClipboardEvent(byte[] text);
     static native void sendWindowChange(int width, int height, int framerate);
     public native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
     public native void sendTouchEvent(int action, int id, int x, int y);

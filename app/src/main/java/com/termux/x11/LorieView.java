@@ -8,7 +8,6 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.SharedPreferences;
 import android.graphics.Color;
-import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
@@ -19,7 +18,6 @@ import android.view.KeyEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.View;
 
 import androidx.annotation.NonNull;
 
@@ -30,7 +28,7 @@ import java.util.regex.PatternSyntaxException;
 @SuppressLint("WrongConstant")
 @SuppressWarnings("deprecation")
 public class LorieView extends SurfaceView implements InputStub {
-    interface Callback {
+    public interface Callback {
         void changed(Surface sfc, int surfaceWidth, int surfaceHeight, int screenWidth, int screenHeight);
     }
 
@@ -38,6 +36,9 @@ public class LorieView extends SurfaceView implements InputStub {
         int BGRA_8888 = 5; // Stands for HAL_PIXEL_FORMAT_BGRA_8888
     }
 
+    private ClipboardManager clipboard;
+    private long lastClipboardTimestamp = System.currentTimeMillis();
+    private static boolean clipboardSyncEnabled = false;
     private Callback mCallback;
     private final Point p = new Point();
     private final SurfaceHolder.Callback mSurfaceCallback = new SurfaceHolder.Callback() {
@@ -71,6 +72,7 @@ public class LorieView extends SurfaceView implements InputStub {
 
     private void init() {
         getHolder().addCallback(mSurfaceCallback);
+        clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
     }
 
     public void setCallback(Callback callback) {
@@ -205,8 +207,17 @@ public class LorieView extends SurfaceView implements InputStub {
 
     // It is used in native code
     void setClipboardText(String text) {
-        ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
         clipboard.setPrimaryClip(ClipData.newPlainText("X11 clipboard", text));
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus)
+            regenerate();
+
+        requestFocus();
+
     }
 
     static native void connect(int fd);

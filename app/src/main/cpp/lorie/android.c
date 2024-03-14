@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/prctl.h>
+#include <sys/ioctl.h>
 #include <libgen.h>
 #include <globals.h>
 #include <xkbsrv.h>
@@ -37,7 +38,14 @@ char *xtrans_unix_path_x11 = NULL;
 char *xtrans_unix_dir_x11 = NULL;
 
 typedef enum {
-    EVENT_SCREEN_SIZE, EVENT_TOUCH, EVENT_MOUSE, EVENT_KEY, EVENT_UNICODE, EVENT_CLIPBOARD_SYNC
+    EVENT_SCREEN_SIZE,
+    EVENT_TOUCH,
+    EVENT_MOUSE,
+    EVENT_KEY,
+    EVENT_UNICODE,
+    EVENT_CLIPBOARD_ENABLE,
+    EVENT_CLIPBOARD_ANNOUNCE,
+    EVENT_CLIPBOARD_SEND,
 } eventType;
 typedef union {
     uint8_t type;
@@ -66,13 +74,55 @@ typedef union {
     struct {
         uint8_t t;
         uint8_t enable;
-    } clipboardSync;
+    } clipboardEnable;
+    struct {
+        uint8_t t;
+        uint32_t count;
+    } clipboardSend;
 } lorieEvent;
+
+static struct {
+    jclass self;
+    jmethodID forName;
+    jmethodID decode;
+} Charset = {0};
+
+static struct {
+    jclass self;
+    jmethodID toString;
+} CharBuffer = {0};
 
 static void* startServer(unused void* cookie) {
     lorieSetVM((JavaVM*) cookie);
     char* envp[] = { NULL };
     exit(dix_main(argc, (char**) argv, envp));
+}
+
+static jclass FindClassOrDie(JNIEnv *env, const char* name) {
+    jclass clazz = (*env)->FindClass(env, name);
+    if (!clazz) {
+        char buffer[1024] = {0};
+        sprintf(buffer, "class %s not found", name);
+        log(ERROR, "%s", buffer);
+        (*env)->FatalError(env, buffer);
+        return NULL;
+    }
+
+    return (*env)->NewGlobalRef(env, clazz);
+}
+
+static jclass FindMethodOrDie(JNIEnv *env, jclass clazz, const char* name, const char* signature, jboolean isStatic) {
+    __typeof__((*env)->GetMethodID) getMethodID = isStatic ? (*env)->GetStaticMethodID : (*env)->GetMethodID;
+    jmethodID method = getMethodID(env, clazz, name, signature);
+    if (!method) {
+        char buffer[1024] = {0};
+        sprintf(buffer, "method %s %s not found", name, signature);
+        log(ERROR, "%s", buffer);
+        (*env)->FatalError(env, buffer);
+        return NULL;
+    }
+
+    return method;
 }
 
 JNIEXPORT jboolean JNICALL
@@ -168,6 +218,7 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectA
         if (access(current_path, F_OK) == 0)
             setenv("XKB_CONFIG_ROOT", current_path, 1);
     }
+
     if (!getenv("XKB_CONFIG_ROOT")) {
         // proot case
         if (access("/usr/share/X11/xkb", F_OK) == 0)
@@ -202,13 +253,20 @@ Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, unused jobject cls,
     QueueWorkProc(lorieChangeWindow, NULL, surface ? (*env)->NewGlobalRef(env, surface) : NULL);
 }
 
-void handleLorieEvents(int fd, maybe_unused int ready, maybe_unused void *data) {
+static Bool lorieSendConfigureNotify(unused ClientPtr pClient, void *closure) {
+    lorieEvent* e = closure;
+    __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "window changed: %d %d", e->screenSize.width, e->screenSize.height);
+    lorieConfigureNotify(e->screenSize.width, e->screenSize.height, e->screenSize.framerate);
+    free(e);
+    return TRUE;
+}
+
+void handleLorieEvents(int fd, __unused int ready, __unused void *data) {
     ValuatorMask mask;
     lorieEvent e = {0};
     valuator_mask_zero(&mask);
 
     if (ready & X_NOTIFY_ERROR) {
-//        RemoveNotifyFd(fd);
         InputThreadUnregisterDev(fd);
         close(fd);
         conn_fd = -1;
@@ -216,12 +274,15 @@ void handleLorieEvents(int fd, maybe_unused int ready, maybe_unused void *data) 
         return;
     }
 
+    again:
     if (read(fd, &e, sizeof(e)) == sizeof(e)) {
         switch(e.type) {
-            case EVENT_SCREEN_SIZE:
-                __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "window changed: %d %d", e.screenSize.width, e.screenSize.height);
-                lorieConfigureNotify(e.screenSize.width, e.screenSize.height, e.screenSize.framerate);
+            case EVENT_SCREEN_SIZE: {
+                lorieEvent *copy = calloc(1, sizeof(lorieEvent));
+                *copy = e;
+                QueueWorkProc(lorieSendConfigureNotify, NULL, copy);
                 break;
+            }
             case EVENT_TOUCH: {
                 double x, y;
                 DDXTouchPointInfoPtr touch = TouchFindByDDXID(lorieTouch, e.touch.id, FALSE);
@@ -297,20 +358,27 @@ void handleLorieEvents(int fd, maybe_unused int ready, maybe_unused void *data) 
                 lorieKeysymKeyboardEvent(ks, FALSE);
                 break;
             }
-            case EVENT_CLIPBOARD_SYNC:
-                lorieEnableClipboardSync(e.clipboardSync.enable);
+            case EVENT_CLIPBOARD_ENABLE:
+                lorieEnableClipboardSync(e.clipboardEnable.enable);
                 break;
         }
+
+        int n;
+        if (ioctl(fd, FIONREAD, &n) >= 0 && n > sizeof(e))
+            goto again;
     }
 }
 
 void lorieSendClipboardData(const char* data) {
-    if (data && conn_fd != -1)
-        write(conn_fd, data, strlen(data));
+    if (data && conn_fd != -1) {
+        size_t len = strlen(data);
+        lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = len } };
+        write(conn_fd, &e, sizeof(e));
+        write(conn_fd, data, len);
+    }
 }
 
 static Bool addFd(unused ClientPtr pClient, void *closure) {
-//    SetNotifyFd((int) (int64_t) closure, handleLorieEvents, X_NOTIFY_READ, NULL);
     InputThreadRegisterDev((int) (int64_t) closure, handleLorieEvents, NULL);
     conn_fd = (int) (int64_t) closure;
     return TRUE;
@@ -378,56 +446,51 @@ static inline void checkConnection(JNIEnv* env) {
 
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_connect(unused JNIEnv* env, unused jobject cls, jint fd) {
+    if (!Charset.self) {
+        // Init clipboard-related JNI stuff
+        Charset.self = FindClassOrDie(env, "java/nio/charset/Charset");
+        Charset.forName = FindMethodOrDie(env, Charset.self, "forName", "(Ljava/lang/String;)Ljava/nio/charset/Charset;", JNI_TRUE);
+        Charset.decode = FindMethodOrDie(env, Charset.self, "decode", "(Ljava/nio/ByteBuffer;)Ljava/nio/CharBuffer;", JNI_FALSE);
+
+        CharBuffer.self = FindClassOrDie(env,  "java/nio/CharBuffer");
+        CharBuffer.toString = FindMethodOrDie(env, CharBuffer.self, "toString", "()Ljava/lang/String;", JNI_FALSE);
+    }
+
     conn_fd = fd;
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
     checkConnection(env);
     log(DEBUG, "XCB connection is successfull");
 }
 
-static char clipboard[1024*1024] = {0};
-
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, maybe_unused jobject thiz) {
+Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, __unused jobject thiz) {
     checkConnection(env);
     if (conn_fd != -1) {
-        char none;
-        memset(clipboard, 0, sizeof(clipboard));
-        if (read(conn_fd, clipboard, sizeof(clipboard)) > 0) {
-            clipboard[sizeof(clipboard) - 1] = 0;
-            log(DEBUG, "Clipboard content (%zu symbols) is %s", strlen(clipboard), clipboard);
-            jmethodID id = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, thiz), "setClipboardText","(Ljava/lang/String;)V");
+        lorieEvent e = {0};
 
-            jclass cls_Charset = (*env)->FindClass(env, "java/nio/charset/Charset");
-            jclass cls_CharBuffer = (*env)->FindClass(env, "java/nio/CharBuffer");
-            jmethodID mid_Charset_forName = cls_Charset ? (*env)->GetStaticMethodID(env, cls_Charset, "forName", "(Ljava/lang/String;)Ljava/nio/charset/Charset;") : NULL;
-            jmethodID mid_Charset_decode = cls_Charset ? (*env)->GetMethodID(env, cls_Charset, "decode", "(Ljava/nio/ByteBuffer;)Ljava/nio/CharBuffer;") : NULL;
-            jmethodID mid_CharBuffer_toString = cls_CharBuffer ? (*env)->GetMethodID(env, cls_CharBuffer, "toString", "()Ljava/lang/String;") : NULL;
+        again:
+        if (read(conn_fd, &e, sizeof(e)) == sizeof(e)) {
+            switch(e.type) {
+                case EVENT_CLIPBOARD_SEND: {
+                    char clipboard[e.clipboardSend.count + 1];
+                    read(conn_fd, clipboard, sizeof(clipboard));
+                    clipboard[e.clipboardSend.count] = 0;
+                    log(DEBUG, "Clipboard content (%zu symbols) is %s", strlen(clipboard), clipboard);
+                    jmethodID id = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, thiz), "setClipboardText","(Ljava/lang/String;)V");
+                    jobject bb = (*env)->NewDirectByteBuffer(env, clipboard, strlen(clipboard));
+                    jobject charset = (*env)->CallStaticObjectMethod(env, Charset.self, Charset.forName, (*env)->NewStringUTF(env, "UTF-8"));
+                    jobject cb = (*env)->CallObjectMethod(env, charset, Charset.decode, bb);
+                    (*env)->DeleteLocalRef(env, bb);
 
-            if (!id)
-                log(ERROR, "setClipboardText method not found");
-            if (!cls_Charset)
-                log(ERROR, "java.nio.charset.Charset class not found");
-            if (!cls_CharBuffer)
-                log(ERROR, "java.nio.CharBuffer class not found");
-            if (!mid_Charset_forName)
-                log(ERROR, "java.nio.charset.Charset.forName method not found");
-            if (!mid_Charset_decode)
-                log(ERROR, "java.nio.charset.Charset.decode method not found");
-            if (!mid_CharBuffer_toString)
-                log(ERROR, "java.nio.CharBuffer.toString method not found");
-
-            if (id && cls_Charset && cls_CharBuffer && mid_Charset_forName && mid_Charset_decode && mid_CharBuffer_toString) {
-                jobject bb = (*env)->NewDirectByteBuffer(env, clipboard, strlen(clipboard));
-                jobject charset = (*env)->CallStaticObjectMethod(env, cls_Charset, mid_Charset_forName, (*env)->NewStringUTF(env, "UTF-8"));
-                jobject cb = (*env)->CallObjectMethod(env, charset, mid_Charset_decode, bb);
-                (*env)->DeleteLocalRef(env, bb);
-
-                jstring str = (*env)->CallObjectMethod(env, cb, mid_CharBuffer_toString);
-                (*env)->CallVoidMethod(env, thiz, id, str);
+                    jstring str = (*env)->CallObjectMethod(env, cb, CharBuffer.toString);
+                    (*env)->CallVoidMethod(env, thiz, id, str);
+                }
             }
         }
 
-        while(read(conn_fd, &none, sizeof(none)) > 0);
+        int n;
+        if (ioctl(conn_fd, FIONREAD, &n) >= 0 && n > sizeof(e))
+            goto again;
     }
 }
 
@@ -454,7 +517,7 @@ Java_com_termux_x11_LorieView_startLogcat(JNIEnv *env, unused jobject cls, jint 
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_setClipboardSyncEnabled(unused JNIEnv* env, unused jobject cls, jboolean enable) {
     if (conn_fd != -1) {
-        lorieEvent e = { .clipboardSync = { .t = EVENT_CLIPBOARD_SYNC, .enable = enable } };
+        lorieEvent e = { .clipboardEnable = { .t = EVENT_CLIPBOARD_ENABLE, .enable = enable } };
         write(conn_fd, &e, sizeof(e));
         checkConnection(env);
     }
@@ -504,7 +567,7 @@ JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, unused jobject thiz, jbyteArray text) {
     if (conn_fd != -1 && text) {
         jsize length = (*env)->GetArrayLength(env, text);
-        jbyte *str = (*env)->GetByteArrayElements(env, text, JNI_FALSE);
+        jbyte *str = (*env)->GetByteArrayElements(env, text, NULL);
         char *p = (char*) str;
         mbstate_t state = { 0 };
         log(DEBUG, "Parsing text: %.*s", length, str);

@@ -696,7 +696,7 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); checkGlError();
 }
 
-maybe_unused static void draw_cursor(void) {
+__unused static void draw_cursor(void) {
     float x, y, w, h;
 
     if (!cursor.width || !cursor.height)

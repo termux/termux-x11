@@ -594,11 +594,12 @@ public class TouchInputHandler {
 
                     checkButtons(e);
                     return true;
-                case MotionEvent.ACTION_HOVER_MOVE:
+                case MotionEvent.ACTION_HOVER_MOVE: {
                     float scaledX = e.getX() * mRenderData.scale.x, scaledY = e.getY() * mRenderData.scale.y;
                     if (mRenderData.setCursorPosition(scaledX, scaledY))
                         mInjector.sendCursorMove(scaledX, scaledY, false);
                     return true;
+                }
                 case MotionEvent.ACTION_DOWN:
                     checkButtons(e);
                     if (hasFlags(e, 0x14000000)) {
@@ -625,7 +626,7 @@ public class TouchInputHandler {
                     if (mIsScrolling && hasFlags(e, 0x14000000))
                         mScroller.onTouchEvent(e);
                     else if (mIsDragging && hasFlags(e, 0x4000000)) {
-                        scaledX = e.getX() * mRenderData.scale.x; scaledY = e.getY() * mRenderData.scale.y;
+                        float scaledX = e.getX() * mRenderData.scale.x, scaledY = e.getY() * mRenderData.scale.y;
                         if (mRenderData.setCursorPosition(scaledX, scaledY))
                             mInjector.sendCursorMove(scaledX, scaledY, false);
                     }

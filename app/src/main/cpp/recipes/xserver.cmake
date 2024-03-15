@@ -274,6 +274,7 @@ add_library(Xlorie SHARED
         "lorie/xr/math.c"
         "lorie/xr/renderer.c"
         "lorie/android.c"
+        "lorie/clipboard.c"
         "lorie/InitOutput.c"
         "lorie/InitInput.c"
         "lorie/InputXKB.c"

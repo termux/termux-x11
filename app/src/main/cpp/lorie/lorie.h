@@ -1,6 +1,7 @@
 #pragma once
 
 #include <X11/keysymdef.h>
+#include <jni.h>
 #include "linux/input-event-codes.h"
 #define unused __attribute__((unused))
 
@@ -9,6 +10,10 @@ Bool lorieChangeWindow(ClientPtr pClient, void *closure);
 void lorieConfigureNotify(int width, int height, int framerate);
 void lorieEnableClipboardSync(Bool enable);
 void lorieSendClipboardData(const char* data);
+void lorieInitClipboard(void);
+void lorieRequestClipboard(void);
+void lorieHandleClipboardAnnounce(void);
+void lorieHandleClipboardData(const char* data);
 
 static int android_to_linux_keycode[304] = {
         [ 4   /* ANDROID_KEYCODE_BACK */] = KEY_ESC,

@@ -509,7 +509,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         setTerminalToolbarView();
         onWindowFocusChanged(true);
-        LorieView.setClipboardSyncEnabled(p.getBoolean("clipboardSync", false));
+        LorieView.setClipboardSyncEnabled(p.getBoolean("clipboardEnable", false));
 
         lorieView.triggerCallback();
 
@@ -767,11 +767,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         ((FrameLayout) findViewById(android.R.id.content)).getChildAt(0).setFitsSystemWindows(!fullscreen);
         SamsungDexUtils.dexMetaKeyCapture(this, hasFocus && p.getBoolean("dexMetaKeyCapture", false));
-
-        if (hasFocus)
-            getLorieView().regenerate();
-
-        getLorieView().requestFocus();
     }
 
     @Override

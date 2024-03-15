@@ -160,7 +160,7 @@
 
     <PreferenceCategory android:key="other" android:title="Other">
         <SwitchPreferenceCompat
-            android:title="Automatic uploading clipboard to Android"
+            android:title="Automatic sync clipboard with Android"
             android:defaultValue="false"
             android:key="clipboardSync" />
 

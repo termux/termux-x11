@@ -5,17 +5,26 @@ import android.app.ActivityOptions;
 import android.content.Context;
 import android.content.Intent;
 import android.hardware.display.DisplayManager;
+import android.opengl.GLSurfaceView;
 import android.os.Build;
+import android.os.Bundle;
 import android.view.Display;
 
-public class XrActivity extends MainActivity {
+import javax.microedition.khronos.egl.EGLConfig;
+import javax.microedition.khronos.opengles.GL10;
+
+public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     private static boolean isDeviceDetectionFinished = false;
     private static boolean isDeviceSupported = false;
 
     @Override
-    public void onResume() {
-        super.onResume();
-        init();
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        GLSurfaceView view = new GLSurfaceView(this);
+        view.setEGLContextClientVersion(2);
+        view.setRenderer(this);
+        frm.addView(view);
     }
 
     @Override
@@ -71,5 +80,20 @@ public class XrActivity extends MainActivity {
         return -1;
     }
 
+    @Override
+    public void onSurfaceCreated(GL10 gl10, EGLConfig eglConfig) {
+        init();
+    }
+
+    @Override
+    public void onSurfaceChanged(GL10 gl10, int w, int h) {
+    }
+
+    @Override
+    public void onDrawFrame(GL10 gl10) {
+        render();
+    }
+
     private native void init();
+    private native void render();
 }

@@ -1,5 +1,6 @@
 #include <string.h>
-#include "main.h"
+#include <GLES2/gl2.h>
+
 #include "engine.h"
 #include "input.h"
 #include "math.h"
@@ -32,53 +33,6 @@ void OXRCheckErrors(XrResult result, const char* file, int line) {
 }
 #endif
 
-void bindXrFramebuffer(void) {
-    if (xr_initialized) {
-        XrRendererBindFramebuffer(&xr_renderer);
-    }
-}
-
-bool beginXrFrame(void) {
-    if (XrRendererInitFrame(&xr_engine, &xr_renderer)) {
-
-        // Set render canvas
-        float distance = xr_immersive ? 2.0f : 5.0f;
-        xr_renderer.ConfigFloat[CONFIG_CANVAS_DISTANCE] = distance;
-        xr_renderer.ConfigInt[CONFIG_MODE] = RENDER_MODE_MONO_SCREEN;
-        xr_renderer.ConfigInt[CONFIG_PASSTHROUGH] = !xr_immersive;
-
-        // Follow the view when xr_immersive
-        if (xr_immersive) {
-            XrRendererRecenter(&xr_engine, &xr_renderer);
-        }
-
-        // Update controllers state
-        XrInputUpdate(&xr_engine, &xr_input);
-
-        // Lock framebuffer
-        XrRendererBeginFrame(&xr_renderer, 0);
-
-        return true;
-    }
-    return false;
-}
-
-void endXrFrame(void) {
-    XrRendererEndFrame(&xr_renderer);
-    XrRendererFinishFrame(&xr_engine, &xr_renderer);
-}
-
-void enterXr(void) {
-    XrEngineEnter(&xr_engine);
-    XrInputInit(&xr_engine, &xr_input);
-    XrRendererInit(&xr_engine, &xr_renderer);
-    ALOGV("EnterXr called");
-}
-
-void getXrResolution(int *width, int *height) {
-    XrRendererGetResolution(&xr_engine, &xr_renderer, width, height);
-}
-
 bool isXrEnabled(void) {
     return xr_initialized;
 }
@@ -105,6 +59,40 @@ JNIEXPORT void JNICALL Java_com_termux_x11_XrActivity_init(JNIEnv *env, jobject 
     java.vm = vm;
     java.activity = (*env)->NewGlobalRef(env, obj);
     XrEngineInit(&xr_engine, &java, "termux-x11", 1);
+    XrEngineEnter(&xr_engine);
+    XrInputInit(&xr_engine, &xr_input);
+    XrRendererInit(&xr_engine, &xr_renderer);
     xr_initialized = true;
     ALOGV("Init called");
+}
+
+JNIEXPORT void JNICALL
+Java_com_termux_x11_XrActivity_render(JNIEnv *env, jobject obj) {
+    if (XrRendererInitFrame(&xr_engine, &xr_renderer)) {
+
+        // Set render canvas
+        float distance = xr_immersive ? 2.0f : 5.0f;
+        xr_renderer.ConfigFloat[CONFIG_CANVAS_DISTANCE] = distance;
+        xr_renderer.ConfigInt[CONFIG_MODE] = RENDER_MODE_MONO_SCREEN;
+        xr_renderer.ConfigInt[CONFIG_PASSTHROUGH] = !xr_immersive;
+
+        // Follow the view when xr_immersive
+        if (xr_immersive) {
+            XrRendererRecenter(&xr_engine, &xr_renderer);
+        }
+
+        // Update controllers state
+        XrInputUpdate(&xr_engine, &xr_input);
+
+        // Lock framebuffer
+        XrRendererBeginFrame(&xr_renderer, 0);
+
+        glClearColor(0, 0, 1, 0.25f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        //TODO:render frame
+
+        // Unlock framebuffer
+        XrRendererEndFrame(&xr_renderer);
+        XrRendererFinishFrame(&xr_engine, &xr_renderer);
+    }
 }

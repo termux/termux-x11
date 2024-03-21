@@ -21,6 +21,8 @@ import androidx.core.math.MathUtils;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
+import android.util.Log;
+
 /**
  * This class is responsible for handling Touch input from the user.  Touch events which manipulate
  * the local canvas are handled in this class and any input which should be sent to the remote host
@@ -553,6 +555,7 @@ public class TouchInputHandler {
         private final GestureDetector mScroller;
         private int savedBS = 0;
         private int currentBS = 0;
+        private boolean onTap = false;
         private boolean mIsDragging = false;
         private boolean mIsScrolling = false;
         DexListener(Context ctx) {
@@ -560,6 +563,12 @@ public class TouchInputHandler {
         }
         private final Handler handler = new Handler();
         private final Runnable mouseDownRunnable = () -> mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, true, false);
+
+        private final int[][] buttons = {
+                {MotionEvent.BUTTON_PRIMARY, InputStub.BUTTON_LEFT},
+                {MotionEvent.BUTTON_TERTIARY, InputStub.BUTTON_MIDDLE},
+                {MotionEvent.BUTTON_SECONDARY, InputStub.BUTTON_RIGHT}
+        };
 
         boolean isMouseButtonChanged(int mask) {
             return (savedBS & mask) != (currentBS & mask);
@@ -569,15 +578,17 @@ public class TouchInputHandler {
             return ((currentBS & mask) != 0);
         }
 
-        void checkButtons(MotionEvent e) {
+        boolean checkButtons(MotionEvent e) {
+            boolean isHandled = false;
             currentBS = e.getButtonState();
-            if (isMouseButtonChanged(MotionEvent.BUTTON_PRIMARY))
-                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, mouseButtonDown(MotionEvent.BUTTON_PRIMARY), false);
-            if (isMouseButtonChanged(MotionEvent.BUTTON_TERTIARY))
-                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_MIDDLE, mouseButtonDown(MotionEvent.BUTTON_TERTIARY), false);
-            if (isMouseButtonChanged(MotionEvent.BUTTON_SECONDARY))
-                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_RIGHT, mouseButtonDown(MotionEvent.BUTTON_SECONDARY), false);
+            for (int[] button: buttons) {
+                if (isMouseButtonChanged(button[0])) {
+                    mInjector.sendMouseEvent(mRenderData.getCursorPosition(), button[1], mouseButtonDown(button[0]), false);
+                    isHandled = true;
+                }
+            }
             savedBS = currentBS;
+            return isHandled;
         }
 
         private boolean hasFlags(MotionEvent e, int flags) {
@@ -585,13 +596,14 @@ public class TouchInputHandler {
         }
 
         boolean onTouch(@SuppressWarnings("unused") View v, MotionEvent e) {
+            Log.d("TX11Touch", "action: " + MotionEvent.actionToString(e.getActionMasked()) + ", flags: " + Integer.toHexString(e.getFlags()) + ", state: " + e.getButtonState() + ", class: " + e.getClassification() + ", pos: " + e.getX() + ", " + e.getY());
             switch(e.getActionMasked()) {
                 case MotionEvent.ACTION_BUTTON_PRESS:
                 case MotionEvent.ACTION_BUTTON_RELEASE:
+                    onTap = false;
                     mScroller.onGenericMotionEvent(e);
                     handler.removeCallbacks(mouseDownRunnable);
                     mIsDragging = false;
-
                     checkButtons(e);
                     return true;
                 case MotionEvent.ACTION_HOVER_MOVE: {
@@ -601,8 +613,11 @@ public class TouchInputHandler {
                     return true;
                 }
                 case MotionEvent.ACTION_DOWN:
-                    checkButtons(e);
-                    if (hasFlags(e, 0x14000000)) {
+                    if (!checkButtons(e)) {
+                        onTap = true;
+                        mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, true, false);
+                    }
+                    if (hasFlags(e, 0x10000000)) {
                         mIsScrolling = true;
                         mScroller.onTouchEvent(e);
                     } else if (hasFlags(e, 0x4000000)) {
@@ -611,8 +626,11 @@ public class TouchInputHandler {
                     }
                     return true;
                 case MotionEvent.ACTION_UP:
-                    checkButtons(e);
-                    if (hasFlags(e, 0x14000000)) {
+                    if (!checkButtons(e) && onTap) {
+                        mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, false, false);
+                        onTap = false;
+                    }
+                    if (hasFlags(e, 0x10000000)) {
                         mScroller.onTouchEvent(e);
                         mIsScrolling = false;
                     }
@@ -623,9 +641,9 @@ public class TouchInputHandler {
 
                     return true;
                 case MotionEvent.ACTION_MOVE:
-                    if (mIsScrolling && hasFlags(e, 0x14000000))
+                    if (mIsScrolling && hasFlags(e, 0x10000000))
                         mScroller.onTouchEvent(e);
-                    else if (mIsDragging && hasFlags(e, 0x4000000)) {
+                    else if ((mIsDragging && hasFlags(e, 0x4000000)) || onTap) {
                         float scaledX = e.getX() * mRenderData.scale.x, scaledY = e.getY() * mRenderData.scale.y;
                         if (mRenderData.setCursorPosition(scaledX, scaledY))
                             mInjector.sendCursorMove(scaledX, scaledY, false);

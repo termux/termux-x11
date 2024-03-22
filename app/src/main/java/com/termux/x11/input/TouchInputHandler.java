@@ -595,6 +595,10 @@ public class TouchInputHandler {
             return (e.getFlags() & flags) == flags;
         }
 
+        private boolean isScrollingEvent(MotionEvent e) {
+            return hasFlags(e, 0x14000000) || e.getClassification() == MotionEvent.CLASSIFICATION_TWO_FINGER_SWIPE;
+        }
+
         boolean onTouch(@SuppressWarnings("unused") View v, MotionEvent e) {
             boolean isButtonHandled;
             switch(e.getActionMasked()) {
@@ -614,7 +618,7 @@ public class TouchInputHandler {
                 }
                 case MotionEvent.ACTION_DOWN:
                     isButtonHandled = checkButtons(e);
-                    if (hasFlags(e, 0x10000000)) {
+                    if (isScrollingEvent(e)) {
                         mIsScrolling = true;
                         mScroller.onTouchEvent(e);
                     } else if (hasFlags(e, 0x4000000)) {
@@ -627,7 +631,7 @@ public class TouchInputHandler {
                     return true;
                 case MotionEvent.ACTION_UP:
                     isButtonHandled = checkButtons(e);
-                    if (hasFlags(e, 0x10000000)) {
+                    if (isScrollingEvent(e)) {
                         mScroller.onTouchEvent(e);
                         mIsScrolling = false;
                     }
@@ -641,7 +645,7 @@ public class TouchInputHandler {
                     }
                     return true;
                 case MotionEvent.ACTION_MOVE:
-                    if (mIsScrolling && hasFlags(e, 0x10000000))
+                    if (mIsScrolling && isScrollingEvent(e))
                         mScroller.onTouchEvent(e);
                     else if ((mIsDragging && hasFlags(e, 0x4000000)) || onTap) {
                         float scaledX = e.getX() * mRenderData.scale.x, scaledY = e.getY() * mRenderData.scale.y;

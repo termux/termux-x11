@@ -22,7 +22,6 @@ import androidx.core.math.MathUtils;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
-import android.util.Log;
 
 /**
  * This class is responsible for handling Touch input from the user.  Touch events which manipulate

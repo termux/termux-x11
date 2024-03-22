@@ -596,7 +596,7 @@ public class TouchInputHandler {
         }
 
         private boolean isScrollingEvent(MotionEvent e) {
-            return hasFlags(e, 0x14000000) || e.getClassification() == MotionEvent.CLASSIFICATION_TWO_FINGER_SWIPE;
+            return hasFlags(e, 0x14000000) || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && e.getClassification() == MotionEvent.CLASSIFICATION_TWO_FINGER_SWIPE);
         }
 
         boolean onTouch(@SuppressWarnings("unused") View v, MotionEvent e) {

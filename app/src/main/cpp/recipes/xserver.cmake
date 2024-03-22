@@ -260,19 +260,11 @@ foreach (part glx glxvnd fb mi dix composite damageext dbe randr miext_damage re
     set(XSERVER_LIBS ${XSERVER_LIBS} xserver_${part})
 endforeach ()
 
-add_subdirectory(OpenXR-SDK)
-
 add_library(Xlorie SHARED
         "xserver/mi/miinitext.c"
         "xserver/hw/xquartz/keysym2ucs.c"
         "libxcvt/lib/libxcvt.c"
         "lorie/shm/shmem.c"
-        "lorie/xr/engine.c"
-        "lorie/xr/framebuffer.c"
-        "lorie/xr/input.c"
-        "lorie/xr/main.c"
-        "lorie/xr/math.c"
-        "lorie/xr/renderer.c"
         "lorie/android.c"
         "lorie/clipboard.c"
         "lorie/InitOutput.c"
@@ -281,7 +273,7 @@ add_library(Xlorie SHARED
         "lorie/renderer.c")
 target_include_directories(Xlorie PRIVATE ${inc} "libxcvt/include")
 target_link_options(Xlorie PRIVATE "-Wl,--as-needed" "-Wl,--no-undefined" "-fvisibility=hidden")
-target_link_libraries(Xlorie "-Wl,--whole-archive" ${XSERVER_LIBS} "-Wl,--no-whole-archive" android log m z EGL GLESv2 openxr_loader)
+target_link_libraries(Xlorie "-Wl,--whole-archive" ${XSERVER_LIBS} "-Wl,--no-whole-archive" android log m z EGL GLESv2)
 target_compile_options(Xlorie PRIVATE ${compile_options})
 target_apply_patch(Xlorie "${CMAKE_CURRENT_SOURCE_DIR}/xserver" "${CMAKE_CURRENT_SOURCE_DIR}/patches/xserver.patch")
 target_apply_patch(Xlorie "${CMAKE_CURRENT_SOURCE_DIR}/libepoxy" "${CMAKE_CURRENT_SOURCE_DIR}/patches/libepoxy.patch")

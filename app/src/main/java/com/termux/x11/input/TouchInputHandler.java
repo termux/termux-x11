@@ -8,6 +8,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.PointF;
 import android.os.Handler;
+import android.os.Build;
 import android.view.GestureDetector;
 import android.view.InputDevice;
 import android.view.KeyEvent;

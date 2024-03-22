@@ -55,7 +55,7 @@ void XrFramebufferAcquire(struct XrFramebuffer *framebuffer)
 #if XR_USE_GRAPHICS_API_OPENGL_ES
     GL(glEnable(GL_SCISSOR_TEST));
     GL(glViewport(0, 0, framebuffer->Width, framebuffer->Height));
-    GL(glClearColor(0.0f, 0.0f, 0.0f, 0.0f));
+    GL(glClearColor(0.0f, 0.0f, 0.0f, 0.25f));
     GL(glScissor(0, 0, framebuffer->Width, framebuffer->Height));
     GL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
     GL(glScissor(0, 0, 0, 0));

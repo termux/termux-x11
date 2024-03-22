@@ -82,6 +82,7 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
     @Override
     public void onSurfaceCreated(GL10 gl10, EGLConfig eglConfig) {
+        System.loadLibrary("XRio");
         init();
     }
 
@@ -91,9 +92,14 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
     @Override
     public void onDrawFrame(GL10 gl10) {
-        render();
+        if (beginFrame()) {
+            //TODO:render frame from XServer
+            finishFrame();
+            //TODO:pass input into XServer
+        }
     }
 
     private native void init();
-    private native void render();
+    private native boolean beginFrame();
+    private native void finishFrame();
 }

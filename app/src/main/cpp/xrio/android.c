@@ -1,5 +1,4 @@
 #include <string.h>
-#include <GLES2/gl2.h>
 
 #include "engine.h"
 #include "input.h"
@@ -33,10 +32,6 @@ void OXRCheckErrors(XrResult result, const char* file, int line) {
 }
 #endif
 
-bool isXrEnabled(void) {
-    return xr_initialized;
-}
-
 JNIEXPORT void JNICALL Java_com_termux_x11_XrActivity_init(JNIEnv *env, jobject obj) {
 
     // Do not allow second initialization
@@ -66,8 +61,7 @@ JNIEXPORT void JNICALL Java_com_termux_x11_XrActivity_init(JNIEnv *env, jobject 
     ALOGV("Init called");
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_XrActivity_render(JNIEnv *env, jobject obj) {
+JNIEXPORT jboolean JNICALL Java_com_termux_x11_XrActivity_beginFrame(JNIEnv *env, jobject obj) {
     if (XrRendererInitFrame(&xr_engine, &xr_renderer)) {
 
         // Set render canvas
@@ -87,12 +81,12 @@ Java_com_termux_x11_XrActivity_render(JNIEnv *env, jobject obj) {
         // Lock framebuffer
         XrRendererBeginFrame(&xr_renderer, 0);
 
-        glClearColor(0, 0, 1, 0.25f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        //TODO:render frame
-
-        // Unlock framebuffer
-        XrRendererEndFrame(&xr_renderer);
-        XrRendererFinishFrame(&xr_engine, &xr_renderer);
+        return true;
     }
+    return false;
+}
+
+JNIEXPORT void JNICALL Java_com_termux_x11_XrActivity_finishFrame(JNIEnv *env, jobject obj) {
+    XrRendererEndFrame(&xr_renderer);
+    XrRendererFinishFrame(&xr_engine, &xr_renderer);
 }

@@ -600,9 +600,9 @@ public class TouchInputHandler {
             switch(e.getActionMasked()) {
                 case MotionEvent.ACTION_BUTTON_PRESS:
                 case MotionEvent.ACTION_BUTTON_RELEASE:
-                    onTap = false;
                     mScroller.onGenericMotionEvent(e);
                     handler.removeCallbacks(mouseDownRunnable);
+                    onTap = false;
                     mIsDragging = false;
                     checkButtons(e);
                     return true;
@@ -648,6 +648,12 @@ public class TouchInputHandler {
                         if (mRenderData.setCursorPosition(scaledX, scaledY))
                             mInjector.sendCursorMove(scaledX, scaledY, false);
                     }
+                    return true;
+                case MotionEvent.ACTION_HOVER_EXIT: // when the user removes their hand from the trackpad, all states should be reset
+                case MotionEvent.ACTION_CANCEL:
+                    onTap = false;
+                    mIsScrolling = false;
+                    mIsDragging = false;
                     return true;
             }
             return false;

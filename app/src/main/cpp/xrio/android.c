@@ -8,8 +8,8 @@
 struct XrEngine xr_engine;
 struct XrInput xr_input;
 struct XrRenderer xr_renderer;
-bool xr_immersive = false;
 bool xr_initialized = false;
+int xr_params[4] = {};
 
 #if defined(_DEBUG)
 #include <GLES2/gl2.h>
@@ -64,15 +64,18 @@ JNIEXPORT void JNICALL Java_com_termux_x11_XrActivity_init(JNIEnv *env, jobject 
 JNIEXPORT jboolean JNICALL Java_com_termux_x11_XrActivity_beginFrame(JNIEnv *env, jobject obj) {
     if (XrRendererInitFrame(&xr_engine, &xr_renderer)) {
 
-        // Set render canvas
-        float distance = xr_immersive ? 2.0f : 5.0f;
-        xr_renderer.ConfigFloat[CONFIG_CANVAS_DISTANCE] = distance;
-        xr_renderer.ConfigInt[CONFIG_MODE] = RENDER_MODE_MONO_SCREEN;
-        xr_renderer.ConfigInt[CONFIG_PASSTHROUGH] = !xr_immersive;
+        // Set renderer
+        int mode = xr_params[1] ? RENDER_MODE_MONO_6DOF : RENDER_MODE_MONO_SCREEN;
+        xr_renderer.ConfigFloat[CONFIG_CANVAS_DISTANCE] = xr_params[0];
+        xr_renderer.ConfigInt[CONFIG_PASSTHROUGH] = xr_params[2];
+        xr_renderer.ConfigInt[CONFIG_MODE] = mode;
+        xr_renderer.ConfigInt[CONFIG_SBS] = xr_params[3];
 
-        // Follow the view when xr_immersive
-        if (xr_immersive) {
+        // Recenter if mode switched
+        static bool last_immersive = false;
+        if (last_immersive != xr_params[1]) {
             XrRendererRecenter(&xr_engine, &xr_renderer);
+            last_immersive = xr_params[1];
         }
 
         // Update controllers state
@@ -164,4 +167,8 @@ JNIEXPORT jbooleanArray JNICALL Java_com_termux_x11_XrActivity_getButtons(JNIEnv
     jbooleanArray output = (*env)->NewBooleanArray(env, count);
     (*env)->SetBooleanArrayRegion(env, output, (jsize)0, (jsize)count, values);
     return output;
+}
+
+JNIEXPORT void JNICALL Java_com_termux_x11_XrActivity_setRenderParam(JNIEnv *env, jobject obj, jint param, jint value) {
+    xr_params[param] = value;
 }

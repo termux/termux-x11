@@ -27,6 +27,11 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         R_A, R_B, R_GRIP, R_THUMBSTICK_PRESS, R_THUMBSTICK_LEFT, R_THUMBSTICK_RIGHT, R_THUMBSTICK_UP, R_THUMBSTICK_DOWN, R_TRIGGER,
     }
 
+    // Order of the enum has to be the same as in xrio/android.c
+    public enum RenderParam {
+        CANVAS_DISTANCE, IMMERSIVE, PASSTHROUGH, SBS
+    }
+
     private static boolean isDeviceDetectionFinished = false;
     private static boolean isDeviceSupported = false;
 
@@ -105,6 +110,11 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
     @Override
     public void onDrawFrame(GL10 gl10) {
+        setRenderParam(RenderParam.CANVAS_DISTANCE.ordinal(), 5);
+        setRenderParam(RenderParam.IMMERSIVE.ordinal(), 0);
+        setRenderParam(RenderParam.PASSTHROUGH.ordinal(), 1);
+        setRenderParam(RenderParam.SBS.ordinal(), 0);
+
         if (beginFrame()) {
             //TODO:render frame from XServer
             finishFrame();
@@ -119,4 +129,5 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     private native void finishFrame();
     public native float[] getAxes();
     public native boolean[] getButtons();
+    public native void setRenderParam(int param, int value);
 }

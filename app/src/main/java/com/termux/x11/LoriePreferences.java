@@ -392,6 +392,13 @@ public class LoriePreferences extends AppCompatActivity {
                                                 if (value.contentEquals(options1[i]))
                                                     value = options0[i];
                                         }
+                                        if (key.equals("transformCapturedPointer")) {
+                                            String[] options0 = context.getResources().getStringArray(R.array.transformCapturedPointerEntries);
+                                            String[] options1 = context.getResources().getStringArray(R.array.transformCapturedPointerValues);
+                                            for (int i=0; i<options0.length; i++)
+                                                if (value.contentEquals(options1[i]))
+                                                    value = options0[i];
+                                        }
 
                                         //noinspection StringConcatenationInLoop
                                         result += "\"" + key + "\"=\"" + value + "\"\n";
@@ -520,6 +527,25 @@ public class LoriePreferences extends AppCompatActivity {
                             case "touchMode": {
                                 String[] options0 = context.getResources().getStringArray(R.array.touchscreenInputModesEntries);
                                 String[] options1 = context.getResources().getStringArray(R.array.touchscreenInputModesValues);
+                                boolean found = false;
+                                for (int i=0; i<options0.length; i++) {
+                                    if (newValue.contentEquals(options0[i])) {
+                                        found = true;
+                                        edit.putString(key, options1[i]);
+                                        break;
+                                    }
+                                }
+
+                                if (!found) {
+                                    setResultCode(1);
+                                    setResultData(key + ": can not be set to " + newValue);
+                                    return;
+                                }
+                                break;
+                            }
+                            case "transformCapturedPointer": {
+                                String[] options0 = context.getResources().getStringArray(R.array.transformCapturedPointerEntries);
+                                String[] options1 = context.getResources().getStringArray(R.array.transformCapturedPointerValues);
                                 boolean found = false;
                                 for (int i=0; i<options0.length; i++) {
                                     if (newValue.contentEquals(options0[i])) {

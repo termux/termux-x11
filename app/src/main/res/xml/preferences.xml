@@ -96,6 +96,13 @@
             android:defaultValue="false"
             android:key="pointerCapture" />
 
+        <ListPreference
+            android:title="Transform captured pointer movements"
+            android:key="transformCapturedPointer"
+            android:defaultValue="no"
+            android:entries="@array/transformCapturedPointerEntries"
+            android:entryValues="@array/transformCapturedPointerValues" />
+
         <SwitchPreferenceCompat
             android:title="Enable tap-to-move for touchpads"
             android:defaultValue="false"

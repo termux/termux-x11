@@ -606,7 +606,7 @@ public class TouchInputHandler {
                 case MotionEvent.ACTION_BUTTON_RELEASE:
                     mScroller.onGenericMotionEvent(e);
                     handler.removeCallbacks(mouseDownRunnable);
-                    onTap = false;
+                    onTap = e.getActionMasked() == MotionEvent.ACTION_BUTTON_PRESS;
                     mIsDragging = false;
                     checkButtons(e);
                     return true;

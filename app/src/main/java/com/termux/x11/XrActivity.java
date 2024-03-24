@@ -14,6 +14,19 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
+    // Order of the enum has to be the same as in xrio/android.c
+    public enum ControllerAxis {
+        L_PITCH, L_YAW, L_ROLL, L_THUMBSTICK_X, L_THUMBSTICK_Y, L_X, L_Y, L_Z,
+        R_PITCH, R_YAW, R_ROLL, R_THUMBSTICK_X, R_THUMBSTICK_Y, R_X, R_Y, R_Z,
+        HMD_PITCH, HMD_YAW, HMD_ROLL, HMD_X, HMD_Y, HMD_Z, HMD_IPD
+    }
+
+    // Order of the enum has to be the same as in xrio/android.c
+    public enum ControllerButton {
+        L_GRIP,  L_MENU, L_THUMBSTICK_PRESS, L_THUMBSTICK_LEFT, L_THUMBSTICK_RIGHT, L_THUMBSTICK_UP, L_THUMBSTICK_DOWN, L_TRIGGER, L_X, L_Y,
+        R_A, R_B, R_GRIP, R_THUMBSTICK_PRESS, R_THUMBSTICK_LEFT, R_THUMBSTICK_RIGHT, R_THUMBSTICK_UP, R_THUMBSTICK_DOWN, R_TRIGGER,
+    }
+
     private static boolean isDeviceDetectionFinished = false;
     private static boolean isDeviceSupported = false;
 
@@ -95,6 +108,8 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         if (beginFrame()) {
             //TODO:render frame from XServer
             finishFrame();
+            float[] axes = getAxes();
+            boolean[] buttons = getButtons();
             //TODO:pass input into XServer
         }
     }
@@ -102,4 +117,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     private native void init();
     private native boolean beginFrame();
     private native void finishFrame();
+    public native float[] getAxes();
+    public native boolean[] getButtons();
 }

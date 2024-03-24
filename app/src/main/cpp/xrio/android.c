@@ -90,3 +90,78 @@ JNIEXPORT void JNICALL Java_com_termux_x11_XrActivity_finishFrame(JNIEnv *env, j
     XrRendererEndFrame(&xr_renderer);
     XrRendererFinishFrame(&xr_engine, &xr_renderer);
 }
+
+JNIEXPORT jfloatArray JNICALL Java_com_termux_x11_XrActivity_getAxes(JNIEnv *env, jobject obj) {
+    XrPosef lPose = XrInputGetPose(&xr_input, 0);
+    XrPosef rPose = XrInputGetPose(&xr_input, 1);
+    XrVector2f lThumbstick = XrInputGetJoystickState(&xr_input, 0);
+    XrVector2f rThumbstick = XrInputGetJoystickState(&xr_input, 1);
+    XrVector3f lPosition = xr_renderer.Projections[0].pose.position;
+    XrVector3f rPosition = xr_renderer.Projections[1].pose.position;
+    XrVector3f angles = xr_renderer.HmdOrientation;
+
+    int count = 0;
+    float data[32];
+    data[count++] = XrQuaternionfEulerAngles(lPose.orientation).x; //L_PITCH
+    data[count++] = XrQuaternionfEulerAngles(lPose.orientation).y; //L_YAW
+    data[count++] = XrQuaternionfEulerAngles(lPose.orientation).z; //L_ROLL
+    data[count++] = lThumbstick.x; //L_THUMBSTICK_X
+    data[count++] = lThumbstick.y; //L_THUMBSTICK_Y
+    data[count++] = lPose.position.x; //L_X
+    data[count++] = lPose.position.y; //L_Y
+    data[count++] = lPose.position.z; //L_Z
+    data[count++] = XrQuaternionfEulerAngles(rPose.orientation).x; //R_PITCH
+    data[count++] = XrQuaternionfEulerAngles(rPose.orientation).y; //R_YAW
+    data[count++] = XrQuaternionfEulerAngles(rPose.orientation).z; //R_ROLL
+    data[count++] = rThumbstick.x; //R_THUMBSTICK_X
+    data[count++] = rThumbstick.y; //R_THUMBSTICK_Y
+    data[count++] = rPose.position.x; //R_X
+    data[count++] = rPose.position.y; //R_Y
+    data[count++] = rPose.position.z; //R_Z
+    data[count++] = angles.x; //HMD_PITCH
+    data[count++] = angles.y; //HMD_YAW
+    data[count++] = angles.z; //HMD_ROLL
+    data[count++] = (lPosition.x + rPosition.x) * 0.5f; //HMD_X
+    data[count++] = (lPosition.y + rPosition.y) * 0.5f; //HMD_Y
+    data[count++] = (lPosition.z + rPosition.z) * 0.5f; //HMD_Z
+    data[count++] = XrVector3fDistance(lPosition, rPosition); //HMD_IPD
+
+    jfloat values[count];
+    memcpy(values, data, count * sizeof(float));
+    jfloatArray output = (*env)->NewFloatArray(env, count);
+    (*env)->SetFloatArrayRegion(env, output, (jsize)0, (jsize)count, values);
+    return output;
+}
+
+JNIEXPORT jbooleanArray JNICALL Java_com_termux_x11_XrActivity_getButtons(JNIEnv *env, jobject obj) {
+    uint32_t l = XrInputGetButtonState(&xr_input, 0);
+    uint32_t r = XrInputGetButtonState(&xr_input, 1);
+
+    int count = 0;
+    bool data[32];
+    data[count++] = l & (int)Grip; //L_GRIP
+    data[count++] = l & (int)Enter; //L_MENU
+    data[count++] = l & (int)LThumb; //L_THUMBSTICK_PRESS
+    data[count++] = l & (int)Left; //L_THUMBSTICK_LEFT
+    data[count++] = l & (int)Right; //L_THUMBSTICK_RIGHT
+    data[count++] = l & (int)Up; //L_THUMBSTICK_UP
+    data[count++] = l & (int)Down; //L_THUMBSTICK_DOWN
+    data[count++] = l & (int)Trigger; //L_TRIGGER
+    data[count++] = l & (int)X; //L_X
+    data[count++] = l & (int)Y; //L_Y
+    data[count++] = r & (int)A; //R_A
+    data[count++] = r & (int)B; //R_B
+    data[count++] = r & (int)Grip; //R_GRIP
+    data[count++] = r & (int)RThumb; //R_THUMBSTICK_PRESS
+    data[count++] = r & (int)Left; //R_THUMBSTICK_LEFT
+    data[count++] = r & (int)Right; //R_THUMBSTICK_RIGHT
+    data[count++] = r & (int)Up; //R_THUMBSTICK_UP
+    data[count++] = r & (int)Down; //R_THUMBSTICK_DOWN
+    data[count++] = r & (int)Trigger; //R_TRIGGER
+
+    jboolean values[count];
+    memcpy(values, data, count * sizeof(jboolean));
+    jbooleanArray output = (*env)->NewBooleanArray(env, count);
+    (*env)->SetBooleanArrayRegion(env, output, (jsize)0, (jsize)count, values);
+    return output;
+}

@@ -248,7 +248,7 @@ int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
         }
 
         uint32_t *pixels;
-        if (AHardwareBuffer_lock(new, d0.usage, -1, NULL, (void **) &pixels) == 0) {
+        if (AHardwareBuffer_lock(new, AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, (void **) &pixels) == 0) {
             pixels[0] = 0xAABBCCDD;
             AHardwareBuffer_unlock(new, NULL);
         } else {

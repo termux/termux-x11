@@ -175,7 +175,7 @@
         <SwitchPreferenceCompat
             android:title="Automatic sync clipboard with Android"
             android:defaultValue="false"
-            android:key="clipboardSync" />
+            android:key="clipboardEnable" />
 
         <Preference
             android:title="Request notification permission"

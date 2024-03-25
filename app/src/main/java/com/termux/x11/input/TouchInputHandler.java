@@ -8,6 +8,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.PointF;
 import android.os.Handler;
+import android.os.Build;
 import android.view.GestureDetector;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -594,6 +595,7 @@ public class TouchInputHandler {
         private final GestureDetector mScroller;
         private int savedBS = 0;
         private int currentBS = 0;
+        private boolean onTap = false;
         private boolean mIsDragging = false;
         private boolean mIsScrolling = false;
         DexListener(Context ctx) {
@@ -601,6 +603,12 @@ public class TouchInputHandler {
         }
         private final Handler handler = new Handler();
         private final Runnable mouseDownRunnable = () -> mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, true, false);
+
+        private final int[][] buttons = {
+                {MotionEvent.BUTTON_PRIMARY, InputStub.BUTTON_LEFT},
+                {MotionEvent.BUTTON_TERTIARY, InputStub.BUTTON_MIDDLE},
+                {MotionEvent.BUTTON_SECONDARY, InputStub.BUTTON_RIGHT}
+        };
 
         boolean isMouseButtonChanged(int mask) {
             return (savedBS & mask) != (currentBS & mask);
@@ -610,27 +618,35 @@ public class TouchInputHandler {
             return ((currentBS & mask) != 0);
         }
 
-        void checkButtons(MotionEvent e) {
+        boolean checkButtons(MotionEvent e) {
+            boolean isHandled = false;
             currentBS = e.getButtonState();
-            if (isMouseButtonChanged(MotionEvent.BUTTON_PRIMARY))
-                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, mouseButtonDown(MotionEvent.BUTTON_PRIMARY), false);
-            if (isMouseButtonChanged(MotionEvent.BUTTON_TERTIARY))
-                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_MIDDLE, mouseButtonDown(MotionEvent.BUTTON_TERTIARY), false);
-            if (isMouseButtonChanged(MotionEvent.BUTTON_SECONDARY))
-                mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_RIGHT, mouseButtonDown(MotionEvent.BUTTON_SECONDARY), false);
+            for (int[] button: buttons) {
+                if (isMouseButtonChanged(button[0])) {
+                    mInjector.sendMouseEvent(mRenderData.getCursorPosition(), button[1], mouseButtonDown(button[0]), false);
+                    isHandled = true;
+                }
+            }
             savedBS = currentBS;
+            return isHandled;
         }
 
         private boolean hasFlags(MotionEvent e, int flags) {
             return (e.getFlags() & flags) == flags;
         }
 
+        private boolean isScrollingEvent(MotionEvent e) {
+            return hasFlags(e, 0x14000000) || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && e.getClassification() == MotionEvent.CLASSIFICATION_TWO_FINGER_SWIPE);
+        }
+
         boolean onTouch(@SuppressWarnings("unused") View v, MotionEvent e) {
+            boolean isButtonHandled;
             switch(e.getActionMasked()) {
                 case MotionEvent.ACTION_BUTTON_PRESS:
                 case MotionEvent.ACTION_BUTTON_RELEASE:
                     mScroller.onGenericMotionEvent(e);
                     handler.removeCallbacks(mouseDownRunnable);
+                    onTap = e.getActionMasked() == MotionEvent.ACTION_BUTTON_PRESS;
                     mIsDragging = false;
 
                     checkButtons(e);
@@ -642,35 +658,47 @@ public class TouchInputHandler {
                     return true;
                 }
                 case MotionEvent.ACTION_DOWN:
-                    checkButtons(e);
-                    if (hasFlags(e, 0x14000000)) {
+                    isButtonHandled = checkButtons(e);
+                    if (isScrollingEvent(e)) {
                         mIsScrolling = true;
                         mScroller.onTouchEvent(e);
                     } else if (hasFlags(e, 0x4000000)) {
                         mIsDragging = true;
                         handler.postDelayed(mouseDownRunnable, 0);
+                    } else if (!isButtonHandled) {
+                        onTap = true;
+                        mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, true, false);
                     }
                     return true;
                 case MotionEvent.ACTION_UP:
-                    checkButtons(e);
-                    if (hasFlags(e, 0x14000000)) {
+                    isButtonHandled = checkButtons(e);
+                    if (isScrollingEvent(e)) {
                         mScroller.onTouchEvent(e);
                         mIsScrolling = false;
                     }
                     else if (hasFlags(e, 0x4000000)) {
                         mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, false, false);
                         mIsDragging = false;
+                    } else if (!isButtonHandled && onTap) {
+                        mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, false, false);
+                        onTap = false;
                     }
 
                     return true;
                 case MotionEvent.ACTION_MOVE:
-                    if (mIsScrolling && hasFlags(e, 0x14000000))
+                    if (mIsScrolling && isScrollingEvent(e))
                         mScroller.onTouchEvent(e);
-                    else if (mIsDragging && hasFlags(e, 0x4000000)) {
+                    else if ((mIsDragging && hasFlags(e, 0x4000000)) || onTap) {
                         float scaledX = e.getX() * mRenderData.scale.x, scaledY = e.getY() * mRenderData.scale.y;
                         if (mRenderData.setCursorPosition(scaledX, scaledY))
                             mInjector.sendCursorMove(scaledX, scaledY, false);
                     }
+                    return true;
+                case MotionEvent.ACTION_HOVER_EXIT: // when the user removes their hand from the trackpad, all states should be reset
+                case MotionEvent.ACTION_CANCEL:
+                    onTap = false;
+                    mIsScrolling = false;
+                    mIsDragging = false;
                     return true;
             }
             return false;

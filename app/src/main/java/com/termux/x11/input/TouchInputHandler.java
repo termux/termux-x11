@@ -282,6 +282,10 @@ public class TouchInputHandler {
         mInjector.scaleTouchpad = enabled;
     }
 
+    public void setCapturedPointerSpeedFactor(float value) {
+        mInjector.capturedPointerSpeedFactor = value;
+    }
+
     public void setTransformCapturedPointer(String value) {
         switch (value) {
             case "c":
@@ -540,7 +544,7 @@ public class TouchInputHandler {
                             x = -x; y = -y; break;
                     }
 
-                    mInjector.sendCursorMove(2 * x, 2 * y, true);
+                    mInjector.sendCursorMove(mInjector.capturedPointerSpeedFactor * x, mInjector.capturedPointerSpeedFactor * y, true);
                     if (axis_relative_x && mTouchpadHandler != null)
                         mTouchpadHandler.mTapDetector.onTouchEvent(e);
                 }

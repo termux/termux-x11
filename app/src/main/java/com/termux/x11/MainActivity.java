@@ -496,6 +496,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         mInputHandler.setPointerCaptureEnabled(p.getBoolean("pointerCapture", false));
         mInputHandler.setApplyDisplayScaleFactorToTouchpad(p.getBoolean("scaleTouchpad", true));
         mInputHandler.setTransformCapturedPointer(p.getString("transformCapturedPointer", "no"));
+        mInputHandler.setCapturedPointerSpeedFactor(((float) p.getInt("capturedPointerSpeedFactor", 100))/100);
         if (!p.getBoolean("pointerCapture", false) && lorieView.hasPointerCapture())
             lorieView.releasePointerCapture();
 

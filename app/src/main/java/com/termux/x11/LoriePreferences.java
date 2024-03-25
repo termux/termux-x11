@@ -140,10 +140,15 @@ public class LoriePreferences extends AppCompatActivity {
             if (!SamsungDexUtils.available())
                 findPreference("dexMetaKeyCapture").setVisible(false);
             SeekBarPreference scalePreference = findPreference("displayScale");
+            SeekBarPreference capturedPointerSpeedFactor = findPreference("capturedPointerSpeedFactor");
             scalePreference.setMin(30);
             scalePreference.setMax(200);
             scalePreference.setSeekBarIncrement(10);
             scalePreference.setShowSeekBarValue(true);
+            capturedPointerSpeedFactor.setMin(30);
+            capturedPointerSpeedFactor.setMax(200);
+            capturedPointerSpeedFactor.setSeekBarIncrement(1);
+            capturedPointerSpeedFactor.setShowSeekBarValue(true);
 
             switch (p.getString("displayResolutionMode", "native")) {
                 case "scaled":
@@ -445,6 +450,16 @@ public class LoriePreferences extends AppCompatActivity {
                                     edit.putInt("displayScale", scale);
                                 } else
                                     edit.putInt("displayScale", scale);
+                                break;
+                            }
+                            case "capturedPointerSpeedFactor": {
+                                int v;
+                                try {
+                                    v = Integer.parseInt(newValue);
+                                } catch (NumberFormatException | PatternSyntaxException ignored) {
+                                    v = 100;
+                                }
+                                edit.putInt("capturedPointerSpeedFactor", Integer.parseInt(newValue));
                                 break;
                             }
                             case "displayDensity": {

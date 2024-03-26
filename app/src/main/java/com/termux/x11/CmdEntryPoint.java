@@ -192,11 +192,15 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
             // Hiding harmless framework errors, like this:
             // java.io.FileNotFoundException: /data/system/theme_config/theme_compatibility.xml: open failed: ENOENT (No such file or directory)
             System.setErr(new PrintStream(new OutputStream() { public void write(int arg0) {} }));
-            context = ((android.app.ActivityThread) Class.
-                    forName("sun.misc.Unsafe").
-                    getMethod("allocateInstance", Class.class).
-                    invoke(unsafe, android.app.ActivityThread.class))
-                    .getSystemContext();
+            if (System.getenv("OLD_CONTEXT") != null) {
+                context = android.app.ActivityThread.systemMain().getSystemContext();
+            } else {
+                context = ((android.app.ActivityThread) Class.
+                        forName("sun.misc.Unsafe").
+                        getMethod("allocateInstance", Class.class).
+                        invoke(unsafe, android.app.ActivityThread.class))
+                        .getSystemContext();
+            }
         } catch (Exception e) {
             Log.e("Context", "Failed to instantiate context:", e);
             context = null;

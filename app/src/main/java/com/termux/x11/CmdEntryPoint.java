@@ -38,7 +38,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static final int PORT = 7892;
     public static final byte[] MAGIC = "0xDEADBEEF".getBytes();
     private static final Handler handler;
-    public static Context ctx = createContext();
+    public static Context ctx;
 
     /**
      * Command-line entry point.
@@ -244,5 +244,6 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
             Log.e("CmdEntryPoint", "Something went wrong when preparing MainLooper", e);
         }
         handler = new Handler();
+        ctx = createContext();
     }
 }

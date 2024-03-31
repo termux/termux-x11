@@ -183,7 +183,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     /** @noinspection DataFlowIssue*/
     @SuppressLint("DiscouragedPrivateApi")
     public static Context createContext() {
-        Context context = null;
+        Context context;
         PrintStream err = System.err;
         try {
             java.lang.reflect.Field f = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
@@ -217,6 +217,15 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     private static native boolean connected();
 
     static {
+        try {
+            if (Looper.getMainLooper() == null)
+                Looper.prepareMainLooper();
+        } catch (Exception e) {
+            Log.e("CmdEntryPoint", "Something went wrong when preparing MainLooper", e);
+        }
+        handler = new Handler();
+        ctx = createContext();
+
         String path = "lib/" + Build.SUPPORTED_ABIS[0] + "/libXlorie.so";
         ClassLoader loader = CmdEntryPoint.class.getClassLoader();
         URL res = loader != null ? loader.getResource(path) : null;
@@ -236,14 +245,5 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
                 System.exit(134);
             }
         }
-
-        try {
-            if (Looper.getMainLooper() == null)
-                Looper.prepareMainLooper();
-        } catch (Exception e) {
-            Log.e("CmdEntryPoint", "Something went wrong when preparing MainLooper", e);
-        }
-        handler = new Handler();
-        ctx = createContext();
     }
 }

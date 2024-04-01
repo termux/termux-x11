@@ -464,9 +464,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (mClientConnected)
             return;
         try {
-            Log.v("LorieBroadcastReceiver", "Extracting X connection socket.");
             ParcelFileDescriptor fd = service == null ? null : service.getXConnection();
             if (fd != null) {
+                Log.v("MainActivity", "Extracting X connection socket.");
                 LorieView.connect(fd.detachFd());
                 getLorieView().triggerCallback();
                 clientConnectedStateChanged(true);

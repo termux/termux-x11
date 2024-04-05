@@ -144,11 +144,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        if (XrActivity.isEnabled() && !(this instanceof XrActivity)) {
-            XrActivity.openIntent(this);
-            return;
-        }
-
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         int modeValue = Integer.parseInt(preferences.getString("touchMode", "1")) - 1;
         if (modeValue > 2) {
@@ -255,9 +250,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     protected void onDestroy() {
-        if (!XrActivity.isEnabled() || (this instanceof XrActivity)) {
-            unregisterReceiver(receiver);
-        }
+        unregisterReceiver(receiver);
         super.onDestroy();
     }
 
@@ -822,6 +815,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @SuppressWarnings("SameParameterValue")
     void clientConnectedStateChanged(boolean connected) {
+        if (connected && XrActivity.isEnabled() && !(this instanceof XrActivity)) {
+            XrActivity.openIntent(this);
+            mClientConnected = connected;
+            return;
+        }
+
         runOnUiThread(()-> {
             SharedPreferences p = PreferenceManager.getDefaultSharedPreferences(this);
             mClientConnected = connected;

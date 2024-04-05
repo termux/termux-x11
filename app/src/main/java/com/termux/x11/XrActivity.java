@@ -55,8 +55,8 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     }
 
     @Override
-    public void onPause() {
-        super.onPause();
+    public void onDestroy() {
+        super.onDestroy();
         // Going back to the Android 2D rendering isn't supported.
         // Kill the app to ensure there is no unexpected behaviour.
         System.exit(0);
@@ -87,9 +87,8 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         final int mainDisplayId = getMainDisplay(context);
         ActivityOptions options = ActivityOptions.makeBasic().setLaunchDisplayId(mainDisplayId);
 
-        // 2. Set the flags: start in a new task and replace any existing tasks in the app stack
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK |
-                Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        // 2. Set the flags: start in a new task
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
 
         // 3. Launch the activity.
         // Don't use the container's ContextWrapper, which is adding arguments

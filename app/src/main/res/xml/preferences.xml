@@ -96,6 +96,19 @@
             android:defaultValue="false"
             android:key="pointerCapture" />
 
+        <ListPreference
+            android:title="Transform captured pointer movements"
+            android:key="transformCapturedPointer"
+            android:defaultValue="no"
+            android:entries="@array/transformCapturedPointerEntries"
+            android:entryValues="@array/transformCapturedPointerValues" />
+
+        <SeekBarPreference
+            android:title="Captured pointer speed factor, %"
+            android:key="capturedPointerSpeedFactor"
+            android:max="200"
+            android:defaultValue="100" />
+
         <SwitchPreferenceCompat
             android:title="Enable tap-to-move for touchpads"
             android:defaultValue="false"
@@ -162,7 +175,7 @@
         <SwitchPreferenceCompat
             android:title="Automatic sync clipboard with Android"
             android:defaultValue="false"
-            android:key="clipboardSync" />
+            android:key="clipboardEnable" />
 
         <Preference
             android:title="Request notification permission"

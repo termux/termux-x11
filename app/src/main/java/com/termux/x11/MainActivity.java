@@ -471,13 +471,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (mClientConnected)
             return;
         try {
-            Log.v("LorieBroadcastReceiver", "Extracting X connection socket.");
             ParcelFileDescriptor fd = service == null ? null : service.getXConnection();
             if (fd != null) {
+                Log.v("MainActivity", "Extracting X connection socket.");
                 LorieView.connect(fd.detachFd());
                 getLorieView().triggerCallback();
                 clientConnectedStateChanged(true);
-                LorieView.setClipboardSyncEnabled(PreferenceManager.getDefaultSharedPreferences(this).getBoolean("clipboardSync", false));
+                LorieView.setClipboardSyncEnabled(PreferenceManager.getDefaultSharedPreferences(this).getBoolean("clipboardEnable", false));
             } else
                 handler.postDelayed(this::tryConnect, 500);
         } catch (Exception e) {
@@ -502,6 +502,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         mInputHandler.setPreferScancodes(p.getBoolean("preferScancodes", false));
         mInputHandler.setPointerCaptureEnabled(p.getBoolean("pointerCapture", false));
         mInputHandler.setApplyDisplayScaleFactorToTouchpad(p.getBoolean("scaleTouchpad", true));
+        mInputHandler.setTransformCapturedPointer(p.getString("transformCapturedPointer", "no"));
+        mInputHandler.setCapturedPointerSpeedFactor(((float) p.getInt("capturedPointerSpeedFactor", 100))/100);
         if (!p.getBoolean("pointerCapture", false) && lorieView.hasPointerCapture())
             lorieView.releasePointerCapture();
 

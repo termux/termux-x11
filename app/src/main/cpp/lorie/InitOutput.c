@@ -331,7 +331,7 @@ static void lorieUpdateBuffer(void) {
         d0.width = pScreenPtr->width;
         d0.height = pScreenPtr->height;
         d0.layers = 1;
-        d0.usage = USAGE;
+        d0.usage = USAGE | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
         d0.format = pvfb->root.flip
                 ? AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM
                 : AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
@@ -411,7 +411,7 @@ static inline Bool loriePixmapLock(PixmapPtr pixmap) {
     }
 
     AHardwareBuffer_describe(pvfb->root.buffer, &desc);
-    status = AHardwareBuffer_lock(pvfb->root.buffer, desc.usage, -1, NULL, &data);
+    status = AHardwareBuffer_lock(pvfb->root.buffer, USAGE, -1, NULL, &data);
     pvfb->root.locked = status == 0;
     if (pvfb->root.locked)
         pixmap->drawable.pScreen->ModifyPixmapHeader(pixmap, desc.width, desc.height, -1, -1, desc.stride * 4, data);

@@ -140,10 +140,15 @@ public class LoriePreferences extends AppCompatActivity {
             if (!SamsungDexUtils.available())
                 findPreference("dexMetaKeyCapture").setVisible(false);
             SeekBarPreference scalePreference = findPreference("displayScale");
+            SeekBarPreference capturedPointerSpeedFactor = findPreference("capturedPointerSpeedFactor");
             scalePreference.setMin(30);
             scalePreference.setMax(200);
             scalePreference.setSeekBarIncrement(10);
             scalePreference.setShowSeekBarValue(true);
+            capturedPointerSpeedFactor.setMin(30);
+            capturedPointerSpeedFactor.setMax(200);
+            capturedPointerSpeedFactor.setSeekBarIncrement(1);
+            capturedPointerSpeedFactor.setShowSeekBarValue(true);
 
             switch (p.getString("displayResolutionMode", "native")) {
                 case "scaled":
@@ -392,6 +397,13 @@ public class LoriePreferences extends AppCompatActivity {
                                                 if (value.contentEquals(options1[i]))
                                                     value = options0[i];
                                         }
+                                        if (key.equals("transformCapturedPointer")) {
+                                            String[] options0 = context.getResources().getStringArray(R.array.transformCapturedPointerEntries);
+                                            String[] options1 = context.getResources().getStringArray(R.array.transformCapturedPointerValues);
+                                            for (int i=0; i<options0.length; i++)
+                                                if (value.contentEquals(options1[i]))
+                                                    value = options0[i];
+                                        }
 
                                         //noinspection StringConcatenationInLoop
                                         result += "\"" + key + "\"=\"" + value + "\"\n";
@@ -438,6 +450,16 @@ public class LoriePreferences extends AppCompatActivity {
                                     edit.putInt("displayScale", scale);
                                 } else
                                     edit.putInt("displayScale", scale);
+                                break;
+                            }
+                            case "capturedPointerSpeedFactor": {
+                                int v;
+                                try {
+                                    v = Integer.parseInt(newValue);
+                                } catch (NumberFormatException | PatternSyntaxException ignored) {
+                                    v = 100;
+                                }
+                                edit.putInt("capturedPointerSpeedFactor", Integer.parseInt(newValue));
                                 break;
                             }
                             case "displayDensity": {
@@ -520,6 +542,25 @@ public class LoriePreferences extends AppCompatActivity {
                             case "touchMode": {
                                 String[] options0 = context.getResources().getStringArray(R.array.touchscreenInputModesEntries);
                                 String[] options1 = context.getResources().getStringArray(R.array.touchscreenInputModesValues);
+                                boolean found = false;
+                                for (int i=0; i<options0.length; i++) {
+                                    if (newValue.contentEquals(options0[i])) {
+                                        found = true;
+                                        edit.putString(key, options1[i]);
+                                        break;
+                                    }
+                                }
+
+                                if (!found) {
+                                    setResultCode(1);
+                                    setResultData(key + ": can not be set to " + newValue);
+                                    return;
+                                }
+                                break;
+                            }
+                            case "transformCapturedPointer": {
+                                String[] options0 = context.getResources().getStringArray(R.array.transformCapturedPointerEntries);
+                                String[] options1 = context.getResources().getStringArray(R.array.transformCapturedPointerValues);
                                 boolean found = false;
                                 for (int i=0; i<options0.length; i++) {
                                     if (newValue.contentEquals(options0[i])) {

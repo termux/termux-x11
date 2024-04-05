@@ -2,10 +2,6 @@
 	path = app/src/main/cpp/libtirpc
 	url = https://github.com/alisw/libtirpc
 	ignore = dirty
-[submodule "app/src/main/cpp/freetype"]
-	path = app/src/main/cpp/freetype
-	url = https://gitlab.freedesktop.org/freetype/freetype
-	ignore = dirty
 [submodule "app/src/main/cpp/pixman"]
 	path = app/src/main/cpp/pixman
 	url = https://gitlab.freedesktop.org/pixman/pixman

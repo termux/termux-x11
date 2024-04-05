@@ -38,7 +38,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static final int PORT = 7892;
     public static final byte[] MAGIC = "0xDEADBEEF".getBytes();
     private static final Handler handler;
-    public static Context ctx = createContext();
+    public static Context ctx;
 
     /**
      * Command-line entry point.
@@ -183,7 +183,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     /** @noinspection DataFlowIssue*/
     @SuppressLint("DiscouragedPrivateApi")
     public static Context createContext() {
-        Context context = null;
+        Context context;
         PrintStream err = System.err;
         try {
             java.lang.reflect.Field f = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
@@ -192,11 +192,15 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
             // Hiding harmless framework errors, like this:
             // java.io.FileNotFoundException: /data/system/theme_config/theme_compatibility.xml: open failed: ENOENT (No such file or directory)
             System.setErr(new PrintStream(new OutputStream() { public void write(int arg0) {} }));
-            context = ((android.app.ActivityThread) Class.
-                    forName("sun.misc.Unsafe").
-                    getMethod("allocateInstance", Class.class).
-                    invoke(unsafe, android.app.ActivityThread.class))
-                    .getSystemContext();
+            if (System.getenv("OLD_CONTEXT") != null) {
+                context = android.app.ActivityThread.systemMain().getSystemContext();
+            } else {
+                context = ((android.app.ActivityThread) Class.
+                        forName("sun.misc.Unsafe").
+                        getMethod("allocateInstance", Class.class).
+                        invoke(unsafe, android.app.ActivityThread.class))
+                        .getSystemContext();
+            }
         } catch (Exception e) {
             Log.e("Context", "Failed to instantiate context:", e);
             context = null;
@@ -213,6 +217,15 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     private static native boolean connected();
 
     static {
+        try {
+            if (Looper.getMainLooper() == null)
+                Looper.prepareMainLooper();
+        } catch (Exception e) {
+            Log.e("CmdEntryPoint", "Something went wrong when preparing MainLooper", e);
+        }
+        handler = new Handler();
+        ctx = createContext();
+
         String path = "lib/" + Build.SUPPORTED_ABIS[0] + "/libXlorie.so";
         ClassLoader loader = CmdEntryPoint.class.getClassLoader();
         URL res = loader != null ? loader.getResource(path) : null;
@@ -232,13 +245,5 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
                 System.exit(134);
             }
         }
-
-        try {
-            if (Looper.getMainLooper() == null)
-                Looper.prepareMainLooper();
-        } catch (Exception e) {
-            Log.e("CmdEntryPoint", "Something went wrong when preparing MainLooper", e);
-        }
-        handler = new Handler();
     }
 }

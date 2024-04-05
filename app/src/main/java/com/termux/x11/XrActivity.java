@@ -4,11 +4,16 @@ import android.app.Activity;
 import android.app.ActivityOptions;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.hardware.display.DisplayManager;
 import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.view.Display;
+import android.view.PixelCopy;
 import android.view.ViewGroup;
 
 import javax.microedition.khronos.egl.EGLConfig;
@@ -35,6 +40,11 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
     private static boolean isDeviceDetectionFinished = false;
     private static boolean isDeviceSupported = false;
+
+    private int width;
+    private int height;
+    private Bitmap bitmap;
+    private int[] pixels;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -119,6 +129,8 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
     @Override
     public void onSurfaceChanged(GL10 gl10, int w, int h) {
+        width = w;
+        height = h;
     }
 
     @Override
@@ -146,9 +158,36 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     }
 
     private void renderXFrame(GL10 gl10) {
-        gl10.glClearColor(0.0f, 0.0f, 1.0f, 0.25f);
-        gl10.glClear(GL10.GL_COLOR_BUFFER_BIT);
-        //TODO:render frame from XServer
+        LorieView v = getLorieView();
+
+        //TODO:listen to resolution changes
+        if (pixels == null) {
+            pixels = new int[v.getWidth() * v.getHeight()];
+            bitmap = Bitmap.createBitmap(v.getWidth(), v.getHeight(), Bitmap.Config.ARGB_8888);
+        }
+
+        //TODO:isn't possible to do this faster?
+        HandlerThread handlerThread = new HandlerThread("PixelCopier");
+        handlerThread.start();
+        PixelCopy.request(v, bitmap, (copyResult) -> {
+            if (copyResult == PixelCopy.SUCCESS) {
+                bitmap.getPixels(pixels, 0, v.getWidth(), 0, 0, v.getWidth(), v.getHeight());
+            }
+            handlerThread.quitSafely();
+        }, new Handler(handlerThread.getLooper()));
+
+        //TODO:this was just for a test, rewrite it!!!
+        gl10.glEnable(GL10.GL_SCISSOR_TEST);
+        for (int y = 0; y < height; y++) {
+            int oy = y * v.getHeight() / height;
+            for (int x = 0; x < width; x++) {
+                int ox = x * v.getWidth() / width;
+                gl10.glScissor(x, height - y - 1, 1, 1);
+                Color color = Color.valueOf(pixels[oy * v.getWidth() + ox]);
+                gl10.glClearColor(color.red(), color.green(), color.blue(), 1.0f);
+                gl10.glClear(GL10.GL_COLOR_BUFFER_BIT);
+            }
+        }
     }
 
     private native void init();

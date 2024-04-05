@@ -9,6 +9,7 @@ import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Display;
+import android.view.ViewGroup;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -43,6 +44,14 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         view.setEGLContextClientVersion(2);
         view.setRenderer(this);
         frm.addView(view);
+
+        // For testing without headset
+        if (isEnabled() && !isSupported()) {
+            ViewGroup.LayoutParams lp = view.getLayoutParams();
+            lp.width = 256;
+            lp.height = 256;
+            view.setLayoutParams(lp);
+        }
     }
 
     @Override
@@ -51,6 +60,10 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         // Going back to the Android 2D rendering isn't supported.
         // Kill the app to ensure there is no unexpected behaviour.
         System.exit(0);
+    }
+
+    public static boolean isEnabled() {
+        return isSupported();
     }
 
     public static boolean isSupported() {
@@ -65,7 +78,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         }
         return isDeviceSupported;
     }
-
 
     public static void openIntent(Activity context) {
         // 0. Create the launch intent
@@ -101,7 +113,9 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     @Override
     public void onSurfaceCreated(GL10 gl10, EGLConfig eglConfig) {
         System.loadLibrary("XRio");
-        init();
+        if (isSupported()) {
+            init();
+        }
     }
 
     @Override
@@ -110,18 +124,32 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
     @Override
     public void onDrawFrame(GL10 gl10) {
-        setRenderParam(RenderParam.CANVAS_DISTANCE.ordinal(), 5);
-        setRenderParam(RenderParam.IMMERSIVE.ordinal(), 0);
-        setRenderParam(RenderParam.PASSTHROUGH.ordinal(), 1);
-        setRenderParam(RenderParam.SBS.ordinal(), 0);
+        if (isSupported()) {
+            setRenderParam(RenderParam.CANVAS_DISTANCE.ordinal(), 5);
+            setRenderParam(RenderParam.IMMERSIVE.ordinal(), 0);
+            setRenderParam(RenderParam.PASSTHROUGH.ordinal(), 1);
+            setRenderParam(RenderParam.SBS.ordinal(), 0);
 
-        if (beginFrame()) {
-            //TODO:render frame from XServer
-            finishFrame();
-            float[] axes = getAxes();
-            boolean[] buttons = getButtons();
-            //TODO:pass input into XServer
+            if (beginFrame()) {
+                renderXFrame(gl10);
+                finishFrame();
+                processXRInput();
+            }
+        } else {
+            renderXFrame(gl10);
         }
+    }
+
+    private void processXRInput() {
+        float[] axes = getAxes();
+        boolean[] buttons = getButtons();
+        //TODO:pass input into XServer
+    }
+
+    private void renderXFrame(GL10 gl10) {
+        gl10.glClearColor(0.0f, 0.0f, 1.0f, 0.25f);
+        gl10.glClear(GL10.GL_COLOR_BUFFER_BIT);
+        //TODO:render frame from XServer
     }
 
     private native void init();

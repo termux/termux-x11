@@ -144,7 +144,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        if (XrActivity.isSupported() && !(this instanceof XrActivity)) {
+        if (XrActivity.isEnabled() && !(this instanceof XrActivity)) {
             XrActivity.openIntent(this);
             return;
         }
@@ -255,7 +255,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     protected void onDestroy() {
-        if (!XrActivity.isSupported() || (this instanceof XrActivity)) {
+        if (!XrActivity.isEnabled() || (this instanceof XrActivity)) {
             unregisterReceiver(receiver);
         }
         super.onDestroy();

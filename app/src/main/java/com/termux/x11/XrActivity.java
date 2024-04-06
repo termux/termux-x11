@@ -5,6 +5,7 @@ import android.app.ActivityOptions;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Rect;
 import android.hardware.display.DisplayManager;
 import android.opengl.GLSurfaceView;
 import android.opengl.GLUtils;
@@ -13,9 +14,11 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.view.Display;
+import android.view.KeyEvent;
 import android.view.PixelCopy;
 import android.view.ViewGroup;
 
+import com.termux.x11.input.InputStub;
 import com.termux.x11.utils.GLUtility;
 
 import javax.microedition.khronos.egl.EGLConfig;
@@ -42,6 +45,11 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
     private static boolean isDeviceDetectionFinished = false;
     private static boolean isDeviceSupported = false;
+
+    private static boolean isImmersive = false;
+    private static boolean isSBS = false;
+    private static final float[] lastAxes = new float[ControllerAxis.values().length];
+    private static final boolean[] lastButtons = new boolean[ControllerButton.values().length];
 
     private Bitmap bitmap;
     private HandlerThread handlerThread;
@@ -148,24 +156,108 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     public void onDrawFrame(GL10 gl10) {
         if (isSupported()) {
             setRenderParam(RenderParam.CANVAS_DISTANCE.ordinal(), 5);
-            setRenderParam(RenderParam.IMMERSIVE.ordinal(), 0);
-            setRenderParam(RenderParam.PASSTHROUGH.ordinal(), 1);
-            setRenderParam(RenderParam.SBS.ordinal(), 0);
+            setRenderParam(RenderParam.IMMERSIVE.ordinal(), isImmersive ? 1 : 0);
+            setRenderParam(RenderParam.PASSTHROUGH.ordinal(), isImmersive ? 0 : 1);
+            setRenderParam(RenderParam.SBS.ordinal(), isSBS ? 1 : 0);
 
             if (beginFrame()) {
                 renderFrame(gl10);
                 finishFrame();
-                processXRInput();
+                processInput();
             }
         } else {
             renderFrame(gl10);
         }
     }
 
-    private void processXRInput() {
+    private void processInput() {
         float[] axes = getAxes();
         boolean[] buttons = getButtons();
-        //TODO:pass input into XServer
+        LorieView view = getLorieView();
+        Rect frame = view.getHolder().getSurfaceFrame();
+
+        // Mouse control with hand
+        float meter2px = frame.width() * 10.0f;
+        float dx = (axes[ControllerAxis.R_X.ordinal()] - lastAxes[ControllerAxis.R_X.ordinal()]) * meter2px;
+        float dy = (axes[ControllerAxis.R_Y.ordinal()] - lastAxes[ControllerAxis.R_Y.ordinal()]) * meter2px;
+
+        // Mouse control with head
+        if (isImmersive) {
+            float angle2px = frame.width() * 0.05f;
+            dx = getAngleDiff(lastAxes[ControllerAxis.HMD_YAW.ordinal()], axes[ControllerAxis.HMD_YAW.ordinal()]) * angle2px;
+            dy = getAngleDiff(lastAxes[ControllerAxis.HMD_PITCH.ordinal()], axes[ControllerAxis.HMD_PITCH.ordinal()]) * angle2px;
+            if (Float.isNaN(dy)) {
+                dy = 0;
+            }
+        }
+
+        // Mouse speed adjust
+        float mouseSpeed = 0.25f;
+        dx *= mouseSpeed;
+        dy *= mouseSpeed;
+
+        // Mouse "snap turn"
+        int snapturn = isImmersive ? 125 : 25;
+        if (getButtonClicked(buttons, ControllerButton.R_THUMBSTICK_LEFT)) {
+            dx = -snapturn;
+        }
+        if (getButtonClicked(buttons, ControllerButton.R_THUMBSTICK_RIGHT)) {
+            dx = snapturn;
+        }
+
+        // Set mouse status
+        int scrollSpeed = 5;
+        view.sendMouseEvent(dx, -dy, 0, false, true);
+        view.sendMouseEvent(0, 0, InputStub.BUTTON_LEFT, buttons[ControllerButton.R_TRIGGER.ordinal()], true);
+        view.sendMouseEvent(0, 0, InputStub.BUTTON_RIGHT, buttons[ControllerButton.R_GRIP.ordinal()], true);
+        view.sendMouseEvent(0, 0, InputStub.BUTTON_MIDDLE, buttons[ControllerButton.L_THUMBSTICK_PRESS.ordinal()], true);
+        if (buttons[ControllerButton.R_THUMBSTICK_UP.ordinal()]) {
+            view.sendMouseWheelEvent(0, -scrollSpeed);
+        } else if (buttons[ControllerButton.R_THUMBSTICK_DOWN.ordinal()]) {
+            view.sendMouseWheelEvent(0, scrollSpeed);
+        }
+
+        // Switch immersive/SBS mode
+        if (getButtonClicked(buttons, ControllerButton.L_THUMBSTICK_PRESS)) {
+            if (buttons[ControllerButton.R_GRIP.ordinal()]) {
+                isSBS = !isSBS;
+            }
+            else {
+                isImmersive = !isImmersive;
+            }
+        }
+
+        // Update keyboard
+        view.sendKeyEvent(0, KeyEvent.KEYCODE_A, buttons[ControllerButton.R_A.ordinal()]);
+        view.sendKeyEvent(0, KeyEvent.KEYCODE_B, buttons[ControllerButton.R_B.ordinal()]);
+        view.sendKeyEvent(0, KeyEvent.KEYCODE_X, buttons[ControllerButton.L_X.ordinal()]);
+        view.sendKeyEvent(0, KeyEvent.KEYCODE_Y, buttons[ControllerButton.L_Y.ordinal()]);
+        view.sendKeyEvent(0, KeyEvent.KEYCODE_SPACE, buttons[ControllerButton.L_GRIP.ordinal()]);
+        view.sendKeyEvent(0, KeyEvent.KEYCODE_BACK, buttons[ControllerButton.L_MENU.ordinal()]);
+        view.sendKeyEvent(0, KeyEvent.KEYCODE_ENTER, buttons[ControllerButton.L_TRIGGER.ordinal()]);
+        view.sendKeyEvent(0, KeyEvent.KEYCODE_DPAD_LEFT, buttons[ControllerButton.L_THUMBSTICK_LEFT.ordinal()]);
+        view.sendKeyEvent(0, KeyEvent.KEYCODE_DPAD_RIGHT, buttons[ControllerButton.L_THUMBSTICK_RIGHT.ordinal()]);
+        view.sendKeyEvent(0, KeyEvent.KEYCODE_DPAD_UP, buttons[ControllerButton.L_THUMBSTICK_UP.ordinal()]);
+        view.sendKeyEvent(0, KeyEvent.KEYCODE_DPAD_DOWN, buttons[ControllerButton.L_THUMBSTICK_DOWN.ordinal()]);
+
+        // Store the OpenXR data
+        System.arraycopy(axes, 0, lastAxes, 0, axes.length);
+        System.arraycopy(buttons, 0, lastButtons, 0, buttons.length);
+    }
+
+    private static float getAngleDiff(float oldAngle, float newAngle) {
+        float diff = oldAngle - newAngle;
+        while (diff > 180) {
+            diff -= 360;
+        }
+        while (diff < -180) {
+            diff += 360;
+        }
+        return diff;
+    }
+
+    private static boolean getButtonClicked(boolean[] buttons, ControllerButton button) {
+        return buttons[button.ordinal()] && !lastButtons[button.ordinal()];
     }
 
     private void renderFrame(GL10 gl10) {

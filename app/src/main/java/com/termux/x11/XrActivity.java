@@ -37,15 +37,14 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
     // Order of the enum has to be the same as in xrio/android.c
     public enum RenderParam {
-        CANVAS_DISTANCE, IMMERSIVE, PASSTHROUGH, SBS
+        CANVAS_DISTANCE, IMMERSIVE, PASSTHROUGH, SBS, VIEWPORT_WIDTH, VIEWPORT_HEIGHT,
     }
 
     private static boolean isDeviceDetectionFinished = false;
     private static boolean isDeviceSupported = false;
 
-    private int width;
-    private int height;
     private Bitmap bitmap;
+    private HandlerThread handlerThread;
     private int program;
     private int texture;
 
@@ -132,8 +131,17 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
     @Override
     public void onSurfaceChanged(GL10 gl10, int w, int h) {
-        width = w;
-        height = h;
+        if (handlerThread != null) {
+            handlerThread.quitSafely();
+        }
+
+        bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        program = GLUtility.createProgram();
+        texture = GLUtility.createTexture();
+
+        handlerThread = new HandlerThread("PixelCopier");
+        handlerThread.start();
+        requestBitmap();
     }
 
     @Override
@@ -145,12 +153,12 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
             setRenderParam(RenderParam.SBS.ordinal(), 0);
 
             if (beginFrame()) {
-                renderFrame();
+                renderFrame(gl10);
                 finishFrame();
                 processXRInput();
             }
         } else {
-            renderFrame();
+            renderFrame(gl10);
         }
     }
 
@@ -160,26 +168,26 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         //TODO:pass input into XServer
     }
 
-    private void renderFrame() {
-        LorieView v = getLorieView();
-
-        //TODO:listen to resolution changes
-        if (bitmap == null) {
-            program = GLUtility.createProgram();
-            texture = GLUtility.createTexture();
-            bitmap = Bitmap.createBitmap(v.getWidth(), v.getHeight(), Bitmap.Config.ARGB_8888);
-        }
-
-        //TODO:isn't possible to do this faster?
-        HandlerThread handlerThread = new HandlerThread("PixelCopier");
-        handlerThread.start();
-        PixelCopy.request(v, bitmap, (copyResult) -> {
-            handlerThread.quitSafely();
-        }, new Handler(handlerThread.getLooper()));
-
+    private void renderFrame(GL10 gl10) {
         GLUtility.bindTexture(texture);
         GLUtils.texImage2D(GL10.GL_TEXTURE_2D, 0, bitmap, 0);
-        GLUtility.drawTexture(program, texture, -1);
+
+        if (isSupported()) {
+            int w = getRenderParam(RenderParam.VIEWPORT_WIDTH.ordinal());
+            int h = getRenderParam(RenderParam.VIEWPORT_HEIGHT.ordinal());
+            gl10.glViewport(0, 0, w, h);
+        }
+
+        LorieView view = getLorieView();
+        int w = view.getWidth();
+        int h = view.getHeight();
+        float aspect = Math.min(w, h) / (float)Math.max(w, h);
+        GLUtility.drawTexture(program, texture, -aspect);
+    }
+
+    private void requestBitmap() {
+        PixelCopy.request(getLorieView(), bitmap, (copyResult) -> requestBitmap(),
+                new Handler(handlerThread.getLooper()));
     }
 
     private native void init();
@@ -187,5 +195,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     private native void finishFrame();
     public native float[] getAxes();
     public native boolean[] getButtons();
+    public native int getRenderParam(int param);
     public native void setRenderParam(int param, int value);
 }

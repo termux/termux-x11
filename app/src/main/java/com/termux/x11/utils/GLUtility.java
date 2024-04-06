@@ -97,15 +97,15 @@ public class GLUtility {
         );
     }
 
-    private static void attribPointer(int program, String location, float[] data, int size) {
+    private static void attribPointer(int program, String location, float[] data, int stride) {
         int handle = GLES20.glGetAttribLocation(program, location);
         GLES20.glEnableVertexAttribArray(handle);
         GLES20.glVertexAttribPointer(
                 handle,
-                size,
+                stride,
                 GLES20.GL_FLOAT,
                 false,
-                size * 4,
+                0,
                 ByteBuffer.allocateDirect(data.length * 4)
                         .order(ByteOrder.nativeOrder())
                         .asFloatBuffer()

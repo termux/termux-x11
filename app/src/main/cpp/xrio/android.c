@@ -9,7 +9,7 @@ struct XrEngine xr_engine;
 struct XrInput xr_input;
 struct XrRenderer xr_renderer;
 bool xr_initialized = false;
-int xr_params[4] = {};
+int xr_params[6] = {};
 
 #if defined(_DEBUG)
 #include <GLES2/gl2.h>
@@ -57,6 +57,7 @@ JNIEXPORT void JNICALL Java_com_termux_x11_XrActivity_init(JNIEnv *env, jobject 
     XrEngineEnter(&xr_engine);
     XrInputInit(&xr_engine, &xr_input);
     XrRendererInit(&xr_engine, &xr_renderer);
+    XrRendererGetResolution(&xr_engine, &xr_renderer, &xr_params[4], &xr_params[5]);
     xr_initialized = true;
     ALOGV("Init called");
 }
@@ -167,6 +168,11 @@ JNIEXPORT jbooleanArray JNICALL Java_com_termux_x11_XrActivity_getButtons(JNIEnv
     jbooleanArray output = (*env)->NewBooleanArray(env, count);
     (*env)->SetBooleanArrayRegion(env, output, (jsize)0, (jsize)count, values);
     return output;
+}
+
+
+JNIEXPORT jint JNICALL Java_com_termux_x11_XrActivity_getRenderParam(JNIEnv *env, jobject obj, jint param) {
+    return xr_params[param];
 }
 
 JNIEXPORT void JNICALL Java_com_termux_x11_XrActivity_setRenderParam(JNIEnv *env, jobject obj, jint param, jint value) {

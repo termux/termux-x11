@@ -5,9 +5,9 @@ import android.app.ActivityOptions;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.graphics.Color;
 import android.hardware.display.DisplayManager;
 import android.opengl.GLSurfaceView;
+import android.opengl.GLUtils;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -15,6 +15,8 @@ import android.os.HandlerThread;
 import android.view.Display;
 import android.view.PixelCopy;
 import android.view.ViewGroup;
+
+import com.termux.x11.utils.GLUtility;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -44,7 +46,8 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     private int width;
     private int height;
     private Bitmap bitmap;
-    private int[] pixels;
+    private int program;
+    private int texture;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -142,12 +145,12 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
             setRenderParam(RenderParam.SBS.ordinal(), 0);
 
             if (beginFrame()) {
-                renderXFrame(gl10);
+                renderFrame();
                 finishFrame();
                 processXRInput();
             }
         } else {
-            renderXFrame(gl10);
+            renderFrame();
         }
     }
 
@@ -157,12 +160,13 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         //TODO:pass input into XServer
     }
 
-    private void renderXFrame(GL10 gl10) {
+    private void renderFrame() {
         LorieView v = getLorieView();
 
         //TODO:listen to resolution changes
-        if (pixels == null) {
-            pixels = new int[v.getWidth() * v.getHeight()];
+        if (bitmap == null) {
+            program = GLUtility.createProgram();
+            texture = GLUtility.createTexture();
             bitmap = Bitmap.createBitmap(v.getWidth(), v.getHeight(), Bitmap.Config.ARGB_8888);
         }
 
@@ -170,24 +174,12 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         HandlerThread handlerThread = new HandlerThread("PixelCopier");
         handlerThread.start();
         PixelCopy.request(v, bitmap, (copyResult) -> {
-            if (copyResult == PixelCopy.SUCCESS) {
-                bitmap.getPixels(pixels, 0, v.getWidth(), 0, 0, v.getWidth(), v.getHeight());
-            }
             handlerThread.quitSafely();
         }, new Handler(handlerThread.getLooper()));
 
-        //TODO:this was just for a test, rewrite it!!!
-        gl10.glEnable(GL10.GL_SCISSOR_TEST);
-        for (int y = 0; y < height; y++) {
-            int oy = y * v.getHeight() / height;
-            for (int x = 0; x < width; x++) {
-                int ox = x * v.getWidth() / width;
-                gl10.glScissor(x, height - y - 1, 1, 1);
-                Color color = Color.valueOf(pixels[oy * v.getWidth() + ox]);
-                gl10.glClearColor(color.red(), color.green(), color.blue(), 1.0f);
-                gl10.glClear(GL10.GL_COLOR_BUFFER_BIT);
-            }
-        }
+        GLUtility.bindTexture(texture);
+        GLUtils.texImage2D(GL10.GL_TEXTURE_2D, 0, bitmap, 0);
+        GLUtility.drawTexture(program, texture, -1);
     }
 
     private native void init();

@@ -569,6 +569,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     public void onPause() {
+        View view = getCurrentFocus();
+        if (view == null) {
+            view = getLorieView();
+            view.requestFocus();
+        }
+        inputMethodManager.hideSoftInputFromWindow(view.getWindowToken(), 0);
+
         for (StatusBarNotification notification: mNotificationManager.getActiveNotifications())
             if (notification.getId() == mNotificationId)
                 mNotificationManager.cancel(mNotificationId);
@@ -752,13 +759,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 window.clearFlags(FLAG_FULLSCREEN);
                 decorView.setSystemUiVisibility(0);
             }
-        } else {
-            View view = getCurrentFocus();
-            if (view == null) {
-                view = getLorieView();
-                view.requestFocus();
-            }
-            inputMethodManager.hideSoftInputFromWindow(view.getWindowToken(), 0);
         }
 
         if (p.getBoolean("keepScreenOn", true))

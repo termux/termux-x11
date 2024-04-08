@@ -559,14 +559,14 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     pScreen->whitePixel = 1;
 
     if (FALSE
+          || !lorieInitDri3(pScreen)
           || !miSetVisualTypesAndMasks(24, ((1 << TrueColor) | (1 << DirectColor)), 8, TrueColor, 0xFF0000, 0x00FF00, 0x0000FF)
           || !miSetPixmapDepths()
           || !fbScreenInit(pScreen, NULL, pvfb->root.width, pvfb->root.height, monitorResolution, monitorResolution, 0, 32)
           || !fbPictureInit(pScreen, 0, 0)
           || !lorieRandRInit(pScreen)
           || !miPointerInitialize(pScreen, &loriePointerSpriteFuncs, &loriePointerCursorFuncs, TRUE)
-          || !fbCreateDefColormap(pScreen)
-          || !lorieInitDri3(pScreen))
+          || !fbCreateDefColormap(pScreen))
         return FALSE;
 
     wrap(pvfb, pScreen, CreateScreenResources, lorieCreateScreenResources)

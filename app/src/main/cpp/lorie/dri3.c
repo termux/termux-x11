@@ -408,7 +408,7 @@ lorieDestroyPixmap(PixmapPtr pPixmap) {
     ScreenPtr pScreen = pPixmap->drawable.pScreen;
     lorieScrPriv(pScreen);
 
-    if (pPixmap->refcnt == 1) {
+    if (pPixmap->refcnt == 1 && !pPixmap->drawable.width && !pPixmap->drawable.height) {
         ptr = dixLookupPrivate(&pPixmap->devPrivates, &lorieMmappedPixPrivateKey);
         pPixPriv = dixLookupPrivate(&pPixmap->devPrivates, &lorieAHBPixPrivateKey);
         size = pPixmap->devKind * pPixmap->drawable.height;
@@ -490,7 +490,7 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
             goto fail;
         }
 
-        dixSetPrivate(&pixmap->devPrivates, &lorieMmappedPixPrivateKey, pPixPriv);
+        dixSetPrivate(&pixmap->devPrivates, &lorieAHBPixPrivateKey, pPixPriv);
 
         // Sending signal to other end of socket to send buffer.
         uint8_t buf = 1;
@@ -517,7 +517,7 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
             goto fail;
         }
 
-        screen->ModifyPixmapHeader(pixmap, desc.width, desc.height, 0, 0, desc.stride, NULL);
+        screen->ModifyPixmapHeader(pixmap, desc.width, desc.height, 0, 0, desc.stride * 4, NULL);
         return pixmap;
     }
 

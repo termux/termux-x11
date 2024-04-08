@@ -8,18 +8,27 @@ import java.nio.ByteOrder;
 
 public class GLUtility {
 
-    private static final String SIMPLE_SHADER_HEADER = "#version 100\n" +
-            "precision highp float;\n";
+    private static final String SIMPLE_FRAGMENT_SHADER =
+                    "precision highp float;\n" +
+                    "uniform sampler2D u_Texture;\n" +
+                    "varying vec2 v_TexCoord;\n" +
+                    "\n" +
+                    "void main(void){\n" +
+                    "    gl_FragColor = texture2D(u_Texture, v_TexCoord);\n" +
+                    "}";
 
-    private static final String SIMPLE_FRAGMENT_SHADER = SIMPLE_SHADER_HEADER +
-            "uniform sampler2D u_Texture;\n" +
+    private static final String SIMPLE_FRAGMENT_EXT_SHADER =
+            "#extension GL_OES_EGL_image_external : require\n" +
+            "precision highp float;\n" +
+            "uniform samplerExternalOES u_Texture;\n" +
             "varying vec2 v_TexCoord;\n" +
             "\n" +
             "void main(void){\n" +
             "    gl_FragColor = texture2D(u_Texture, v_TexCoord);\n" +
             "}";
 
-    private static final String SIMPLE_VERTEX_SHADER = SIMPLE_SHADER_HEADER +
+    private static final String SIMPLE_VERTEX_SHADER =
+            "precision highp float;\n" +
             "attribute vec3 a_Position;\n" +
             "attribute vec2 a_TexCoord;\n" +
             "varying vec2 v_TexCoord;\n" +
@@ -32,13 +41,12 @@ public class GLUtility {
 
     private static final String TAG = "GLUtility";
 
-    public static void bindTexture(int texture) {
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture);
-    }
-
-    public static int createProgram() {
-        return createProgram(SIMPLE_VERTEX_SHADER, SIMPLE_FRAGMENT_SHADER);
+    public static int createProgram(boolean externalTexture) {
+        if (externalTexture) {
+            return createProgram(SIMPLE_VERTEX_SHADER, SIMPLE_FRAGMENT_EXT_SHADER);
+        } else {
+            return createProgram(SIMPLE_VERTEX_SHADER, SIMPLE_FRAGMENT_SHADER);
+        }
     }
 
     public static int createProgram(String vertexShader, String fragmentShader) {
@@ -50,17 +58,17 @@ public class GLUtility {
         return program;
     }
 
-    public static int createTexture() {
+    public static int createTexture(int type) {
         int[] texture = new int[1];
         GLES20.glGenTextures(texture.length, texture, 0);
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture[0]);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST);
+        GLES20.glBindTexture(type, texture[0]);
+        GLES20.glTexParameteri(type, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+        GLES20.glTexParameteri(type, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
         return texture[0];
     }
 
-    public static void drawTexture(int program, int texture, float aspect) {
+    public static void drawTexture(int type, int program, int texture, float aspect) {
         float[] vertices = new float[] {
                 -1, aspect,
                 -1, -aspect,
@@ -83,8 +91,9 @@ public class GLUtility {
         GLES20.glUseProgram(program);
         attribPointer(program, "a_Position", vertices, 2);
         attribPointer(program, "a_TexCoord", uvs, 2);
-        bindTexture(texture);
 
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        GLES20.glBindTexture(type, texture);
         GLES20.glDrawElements(
                 GLES20.GL_TRIANGLES,
                 indices.length,

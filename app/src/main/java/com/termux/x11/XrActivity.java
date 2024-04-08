@@ -4,19 +4,18 @@ import android.app.Activity;
 import android.app.ActivityOptions;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.graphics.Rect;
+import android.graphics.SurfaceTexture;
 import android.hardware.display.DisplayManager;
+import android.opengl.GLES11Ext;
 import android.opengl.GLSurfaceView;
-import android.opengl.GLUtils;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.HandlerThread;
+import android.os.RemoteException;
+import android.util.Log;
 import android.view.Display;
 import android.view.KeyEvent;
-import android.view.PixelCopy;
-import android.view.ViewGroup;
+import android.view.Surface;
 
 import com.termux.x11.input.InputStub;
 import com.termux.x11.utils.GLUtility;
@@ -51,10 +50,9 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     private static final float[] lastAxes = new float[ControllerAxis.values().length];
     private static final boolean[] lastButtons = new boolean[ControllerButton.values().length];
 
-    private Bitmap bitmap;
-    private HandlerThread handlerThread;
     private int program;
     private int texture;
+    private SurfaceTexture surface;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,14 +62,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         view.setEGLContextClientVersion(2);
         view.setRenderer(this);
         frm.addView(view);
-
-        // For testing without headset
-        if (isEnabled() && !isSupported()) {
-            ViewGroup.LayoutParams lp = view.getLayoutParams();
-            lp.width = 256;
-            lp.height = 256;
-            view.setLayoutParams(lp);
-        }
     }
 
     @Override
@@ -139,17 +129,22 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
     @Override
     public void onSurfaceChanged(GL10 gl10, int w, int h) {
-        if (handlerThread != null) {
-            handlerThread.quitSafely();
-        }
+        texture = GLUtility.createTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES);
+        program = GLUtility.createProgram(true);
+        surface = new SurfaceTexture(texture);
 
-        bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-        program = GLUtility.createProgram();
-        texture = GLUtility.createTexture();
+        getLorieView().setCallback((sfc, surfaceWidth, surfaceHeight, screenWidth, screenHeight) -> {
+            LorieView.sendWindowChange(screenWidth, screenHeight, 60);
+            surface.setDefaultBufferSize(screenWidth, screenHeight);
 
-        handlerThread = new HandlerThread("PixelCopier");
-        handlerThread.start();
-        requestBitmap();
+            if (service != null) {
+                try {
+                    service.windowChanged(new Surface(surface));
+                } catch (RemoteException e) {
+                    Log.e("XrActivity", "failed to send windowChanged request", e);
+                }
+            }
+        });
     }
 
     @Override
@@ -261,25 +256,21 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     }
 
     private void renderFrame(GL10 gl10) {
-        GLUtility.bindTexture(texture);
-        GLUtils.texImage2D(GL10.GL_TEXTURE_2D, 0, bitmap, 0);
-
         if (isSupported()) {
             int w = getRenderParam(RenderParam.VIEWPORT_WIDTH.ordinal());
             int h = getRenderParam(RenderParam.VIEWPORT_HEIGHT.ordinal());
             gl10.glViewport(0, 0, w, h);
         }
 
-        LorieView view = getLorieView();
-        int w = view.getWidth();
-        int h = view.getHeight();
-        float aspect = Math.min(w, h) / (float)Math.max(w, h);
-        GLUtility.drawTexture(program, texture, -aspect);
-    }
-
-    private void requestBitmap() {
-        PixelCopy.request(getLorieView(), bitmap, (copyResult) -> requestBitmap(),
-                new Handler(handlerThread.getLooper()));
+        surface.updateTexImage();
+        float aspect = 1;
+        if (isSupported()) {
+            LorieView view = getLorieView();
+            int w = view.getWidth();
+            int h = view.getHeight();
+            aspect = Math.min(w, h) / (float)Math.max(w, h);
+        }
+        GLUtility.drawTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, program, texture, -aspect);
     }
 
     private native void init();

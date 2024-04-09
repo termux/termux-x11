@@ -573,7 +573,6 @@ public class TouchInputHandler {
             if (mRenderData.setCursorPosition(scaledX, scaledY))
                 mInjector.sendCursorMove(scaledX, scaledY, false);
 
-
             if (action == MotionEvent.ACTION_DOWN || action == ACTION_PRIMARY_DOWN) {
                 button = STYLUS_INPUT_HELPER_MODE;
                 if (button == 1) {

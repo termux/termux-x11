@@ -11,7 +11,6 @@ import static com.termux.x11.LoriePreferences.ACTION_PREFERENCES_CHANGED;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.app.AppOpsManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -90,6 +89,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private Notification mNotification;
     private final int mNotificationId = 7892;
     NotificationManager mNotificationManager;
+    static InputMethodManager inputMethodManager;
     private boolean mClientConnected = false;
     private View.OnKeyListener mLorieKeyListener;
     private boolean filterOutWinKey = false;
@@ -225,6 +225,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             addAction(ACTION_PREFERENCES_CHANGED);
             addAction(ACTION_STOP);
         }}, SDK_INT >= VERSION_CODES.TIRAMISU ? RECEIVER_EXPORTED : 0);
+
+        inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
 
         // Taken from Stackoverflow answer https://stackoverflow.com/questions/7417123/android-how-to-adjust-layout-in-full-screen-mode-when-softkeyboard-is-visible/7509285#
         FullscreenWorkaround.assistActivity(this);
@@ -567,6 +569,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     public void onPause() {
+        View view = getCurrentFocus();
+        if (view == null) {
+            view = getLorieView();
+            view.requestFocus();
+        }
+        inputMethodManager.hideSoftInputFromWindow(view.getWindowToken(), 0);
+
         for (StatusBarNotification notification: mNotificationManager.getActiveNotifications())
             if (notification.getId() == mNotificationId)
                 mNotificationManager.cancel(mNotificationId);
@@ -692,13 +701,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         super.onConfigurationChanged(newConfig);
 
         if (newConfig.orientation != orientation) {
-            InputMethodManager imm = (InputMethodManager) getSystemService(Activity.INPUT_METHOD_SERVICE);
             View view = getCurrentFocus();
             if (view == null) {
                 view = getLorieView();
                 view.requestFocus();
             }
-            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+            inputMethodManager.hideSoftInputFromWindow(view.getWindowToken(), 0);
         }
 
         orientation = newConfig.orientation;
@@ -807,7 +815,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
      * @param context calling context
      */
     public static void toggleKeyboardVisibility(Context context) {
-        InputMethodManager inputMethodManager = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
         Log.d("MainActivity", "Toggling keyboard visibility");
         if(inputMethodManager != null)
             inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);

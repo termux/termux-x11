@@ -192,25 +192,26 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         dy *= mouseSpeed;
 
         // Mouse "snap turn"
-        int snapturn = isImmersive ? 125 : 25;
-        if (getButtonClicked(buttons, ControllerButton.R_THUMBSTICK_LEFT)) {
-            dx = -snapturn;
-        }
-        if (getButtonClicked(buttons, ControllerButton.R_THUMBSTICK_RIGHT)) {
-            dx = snapturn;
+        if (isImmersive) {
+            int snapturn = 125;
+            if (getButtonClicked(buttons, ControllerButton.R_THUMBSTICK_LEFT)) {
+                dx = -snapturn;
+            }
+            if (getButtonClicked(buttons, ControllerButton.R_THUMBSTICK_RIGHT)) {
+                dx = snapturn;
+            }
         }
 
         // Set mouse status
-        int scrollSpeed = 5;
+        int scrollStep = 150;
         view.sendMouseEvent(dx, -dy, 0, false, true);
-        view.sendMouseEvent(0, 0, InputStub.BUTTON_LEFT, buttons[ControllerButton.R_TRIGGER.ordinal()], true);
-        view.sendMouseEvent(0, 0, InputStub.BUTTON_RIGHT, buttons[ControllerButton.R_GRIP.ordinal()], true);
-        view.sendMouseEvent(0, 0, InputStub.BUTTON_MIDDLE, buttons[ControllerButton.L_THUMBSTICK_PRESS.ordinal()], true);
-        if (buttons[ControllerButton.R_THUMBSTICK_UP.ordinal()]) {
-            view.sendMouseWheelEvent(0, -scrollSpeed);
-        } else if (buttons[ControllerButton.R_THUMBSTICK_DOWN.ordinal()]) {
-            view.sendMouseWheelEvent(0, scrollSpeed);
-        }
+        mapMouse(view, buttons, ControllerButton.R_TRIGGER, InputStub.BUTTON_LEFT);
+        mapMouse(view, buttons, ControllerButton.R_GRIP, InputStub.BUTTON_RIGHT);
+        mapMouse(view, buttons, ControllerButton.R_THUMBSTICK_PRESS, InputStub.BUTTON_MIDDLE);
+        mapScroll(view, buttons, ControllerButton.R_THUMBSTICK_LEFT, -scrollStep, 0);
+        mapScroll(view, buttons, ControllerButton.R_THUMBSTICK_RIGHT, scrollStep, 0);
+        mapScroll(view, buttons, ControllerButton.R_THUMBSTICK_UP, 0, -scrollStep);
+        mapScroll(view, buttons, ControllerButton.R_THUMBSTICK_DOWN, 0, scrollStep);
 
         // Switch immersive/SBS mode
         if (getButtonClicked(buttons, ControllerButton.L_THUMBSTICK_PRESS)) {
@@ -223,17 +224,17 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         }
 
         // Update keyboard
-        view.sendKeyEvent(0, KeyEvent.KEYCODE_A, buttons[ControllerButton.R_A.ordinal()]);
-        view.sendKeyEvent(0, KeyEvent.KEYCODE_B, buttons[ControllerButton.R_B.ordinal()]);
-        view.sendKeyEvent(0, KeyEvent.KEYCODE_X, buttons[ControllerButton.L_X.ordinal()]);
-        view.sendKeyEvent(0, KeyEvent.KEYCODE_Y, buttons[ControllerButton.L_Y.ordinal()]);
-        view.sendKeyEvent(0, KeyEvent.KEYCODE_SPACE, buttons[ControllerButton.L_GRIP.ordinal()]);
-        view.sendKeyEvent(0, KeyEvent.KEYCODE_BACK, buttons[ControllerButton.L_MENU.ordinal()]);
-        view.sendKeyEvent(0, KeyEvent.KEYCODE_ENTER, buttons[ControllerButton.L_TRIGGER.ordinal()]);
-        view.sendKeyEvent(0, KeyEvent.KEYCODE_DPAD_LEFT, buttons[ControllerButton.L_THUMBSTICK_LEFT.ordinal()]);
-        view.sendKeyEvent(0, KeyEvent.KEYCODE_DPAD_RIGHT, buttons[ControllerButton.L_THUMBSTICK_RIGHT.ordinal()]);
-        view.sendKeyEvent(0, KeyEvent.KEYCODE_DPAD_UP, buttons[ControllerButton.L_THUMBSTICK_UP.ordinal()]);
-        view.sendKeyEvent(0, KeyEvent.KEYCODE_DPAD_DOWN, buttons[ControllerButton.L_THUMBSTICK_DOWN.ordinal()]);
+        mapKey(view, buttons, ControllerButton.R_A, KeyEvent.KEYCODE_A);
+        mapKey(view, buttons, ControllerButton.R_B, KeyEvent.KEYCODE_B);
+        mapKey(view, buttons, ControllerButton.L_X, KeyEvent.KEYCODE_X);
+        mapKey(view, buttons, ControllerButton.L_Y, KeyEvent.KEYCODE_Y);
+        mapKey(view, buttons, ControllerButton.L_GRIP, KeyEvent.KEYCODE_SPACE);
+        mapKey(view, buttons, ControllerButton.L_MENU, KeyEvent.KEYCODE_BACK);
+        mapKey(view, buttons, ControllerButton.L_TRIGGER, KeyEvent.KEYCODE_ENTER);
+        mapKey(view, buttons, ControllerButton.L_THUMBSTICK_LEFT, KeyEvent.KEYCODE_DPAD_LEFT);
+        mapKey(view, buttons, ControllerButton.L_THUMBSTICK_RIGHT, KeyEvent.KEYCODE_DPAD_RIGHT);
+        mapKey(view, buttons, ControllerButton.L_THUMBSTICK_UP, KeyEvent.KEYCODE_DPAD_UP);
+        mapKey(view, buttons, ControllerButton.L_THUMBSTICK_DOWN, KeyEvent.KEYCODE_DPAD_DOWN);
 
         // Store the OpenXR data
         System.arraycopy(axes, 0, lastAxes, 0, axes.length);
@@ -253,6 +254,24 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
     private static boolean getButtonClicked(boolean[] buttons, ControllerButton button) {
         return buttons[button.ordinal()] && !lastButtons[button.ordinal()];
+    }
+
+    private static void mapKey(LorieView v, boolean[] buttons, ControllerButton b, int keycode) {
+        if (buttons[b.ordinal()] != lastButtons[b.ordinal()]) {
+            v.sendKeyEvent(0, keycode, buttons[b.ordinal()]);
+        }
+    }
+
+    private static void mapMouse(LorieView v, boolean[] buttons, ControllerButton b, int button) {
+        if (buttons[b.ordinal()] != lastButtons[b.ordinal()]) {
+            v.sendMouseEvent(0, 0, button, buttons[b.ordinal()], true);
+        }
+    }
+
+    private static void mapScroll(LorieView v, boolean[] buttons, ControllerButton b, float x, float y) {
+        if (getButtonClicked(buttons, b)) {
+            v.sendMouseWheelEvent(x, y);
+        }
     }
 
     private void renderFrame(GL10 gl10) {

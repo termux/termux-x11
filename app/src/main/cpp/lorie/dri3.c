@@ -70,7 +70,7 @@ static Bool FalseNoop() { return FALSE; }
 #define lorieGCPriv(pGC) LorieGCPrivPtr pGCPriv = dixLookupPrivate(&(pGC)->devPrivates, &lorieGCPrivateKey)
 #define lorieScrPriv(pScr) LorieScrPrivPtr pScrPriv = ((LorieScrPrivPtr) dixLookupPrivate(&(pScr)->devPrivates, &lorieScrPrivateKey))
 #define loriePixFromDrawable(pDrawable, suffix) \
-    PixmapPtr pDrawable ## Pix ## suffix = (pDrawable->class == DRAWABLE_PIXMAP) ? \
+    PixmapPtr pDrawable ## Pix ## suffix = (pDrawable->type == DRAWABLE_PIXMAP) ? \
         (PixmapPtr) (((char*) pDrawable) - offsetof(PixmapRec, drawable)) : 0
 #define loriePixPriv(pDrawable, suffix) \
     LorieAHBPixPrivPtr pPixPriv ## suffix = (pDrawable ## Pix ## suffix) ? ((LorieAHBPixPrivPtr) \
@@ -207,7 +207,7 @@ static RegionPtr lorieCopyArea(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC, in
 
     if (!wasLocked) {
         AHardwareBuffer_unlock(pPixPriv0->buffer, NULL);
-        pSrc->pScreen->ModifyPixmapHeader(pSrcPix0, 0, 0, 0, 0, 0, NULL);
+        pSrcPix0->devPrivate.ptr = NULL;
     }
     LORIE_GC_OP_EPILOGUE(pGC)
     return r;
@@ -517,6 +517,7 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
             goto fail;
         }
 
+        pixmap->devPrivate.ptr = NULL;
         screen->ModifyPixmapHeader(pixmap, desc.width, desc.height, 0, 0, desc.stride * 4, NULL);
         return pixmap;
     }

@@ -12,10 +12,14 @@ import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.RemoteException;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.Display;
 import android.view.KeyEvent;
 import android.view.Surface;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
 
 import com.termux.x11.input.InputStub;
 import com.termux.x11.utils.GLUtility;
@@ -23,7 +27,7 @@ import com.termux.x11.utils.GLUtility;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
-public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
+public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, TextWatcher {
     // Order of the enum has to be the same as in xrio/android.c
     public enum ControllerAxis {
         L_PITCH, L_YAW, L_ROLL, L_THUMBSTICK_X, L_THUMBSTICK_Y, L_X, L_Y, L_Z,
@@ -49,10 +53,12 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     private static boolean isSBS = false;
     private static final float[] lastAxes = new float[ControllerAxis.values().length];
     private static final boolean[] lastButtons = new boolean[ControllerButton.values().length];
+    private static String lastText = "";
 
     private int program;
     private int texture;
     private SurfaceTexture surface;
+    private EditText text;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,6 +68,11 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         view.setEGLContextClientVersion(2);
         view.setRenderer(this);
         frm.addView(view);
+
+        text = new EditText(this);
+        text.getEditableText().clear();
+        text.addTextChangedListener(this);
+        frm.addView(text);
     }
 
     @Override
@@ -165,6 +176,33 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         }
     }
 
+    @Override
+    public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+    @Override
+    public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+    @Override
+    public void afterTextChanged(Editable e) {
+        LorieView view = getLorieView();
+        String s = text.getEditableText().toString();
+        if (s.length() > lastText.length()) {
+            lastText = s;
+            byte[] write = new byte[] { (byte) s.charAt(s.length() - 1) };
+            view.sendTextEvent(write);
+        } else {
+            lastText = s;
+            view.sendKeyEvent(0, KeyEvent.KEYCODE_DEL, true);
+            try {
+                //give system a chance to notice that backspace was pressed
+                Thread.sleep(30);
+            } catch (Exception ignored) {
+            }
+            view.sendKeyEvent(0, KeyEvent.KEYCODE_DEL, false);
+        }
+        resetText();
+    }
+
     private void processInput() {
         float[] axes = getAxes();
         boolean[] buttons = getButtons();
@@ -207,7 +245,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         view.sendMouseEvent(dx, -dy, 0, false, true);
         mapMouse(view, buttons, ControllerButton.R_TRIGGER, InputStub.BUTTON_LEFT);
         mapMouse(view, buttons, ControllerButton.R_GRIP, InputStub.BUTTON_RIGHT);
-        mapMouse(view, buttons, ControllerButton.R_THUMBSTICK_PRESS, InputStub.BUTTON_MIDDLE);
         mapScroll(view, buttons, ControllerButton.R_THUMBSTICK_LEFT, -scrollStep, 0);
         mapScroll(view, buttons, ControllerButton.R_THUMBSTICK_RIGHT, scrollStep, 0);
         mapScroll(view, buttons, ControllerButton.R_THUMBSTICK_UP, 0, -scrollStep);
@@ -221,6 +258,19 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
             else {
                 isImmersive = !isImmersive;
             }
+        }
+
+        // Show system keyboard
+        if (getButtonClicked(buttons, ControllerButton.R_THUMBSTICK_PRESS)) {
+            getInstance().runOnUiThread(() -> {
+                isSBS = false;
+                isImmersive = false;
+                resetText();
+                InputMethodManager imm = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
+                getWindow().getDecorView().postDelayed(() -> {
+                    imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+                }, 500L);
+            });
         }
 
         // Update keyboard
@@ -290,6 +340,14 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
             aspect = Math.min(w, h) / (float)Math.max(w, h);
         }
         GLUtility.drawTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, program, texture, -aspect);
+    }
+
+    private void resetText() {
+        text.removeTextChangedListener(this);
+        text.getEditableText().clear();
+        text.getEditableText().append(" ");
+        text.addTextChangedListener(this);
+        text.requestFocus();
     }
 
     private native void init();

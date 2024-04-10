@@ -186,21 +186,30 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
     public void afterTextChanged(Editable e) {
         LorieView view = getLorieView();
         String s = text.getEditableText().toString();
-        if (s.length() > lastText.length()) {
-            lastText = s;
-            byte[] write = new byte[] { (byte) s.charAt(s.length() - 1) };
-            view.sendTextEvent(write);
-        } else {
-            lastText = s;
-            view.sendKeyEvent(0, KeyEvent.KEYCODE_DEL, true);
-            try {
-                //give system a chance to notice that backspace was pressed
-                Thread.sleep(30);
-            } catch (Exception ignored) {
+
+        // Hitting enter passes the data into the system
+        if (!s.isEmpty() && (s.charAt(s.length() - 1) == '\n')) {
+            s = s.substring(0, s.length() - 1);
+            if (s.startsWith(" ")) {
+                s = s.substring(1);
             }
-            view.sendKeyEvent(0, KeyEvent.KEYCODE_DEL, false);
+            view.sendTextEvent(s.getBytes());
+            sendKeyTap(KeyEvent.KEYCODE_ENTER);
+
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            imm.hideSoftInputFromWindow(text.getWindowToken(), 0);
         }
-        resetText();
+        // Backspace works only when there is no text from user
+        else if (s.isEmpty()) {
+            if ((lastText.compareTo(" ") == 0)) {
+                sendKeyTap(KeyEvent.KEYCODE_DEL);
+            }
+            resetText();
+        }
+        // Keep info about the last text to be able to call backspace
+        else {
+            lastText = s;
+        }
     }
 
     private void processInput() {
@@ -348,6 +357,18 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
         text.getEditableText().append(" ");
         text.addTextChangedListener(this);
         text.requestFocus();
+        lastText = " ";
+    }
+
+    private void sendKeyTap(int keycode) {
+        LorieView view = getLorieView();
+        view.sendKeyEvent(0, keycode, true);
+        try {
+            //give system a chance to notice that backspace was pressed
+            Thread.sleep(30);
+        } catch (Exception ignored) {
+        }
+        view.sendKeyEvent(0, keycode, false);
     }
 
     private native void init();

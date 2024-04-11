@@ -54,6 +54,7 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
     private static final float[] lastAxes = new float[ControllerAxis.values().length];
     private static final boolean[] lastButtons = new boolean[ControllerButton.values().length];
     private static String lastText = "";
+    private static final float[] mouse = new float[2];
 
     private int program;
     private int texture;
@@ -131,6 +132,17 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
     }
 
     @Override
+    void clientConnectedStateChanged(boolean connected) {
+        if (!connected && (surface != null)) {
+            // Going back to the Android 2D rendering isn't supported.
+            // Kill the app to ensure there is no unexpected behaviour.
+            System.exit(0);
+        } else {
+            super.clientConnectedStateChanged(connected);
+        }
+    }
+
+    @Override
     public void onSurfaceCreated(GL10 gl10, EGLConfig eglConfig) {
         System.loadLibrary("XRio");
         if (isSupported()) {
@@ -144,7 +156,7 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
         program = GLUtility.createProgram(true);
         surface = new SurfaceTexture(texture);
 
-        getLorieView().setCallback((sfc, surfaceWidth, surfaceHeight, screenWidth, screenHeight) -> {
+        runOnUiThread(() -> getLorieView().setCallback((sfc, surfaceWidth, surfaceHeight, screenWidth, screenHeight) -> {
             LorieView.sendWindowChange(screenWidth, screenHeight, 60);
             surface.setDefaultBufferSize(screenWidth, screenHeight);
 
@@ -155,7 +167,7 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
                     Log.e("XrActivity", "failed to send windowChanged request", e);
                 }
             }
-        });
+        }));
     }
 
     @Override
@@ -234,28 +246,34 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
         }
 
         // Mouse speed adjust
-        float mouseSpeed = 0.25f;
+        float mouseSpeed = isImmersive ? 1 : 0.25f;
         dx *= mouseSpeed;
         dy *= mouseSpeed;
 
         // Mouse "snap turn"
+        int snapturn = 125;
+        if (getButtonClicked(buttons, ControllerButton.R_THUMBSTICK_LEFT)) {
+            dx = -snapturn;
+        }
+        if (getButtonClicked(buttons, ControllerButton.R_THUMBSTICK_RIGHT)) {
+            dx = snapturn;
+        }
+
+        // Mouse smoothing
         if (isImmersive) {
-            int snapturn = 125;
-            if (getButtonClicked(buttons, ControllerButton.R_THUMBSTICK_LEFT)) {
-                dx = -snapturn;
-            }
-            if (getButtonClicked(buttons, ControllerButton.R_THUMBSTICK_RIGHT)) {
-                dx = snapturn;
-            }
+            mouse[0] = dx;
+            mouse[1] = dy;
+        } else {
+            float smoothFactor = 0.75f;
+            mouse[0] = mouse[0] * smoothFactor + dx * (1 - smoothFactor);
+            mouse[1] = mouse[1] * smoothFactor + dy * (1 - smoothFactor);
         }
 
         // Set mouse status
         int scrollStep = 150;
-        view.sendMouseEvent(dx, -dy, 0, false, true);
+        view.sendMouseEvent(mouse[0], -mouse[1], 0, false, true);
         mapMouse(view, buttons, ControllerButton.R_TRIGGER, InputStub.BUTTON_LEFT);
         mapMouse(view, buttons, ControllerButton.R_GRIP, InputStub.BUTTON_RIGHT);
-        mapScroll(view, buttons, ControllerButton.R_THUMBSTICK_LEFT, -scrollStep, 0);
-        mapScroll(view, buttons, ControllerButton.R_THUMBSTICK_RIGHT, scrollStep, 0);
         mapScroll(view, buttons, ControllerButton.R_THUMBSTICK_UP, 0, -scrollStep);
         mapScroll(view, buttons, ControllerButton.R_THUMBSTICK_DOWN, 0, scrollStep);
 

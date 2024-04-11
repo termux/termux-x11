@@ -332,14 +332,15 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 switch(e.mouse.detail) {
                     case 0: // BUTTON_UNDEFINED
                         if (e.mouse.relative) {
+                            flags = POINTER_RELATIVE | POINTER_ACCELERATE;
                             valuator_mask_set_double(&mask, 0, (double) e.mouse.x);
                             valuator_mask_set_double(&mask, 1, (double) e.mouse.y);
-                            QueuePointerEvents(lorieMouseRelative, MotionNotify, 0, POINTER_RELATIVE | POINTER_ACCELERATE, &mask);
+                            QueuePointerEvents(lorieMouseRelative, MotionNotify, 0, flags, &mask);
                         } else {
                             flags = POINTER_ABSOLUTE | POINTER_SCREEN | POINTER_NORAW;
                             valuator_mask_set_double(&mask, 0, (double) e.mouse.x);
                             valuator_mask_set_double(&mask, 1, (double) e.mouse.y);
-                            QueuePointerEvents(lorieMouse, MotionNotify, 0, flags, &mask);
+                            QueuePointerEvents(lorieMouseRelative, MotionNotify, 0, flags, &mask);
                         }
                         break;
                     case 1: // BUTTON_LEFT

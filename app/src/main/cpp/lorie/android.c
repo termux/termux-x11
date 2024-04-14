@@ -29,7 +29,7 @@ static int argc = 0;
 static char** argv = NULL;
 static int conn_fd = -1;
 extern char *__progname; // NOLINT(bugprone-reserved-identifier)
-extern DeviceIntPtr lorieMouse, lorieMouseRelative, lorieTouch, lorieKeyboard;
+extern DeviceIntPtr lorieMouse, lorieTouch, lorieKeyboard;
 extern ScreenPtr pScreenPtr;
 extern int ucs2keysym(long ucs);
 void lorieKeysymKeyboardEvent(KeySym keysym, int down);
@@ -331,32 +331,26 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 int flags;
                 switch(e.mouse.detail) {
                     case 0: // BUTTON_UNDEFINED
-                        if (e.mouse.relative) {
-                            valuator_mask_set_double(&mask, 0, (double) e.mouse.x);
-                            valuator_mask_set_double(&mask, 1, (double) e.mouse.y);
-                            QueuePointerEvents(lorieMouseRelative, MotionNotify, 0, POINTER_RELATIVE | POINTER_ACCELERATE, &mask);
-                        } else {
-                            flags = POINTER_ABSOLUTE | POINTER_SCREEN | POINTER_NORAW;
-                            valuator_mask_set_double(&mask, 0, (double) e.mouse.x);
-                            valuator_mask_set_double(&mask, 1, (double) e.mouse.y);
-                            QueuePointerEvents(lorieMouse, MotionNotify, 0, flags, &mask);
-                        }
+                        flags = (e.mouse.relative) ? POINTER_RELATIVE | POINTER_ACCELERATE : POINTER_ABSOLUTE | POINTER_SCREEN | POINTER_NORAW;
+                        valuator_mask_set_double(&mask, 0, (double) e.mouse.x);
+                        valuator_mask_set_double(&mask, 1, (double) e.mouse.y);
+                        QueuePointerEvents(lorieMouse, MotionNotify, 0, flags, &mask);
                         break;
                     case 1: // BUTTON_LEFT
                     case 2: // BUTTON_MIDDLE
                     case 3: // BUTTON_RIGHT
-                        QueuePointerEvents(e.mouse.relative ? lorieMouseRelative : lorieMouse, e.mouse.down ? ButtonPress : ButtonRelease, e.mouse.detail, 0, &mask);
+                        QueuePointerEvents(lorieMouse, e.mouse.down ? ButtonPress : ButtonRelease, e.mouse.detail, 0, &mask);
                         break;
                     case 4: // BUTTON_SCROLL
                         if (e.mouse.x) {
                             valuator_mask_zero(&mask);
                             valuator_mask_set_double(&mask, 2, (double) e.mouse.x / 120);
-                            QueuePointerEvents(lorieMouseRelative, MotionNotify, 0, POINTER_RELATIVE, &mask);
+                            QueuePointerEvents(lorieMouse, MotionNotify, 0, POINTER_RELATIVE, &mask);
                         }
                         if (e.mouse.y) {
                             valuator_mask_zero(&mask);
                             valuator_mask_set_double(&mask, 3, (double) e.mouse.y / 120);
-                            QueuePointerEvents(lorieMouseRelative, MotionNotify, 0, POINTER_RELATIVE, &mask);
+                            QueuePointerEvents(lorieMouse, MotionNotify, 0, POINTER_RELATIVE, &mask);
                         }
                         break;
                 }

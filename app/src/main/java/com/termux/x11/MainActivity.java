@@ -555,6 +555,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             findViewById(R.id.button_visibility).setAlpha(menuUnselectedTrasparency);
             buttons.setVisibility(View.GONE);
         }
+
+        lorieView.requestLayout();
+        lorieView.invalidate();
     }
 
     @Override

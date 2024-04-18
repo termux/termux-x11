@@ -3,8 +3,7 @@
 #include "engine.h"
 #include "framebuffer.h"
 
-enum XrConfigFloat
-{
+enum XrConfigFloat {
     // 2D canvas positioning
     CONFIG_CANVAS_DISTANCE,
     CONFIG_MENU_PITCH,
@@ -14,8 +13,7 @@ enum XrConfigFloat
     CONFIG_FLOAT_MAX
 };
 
-enum XrConfigInt
-{
+enum XrConfigInt {
     // switching between modes
     CONFIG_MODE,
     CONFIG_PASSTHROUGH,
@@ -30,8 +28,7 @@ enum XrConfigInt
     CONFIG_INT_MAX
 };
 
-enum XrRenderMode
-{
+enum XrRenderMode {
     RENDER_MODE_MONO_SCREEN,
     RENDER_MODE_STEREO_SCREEN,
     RENDER_MODE_MONO_6DOF,

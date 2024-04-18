@@ -4,8 +4,7 @@
 #include <sys/time.h>
 #include <string.h>
 
-void XrInputInit(struct XrEngine* engine, struct XrInput* input)
-{
+void XrInputInit(struct XrEngine* engine, struct XrInput* input) {
     if (input->Initialized)
         return;
     memset(input, 0, sizeof(input));
@@ -34,12 +33,9 @@ void XrInputInit(struct XrEngine* engine, struct XrInput* input)
     input->HandPoseRight = XrInputCreateAction(input->ActionSet, XR_ACTION_TYPE_POSE_INPUT, "hand_pose_right", NULL,1, &input->RightHandPath);
 
     XrPath interactionProfilePath = XR_NULL_PATH;
-    if (engine->PlatformFlag[PLATFORM_CONTROLLER_QUEST])
-    {
+    if (engine->PlatformFlag[PLATFORM_CONTROLLER_QUEST]) {
         OXR(xrStringToPath(engine->Instance, "/interaction_profiles/oculus/touch_controller",&interactionProfilePath));
-    }
-    else if (engine->PlatformFlag[PLATFORM_CONTROLLER_PICO])
-    {
+    } else if (engine->PlatformFlag[PLATFORM_CONTROLLER_PICO]) {
         OXR(xrStringToPath(engine->Instance, "/interaction_profiles/pico/neo3_controller",&interactionProfilePath));
     }
 
@@ -48,14 +44,11 @@ void XrInputInit(struct XrEngine* engine, struct XrInput* input)
     XrActionSuggestedBinding bindings[32];  // large enough for all profiles
     int curr = 0;
 
-    if (engine->PlatformFlag[PLATFORM_CONTROLLER_QUEST])
-    {
+    if (engine->PlatformFlag[PLATFORM_CONTROLLER_QUEST]) {
         bindings[curr++] = XrInputGetBinding(instance, input->IndexLeft, "/user/hand/left/input/trigger");
         bindings[curr++] = XrInputGetBinding(instance, input->IndexRight, "/user/hand/right/input/trigger");
         bindings[curr++] = XrInputGetBinding(instance, input->ButtonMenu, "/user/hand/left/input/menu/click");
-    }
-    else if (engine->PlatformFlag[PLATFORM_CONTROLLER_PICO])
-    {
+    } else if (engine->PlatformFlag[PLATFORM_CONTROLLER_PICO]) {
         bindings[curr++] = XrInputGetBinding(instance, input->IndexLeft, "/user/hand/left/input/trigger/click");
         bindings[curr++] = XrInputGetBinding(instance, input->IndexRight, "/user/hand/right/input/trigger/click");
         bindings[curr++] = XrInputGetBinding(instance, input->ButtonMenu, "/user/hand/left/input/back/click");
@@ -112,8 +105,7 @@ void XrInputInit(struct XrEngine* engine, struct XrInput* input)
                                        input->VibrateRightFeedback,
                                        input->HandPoseLeft,
                                        input->HandPoseRight};
-    for (int i = 0; i < sizeof(actions_to_enumerate) / sizeof(XrAction); i++)
-    {
+    for (int i = 0; i < sizeof(actions_to_enumerate) / sizeof(XrAction); i++) {
         XrBoundSourcesForActionEnumerateInfo e = {};
         e.type = XR_TYPE_BOUND_SOURCES_FOR_ACTION_ENUMERATE_INFO;
         e.next = NULL;
@@ -123,12 +115,10 @@ void XrInputInit(struct XrEngine* engine, struct XrInput* input)
         uint32_t count_output = 0;
         OXR(xrEnumerateBoundSourcesForAction(engine->Session, &e, 0, &count_output, NULL));
 
-        if (count_output < 32)
-        {
+        if (count_output < 32) {
             OXR(xrEnumerateBoundSourcesForAction(engine->Session, &e, 32, &count_output,
                                                  action_paths_buffer));
-            for (uint32_t a = 0; a < count_output; ++a)
-            {
+            for (uint32_t a = 0; a < count_output; ++a) {
                 XrInputSourceLocalizedNameGetInfo name_info = {};
                 name_info.type = XR_TYPE_INPUT_SOURCE_LOCALIZED_NAME_GET_INFO;
                 name_info.next = NULL;
@@ -139,8 +129,7 @@ void XrInputInit(struct XrEngine* engine, struct XrInput* input)
 
                 uint32_t str_count = 0u;
                 OXR(xrGetInputSourceLocalizedName(engine->Session, &name_info, 0, &str_count, NULL));
-                if (str_count < 256)
-                {
+                if (str_count < 256) {
                     OXR(xrGetInputSourceLocalizedName(engine->Session, &name_info, 256, &str_count,
                                                       string_buffer));
                     char path_str[256];
@@ -155,10 +144,8 @@ void XrInputInit(struct XrEngine* engine, struct XrInput* input)
     input->Initialized = true;
 }
 
-uint32_t XrInputGetButtonState(struct XrInput* input, int controller)
-{
-    switch (controller)
-    {
+uint32_t XrInputGetButtonState(struct XrInput* input, int controller) {
+    switch (controller) {
         case 0:
             return input->ButtonsLeft;
         case 1:
@@ -168,18 +155,15 @@ uint32_t XrInputGetButtonState(struct XrInput* input, int controller)
     }
 }
 
-XrVector2f XrInputGetJoystickState(struct XrInput* input, int controller)
-{
+XrVector2f XrInputGetJoystickState(struct XrInput* input, int controller) {
     return input->JoystickState[controller].currentState;
 }
 
-XrPosef XrInputGetPose(struct XrInput* input, int controller)
-{
+XrPosef XrInputGetPose(struct XrInput* input, int controller) {
     return input->ControllerPose[controller].pose;
 }
 
-void XrInputUpdate(struct XrEngine* engine, struct XrInput* input)
-{
+void XrInputUpdate(struct XrEngine* engine, struct XrInput* input) {
     // sync action data
     XrActiveActionSet activeActionSet = {};
     activeActionSet.actionSet = input->ActionSet;
@@ -201,12 +185,10 @@ void XrInputUpdate(struct XrEngine* engine, struct XrInput* input)
     XrSession session = engine->Session;
     XrInputProcessHaptics(input, session);
 
-    if (input->LeftControllerSpace == XR_NULL_HANDLE)
-    {
+    if (input->LeftControllerSpace == XR_NULL_HANDLE) {
         input->LeftControllerSpace = XrInputCreateActionSpace(session, input->HandPoseLeft, input->LeftHandPath);
     }
-    if (input->RightControllerSpace == XR_NULL_HANDLE)
-    {
+    if (input->RightControllerSpace == XR_NULL_HANDLE) {
         input->RightControllerSpace = XrInputCreateActionSpace(session, input->HandPoseRight, input->RightHandPath);
     }
 
@@ -257,8 +239,7 @@ void XrInputUpdate(struct XrEngine* engine, struct XrInput* input)
         input->ButtonsRight |= (int)Down;
 
     // pose
-    for (int i = 0; i < 2; i++)
-    {
+    for (int i = 0; i < 2; i++) {
         memset(&input->ControllerPose[i], 0, sizeof(input->ControllerPose[i]));
         input->ControllerPose[i].type = XR_TYPE_SPACE_LOCATION;
         XrSpace aim_space[] = {input->LeftControllerSpace, input->RightControllerSpace};
@@ -267,13 +248,10 @@ void XrInputUpdate(struct XrEngine* engine, struct XrInput* input)
     }
 }
 
-void XrInputVibrate(struct XrInput* input, int duration, int chan, float intensity)
-{
-    for (int i = 0; i < 2; ++i)
-    {
+void XrInputVibrate(struct XrInput* input, int duration, int chan, float intensity) {
+    for (int i = 0; i < 2; ++i) {
         int channel = i & chan;
-        if (channel)
-        {
+        if (channel) {
             if (input->VibrationChannelDuration[channel] > 0.0f)
                 return;
 
@@ -287,14 +265,12 @@ void XrInputVibrate(struct XrInput* input, int duration, int chan, float intensi
 }
 
 XrAction XrInputCreateAction(XrActionSet output_set, XrActionType type, const char* name,
-                             const char* desc, int count_subaction_path, XrPath* subaction_path)
-{
+                             const char* desc, int count_subaction_path, XrPath* subaction_path) {
     XrActionCreateInfo action_info = {};
     action_info.type = XR_TYPE_ACTION_CREATE_INFO;
     action_info.next = NULL;
     action_info.actionType = type;
-    if (count_subaction_path > 0)
-    {
+    if (count_subaction_path > 0) {
         action_info.countSubactionPaths = count_subaction_path;
         action_info.subactionPaths = subaction_path;
     }
@@ -305,8 +281,7 @@ XrAction XrInputCreateAction(XrActionSet output_set, XrActionType type, const ch
     return output;
 }
 
-XrActionSet XrInputCreateActionSet(XrInstance instance, const char* name, const char* desc)
-{
+XrActionSet XrInputCreateActionSet(XrInstance instance, const char* name, const char* desc) {
     XrActionSetCreateInfo action_set_info = {};
     action_set_info.type = XR_TYPE_ACTION_SET_CREATE_INFO;
     action_set_info.next = NULL;
@@ -318,8 +293,7 @@ XrActionSet XrInputCreateActionSet(XrInstance instance, const char* name, const 
     return output;
 }
 
-XrSpace XrInputCreateActionSpace(XrSession session, XrAction action, XrPath subaction_path)
-{
+XrSpace XrInputCreateActionSpace(XrSession session, XrAction action, XrPath subaction_path) {
     XrActionSpaceCreateInfo action_space_info = {};
     action_space_info.type = XR_TYPE_ACTION_SPACE_CREATE_INFO;
     action_space_info.action = action;
@@ -330,8 +304,7 @@ XrSpace XrInputCreateActionSpace(XrSession session, XrAction action, XrPath suba
     return output;
 }
 
-XrActionStateBoolean XrInputGetActionStateBoolean(XrSession session, XrAction action)
-{
+XrActionStateBoolean XrInputGetActionStateBoolean(XrSession session, XrAction action) {
     XrActionStateGetInfo get_info = {};
     get_info.type = XR_TYPE_ACTION_STATE_GET_INFO;
     get_info.action = action;
@@ -343,8 +316,7 @@ XrActionStateBoolean XrInputGetActionStateBoolean(XrSession session, XrAction ac
     return state;
 }
 
-XrActionStateFloat XrInputGetActionStateFloat(XrSession session, XrAction action)
-{
+XrActionStateFloat XrInputGetActionStateFloat(XrSession session, XrAction action) {
     XrActionStateGetInfo get_info = {};
     get_info.type = XR_TYPE_ACTION_STATE_GET_INFO;
     get_info.action = action;
@@ -356,8 +328,7 @@ XrActionStateFloat XrInputGetActionStateFloat(XrSession session, XrAction action
     return state;
 }
 
-XrActionStateVector2f XrInputGetActionStateVector2(XrSession session, XrAction action)
-{
+XrActionStateVector2f XrInputGetActionStateVector2(XrSession session, XrAction action) {
     XrActionStateGetInfo get_info = {};
     get_info.type = XR_TYPE_ACTION_STATE_GET_INFO;
     get_info.action = action;
@@ -369,8 +340,7 @@ XrActionStateVector2f XrInputGetActionStateVector2(XrSession session, XrAction a
     return state;
 }
 
-XrActionSuggestedBinding XrInputGetBinding(XrInstance instance, XrAction action, const char* name)
-{
+XrActionSuggestedBinding XrInputGetBinding(XrInstance instance, XrAction action, const char* name) {
     XrPath bindingPath;
     OXR(xrStringToPath(instance, name, &bindingPath));
 
@@ -380,14 +350,12 @@ XrActionSuggestedBinding XrInputGetBinding(XrInstance instance, XrAction action,
     return output;
 }
 
-int XrInputGetMilliseconds(struct XrInput* input)
-{
+int XrInputGetMilliseconds(struct XrInput* input) {
     struct timeval tp;
 
     gettimeofday(&tp, NULL);
 
-    if (!input->SysTimeBase)
-    {
+    if (!input->SysTimeBase) {
         input->SysTimeBase = tp.tv_sec;
         return tp.tv_usec / 1000;
     }
@@ -395,17 +363,14 @@ int XrInputGetMilliseconds(struct XrInput* input)
     return (tp.tv_sec - input->SysTimeBase) * 1000 + tp.tv_usec / 1000;
 }
 
-void XrInputProcessHaptics(struct XrInput* input, XrSession session)
-{
+void XrInputProcessHaptics(struct XrInput* input, XrSession session) {
     static float last_frame_timestamp = 0.0f;
     float timestamp = (float)(XrInputGetMilliseconds(input));
     float frametime = timestamp - last_frame_timestamp;
     last_frame_timestamp = timestamp;
 
-    for (int i = 0; i < 2; ++i)
-    {
-        if (input->VibrationChannelDuration[i] > 0.0f || input->VibrationChannelDuration[i] == -1.0f)
-        {
+    for (int i = 0; i < 2; ++i) {
+        if (input->VibrationChannelDuration[i] > 0.0f || input->VibrationChannelDuration[i] == -1.0f) {
             // fire haptics using output action
             XrHapticVibration vibration = {};
             vibration.type = XR_TYPE_HAPTIC_VIBRATION;
@@ -419,19 +384,15 @@ void XrInputProcessHaptics(struct XrInput* input, XrSession session)
             haptic_info.action = i == 0 ? input->VibrateLeftFeedback : input->VibrateRightFeedback;
             OXR(xrApplyHapticFeedback(session, &haptic_info, (const XrHapticBaseHeader*)&vibration));
 
-            if (input->VibrationChannelDuration[i] != -1.0f)
-            {
+            if (input->VibrationChannelDuration[i] != -1.0f) {
                 input->VibrationChannelDuration[i] -= frametime;
 
-                if (input->VibrationChannelDuration[i] < 0.0f)
-                {
+                if (input->VibrationChannelDuration[i] < 0.0f) {
                     input->VibrationChannelDuration[i] = 0.0f;
                     input->VibrationChannelIntensity[i] = 0.0f;
                 }
             }
-        }
-        else
-        {
+        } else {
             // Stop haptics
             XrHapticActionInfo haptic_info = {};
             haptic_info.type = XR_TYPE_HAPTIC_ACTION_INFO;

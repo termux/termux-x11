@@ -18,16 +18,13 @@ DECL_PFN(xrDestroyPassthroughLayerFB);
 DECL_PFN(xrPassthroughLayerPauseFB);
 DECL_PFN(xrPassthroughLayerResumeFB);
 
-void XrRendererInit(struct XrEngine* engine, struct XrRenderer* renderer)
-{
-    if (renderer->Initialized)
-    {
+void XrRendererInit(struct XrEngine* engine, struct XrRenderer* renderer) {
+    if (renderer->Initialized) {
         XrRendererDestroy(engine, renderer);
     }
     memset(renderer, 0, sizeof(renderer));
 
-    if (engine->PlatformFlag[PLATFORM_EXTENSION_PASSTHROUGH])
-    {
+    if (engine->PlatformFlag[PLATFORM_EXTENSION_PASSTHROUGH]) {
         INIT_PFN(xrCreatePassthroughFB);
         INIT_PFN(xrDestroyPassthroughFB);
         INIT_PFN(xrPassthroughStartFB);
@@ -54,10 +51,8 @@ void XrRendererInit(struct XrEngine* engine, struct XrRenderer* renderer)
     XrReferenceSpaceType* spaces = (XrReferenceSpaceType*)malloc(num_spaces * sizeof(XrReferenceSpaceType));
     OXR(xrEnumerateReferenceSpaces(engine->Session, num_spaces, &num_spaces, spaces));
 
-    for (uint32_t i = 0; i < num_spaces; i++)
-    {
-        if (spaces[i] == XR_REFERENCE_SPACE_TYPE_STAGE)
-        {
+    for (uint32_t i = 0; i < num_spaces; i++) {
+        if (spaces[i] == XR_REFERENCE_SPACE_TYPE_STAGE) {
             renderer->StageSupported = true;
             break;
         }
@@ -65,8 +60,7 @@ void XrRendererInit(struct XrEngine* engine, struct XrRenderer* renderer)
 
     free(spaces);
 
-    if (engine->CurrentSpace == XR_NULL_HANDLE)
-    {
+    if (engine->CurrentSpace == XR_NULL_HANDLE) {
         XrRendererRecenter(engine, renderer);
     }
 
@@ -79,19 +73,16 @@ void XrRendererInit(struct XrEngine* engine, struct XrRenderer* renderer)
     // Create framebuffers.
     int width = renderer->ViewConfig[0].recommendedImageRectWidth;
     int height = renderer->ViewConfig[0].recommendedImageRectHeight;
-    for (int i = 0; i < XrMaxNumEyes; i++)
-    {
+    for (int i = 0; i < XrMaxNumEyes; i++) {
         XrFramebufferCreate(&renderer->Framebuffer[i], engine->Session, width, height);
     }
 
-    if (engine->PlatformFlag[PLATFORM_EXTENSION_PASSTHROUGH])
-    {
+    if (engine->PlatformFlag[PLATFORM_EXTENSION_PASSTHROUGH]) {
         XrPassthroughCreateInfoFB ptci = {XR_TYPE_PASSTHROUGH_CREATE_INFO_FB};
         XrResult result;
         OXR(result = xrCreatePassthroughFB(engine->Session, &ptci, &renderer->Passthrough));
 
-        if (XR_SUCCEEDED(result))
-        {
+        if (XR_SUCCEEDED(result)) {
             XrPassthroughLayerCreateInfoFB plci = {XR_TYPE_PASSTHROUGH_LAYER_CREATE_INFO_FB};
             plci.passthrough = renderer->Passthrough;
             plci.purpose = XR_PASSTHROUGH_LAYER_PURPOSE_RECONSTRUCTION_FB;
@@ -104,12 +95,9 @@ void XrRendererInit(struct XrEngine* engine, struct XrRenderer* renderer)
     renderer->Initialized = true;
 }
 
-void XrRendererDestroy(struct XrEngine* engine, struct XrRenderer* renderer)
-{
-    if (engine->PlatformFlag[PLATFORM_EXTENSION_PASSTHROUGH])
-    {
-        if (renderer->PassthroughRunning)
-        {
+void XrRendererDestroy(struct XrEngine* engine, struct XrRenderer* renderer) {
+    if (engine->PlatformFlag[PLATFORM_EXTENSION_PASSTHROUGH]) {
+        if (renderer->PassthroughRunning) {
             OXR(xrPassthroughLayerPauseFB(renderer->PassthroughLayer));
         }
         OXR(xrPassthroughPauseFB(renderer->Passthrough));
@@ -117,8 +105,7 @@ void XrRendererDestroy(struct XrEngine* engine, struct XrRenderer* renderer)
         renderer->Passthrough = XR_NULL_HANDLE;
     }
 
-    for (int i = 0; i < XrMaxNumEyes; i++)
-    {
+    for (int i = 0; i < XrMaxNumEyes; i++) {
         XrFramebufferDestroy(&renderer->Framebuffer[i]);
     }
     free(renderer->Projections);
@@ -126,13 +113,11 @@ void XrRendererDestroy(struct XrEngine* engine, struct XrRenderer* renderer)
 }
 
 
-void XrRendererGetResolution(struct XrEngine* engine, struct XrRenderer* renderer, int* pWidth, int* pHeight)
-{
+void XrRendererGetResolution(struct XrEngine* engine, struct XrRenderer* renderer, int* pWidth, int* pHeight) {
     static int width = 0;
     static int height = 0;
 
-    if (engine)
-    {
+    if (engine) {
         // Enumerate the viewport configurations.
         uint32_t viewport_config_count = 0;
         OXR(xrEnumerateViewConfigurations(engine->Instance, engine->SystemId, 0,
@@ -145,8 +130,7 @@ void XrRendererGetResolution(struct XrEngine* engine, struct XrRenderer* rendere
                                           viewport_config_count, &viewport_config_count,
                                           viewport_configs));
 
-        for (uint32_t i = 0; i < viewport_config_count; i++)
-        {
+        for (uint32_t i = 0; i < viewport_config_count; i++) {
             const XrViewConfigurationType viewport_config_type = viewport_configs[i];
 
             ALOGV("Viewport configuration type %d", (int)viewport_config_type);
@@ -160,13 +144,11 @@ void XrRendererGetResolution(struct XrEngine* engine, struct XrRenderer* rendere
             OXR(xrEnumerateViewConfigurationViews(engine->Instance, engine->SystemId,
                                                   viewport_config_type, 0, &view_count, NULL));
 
-            if (view_count > 0)
-            {
+            if (view_count > 0) {
                 XrViewConfigurationView* elements =
                         (XrViewConfigurationView*)malloc(view_count * sizeof(XrViewConfigurationView));
 
-                for (uint32_t e = 0; e < view_count; e++)
-                {
+                for (uint32_t e = 0; e < view_count; e++) {
                     elements[e].type = XR_TYPE_VIEW_CONFIGURATION_VIEW;
                     elements[e].next = NULL;
                 }
@@ -176,19 +158,15 @@ void XrRendererGetResolution(struct XrEngine* engine, struct XrRenderer* rendere
                                                       elements));
 
                 // Cache the view config properties for the selected config type.
-                if (viewport_config_type == XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO)
-                {
+                if (viewport_config_type == XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO) {
                     assert(view_count == XrMaxNumEyes);
-                    for (uint32_t e = 0; e < view_count; e++)
-                    {
+                    for (uint32_t e = 0; e < view_count; e++) {
                         renderer->ViewConfig[e] = elements[e];
                     }
                 }
 
                 free(elements);
-            }
-            else
-            {
+            } else {
                 ALOGE("Empty viewport configuration");
             }
         }
@@ -197,38 +175,29 @@ void XrRendererGetResolution(struct XrEngine* engine, struct XrRenderer* rendere
 
         *pWidth = width = renderer->ViewConfig[0].recommendedImageRectWidth;
         *pHeight = height = renderer->ViewConfig[0].recommendedImageRectHeight;
-    }
-    else
-    {
+    } else {
         // use cached values
         *pWidth = width;
         *pHeight = height;
     }
 }
 
-bool XrRendererInitFrame(struct XrEngine* engine, struct XrRenderer* renderer)
-{
-    if (!renderer->Initialized)
-    {
+bool XrRendererInitFrame(struct XrEngine* engine, struct XrRenderer* renderer) {
+    if (!renderer->Initialized) {
         return false;
     }
     XrRendererHandleXrEvents(engine, renderer);
-    if (!renderer->SessionActive)
-    {
+    if (!renderer->SessionActive) {
         return false;
     }
 
     XrRendererUpdateStageBounds(engine);
 
     // Update passthrough
-    if (renderer->PassthroughRunning != renderer->ConfigInt[CONFIG_PASSTHROUGH])
-    {
-        if (renderer->ConfigInt[CONFIG_PASSTHROUGH])
-        {
+    if (renderer->PassthroughRunning != renderer->ConfigInt[CONFIG_PASSTHROUGH]) {
+        if (renderer->ConfigInt[CONFIG_PASSTHROUGH]) {
             OXR(xrPassthroughLayerResumeFB(renderer->PassthroughLayer));
-        }
-        else
-        {
+        } else {
             OXR(xrPassthroughLayerPauseFB(renderer->PassthroughLayer));
         }
         renderer->PassthroughRunning = renderer->ConfigInt[CONFIG_PASSTHROUGH];
@@ -264,8 +233,7 @@ bool XrRendererInitFrame(struct XrEngine* engine, struct XrRenderer* renderer)
     renderer->Fov.angleRight = 0;
     renderer->Fov.angleUp = 0;
     renderer->Fov.angleDown = 0;
-    for (int eye = 0; eye < XrMaxNumEyes; eye++)
-    {
+    for (int eye = 0; eye < XrMaxNumEyes; eye++) {
         renderer->Fov.angleLeft += renderer->Projections[eye].fov.angleLeft / 2.0f;
         renderer->Fov.angleRight += renderer->Projections[eye].fov.angleRight / 2.0f;
         renderer->Fov.angleUp += renderer->Projections[eye].fov.angleUp / 2.0f;
@@ -279,45 +247,36 @@ bool XrRendererInitFrame(struct XrEngine* engine, struct XrRenderer* renderer)
     return true;
 }
 
-void XrRendererBeginFrame(struct XrRenderer* renderer, int fbo_index)
-{
+void XrRendererBeginFrame(struct XrRenderer* renderer, int fbo_index) {
     renderer->ConfigInt[CONFIG_CURRENT_FBO] = fbo_index;
     XrFramebufferAcquire(&renderer->Framebuffer[fbo_index]);
 }
 
-void XrRendererEndFrame(struct XrRenderer* renderer)
-{
+void XrRendererEndFrame(struct XrRenderer* renderer) {
     int fbo_index = renderer->ConfigInt[CONFIG_CURRENT_FBO];
     XrFramebufferRelease(&renderer->Framebuffer[fbo_index]);
 }
 
-void XrRendererFinishFrame(struct XrEngine* engine, struct XrRenderer* renderer)
-{
+void XrRendererFinishFrame(struct XrEngine* engine, struct XrRenderer* renderer) {
     int x = 0;
     int y = 0;
     int w = renderer->Framebuffer[0].Width;
     int h = renderer->Framebuffer[0].Height;
-    if (renderer->ConfigInt[CONFIG_SBS])
-    {
+    if (renderer->ConfigInt[CONFIG_SBS]) {
         w /= 2;
     }
 
     int mode = renderer->ConfigInt[CONFIG_MODE];
     XrCompositionLayerProjectionView projection_layer_elements[2] = {};
-    if ((mode == RENDER_MODE_MONO_6DOF) || (mode == RENDER_MODE_STEREO_6DOF))
-    {
+    if ((mode == RENDER_MODE_MONO_6DOF) || (mode == RENDER_MODE_STEREO_6DOF)) {
         renderer->ConfigFloat[CONFIG_MENU_YAW] = renderer->HmdOrientation.y;
 
-        for (int eye = 0; eye < XrMaxNumEyes; eye++)
-        {
+        for (int eye = 0; eye < XrMaxNumEyes; eye++) {
             struct XrFramebuffer* framebuffer = &renderer->Framebuffer[0];
             XrPosef pose = renderer->InvertedViewPose[0];
-            if (renderer->ConfigInt[CONFIG_SBS] && (eye == 1))
-            {
+            if (renderer->ConfigInt[CONFIG_SBS] && (eye == 1)) {
                 x += w;
-            }
-            else if (mode != RENDER_MODE_MONO_6DOF)
-            {
+            } else if (mode != RENDER_MODE_MONO_6DOF) {
                 framebuffer = &renderer->Framebuffer[eye];
                 pose = renderer->InvertedViewPose[eye];
             }
@@ -352,9 +311,7 @@ void XrRendererFinishFrame(struct XrEngine* engine, struct XrRenderer* renderer)
         projection_layer.views = projection_layer_elements;
 
         renderer->Layers[renderer->LayerCount++].projection = projection_layer;
-    }
-    else if ((mode == RENDER_MODE_MONO_SCREEN) || (mode == RENDER_MODE_STEREO_SCREEN))
-    {
+    } else if ((mode == RENDER_MODE_MONO_SCREEN) || (mode == RENDER_MODE_STEREO_SCREEN)) {
         // Flat screen pose
         float distance = renderer->ConfigFloat[CONFIG_CANVAS_DISTANCE];
         float menu_pitch = ToRadians(renderer->ConfigFloat[CONFIG_MENU_PITCH]);
@@ -386,37 +343,29 @@ void XrRendererFinishFrame(struct XrEngine* engine, struct XrRenderer* renderer)
         quad_layer.size.height = 4;
 
         // Build the cylinder layer
-        if (renderer->ConfigInt[CONFIG_SBS])
-        {
+        if (renderer->ConfigInt[CONFIG_SBS]) {
             quad_layer.eyeVisibility = XR_EYE_VISIBILITY_LEFT;
             renderer->Layers[renderer->LayerCount++].quad = quad_layer;
             quad_layer.eyeVisibility = XR_EYE_VISIBILITY_RIGHT;
             quad_layer.subImage.imageRect.offset.x = w;
             renderer->Layers[renderer->LayerCount++].quad = quad_layer;
-        }
-        else if (mode == RENDER_MODE_MONO_SCREEN)
-        {
+        } else if (mode == RENDER_MODE_MONO_SCREEN) {
             quad_layer.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
             renderer->Layers[renderer->LayerCount++].quad = quad_layer;
-        }
-        else
-        {
+        } else {
             quad_layer.eyeVisibility = XR_EYE_VISIBILITY_LEFT;
             renderer->Layers[renderer->LayerCount++].quad = quad_layer;
             quad_layer.eyeVisibility = XR_EYE_VISIBILITY_RIGHT;
             quad_layer.subImage.swapchain = renderer->Framebuffer[1].Handle;
             renderer->Layers[renderer->LayerCount++].quad = quad_layer;
         }
-    }
-    else
-    {
+    } else {
         assert(false);
     }
 
     // Compose the layers for this frame.
     const XrCompositionLayerBaseHeader* layers[XrMaxLayerCount] = {};
-    for (int i = 0; i < renderer->LayerCount; i++)
-    {
+    for (int i = 0; i < renderer->LayerCount; i++) {
         layers[i] = (const XrCompositionLayerBaseHeader*)&renderer->Layers[i];
     }
 
@@ -429,8 +378,7 @@ void XrRendererFinishFrame(struct XrEngine* engine, struct XrRenderer* renderer)
     OXR(xrEndFrame(engine->Session, &end_frame_info));
 }
 
-void XrRendererBindFramebuffer(struct XrRenderer* renderer)
-{
+void XrRendererBindFramebuffer(struct XrRenderer* renderer) {
     if (!renderer->Initialized)
         return;
     int fbo_index = renderer->ConfigInt[CONFIG_CURRENT_FBO];
@@ -438,14 +386,12 @@ void XrRendererBindFramebuffer(struct XrRenderer* renderer)
 }
 
 
-void XrRendererRecenter(struct XrEngine* engine, struct XrRenderer* renderer)
-{
+void XrRendererRecenter(struct XrEngine* engine, struct XrRenderer* renderer) {
     // Calculate recenter reference
     XrReferenceSpaceCreateInfo space_info = {};
     space_info.type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO;
     space_info.poseInReferenceSpace.orientation.w = 1.0f;
-    if (engine->CurrentSpace != XR_NULL_HANDLE)
-    {
+    if (engine->CurrentSpace != XR_NULL_HANDLE) {
         XrSpaceLocation loc = {};
         loc.type = XR_TYPE_SPACE_LOCATION;
         OXR(xrLocateSpace(engine->HeadSpace, engine->CurrentSpace,
@@ -461,34 +407,29 @@ void XrRendererRecenter(struct XrEngine* engine, struct XrRenderer* renderer)
     }
 
     // Delete previous space instances
-    if (engine->StageSpace != XR_NULL_HANDLE)
-    {
+    if (engine->StageSpace != XR_NULL_HANDLE) {
         OXR(xrDestroySpace(engine->StageSpace));
     }
-    if (engine->FakeSpace != XR_NULL_HANDLE)
-    {
+    if (engine->FakeSpace != XR_NULL_HANDLE) {
         OXR(xrDestroySpace(engine->FakeSpace));
     }
 
     // Create a default stage space to use if SPACE_TYPE_STAGE is not
     // supported, or calls to xrGetReferenceSpaceBoundsRect fail.
     space_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
-    if (engine->PlatformFlag[PLATFORM_TRACKING_FLOOR])
-    {
+    if (engine->PlatformFlag[PLATFORM_TRACKING_FLOOR]) {
         space_info.poseInReferenceSpace.position.y = -1.6750f;
     }
     OXR(xrCreateReferenceSpace(engine->Session, &space_info, &engine->FakeSpace));
     ALOGV("Created fake stage space from local space with offset");
     engine->CurrentSpace = engine->FakeSpace;
 
-    if (renderer->StageSupported)
-    {
+    if (renderer->StageSupported) {
         space_info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
         space_info.poseInReferenceSpace.position.y = 0.0;
         OXR(xrCreateReferenceSpace(engine->Session, &space_info, &engine->StageSpace));
         ALOGV("Created stage space");
-        if (engine->PlatformFlag[PLATFORM_TRACKING_FLOOR])
-        {
+        if (engine->PlatformFlag[PLATFORM_TRACKING_FLOOR]) {
             engine->CurrentSpace = engine->StageSpace;
         }
     }
@@ -498,10 +439,8 @@ void XrRendererRecenter(struct XrEngine* engine, struct XrRenderer* renderer)
     renderer->ConfigFloat[CONFIG_MENU_YAW] = 0.0f;
 }
 
-void XrRendererHandleSessionStateChanges(struct XrEngine* engine, struct XrRenderer* renderer, XrSessionState state)
-{
-    if (state == XR_SESSION_STATE_READY)
-    {
+void XrRendererHandleSessionStateChanges(struct XrEngine* engine, struct XrRenderer* renderer, XrSessionState state) {
+    if (state == XR_SESSION_STATE_READY) {
         assert(renderer->SessionActive == false);
 
         XrSessionBeginInfo session_begin_info;
@@ -516,8 +455,7 @@ void XrRendererHandleSessionStateChanges(struct XrEngine* engine, struct XrRende
         ALOGV("Session active = %d", renderer->SessionActive);
 
 #ifdef ANDROID
-        if (renderer->SessionActive && engine->PlatformFlag[PLATFORM_EXTENSION_PERFORMANCE])
-        {
+        if (renderer->SessionActive && engine->PlatformFlag[PLATFORM_EXTENSION_PERFORMANCE]) {
             PFN_xrPerfSettingsSetPerformanceLevelEXT pfnPerfSettingsSetPerformanceLevelEXT = NULL;
             OXR(xrGetInstanceProcAddr(engine->Instance, "xrPerfSettingsSetPerformanceLevelEXT",
                                       (PFN_xrVoidFunction*)(&pfnPerfSettingsSetPerformanceLevelEXT)));
@@ -539,9 +477,7 @@ void XrRendererHandleSessionStateChanges(struct XrEngine* engine, struct XrRende
                                                   engine->RenderThreadId));
         }
 #endif
-    }
-    else if (state == XR_SESSION_STATE_STOPPING)
-    {
+    } else if (state == XR_SESSION_STATE_STOPPING) {
         assert(renderer->SessionActive);
 
         OXR(xrEndSession(engine->Session));
@@ -549,25 +485,21 @@ void XrRendererHandleSessionStateChanges(struct XrEngine* engine, struct XrRende
     }
 }
 
-void XrRendererHandleXrEvents(struct XrEngine* engine, struct XrRenderer* renderer)
-{
+void XrRendererHandleXrEvents(struct XrEngine* engine, struct XrRenderer* renderer) {
     XrEventDataBuffer event_data_bufer = {};
 
     // Poll for events
-    for (;;)
-    {
+    for (;;) {
         XrEventDataBaseHeader* base_event_handler = (XrEventDataBaseHeader*)(&event_data_bufer);
         base_event_handler->type = XR_TYPE_EVENT_DATA_BUFFER;
         base_event_handler->next = NULL;
         XrResult r;
         OXR(r = xrPollEvent(engine->Instance, &event_data_bufer));
-        if (r != XR_SUCCESS)
-        {
+        if (r != XR_SUCCESS) {
             break;
         }
 
-        switch (base_event_handler->type)
-        {
+        switch (base_event_handler->type) {
             case XR_TYPE_EVENT_DATA_EVENTS_LOST:
                 ALOGV("xrPollEvent: received XR_TYPE_EVENT_DATA_EVENTS_LOST");
                 break;
@@ -591,8 +523,7 @@ void XrRendererHandleXrEvents(struct XrEngine* engine, struct XrRenderer* render
             {
                 const XrEventDataSessionStateChanged* session_state_changed_event =
                         (XrEventDataSessionStateChanged*)(base_event_handler);
-                switch (session_state_changed_event->state)
-                {
+                switch (session_state_changed_event->state) {
                     case XR_SESSION_STATE_FOCUSED:
                         renderer->SessionFocused = true;
                         break;
@@ -615,15 +546,13 @@ void XrRendererHandleXrEvents(struct XrEngine* engine, struct XrRenderer* render
     }
 }
 
-void XrRendererUpdateStageBounds(struct XrEngine* engine)
-{
+void XrRendererUpdateStageBounds(struct XrEngine* engine) {
     XrExtent2Df stage_bounds = {};
 
     XrResult result;
     OXR(result = xrGetReferenceSpaceBoundsRect(engine->Session, XR_REFERENCE_SPACE_TYPE_STAGE,
                                                &stage_bounds));
-    if (result != XR_SUCCESS)
-    {
+    if (result != XR_SUCCESS) {
         stage_bounds.width = 1.0f;
         stage_bounds.height = 1.0f;
 

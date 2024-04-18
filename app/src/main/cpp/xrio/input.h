@@ -2,8 +2,7 @@
 
 #include "engine.h"
 
-enum XrButton
-{
+enum XrButton {
     A = 0x00000001,  // Set for trigger pulled on the Gear VR and Go Controllers
     B = 0x00000002,
     RThumb = 0x00000004,

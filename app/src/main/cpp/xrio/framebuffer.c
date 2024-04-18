@@ -8,8 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-bool XrFramebufferCreate(struct XrFramebuffer *framebuffer, XrSession session, int width, int height)
-{
+bool XrFramebufferCreate(struct XrFramebuffer *framebuffer, XrSession session, int width, int height) {
     memset(framebuffer, 0, sizeof(framebuffer));
 #if XR_USE_GRAPHICS_API_OPENGL_ES
     return XrFramebufferCreateGL(framebuffer, session, width, height);
@@ -18,8 +17,7 @@ bool XrFramebufferCreate(struct XrFramebuffer *framebuffer, XrSession session, i
 #endif
 }
 
-void XrFramebufferDestroy(struct XrFramebuffer *framebuffer)
-{
+void XrFramebufferDestroy(struct XrFramebuffer *framebuffer) {
 #if XR_USE_GRAPHICS_API_OPENGL_ES
     GL(glDeleteRenderbuffers(framebuffer->SwapchainLength, framebuffer->GLDepthBuffers));
     GL(glDeleteFramebuffers(framebuffer->SwapchainLength, framebuffer->GLFrameBuffers));
@@ -30,8 +28,7 @@ void XrFramebufferDestroy(struct XrFramebuffer *framebuffer)
     free(framebuffer->SwapchainImage);
 }
 
-void XrFramebufferAcquire(struct XrFramebuffer *framebuffer)
-{
+void XrFramebufferAcquire(struct XrFramebuffer *framebuffer) {
     XrSwapchainImageAcquireInfo acquire_info = {XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO, NULL};
     OXR(xrAcquireSwapchainImage(framebuffer->Handle, &acquire_info, &framebuffer->SwapchainIndex));
 
@@ -41,8 +38,7 @@ void XrFramebufferAcquire(struct XrFramebuffer *framebuffer)
     wait_info.timeout = 1000000; /* timeout in nanoseconds */
     XrResult res = xrWaitSwapchainImage(framebuffer->Handle, &wait_info);
     int i = 0;
-    while ((res != XR_SUCCESS) && (i < 10))
-    {
+    while ((res != XR_SUCCESS) && (i < 10)) {
         res = xrWaitSwapchainImage(framebuffer->Handle, &wait_info);
         i++;
         ALOGV("Retry xrWaitSwapchainImage %d times due XR_TIMEOUT_EXPIRED (duration %lf ms",
@@ -53,26 +49,22 @@ void XrFramebufferAcquire(struct XrFramebuffer *framebuffer)
     XrFramebufferSetCurrent(framebuffer);
 }
 
-void XrFramebufferRelease(struct XrFramebuffer *framebuffer)
-{
-    if (framebuffer->Acquired)
-    {
+void XrFramebufferRelease(struct XrFramebuffer *framebuffer) {
+    if (framebuffer->Acquired) {
         XrSwapchainImageReleaseInfo release_info = {XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO, NULL};
         OXR(xrReleaseSwapchainImage(framebuffer->Handle, &release_info));
         framebuffer->Acquired = false;
     }
 }
 
-void XrFramebufferSetCurrent(struct XrFramebuffer *framebuffer)
-{
+void XrFramebufferSetCurrent(struct XrFramebuffer *framebuffer) {
 #if XR_USE_GRAPHICS_API_OPENGL_ES
     GL(glBindFramebuffer(GL_FRAMEBUFFER, framebuffer->GLFrameBuffers[framebuffer->SwapchainIndex]));
 #endif
 }
 
 #if XR_USE_GRAPHICS_API_OPENGL_ES
-bool XrFramebufferCreateGL(struct XrFramebuffer *framebuffer, XrSession session, int width, int height)
-{
+bool XrFramebufferCreateGL(struct XrFramebuffer *framebuffer, XrSession session, int width, int height) {
     XrSwapchainCreateInfo swapchain_info;
     memset(&swapchain_info, 0, sizeof(swapchain_info));
     swapchain_info.type = XR_TYPE_SWAPCHAIN_CREATE_INFO;
@@ -94,8 +86,7 @@ bool XrFramebufferCreateGL(struct XrFramebuffer *framebuffer, XrSession session,
     framebuffer->SwapchainImage = malloc(framebuffer->SwapchainLength * sizeof(XrSwapchainImageOpenGLESKHR));
 
     // Populate the swapchain image array.
-    for (uint32_t i = 0; i < framebuffer->SwapchainLength; i++)
-    {
+    for (uint32_t i = 0; i < framebuffer->SwapchainLength; i++) {
         XrSwapchainImageOpenGLESKHR* swapchain = (XrSwapchainImageOpenGLESKHR*)framebuffer->SwapchainImage;
         swapchain[i].type = XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR;
         swapchain[i].next = NULL;
@@ -106,8 +97,7 @@ bool XrFramebufferCreateGL(struct XrFramebuffer *framebuffer, XrSession session,
 
     framebuffer->GLDepthBuffers = (GLuint*)malloc(framebuffer->SwapchainLength * sizeof(GLuint));
     framebuffer->GLFrameBuffers = (GLuint*)malloc(framebuffer->SwapchainLength * sizeof(GLuint));
-    for (uint32_t i = 0; i < framebuffer->SwapchainLength; i++)
-    {
+    for (uint32_t i = 0; i < framebuffer->SwapchainLength; i++) {
         // Create color and depth buffers.
         GLuint color_texture = ((XrSwapchainImageOpenGLESKHR*)framebuffer->SwapchainImage)[i].image;
         GL(glGenRenderbuffers(1, &framebuffer->GLDepthBuffers[i]));
@@ -126,8 +116,7 @@ bool XrFramebufferCreateGL(struct XrFramebuffer *framebuffer, XrSession session,
                                   color_texture, 0));
         GL(GLenum renderFramebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER));
         GL(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-        if (renderFramebufferStatus != GL_FRAMEBUFFER_COMPLETE)
-        {
+        if (renderFramebufferStatus != GL_FRAMEBUFFER_COMPLETE) {
             ALOGE("Incomplete frame buffer object: %d", renderFramebufferStatus);
             return false;
         }

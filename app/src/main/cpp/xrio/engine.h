@@ -34,17 +34,14 @@ void OXRCheckErrors(XrResult result, const char* file, int line);
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 
-enum
-{
+enum {
   XrMaxLayerCount = 2
 };
-enum
-{
+enum {
   XrMaxNumEyes = 2
 };
 
-enum XrPlatformFlag
-{
+enum XrPlatformFlag {
   PLATFORM_CONTROLLER_PICO,
   PLATFORM_CONTROLLER_QUEST,
   PLATFORM_EXTENSION_INSTANCE,
@@ -54,15 +51,13 @@ enum XrPlatformFlag
   PLATFORM_MAX
 };
 
-typedef union
-{
+typedef union {
   XrCompositionLayerProjection projection;
   XrCompositionLayerQuad quad;
 } XrCompositorLayer;
 
 #ifdef ANDROID
-typedef struct
-{
+typedef struct {
   jobject activity;
   JNIEnv* env;
   JavaVM* vm;

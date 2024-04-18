@@ -4,8 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 
-void XrEngineInit(struct XrEngine* engine, void* system, const char* name, int version)
-{
+void XrEngineInit(struct XrEngine* engine, void* system, const char* name, int version) {
     if (engine->Initialized)
         return;
     memset(engine, 0, sizeof(engine));
@@ -14,8 +13,7 @@ void XrEngineInit(struct XrEngine* engine, void* system, const char* name, int v
     PFN_xrInitializeLoaderKHR xrInitializeLoaderKHR;
     xrGetInstanceProcAddr(XR_NULL_HANDLE, "xrInitializeLoaderKHR",
                           (PFN_xrVoidFunction*)&xrInitializeLoaderKHR);
-    if (xrInitializeLoaderKHR != NULL)
-    {
+    if (xrInitializeLoaderKHR != NULL) {
         xrJava* java = (xrJava*)system;
         XrLoaderInitInfoAndroidKHR loader_info;
         memset(&loader_info, 0, sizeof(loader_info));
@@ -33,16 +31,13 @@ void XrEngineInit(struct XrEngine* engine, void* system, const char* name, int v
     extensions[count++] = XR_KHR_OPENGL_ES_ENABLE_EXTENSION_NAME;
 #endif
 #ifdef ANDROID
-    if (engine->PlatformFlag[PLATFORM_EXTENSION_INSTANCE])
-    {
+    if (engine->PlatformFlag[PLATFORM_EXTENSION_INSTANCE]) {
         extensions[count++] = XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME;
     }
-    if (engine->PlatformFlag[PLATFORM_EXTENSION_PASSTHROUGH])
-    {
+    if (engine->PlatformFlag[PLATFORM_EXTENSION_PASSTHROUGH]) {
         extensions[count++] = XR_FB_PASSTHROUGH_EXTENSION_NAME;
     }
-    if (engine->PlatformFlag[PLATFORM_EXTENSION_PERFORMANCE])
-    {
+    if (engine->PlatformFlag[PLATFORM_EXTENSION_PERFORMANCE]) {
         extensions[count++] = XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME;
         extensions[count++] = XR_KHR_ANDROID_THREAD_SETTINGS_EXTENSION_NAME;
     }
@@ -70,8 +65,7 @@ void XrEngineInit(struct XrEngine* engine, void* system, const char* name, int v
 
 #ifdef ANDROID
     XrInstanceCreateInfoAndroidKHR instance_info_android = {XR_TYPE_INSTANCE_CREATE_INFO_ANDROID_KHR};
-    if (engine->PlatformFlag[PLATFORM_EXTENSION_INSTANCE])
-    {
+    if (engine->PlatformFlag[PLATFORM_EXTENSION_INSTANCE]) {
         xrJava* java = (xrJava*)system;
         instance_info_android.applicationVM = java->vm;
         instance_info_android.applicationActivity = java->activity;
@@ -81,8 +75,7 @@ void XrEngineInit(struct XrEngine* engine, void* system, const char* name, int v
 
     XrResult result;
     OXR(result = xrCreateInstance(&instance_info, &engine->Instance));
-    if (result != XR_SUCCESS)
-    {
+    if (result != XR_SUCCESS) {
         ALOGE("Failed to create XR instance: %d", (int)result);
         exit(1);
     }
@@ -103,8 +96,7 @@ void XrEngineInit(struct XrEngine* engine, void* system, const char* name, int v
     system_info.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
 
     OXR(result = xrGetSystem(engine->Instance, &system_info, &engine->SystemId));
-    if (result != XR_SUCCESS)
-    {
+    if (result != XR_SUCCESS) {
         ALOGE("Failed to get system");
         exit(1);
     }
@@ -126,19 +118,15 @@ void XrEngineInit(struct XrEngine* engine, void* system, const char* name, int v
     engine->Initialized = true;
 }
 
-void XrEngineDestroy(struct XrEngine* engine)
-{
-    if (engine->Initialized)
-    {
+void XrEngineDestroy(struct XrEngine* engine) {
+    if (engine->Initialized) {
         xrDestroyInstance(engine->Instance);
         engine->Initialized = false;
     }
 }
 
-void XrEngineEnter(struct XrEngine* engine)
-{
-    if (engine->Session)
-    {
+void XrEngineEnter(struct XrEngine* engine) {
+    if (engine->Session) {
         ALOGE("EnterXR called with existing session");
         return;
     }
@@ -161,8 +149,7 @@ void XrEngineEnter(struct XrEngine* engine)
 
     XrResult result;
     OXR(result = xrCreateSession(engine->Instance, &session_info, &engine->Session));
-    if (result != XR_SUCCESS)
-    {
+    if (result != XR_SUCCESS) {
         ALOGE("Failed to create XR session: %d", (int)result);
         exit(1);
     }
@@ -175,14 +162,11 @@ void XrEngineEnter(struct XrEngine* engine)
     OXR(xrCreateReferenceSpace(engine->Session, &space_info, &engine->HeadSpace));
 }
 
-void XrEngineLeave(struct XrEngine* engine)
-{
-    if (engine->Session)
-    {
+void XrEngineLeave(struct XrEngine* engine) {
+    if (engine->Session) {
         OXR(xrDestroySpace(engine->HeadSpace));
         // StageSpace is optional.
-        if (engine->StageSpace != XR_NULL_HANDLE)
-        {
+        if (engine->StageSpace != XR_NULL_HANDLE) {
             OXR(xrDestroySpace(engine->StageSpace));
         }
         OXR(xrDestroySpace(engine->FakeSpace));
@@ -192,8 +176,7 @@ void XrEngineLeave(struct XrEngine* engine)
     }
 }
 
-void XrEngineWaitForFrame(struct XrEngine* engine)
-{
+void XrEngineWaitForFrame(struct XrEngine* engine) {
     XrFrameWaitInfo wait_frame_info = {};
     wait_frame_info.type = XR_TYPE_FRAME_WAIT_INFO;
     wait_frame_info.next = NULL;

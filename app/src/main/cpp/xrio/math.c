@@ -3,23 +3,19 @@
 #include <math.h>
 #include <string.h>
 
-double FromXrTime(const XrTime time)
-{
+double FromXrTime(const XrTime time) {
     return (time * 1e-9);
 }
 
-XrTime ToXrTime(const double time_in_seconds)
-{
+XrTime ToXrTime(const double time_in_seconds) {
     return (XrTime)(time_in_seconds * 1e9);
 }
 
-float ToDegrees(float rad)
-{
+float ToDegrees(float rad) {
     return (float)(rad / M_PI * 180.0f);
 }
 
-float ToRadians(float deg)
-{
+float ToRadians(float deg) {
     return (float)(deg * M_PI / 180.0f);
 }
 
@@ -31,11 +27,9 @@ XrQuaternionf
 ================================================================================
 */
 
-XrQuaternionf XrQuaternionfCreateFromVectorAngle(const XrVector3f axis, const float angle)
-{
+XrQuaternionf XrQuaternionfCreateFromVectorAngle(const XrVector3f axis, const float angle) {
     XrQuaternionf r;
-    if (XrVector3fLengthSquared(axis) == 0.0f)
-    {
+    if (XrVector3fLengthSquared(axis) == 0.0f) {
         r.x = 0;
         r.y = 0;
         r.z = 0;
@@ -53,8 +47,7 @@ XrQuaternionf XrQuaternionfCreateFromVectorAngle(const XrVector3f axis, const fl
     return r;
 }
 
-XrQuaternionf XrQuaternionfMultiply(const XrQuaternionf a, const XrQuaternionf b)
-{
+XrQuaternionf XrQuaternionfMultiply(const XrQuaternionf a, const XrQuaternionf b) {
     XrQuaternionf c;
     c.x = a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y;
     c.y = a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x;
@@ -63,8 +56,7 @@ XrQuaternionf XrQuaternionfMultiply(const XrQuaternionf a, const XrQuaternionf b
     return c;
 }
 
-XrVector3f XrQuaternionfEulerAngles(const XrQuaternionf q)
-{
+XrVector3f XrQuaternionfEulerAngles(const XrQuaternionf q) {
     float M[16];
     XrQuaternionfToMatrix4f(&q, M);
 
@@ -87,8 +79,7 @@ XrVector3f XrQuaternionfEulerAngles(const XrQuaternionf q)
     return XrVector3fGetAnglesFromVectors(forwardNormal, rightNormal, upNormal);
 }
 
-void XrQuaternionfToMatrix4f(const XrQuaternionf* q, float* m)
-{
+void XrQuaternionfToMatrix4f(const XrQuaternionf* q, float* m) {
     const float ww = q->w * q->w;
     const float xx = q->x * q->x;
     const float yy = q->y * q->y;
@@ -127,8 +118,7 @@ XrVector3f, XrVector4f
 */
 
 
-float XrVector3fDistance(const XrVector3f a, const XrVector3f b)
-{
+float XrVector3fDistance(const XrVector3f a, const XrVector3f b) {
     XrVector3f diff;
     diff.x = a.x - b.x;
     diff.y = a.y - b.y;
@@ -136,13 +126,11 @@ float XrVector3fDistance(const XrVector3f a, const XrVector3f b)
     return sqrt(XrVector3fLengthSquared(diff));
 }
 
-float XrVector3fLengthSquared(const XrVector3f v)
-{
+float XrVector3fLengthSquared(const XrVector3f v) {
     return v.x * v.x + v.y * v.y + v.z * v.z;
 }
 
-XrVector3f XrVector3fGetAnglesFromVectors(XrVector3f forward, XrVector3f right, XrVector3f up)
-{
+XrVector3f XrVector3fGetAnglesFromVectors(XrVector3f forward, XrVector3f right, XrVector3f up) {
     float sp = -forward.z;
 
     float cp_x_cy = forward.x;
@@ -159,24 +147,15 @@ XrVector3f XrVector3fGetAnglesFromVectors(XrVector3f forward, XrVector3f right, 
     float sr = sin(roll);
 
     float cp;
-    if (fabs(cy) > EPSILON)
-    {
+    if (fabs(cy) > EPSILON) {
         cp = cp_x_cy / cy;
-    }
-    else if (fabs(sy) > EPSILON)
-    {
+    } else if (fabs(sy) > EPSILON) {
         cp = cp_x_sy / sy;
-    }
-    else if (fabs(sr) > EPSILON)
-    {
+    } else if (fabs(sr) > EPSILON) {
         cp = cp_x_sr / sr;
-    }
-    else if (fabs(cr) > EPSILON)
-    {
+    } else if (fabs(cr) > EPSILON) {
         cp = cp_x_cr / cr;
-    }
-    else
-    {
+    } else {
         cp = cos(asin(sp));
     }
 
@@ -189,14 +168,12 @@ XrVector3f XrVector3fGetAnglesFromVectors(XrVector3f forward, XrVector3f right, 
     return angles;
 }
 
-XrVector3f XrVector3fNormalized(const XrVector3f v)
-{
+XrVector3f XrVector3fNormalized(const XrVector3f v) {
     float rcpLen = 1.0f / sqrtf(XrVector3fLengthSquared(v));
     return XrVector3fScalarMultiply(v, rcpLen);
 }
 
-XrVector3f XrVector3fScalarMultiply(const XrVector3f v, float scale)
-{
+XrVector3f XrVector3fScalarMultiply(const XrVector3f v, float scale) {
     XrVector3f u;
     u.x = v.x * scale;
     u.y = v.y * scale;
@@ -204,8 +181,7 @@ XrVector3f XrVector3fScalarMultiply(const XrVector3f v, float scale)
     return u;
 }
 
-XrVector4f XrVector4fMultiplyMatrix4f(const float* m, const XrVector4f* v)
-{
+XrVector4f XrVector4fMultiplyMatrix4f(const float* m, const XrVector4f* v) {
     float M[4][4];
     memcpy(&M, m, sizeof(float) * 16);
 

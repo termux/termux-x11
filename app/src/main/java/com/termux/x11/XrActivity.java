@@ -49,12 +49,12 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
     private static boolean isDeviceDetectionFinished = false;
     private static boolean isDeviceSupported = false;
 
-    private static boolean isImmersive = false;
-    private static boolean isSBS = false;
-    private static final float[] lastAxes = new float[ControllerAxis.values().length];
-    private static final boolean[] lastButtons = new boolean[ControllerButton.values().length];
-    private static String lastText = "";
-    private static final float[] mouse = new float[2];
+    private boolean isImmersive = false;
+    private boolean isSBS = false;
+    private final float[] lastAxes = new float[ControllerAxis.values().length];
+    private final boolean[] lastButtons = new boolean[ControllerButton.values().length];
+    private String lastText = "";
+    private final float[] mouse = new float[2];
 
     private int program;
     private int texture;
@@ -79,6 +79,8 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
     @Override
     public void onDestroy() {
         super.onDestroy();
+        teardown();
+
         // Going back to the Android 2D rendering isn't supported.
         // Kill the app to ensure there is no unexpected behaviour.
         System.exit(0);
@@ -134,6 +136,8 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
     @Override
     void clientConnectedStateChanged(boolean connected) {
         if (!connected && (surface != null)) {
+            teardown();
+
             // Going back to the Android 2D rendering isn't supported.
             // Kill the app to ensure there is no unexpected behaviour.
             System.exit(0);
@@ -318,7 +322,7 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
         System.arraycopy(buttons, 0, lastButtons, 0, buttons.length);
     }
 
-    private static float getAngleDiff(float oldAngle, float newAngle) {
+    private float getAngleDiff(float oldAngle, float newAngle) {
         float diff = oldAngle - newAngle;
         while (diff > 180) {
             diff -= 360;
@@ -329,23 +333,23 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
         return diff;
     }
 
-    private static boolean getButtonClicked(boolean[] buttons, ControllerButton button) {
+    private boolean getButtonClicked(boolean[] buttons, ControllerButton button) {
         return buttons[button.ordinal()] && !lastButtons[button.ordinal()];
     }
 
-    private static void mapKey(LorieView v, boolean[] buttons, ControllerButton b, int keycode) {
+    private void mapKey(LorieView v, boolean[] buttons, ControllerButton b, int keycode) {
         if (buttons[b.ordinal()] != lastButtons[b.ordinal()]) {
             v.sendKeyEvent(0, keycode, buttons[b.ordinal()]);
         }
     }
 
-    private static void mapMouse(LorieView v, boolean[] buttons, ControllerButton b, int button) {
+    private void mapMouse(LorieView v, boolean[] buttons, ControllerButton b, int button) {
         if (buttons[b.ordinal()] != lastButtons[b.ordinal()]) {
             v.sendMouseEvent(0, 0, button, buttons[b.ordinal()], true);
         }
     }
 
-    private static void mapScroll(LorieView v, boolean[] buttons, ControllerButton b, float x, float y) {
+    private void mapScroll(LorieView v, boolean[] buttons, ControllerButton b, float x, float y) {
         if (getButtonClicked(buttons, b)) {
             v.sendMouseWheelEvent(x, y);
         }
@@ -390,6 +394,7 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
     }
 
     private native void init();
+    private native void teardown();
     private native boolean beginFrame();
     private native void finishFrame();
     public native float[] getAxes();

@@ -62,6 +62,21 @@ JNIEXPORT void JNICALL Java_com_termux_x11_XrActivity_init(JNIEnv *env, jobject 
     ALOGV("Init called");
 }
 
+JNIEXPORT void JNICALL Java_com_termux_x11_XrActivity_teardown(JNIEnv *env, jobject obj) {
+    if (!xr_initialized) {
+        return;
+    }
+
+    XrRendererDestroy(&xr_engine, &xr_renderer);
+    XrEngineLeave(&xr_engine);
+    XrEngineDestroy(&xr_engine);
+
+    memset(&xr_engine, 0, sizeof(xr_engine));
+    memset(&xr_input, 0, sizeof(xr_input));
+    memset(&xr_renderer, 0, sizeof(xr_renderer));
+    xr_initialized = false;
+}
+
 JNIEXPORT jboolean JNICALL Java_com_termux_x11_XrActivity_beginFrame(JNIEnv *env, jobject obj) {
     if (XrRendererInitFrame(&xr_engine, &xr_renderer)) {
 

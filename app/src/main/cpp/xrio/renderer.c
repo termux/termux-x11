@@ -96,6 +96,10 @@ void XrRendererInit(struct XrEngine* engine, struct XrRenderer* renderer) {
 }
 
 void XrRendererDestroy(struct XrEngine* engine, struct XrRenderer* renderer) {
+    if (!renderer->Initialized) {
+        return;
+    }
+
     if (engine->PlatformFlag[PLATFORM_EXTENSION_PASSTHROUGH]) {
         if (renderer->PassthroughRunning) {
             OXR(xrPassthroughLayerPauseFB(renderer->PassthroughLayer));

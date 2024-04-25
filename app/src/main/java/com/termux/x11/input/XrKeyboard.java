@@ -16,6 +16,7 @@ import android.widget.EditText;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+//TODO:replace EditText with View
 public class XrKeyboard extends EditText {
     public interface TextWatcher {
         void onTextChanged(String text);
@@ -47,6 +48,7 @@ public class XrKeyboard extends EditText {
 
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+        //TODO:fill outAttrs without EditText
         super.onCreateInputConnection(outAttrs);
         return new InputConnection() {
             @Override

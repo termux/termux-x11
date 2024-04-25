@@ -408,7 +408,7 @@ lorieDestroyPixmap(PixmapPtr pPixmap) {
     ScreenPtr pScreen = pPixmap->drawable.pScreen;
     lorieScrPriv(pScreen);
 
-    if (pPixmap->refcnt == 1 && !pPixmap->drawable.width && !pPixmap->drawable.height) {
+    if (pPixmap->refcnt == 1 && pPixmap->drawable.width && pPixmap->drawable.height) {
         ptr = dixLookupPrivate(&pPixmap->devPrivates, &lorieMmappedPixPrivateKey);
         pPixPriv = dixLookupPrivate(&pPixmap->devPrivates, &lorieAHBPixPrivateKey);
         size = pPixmap->devKind * pPixmap->drawable.height;

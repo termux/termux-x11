@@ -12,22 +12,20 @@ import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.RemoteException;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.util.Log;
 import android.view.Display;
 import android.view.KeyEvent;
 import android.view.Surface;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.EditText;
 
 import com.termux.x11.input.InputStub;
+import com.termux.x11.input.XrKeyboard;
 import com.termux.x11.utils.GLUtility;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
-public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, TextWatcher {
+public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, XrKeyboard.TextWatcher {
     // Order of the enum has to be the same as in xrio/android.c
     public enum ControllerAxis {
         L_PITCH, L_YAW, L_ROLL, L_THUMBSTICK_X, L_THUMBSTICK_Y, L_X, L_Y, L_Z,
@@ -59,7 +57,7 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
     private int program;
     private int texture;
     private SurfaceTexture surface;
-    private EditText text;
+    private XrKeyboard text;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,9 +68,9 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
         view.setRenderer(this);
         frm.addView(view);
 
-        text = new EditText(this);
+        text = new XrKeyboard(this);
         text.getEditableText().clear();
-        text.addTextChangedListener(this);
+        text.setListener(this);
         frm.addView(text);
     }
 
@@ -193,23 +191,10 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
     }
 
     @Override
-    public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-
-    @Override
-    public void onTextChanged(CharSequence s, int start, int before, int count) {}
-
-    @Override
-    public void afterTextChanged(Editable e) {
-        LorieView view = getLorieView();
-        String s = text.getEditableText().toString();
-
+    public void onTextChanged(String s) {
         // Hitting enter passes the data into the system
         if (!s.isEmpty() && (s.charAt(s.length() - 1) == '\n')) {
-            s = s.substring(0, s.length() - 1);
-            if (s.startsWith(" ")) {
-                s = s.substring(1);
-            }
-            view.sendTextEvent(s.getBytes());
+            getLorieView().sendTextEvent(lastText.getBytes());
             sendKeyTap(KeyEvent.KEYCODE_ENTER);
 
             InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
@@ -220,7 +205,7 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
             if ((lastText.compareTo(" ") == 0)) {
                 sendKeyTap(KeyEvent.KEYCODE_DEL);
             }
-            resetText();
+            text.reset();
         }
         // Keep info about the last text to be able to call backspace
         else {
@@ -296,7 +281,8 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
             getInstance().runOnUiThread(() -> {
                 isSBS = false;
                 isImmersive = false;
-                resetText();
+                lastText = " ";
+                text.reset();
                 InputMethodManager imm = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
                 getWindow().getDecorView().postDelayed(() -> {
                     imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
@@ -371,15 +357,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
             aspect = Math.min(w, h) / (float)Math.max(w, h);
         }
         GLUtility.drawTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, program, texture, -aspect);
-    }
-
-    private void resetText() {
-        text.removeTextChangedListener(this);
-        text.getEditableText().clear();
-        text.getEditableText().append(" ");
-        text.addTextChangedListener(this);
-        text.requestFocus();
-        lastText = " ";
     }
 
     private void sendKeyTap(int keycode) {

@@ -21,10 +21,14 @@ public class XrKeyboard extends EditText {
         void onTextChanged(String text);
     };
 
-    private InputConnection connection;
+    private final Handler handler;
     private TextWatcher listener;
+    private String text;
+
     public XrKeyboard(Context context) {
         super(context);
+        handler = new Handler();
+        text = "";
     }
 
     public void reset() {
@@ -34,6 +38,7 @@ public class XrKeyboard extends EditText {
         getEditableText().append(" ");
         setListener(l);
         requestFocus();
+        text = " ";
     }
 
     public void setListener(TextWatcher tw) {
@@ -42,43 +47,43 @@ public class XrKeyboard extends EditText {
 
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
-        connection = super.onCreateInputConnection(outAttrs);
+        super.onCreateInputConnection(outAttrs);
         return new InputConnection() {
-            @Nullable
             @Override
             public CharSequence getTextBeforeCursor(int i, int i1) {
-                return connection.getTextBeforeCursor(i, i1);
+                return "";
             }
 
-            @Nullable
             @Override
             public CharSequence getTextAfterCursor(int i, int i1) {
-                return connection.getTextAfterCursor(i, i1);
+                return "";
             }
 
             @Override
             public CharSequence getSelectedText(int i) {
-                return connection.getSelectedText(i);
+                return "";
             }
 
             @Override
             public int getCursorCapsMode(int i) {
-                return connection.getCursorCapsMode(i);
+                return 0;
             }
 
             @Override
             public ExtractedText getExtractedText(ExtractedTextRequest extractedTextRequest, int i) {
-                return connection.getExtractedText(extractedTextRequest, i);
+                ExtractedText extractedText = new ExtractedText();
+                extractedText.text = text;
+                return extractedText;
             }
 
             @Override
             public boolean deleteSurroundingText(int i, int i1) {
-                return connection.deleteSurroundingText(i, i1);
+                return true;
             }
 
             @Override
             public boolean deleteSurroundingTextInCodePoints(int i, int i1) {
-                return connection.deleteSurroundingTextInCodePoints(i, i1);
+                return true;
             }
 
             @Override
@@ -86,17 +91,18 @@ public class XrKeyboard extends EditText {
                 if (listener != null) {
                     listener.onTextChanged(charSequence.toString());
                 }
-                return connection.setComposingText(charSequence, i);
+                text = charSequence.toString();
+                return true;
             }
 
             @Override
             public boolean setComposingRegion(int i, int i1) {
-                return connection.setComposingRegion(i, i1);
+                return true;
             }
 
             @Override
             public boolean finishComposingText() {
-                return connection.finishComposingText();
+                return true;
             }
 
             @Override
@@ -104,83 +110,82 @@ public class XrKeyboard extends EditText {
                 if (listener != null) {
                     listener.onTextChanged(charSequence.toString());
                 }
-                return connection.commitText(charSequence, i);
+                return true;
             }
 
             @Override
             public boolean commitCompletion(CompletionInfo completionInfo) {
-                return connection.commitCompletion(completionInfo);
+                return true;
             }
 
             @Override
             public boolean commitCorrection(CorrectionInfo correctionInfo) {
-                return connection.commitCorrection(correctionInfo);
+                return false;
             }
 
             @Override
             public boolean setSelection(int i, int i1) {
-                return connection.setSelection(i, i1);
+                return true;
             }
 
             @Override
             public boolean performEditorAction(int i) {
-                return connection.performEditorAction(i);
+                return true;
             }
 
             @Override
             public boolean performContextMenuAction(int i) {
-                return connection.performContextMenuAction(i);
+                return true;
             }
 
             @Override
             public boolean beginBatchEdit() {
-                return connection.beginBatchEdit();
+                return true;
             }
 
             @Override
             public boolean endBatchEdit() {
-                return connection.endBatchEdit();
+                return true;
             }
 
             @Override
             public boolean sendKeyEvent(KeyEvent keyEvent) {
-                return connection.sendKeyEvent(keyEvent);
+                return true;
             }
 
             @Override
             public boolean clearMetaKeyStates(int i) {
-                return connection.clearMetaKeyStates(i);
+                return true;
             }
 
             @Override
             public boolean reportFullscreenMode(boolean b) {
-                return connection.reportFullscreenMode(b);
+                return false;
             }
 
             @Override
             public boolean performPrivateCommand(String s, Bundle bundle) {
-                return connection.performPrivateCommand(s, bundle);
+                return false;
             }
 
             @Override
             public boolean requestCursorUpdates(int i) {
-                return connection.requestCursorUpdates(i);
+                return true;
             }
 
             @Nullable
             @Override
             public Handler getHandler() {
-                return connection.getHandler();
+                return handler;
             }
 
             @Override
             public void closeConnection() {
-                connection.closeConnection();
             }
 
             @Override
             public boolean commitContent(@NonNull InputContentInfo inputContentInfo, int i, @Nullable Bundle bundle) {
-                return connection.commitContent(inputContentInfo, i, bundle);
+                return true;
             }
         };
     }

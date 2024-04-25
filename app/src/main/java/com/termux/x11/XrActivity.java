@@ -69,7 +69,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
         frm.addView(view);
 
         text = new XrKeyboard(this);
-        text.getEditableText().clear();
         text.setListener(this);
         frm.addView(text);
     }

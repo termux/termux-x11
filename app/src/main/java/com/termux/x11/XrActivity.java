@@ -25,7 +25,7 @@ import com.termux.x11.utils.GLUtility;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
-public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, XrKeyboard.TextWatcher {
+public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, XrKeyboard.XrKeyboardListener {
     // Order of the enum has to be the same as in xrio/android.c
     public enum ControllerAxis {
         L_PITCH, L_YAW, L_ROLL, L_THUMBSTICK_X, L_THUMBSTICK_Y, L_X, L_Y, L_Z,
@@ -51,7 +51,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
     private boolean isSBS = false;
     private final float[] lastAxes = new float[ControllerAxis.values().length];
     private final boolean[] lastButtons = new boolean[ControllerButton.values().length];
-    private String lastText = "";
     private final float[] mouse = new float[2];
 
     private int program;
@@ -190,26 +189,26 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
     }
 
     @Override
-    public void onTextChanged(String s) {
-        // Hitting enter passes the data into the system
-        if (!s.isEmpty() && (s.charAt(s.length() - 1) == '\n')) {
-            getLorieView().sendTextEvent(lastText.getBytes());
-            sendKeyTap(KeyEvent.KEYCODE_ENTER);
+    public void onHideKeyboardRequest() {
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        imm.hideSoftInputFromWindow(text.getWindowToken(), 0);
+    }
 
-            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-            imm.hideSoftInputFromWindow(text.getWindowToken(), 0);
+    @Override
+    public void onSendKeyRequest(int keycode) {
+        LorieView view = getLorieView();
+        view.sendKeyEvent(0, keycode, true);
+        try {
+            //give system a chance to notice that backspace was pressed
+            Thread.sleep(30);
+        } catch (Exception ignored) {
         }
-        // Backspace works only when there is no text from user
-        else if (s.isEmpty()) {
-            if ((lastText.compareTo(" ") == 0)) {
-                sendKeyTap(KeyEvent.KEYCODE_DEL);
-            }
-            text.reset();
-        }
-        // Keep info about the last text to be able to call backspace
-        else {
-            lastText = s;
-        }
+        view.sendKeyEvent(0, keycode, false);
+    }
+
+    @Override
+    public void onSendTextRequest(String text) {
+        getLorieView().sendTextEvent(text.getBytes());
     }
 
     private void processInput() {
@@ -280,7 +279,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
             getInstance().runOnUiThread(() -> {
                 isSBS = false;
                 isImmersive = false;
-                lastText = " ";
                 text.reset();
                 InputMethodManager imm = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
                 getWindow().getDecorView().postDelayed(() -> {
@@ -356,17 +354,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
             aspect = Math.min(w, h) / (float)Math.max(w, h);
         }
         GLUtility.drawTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, program, texture, -aspect);
-    }
-
-    private void sendKeyTap(int keycode) {
-        LorieView view = getLorieView();
-        view.sendKeyEvent(0, keycode, true);
-        try {
-            //give system a chance to notice that backspace was pressed
-            Thread.sleep(30);
-        } catch (Exception ignored) {
-        }
-        view.sendKeyEvent(0, keycode, false);
     }
 
     private native void init();

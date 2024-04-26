@@ -1,6 +1,7 @@
 package com.termux.x11.input;
 
 import android.content.Context;
+import android.text.InputType;
 import android.view.KeyEvent;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
@@ -9,7 +10,6 @@ import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import android.widget.EditText;
 
-//TODO:replace EditText with View
 public class XrKeyboard extends EditText {
     public interface XrKeyboardListener {
         void onHideKeyboardRequest();
@@ -37,8 +37,9 @@ public class XrKeyboard extends EditText {
 
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
-        //TODO:fill outAttrs without EditText
-        super.onCreateInputConnection(outAttrs);
+        outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN;
+        outAttrs.inputType = InputType.TYPE_TEXT_FLAG_MULTI_LINE;
+
         return new BaseInputConnection(this, true) {
             @Override
             public ExtractedText getExtractedText(ExtractedTextRequest extractedTextRequest, int i) {
@@ -59,16 +60,12 @@ public class XrKeyboard extends EditText {
                 processText(charSequence.toString());
                 return true;
             }
-
-            @Override
-            public boolean finishComposingText() {
-                if ((listener != null) && !lastText.isEmpty() && (lastText.compareTo(" ") != 0)) {
-                    listener.onSendTextRequest(lastText);
-                }
-                lastText = "";
-                return true;
-            }
         };
+    }
+
+    @Override
+    public boolean onCheckIsTextEditor() {
+        return true;
     }
 
     private void processText(String s) {

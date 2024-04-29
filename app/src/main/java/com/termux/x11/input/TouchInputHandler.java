@@ -63,13 +63,15 @@ public class TouchInputHandler {
         int TOUCH = 3;
     }
 
-    @IntDef({CapturedPointerTransformation.NONE, CapturedPointerTransformation.CLOCKWISE, CapturedPointerTransformation.COUNTER_CLOCKWISE, CapturedPointerTransformation.UPSIDE_DOWN})
+    @IntDef({CapturedPointerTransformation.NONE, CapturedPointerTransformation.CLOCKWISE, CapturedPointerTransformation.UPSIDE_DOWN, CapturedPointerTransformation.COUNTER_CLOCKWISE, CapturedPointerTransformation.AUTO})
     @Retention(RetentionPolicy.SOURCE)
     public @interface CapturedPointerTransformation {
+        // values correspond to transformation needed given getRotation(), e.g. getRotation() = 1 requires counter-clockwise transformation
         int NONE = 0;
-        int CLOCKWISE = 1;
-        int COUNTER_CLOCKWISE = 2;
-        int UPSIDE_DOWN = 3;
+        int CLOCKWISE = 3;
+        int UPSIDE_DOWN = 2;
+        int COUNTER_CLOCKWISE = 1;
+        int AUTO = -1;
     }
 
     private final RenderData mRenderData;
@@ -128,8 +130,9 @@ public class TouchInputHandler {
      * is performing a drag operation.
      */
     private boolean mIsDragging;
+    private static DisplayManager mDisplayManager;
 
-    @CapturedPointerTransformation int capturedPointerTransformation = CapturedPointerTransformation.NONE;
+    @CapturedPointerTransformation static int capturedPointerTransformation = CapturedPointerTransformation.NONE;
 
     private TouchInputHandler(MainActivity activity, RenderData renderData,
                               final InputEventSender injector, boolean isTouchpad) {
@@ -252,9 +255,7 @@ public class TouchInputHandler {
 
         if (!isDexEvent(event) && (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_MOUSE
                 || (event.getSource() & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE)
-                || (event.getSource() & InputDevice.SOURCE_MOUSE_RELATIVE) == InputDevice.SOURCE_MOUSE_RELATIVE
-                || (event.getPointerCount() == 1 && mTouchpadHandler == null
-                   && (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD))
+                || (event.getSource() & InputDevice.SOURCE_MOUSE_RELATIVE) == InputDevice.SOURCE_MOUSE_RELATIVE)
             return mHMListener.onTouch(view, event);
 
         if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER) {
@@ -339,6 +340,10 @@ public class TouchInputHandler {
     }
 
     public void setInputMode(@InputMode int inputMode) {
+        if (SamsungDexUtils.checkDeXEnabled(mContext)) {
+            mInputStrategy = new InputStrategyInterface.TrackpadInputStrategy(mInjector);
+            return;
+        }
         if (inputMode == InputMode.TOUCH)
             mInputStrategy = new InputStrategyInterface.NullInputStrategy();
         else if (inputMode == InputMode.SIMULATED_TOUCH)
@@ -395,6 +400,9 @@ public class TouchInputHandler {
                 break;
             case "ud":
                 capturedPointerTransformation = CapturedPointerTransformation.UPSIDE_DOWN;
+                break;
+            case "at":
+                capturedPointerTransformation = CapturedPointerTransformation.AUTO;
                 break;
             default:
                 capturedPointerTransformation = CapturedPointerTransformation.NONE;
@@ -490,6 +498,30 @@ public class TouchInputHandler {
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
             int pointerCount = e2.getPointerCount();
 
+            // Automatic (for touchpad) mode is needed because touchpads ignore screen orientation and report physical X and Y
+            if ((e2.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD
+                    && mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) {
+                float temp;
+                int transform = capturedPointerTransformation;
+                if (capturedPointerTransformation == CapturedPointerTransformation.AUTO) {
+                    for (Display display : mDisplayManager.getDisplays()) {
+                        if (display.getState() == Display.STATE_ON) {
+                            transform = display.getRotation() % 4;
+                            break;
+                        }
+                    }
+                }
+                switch (transform) {
+                    case CapturedPointerTransformation.NONE:
+                        break;
+                    case CapturedPointerTransformation.CLOCKWISE:
+                        temp = distanceX; distanceX = -distanceY; distanceY = temp; break;
+                    case CapturedPointerTransformation.COUNTER_CLOCKWISE:
+                        temp = distanceX; distanceX = distanceY; distanceY = -temp; break;
+                    case CapturedPointerTransformation.UPSIDE_DOWN:
+                        distanceX = -distanceX; distanceY = -distanceY; break;
+                }
+            }
             if (pointerCount >= 3 && !mSwipeCompleted) {
                 // Note that distance values are reversed. For example, dragging a finger in the
                 // direction of increasing Y coordinate (downwards) results in distanceY being

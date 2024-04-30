@@ -631,6 +631,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 parent.removeView(pager);
                 parent.addView(pager, 0);
             }
+            frm.setPadding(0, 0, 0, preferences.getBoolean("adjustHeightForEK", false) && show ? pager.getHeight() : 0);
 
             if (enabled && saveState) {
                 SharedPreferences.Editor edit = preferences.edit();
@@ -801,7 +802,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
         toggleExtraKeys(!isInPictureInPictureMode, false);
 
-        frm.setPadding(0, 0, 0, 0);
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
     }
 

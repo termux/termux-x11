@@ -556,6 +556,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             buttons.setVisibility(View.GONE);
         }
 
+        View pager = getTerminalToolbarViewPager();
+        frm.setPadding(0, 0, 0, p.getBoolean("adjustHeightForEK", false) && pager.getVisibility() == View.VISIBLE ? pager.getHeight() : 0);
+
         lorieView.requestLayout();
         lorieView.invalidate();
     }

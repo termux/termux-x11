@@ -133,6 +133,20 @@ public class TouchInputHandler {
     private static DisplayManager mDisplayManager;
 
     @CapturedPointerTransformation static int capturedPointerTransformation = CapturedPointerTransformation.NONE;
+    private final int[][] buttons = {
+            {MotionEvent.BUTTON_PRIMARY, InputStub.BUTTON_LEFT},
+            {MotionEvent.BUTTON_TERTIARY, InputStub.BUTTON_MIDDLE},
+            {MotionEvent.BUTTON_SECONDARY, InputStub.BUTTON_RIGHT}
+    };
+    private int savedBS = 0;
+    private int currentBS = 0;
+    boolean isMouseButtonChanged(int mask) {
+        return (savedBS & mask) != (currentBS & mask);
+    }
+
+    boolean mouseButtonDown(int mask) {
+        return ((currentBS & mask) != 0);
+    }
 
     private TouchInputHandler(MainActivity activity, RenderData renderData,
                               final InputEventSender injector, boolean isTouchpad) {
@@ -259,11 +273,11 @@ public class TouchInputHandler {
             return mHMListener.onTouch(view, event);
 
         if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER) {
-            // Dex touchpad sends events as finger, but it should be considered as a mouse.
+            // Dex touchpad (in non-captured mode) sends events as finger, but it should be considered as a mouse.
             if (isDexEvent(event) && mDexListener.onTouch(view, event))
                 return true;
 
-            // Regular touchpads and Dex touchpad send events as finger too,
+            // Regular touchpads and Dex touchpad (in captured mode) send events as finger too,
             // but they should be handled as touchscreens with trackpad mode.
             if (mTouchpadHandler != null && (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD)
                 return mTouchpadHandler.handleTouchEvent(view, view, event);
@@ -282,7 +296,19 @@ public class TouchInputHandler {
             mTapDetector.onTouchEvent(event);
             mSwipePinchDetector.onTouchEvent(event);
 
+
             switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_BUTTON_PRESS:
+                case MotionEvent.ACTION_BUTTON_RELEASE:
+                    // For hardware touchpad in DeX (captured mode), handle physical click buttons
+                    if ((event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) {
+                        currentBS = event.getButtonState();
+                        for (int[] button: buttons)
+                            if (isMouseButtonChanged(button[0]))
+                                mInjector.sendMouseEvent(null, button[1], mouseButtonDown(button[0]), true);
+                        savedBS = currentBS;
+                        break;
+                    }
                 case MotionEvent.ACTION_DOWN:
                     mSuppressCursorMovement = false;
                     mSwipeCompleted = false;

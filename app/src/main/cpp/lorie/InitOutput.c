@@ -135,6 +135,7 @@ static void* ddxReadyThread(unused void* cookie) {
             char DISPLAY[16] = "";
             sprintf(DISPLAY, ":%s", display);
             setenv("DISPLAY", DISPLAY, 1);
+            unsetenv("CLASSPATH");
             execlp("sh", "sh", "-c", xstartup, NULL);
             dprintf(2, "Failed to start command `sh -c \"%s\"`: %s\n", xstartup, strerror(errno));
             abort();

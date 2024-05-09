@@ -524,6 +524,7 @@ public class TouchInputHandler {
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
             int pointerCount = e2.getPointerCount();
 
+            // For captured touchpad pointer:
             // Automatic (for touchpad) mode is needed because touchpads ignore screen orientation and report physical X and Y
             if ((e2.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD
                     && mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) {
@@ -547,7 +548,11 @@ public class TouchInputHandler {
                     case CapturedPointerTransformation.UPSIDE_DOWN:
                         distanceX = -distanceX; distanceY = -distanceY; break;
                 }
+                distanceX *= mInjector.capturedPointerSpeedFactor;
+                distanceY *= mInjector.capturedPointerSpeedFactor;
             }
+
+
             if (pointerCount >= 3 && !mSwipeCompleted) {
                 // Note that distance values are reversed. For example, dragging a finger in the
                 // direction of increasing Y coordinate (downwards) results in distanceY being
@@ -574,9 +579,10 @@ public class TouchInputHandler {
 
             if (mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) {
                 if (mInjector.scaleTouchpad) {
-                    distanceX *= mRenderData.scale.x;
+                    distanceX *= mRenderData.scale.x ;
                     distanceY *= mRenderData.scale.y;
                 }
+
                 moveCursorByOffset(distanceX, distanceY);
             }
             if (!(mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) && mIsDragging) {

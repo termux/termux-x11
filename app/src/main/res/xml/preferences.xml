@@ -169,6 +169,12 @@
         <Preference
             android:title="Extra keys config"
             android:key="extra_keys_config" />
+
+        <SeekBarPreference
+            android:title="Opacity of extra keys bar"
+            android:key="opacityEKBar"
+            android:max="100"
+            android:defaultValue="100" />
     </PreferenceCategory>
 
     <PreferenceCategory android:key="other" android:title="Other">

@@ -141,6 +141,7 @@ public class LoriePreferences extends AppCompatActivity {
                 findPreference("dexMetaKeyCapture").setVisible(false);
             SeekBarPreference scalePreference = findPreference("displayScale");
             SeekBarPreference capturedPointerSpeedFactor = findPreference("capturedPointerSpeedFactor");
+            SeekBarPreference opacityEKBar = findPreference("opacityEKBar");
             scalePreference.setMin(30);
             scalePreference.setMax(200);
             scalePreference.setSeekBarIncrement(10);
@@ -149,6 +150,10 @@ public class LoriePreferences extends AppCompatActivity {
             capturedPointerSpeedFactor.setMax(200);
             capturedPointerSpeedFactor.setSeekBarIncrement(1);
             capturedPointerSpeedFactor.setShowSeekBarValue(true);
+            opacityEKBar.setMin(10);
+            opacityEKBar.setMax(100);
+            opacityEKBar.setSeekBarIncrement(1);
+            opacityEKBar.setShowSeekBarValue(true);
 
             switch (p.getString("displayResolutionMode", "native")) {
                 case "scaled":

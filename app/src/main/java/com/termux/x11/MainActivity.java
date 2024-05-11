@@ -556,9 +556,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             buttons.setVisibility(View.GONE);
         }
 
-        View pager = getTerminalToolbarViewPager();
-        frm.setPadding(0, 0, 0, p.getBoolean("adjustHeightForEK", false) && pager.getVisibility() == View.VISIBLE ? pager.getHeight() : 0);
-
         lorieView.requestLayout();
         lorieView.invalidate();
     }
@@ -616,6 +613,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         (mExtraKeys.getExtraKeysInfo() == null ? 0 : mExtraKeys.getExtraKeysInfo().getMatrix().length));
                 terminalToolbarViewPager.setLayoutParams(layoutParams);
             }
+            frm.setPadding(0, 0, 0, preferences.getBoolean("adjustHeightForEK", false) && terminalToolbarViewPager.getVisibility() == View.VISIBLE ? terminalToolbarViewPager.getHeight() : 0);
         }, 200);
     }
 

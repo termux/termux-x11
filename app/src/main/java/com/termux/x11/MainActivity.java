@@ -175,6 +175,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         }, new InputEventSender(lorieView));
         mLorieKeyListener = (v, k, e) -> {
             InputDevice dev = e.getDevice();
+            boolean result;
+
             if (!captureVolumeKeys && (k == KEYCODE_VOLUME_DOWN || k == KEYCODE_VOLUME_UP))
                 return false;
 
@@ -201,11 +203,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 }
             }
 
+            result = mInputHandler.sendKeyEvent(v, e);
+
             // Do not steal dedicated buttons from a full external keyboard.
             if (useTermuxEKBarBehaviour && mExtraKeys != null && (dev == null || dev.isVirtual()))
                 mExtraKeys.unsetSpecialKeys();
 
-            return mInputHandler.sendKeyEvent(v, e);
+            return result;
         };
 
         lorieParent.setOnTouchListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));

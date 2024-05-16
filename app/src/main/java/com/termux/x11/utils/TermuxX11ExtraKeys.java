@@ -125,10 +125,15 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     public void unsetSpecialKeys() {
         if (mExtraKeysView == null)
             return;
-        mExtraKeysView.readSpecialButton(SpecialButton.CTRL, true);
-        mExtraKeysView.readSpecialButton(SpecialButton.ALT, true);
-        mExtraKeysView.readSpecialButton(SpecialButton.SHIFT, true);
-        mExtraKeysView.readSpecialButton(SpecialButton.META, true);
+
+        if (Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.CTRL, true)))
+            mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_CTRL_LEFT, false);
+        if (Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.ALT, true)))
+            mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_ALT_LEFT, false);
+        if (Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.SHIFT, true)))
+            mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, false);
+        if (Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.META, true)))
+            mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_META_LEFT, false);
     }
 
     @Override

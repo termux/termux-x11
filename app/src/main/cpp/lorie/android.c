@@ -339,7 +339,7 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                     case 1: // BUTTON_LEFT
                     case 2: // BUTTON_MIDDLE
                     case 3: // BUTTON_RIGHT
-                        QueuePointerEvents(lorieMouse, e.mouse.down ? ButtonPress : ButtonRelease, e.mouse.detail, 0, &mask);
+                        QueuePointerEvents(lorieMouse, e.mouse.down ? ButtonPress : ButtonRelease, e.mouse.detail, POINTER_RELATIVE, NULL);
                         break;
                     case 4: // BUTTON_SCROLL
                         if (e.mouse.x) {

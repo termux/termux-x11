@@ -64,6 +64,12 @@
 	        android:title="Keep Screen On"
             android:defaultValue="true"
             android:key="keepScreenOn" />
+
+        <SwitchPreferenceCompat
+            android:title="Adjust display height for extra keys bar"
+            android:summary="May cause screen flickering during toggling EK bar"
+            android:defaultValue="false"
+            android:key="adjustHeightForEK" />
     </PreferenceCategory>
     <PreferenceCategory android:key="pointer" android:title="Pointer">
         <ListPreference
@@ -180,12 +186,5 @@
         <Preference
             android:title="Request notification permission"
             android:key="requestNotificationPermission" />
-    </PreferenceCategory>
-
-    <PreferenceCategory android:key="experimental" android:title="Experimental">
-        <SwitchPreferenceCompat
-            android:title="Adjust display height for extra keys bar"
-            android:defaultValue="false"
-            android:key="adjustHeightForEK" />
     </PreferenceCategory>
 </PreferenceScreen>

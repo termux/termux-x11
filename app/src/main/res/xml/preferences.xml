@@ -166,6 +166,12 @@
             android:defaultValue="false"
             android:key="filterOutWinkey" />
 
+        <SeekBarPreference
+            android:title="Opacity of extra keys bar, %"
+            android:key="opacityEKBar"
+            android:max="100"
+            android:defaultValue="100" />
+
         <Preference
             android:title="Extra keys config"
             android:key="extra_keys_config" />

@@ -143,6 +143,12 @@
             android:key="hideEKOnVolDown" />
 
         <SwitchPreferenceCompat
+            android:title="Deactivate special keys on additional key bar after each keypress"
+            android:summary="Use long-tap to lock special keys"
+            android:defaultValue="false"
+            android:key="useTermuxEKBarBehaviour" />
+
+        <SwitchPreferenceCompat
             android:title="Show IME with external keyboard"
             android:summary="Show software keyboard while hardware keyboard is connected. Requires WRITE_SECURE_SETTINGS permission."
             android:defaultValue="false"

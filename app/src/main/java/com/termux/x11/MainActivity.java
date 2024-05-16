@@ -96,6 +96,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private boolean filterOutWinKey = false;
     private boolean hideEKOnVolDown = false;
     private boolean toggleIMEUsingBackKey = false;
+    private boolean useTermuxEKBarBehaviour = false;
     private static final int KEY_BACK = 158;
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -173,6 +174,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
         }, new InputEventSender(lorieView));
         mLorieKeyListener = (v, k, e) -> {
+            InputDevice dev = e.getDevice();
             if (!captureVolumeKeys && (k == KEYCODE_VOLUME_DOWN || k == KEYCODE_VOLUME_UP))
                 return false;
 
@@ -198,6 +200,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     return true;
                 }
             }
+
+            // Do not steal dedicated buttons from a full external keyboard.
+            if (useTermuxEKBarBehaviour && mExtraKeys != null && (dev == null || dev.isVirtual()))
+                mExtraKeys.unsetSpecialKeys();
 
             return mInputHandler.sendKeyEvent(v, e);
         };
@@ -538,6 +544,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             KeyInterceptor.shutdown();
 
         hideEKOnVolDown = p.getBoolean("hideEKOnVolDown", false);
+        useTermuxEKBarBehaviour = p.getBoolean("useTermuxEKBarBehaviour", false);
         toggleIMEUsingBackKey = p.getBoolean("toggleIMEUsingBackKey", true);
 
         int requestedOrientation = p.getBoolean("forceLandscape", false) ?

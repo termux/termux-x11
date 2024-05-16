@@ -122,6 +122,15 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
         }
     }
 
+    public void unsetSpecialKeys() {
+        if (mExtraKeysView == null)
+            return;
+        mExtraKeysView.readSpecialButton(SpecialButton.CTRL, true);
+        mExtraKeysView.readSpecialButton(SpecialButton.ALT, true);
+        mExtraKeysView.readSpecialButton(SpecialButton.SHIFT, true);
+        mExtraKeysView.readSpecialButton(SpecialButton.META, true);
+    }
+
     @Override
     public boolean performExtraKeyButtonHapticFeedback(View view, ExtraKeyButton buttonInfo, Button button) {
         MainActivity.handler.postDelayed(() -> {

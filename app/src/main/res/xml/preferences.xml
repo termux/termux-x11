@@ -133,6 +133,11 @@
             android:key="showAdditionalKbd" />
 
         <SwitchPreferenceCompat
+            android:title="Capture volume keys"
+            android:defaultValue="true"
+            android:key="captureVolumeKeys"/>
+
+        <SwitchPreferenceCompat
             android:title="Hide additional keyboard on Volume Down key press"
             android:defaultValue="false"
             android:key="hideEKOnVolDown" />

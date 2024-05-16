@@ -92,6 +92,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     static InputMethodManager inputMethodManager;
     private boolean mClientConnected = false;
     private View.OnKeyListener mLorieKeyListener;
+    boolean captureVolumeKeys = false;
     private boolean filterOutWinKey = false;
     private boolean hideEKOnVolDown = false;
     private boolean toggleIMEUsingBackKey = false;
@@ -172,6 +173,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
         }, new InputEventSender(lorieView));
         mLorieKeyListener = (v, k, e) -> {
+            if (!captureVolumeKeys && (k == KEYCODE_VOLUME_DOWN || k == KEYCODE_VOLUME_UP))
+                return false;
+
             if (hideEKOnVolDown && k == KEYCODE_VOLUME_DOWN) {
                 if (e.getAction() == ACTION_UP)
                     toggleExtraKeys();
@@ -499,6 +503,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         mInputHandler.setApplyDisplayScaleFactorToTouchpad(p.getBoolean("scaleTouchpad", true));
         mInputHandler.setTransformCapturedPointer(p.getString("transformCapturedPointer", "no"));
         mInputHandler.setCapturedPointerSpeedFactor(((float) p.getInt("capturedPointerSpeedFactor", 100))/100);
+        captureVolumeKeys = p.getBoolean("captureVolumeKeys", true);
         if (!p.getBoolean("pointerCapture", false) && lorieView.hasPointerCapture())
             lorieView.releasePointerCapture();
 
@@ -657,8 +662,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public boolean handleKey(KeyEvent e) {
         if (filterOutWinKey && (e.getKeyCode() == KEYCODE_META_LEFT || e.getKeyCode() == KEYCODE_META_RIGHT || e.isMetaPressed()))
             return false;
-        mLorieKeyListener.onKey(getLorieView(), e.getKeyCode(), e);
-        return true;
+        return mLorieKeyListener.onKey(getLorieView(), e.getKeyCode(), e);
     }
 
     @SuppressLint("ObsoleteSdkInt")

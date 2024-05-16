@@ -177,7 +177,7 @@ public class LoriePreferences extends AppCompatActivity {
                     findPreference("displayResolutionCustom").setVisible(false);
             }
 
-            findPreference("hideEKOnVolDown").setEnabled(p.getBoolean("showAdditionalKbd", false));
+            findPreference("hideEKOnVolDown").setEnabled(p.getBoolean("showAdditionalKbd", false) && p.getBoolean("captureVolumeKeys", true));
             findPreference("dexMetaKeyCapture").setEnabled(!p.getBoolean("enableAccessibilityServiceAutomatically", false));
             findPreference("enableAccessibilityServiceAutomatically").setEnabled(!p.getBoolean("dexMetaKeyCapture", false));
             findPreference("filterOutWinkey").setEnabled(p.getBoolean("enableAccessibilityServiceAutomatically", false));

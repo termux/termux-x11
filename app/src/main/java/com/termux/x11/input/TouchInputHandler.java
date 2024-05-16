@@ -431,7 +431,8 @@ public class TouchInputHandler {
                     case MotionEvent.ACTION_DOWN:
                         if (mInjector.tapToMove && mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) {
                             mGestureListenerHandler.removeMessages(InputStub.BUTTON_LEFT);
-                            onLongPress(1, e.getX(), e.getY());
+                            if (mInputStrategy.onPressAndHold(InputStub.BUTTON_LEFT, true))
+                                mIsDragging = true;
                         }
                         break;
                     case MotionEvent.ACTION_MOVE:
@@ -460,7 +461,7 @@ public class TouchInputHandler {
                 moveCursorToScreenPoint(x, y);
             }
 
-            if (mInputStrategy.onPressAndHold(button))
+            if (mInputStrategy.onPressAndHold(button, false))
                 mIsDragging = true;
         }
 

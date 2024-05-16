@@ -29,7 +29,7 @@ public interface InputStrategyInterface {
      * @param button The button value for the tap event.
      * @return A boolean representing whether the event was handled.
      */
-    boolean onPressAndHold(int button);
+    boolean onPressAndHold(int button, boolean force);
 
     /**
      * Called when a MotionEvent is received.  This method allows the input strategy to store or
@@ -49,7 +49,7 @@ public interface InputStrategyInterface {
 
     class NullInputStrategy implements InputStrategyInterface {
         @Override public void onTap(int button) {}
-        @Override public boolean onPressAndHold(int button) { return false; }
+        @Override public boolean onPressAndHold(int button, boolean force) { return false; }
         @Override public void onScroll(float distanceX, float distanceY) {}
         @Override public void onMotionEvent(MotionEvent event) {}
     }
@@ -152,7 +152,7 @@ public interface InputStrategyInterface {
         }
 
         @Override
-        public boolean onPressAndHold(int button) {
+        public boolean onPressAndHold(int button, boolean force) {
             mInjector.sendMouseDown(button, false);
             mHeldButton = button;
             return true;
@@ -210,7 +210,10 @@ public interface InputStrategyInterface {
         }
 
         @Override
-        public boolean onPressAndHold(int button) {
+        public boolean onPressAndHold(int button, boolean force) {
+            if (mInjector.tapToMove && !force)
+                return false;
+
             mInjector.sendMouseDown(button, true);
             mHeldButton = button;
             return true;

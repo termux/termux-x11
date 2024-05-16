@@ -96,6 +96,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private boolean hideEKOnVolDown = false;
     private boolean toggleIMEUsingBackKey = false;
     private boolean useTermuxEKBarBehaviour = false;
+    public boolean dexMetaKeyCapture = false;
     private static final int KEY_BACK = 158;
 
     private static boolean oldFullscreen = false;
@@ -522,7 +523,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (!p.getBoolean("pointerCapture", false) && lorieView.hasPointerCapture())
             lorieView.releasePointerCapture();
 
-        SamsungDexUtils.dexMetaKeyCapture(this, p.getBoolean("dexMetaKeyCapture", false));
+        KeyInterceptor.keyCaptureOnlyWhenPointerIntercepted = p.getBoolean("keyCaptureOnlyWhenPointerIntercepted", false);
+        dexMetaKeyCapture = p.getBoolean("dexMetaKeyCapture", false);
+        SamsungDexUtils.dexMetaKeyCapture(this, !KeyInterceptor.keyCaptureOnlyWhenPointerIntercepted && dexMetaKeyCapture);
 
         setTerminalToolbarView();
         onWindowFocusChanged(true);
@@ -804,7 +807,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         window.setSoftInputMode((reseed ? SOFT_INPUT_ADJUST_RESIZE : SOFT_INPUT_ADJUST_PAN) | SOFT_INPUT_STATE_HIDDEN);
 
         ((FrameLayout) findViewById(android.R.id.content)).getChildAt(0).setFitsSystemWindows(!fullscreen);
-        SamsungDexUtils.dexMetaKeyCapture(this, hasFocus && p.getBoolean("dexMetaKeyCapture", false));
+        SamsungDexUtils.dexMetaKeyCapture(this, hasFocus && !KeyInterceptor.keyCaptureOnlyWhenPointerIntercepted && dexMetaKeyCapture);
     }
 
     @Override

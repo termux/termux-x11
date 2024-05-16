@@ -19,6 +19,10 @@ import android.view.ViewConfiguration;
 import androidx.annotation.IntDef;
 import androidx.core.math.MathUtils;
 
+import com.termux.x11.MainActivity;
+import com.termux.x11.utils.KeyInterceptor;
+import com.termux.x11.utils.SamsungDexUtils;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
@@ -66,7 +70,7 @@ public class TouchInputHandler {
 
     private InputStrategyInterface mInputStrategy;
     private final InputEventSender mInjector;
-    private final Context mContext;
+    private final MainActivity mActivity;
 
     /**
      * Used for tracking swipe gestures. Only the Y-direction is needed for responding to swipe-up
@@ -100,7 +104,7 @@ public class TouchInputHandler {
 
     @CapturedPointerTransformation int capturedPointerTransformation = CapturedPointerTransformation.NONE;
 
-    private TouchInputHandler(Context ctx, RenderData renderData, RenderStub renderStub,
+    private TouchInputHandler(MainActivity activity, RenderData renderData, RenderStub renderStub,
                               final InputEventSender injector, boolean isTouchpad) {
         if (renderStub == null || injector == null)
             throw new NullPointerException();
@@ -108,10 +112,10 @@ public class TouchInputHandler {
         mRenderStub = renderStub;
         mRenderData = renderData != null ? renderData :new RenderData();
         mInjector = injector;
-        mContext = ctx;
+        mActivity = activity;
 
         GestureListener listener = new GestureListener();
-        mScroller = new GestureDetector(/*desktop*/ ctx, listener, null, false);
+        mScroller = new GestureDetector(/*desktop*/ activity, listener, null, false);
 
         // If long-press is enabled, the gesture-detector will not emit any further onScroll
         // notifications after the onLongPress notification. Since onScroll is being used for
@@ -119,24 +123,24 @@ public class TouchInputHandler {
         // down too long.
         mScroller.setIsLongpressEnabled(false);
 
-        mTapDetector = new TapGestureDetector(/*desktop*/ ctx, listener);
-        mSwipePinchDetector = new SwipeDetector(/*desktop*/ ctx);
+        mTapDetector = new TapGestureDetector(/*desktop*/ activity, listener);
+        mSwipePinchDetector = new SwipeDetector(/*desktop*/ activity);
 
         // The threshold needs to be bigger than the ScaledTouchSlop used by the gesture-detectors,
         // so that a gesture cannot be both a tap and a swipe. It also needs to be small enough so
         // that intentional swipes are usually detected.
-        float density = /*desktop*/ ctx.getResources().getDisplayMetrics().density;
+        float density = /*desktop*/ activity.getResources().getDisplayMetrics().density;
         mSwipeThreshold = 40 * density;
 
 //        mEdgeSlopInPx = ViewConfiguration.get(/*desktop*/ ctx).getScaledEdgeSlop();
 
         setInputMode(InputMode.TRACKPAD);
-        mDexListener = new DexListener(ctx);
-        mTouchpadHandler = isTouchpad ? null : new TouchInputHandler(ctx, mRenderData, renderStub, injector, true);
+        mDexListener = new DexListener(activity);
+        mTouchpadHandler = isTouchpad ? null : new TouchInputHandler(activity, mRenderData, renderStub, injector, true);
     }
 
-    public TouchInputHandler(Context ctx, RenderStub renderStub, final InputEventSender injector) {
-        this(ctx, null, renderStub, injector, false);
+    public TouchInputHandler(MainActivity activity, RenderStub renderStub, final InputEventSender injector) {
+        this(activity, null, renderStub, injector, false);
     }
 
     boolean isDexEvent(MotionEvent event) {
@@ -163,8 +167,11 @@ public class TouchInputHandler {
         if (!view.isFocused() && event.getAction() == MotionEvent.ACTION_DOWN)
             view.requestFocus();
 
-        if (mInjector.pointerCapture && !view.hasPointerCapture() && event.getAction() == MotionEvent.ACTION_UP)
+        if (mInjector.pointerCapture && !view.hasPointerCapture() && event.getAction() == MotionEvent.ACTION_UP) {
             view.requestPointerCapture();
+            if (KeyInterceptor.keyCaptureOnlyWhenPointerIntercepted && mActivity.dexMetaKeyCapture)
+                SamsungDexUtils.dexMetaKeyCapture(mActivity, true);
+        }
 
         if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_STYLUS)
             return mStylusListener.onTouch(event);
@@ -261,7 +268,7 @@ public class TouchInputHandler {
         if (inputMode == InputMode.TOUCH)
             mInputStrategy = new InputStrategyInterface.NullInputStrategy();
         else if (inputMode == InputMode.SIMULATED_TOUCH)
-            mInputStrategy = new InputStrategyInterface.SimulatedTouchInputStrategy(mRenderData, mInjector, mContext);
+            mInputStrategy = new InputStrategyInterface.SimulatedTouchInputStrategy(mRenderData, mInjector, mActivity);
         else
             mInputStrategy = new InputStrategyInterface.TrackpadInputStrategy(mInjector);
     }

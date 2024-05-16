@@ -15,6 +15,10 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 
+import com.termux.x11.MainActivity;
+import com.termux.x11.utils.KeyInterceptor;
+import com.termux.x11.utils.SamsungDexUtils;
+
 import java.util.List;
 import java.util.TreeSet;
 
@@ -204,8 +208,11 @@ public final class InputEventSender {
         if (e.getRepeatCount() > 0)
             return true;
 
-        if (pointerCapture && keyCode == KEYCODE_ESCAPE && !pressed)
+        if (pointerCapture && keyCode == KEYCODE_ESCAPE && !pressed) {
             v.releasePointerCapture();
+            if (KeyInterceptor.keyCaptureOnlyWhenPointerIntercepted && MainActivity.getInstance().dexMetaKeyCapture)
+                SamsungDexUtils.dexMetaKeyCapture(MainActivity.getInstance(), false);
+        }
 
         // We try to send all other key codes to the host directly.
         return mInjector.sendKeyEvent(scancode, keyCode, pressed);

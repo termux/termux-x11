@@ -63,15 +63,15 @@ public class TouchInputHandler {
         int TOUCH = 3;
     }
 
-    @IntDef({CapturedPointerTransformation.NONE, CapturedPointerTransformation.CLOCKWISE, CapturedPointerTransformation.UPSIDE_DOWN, CapturedPointerTransformation.COUNTER_CLOCKWISE, CapturedPointerTransformation.AUTO})
+    @IntDef({CapturedPointerTransformation.AUTO, CapturedPointerTransformation.NONE, CapturedPointerTransformation.COUNTER_CLOCKWISE, CapturedPointerTransformation.UPSIDE_DOWN, CapturedPointerTransformation.CLOCKWISE})
     @Retention(RetentionPolicy.SOURCE)
     public @interface CapturedPointerTransformation {
         // values correspond to transformation needed given getRotation(), e.g. getRotation() = 1 requires counter-clockwise transformation
-        int NONE = 0;
-        int CLOCKWISE = 3;
-        int UPSIDE_DOWN = 2;
-        int COUNTER_CLOCKWISE = 1;
         int AUTO = -1;
+        int NONE = 0;
+        int COUNTER_CLOCKWISE = 1;
+        int UPSIDE_DOWN = 2;
+        int CLOCKWISE = 3;
     }
 
     private final RenderData mRenderData;
@@ -295,7 +295,6 @@ public class TouchInputHandler {
             mScroller.onTouchEvent(event);
             mTapDetector.onTouchEvent(event);
             mSwipePinchDetector.onTouchEvent(event);
-
 
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_BUTTON_PRESS:
@@ -579,10 +578,9 @@ public class TouchInputHandler {
 
             if (mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) {
                 if (mInjector.scaleTouchpad) {
-                    distanceX *= mRenderData.scale.x ;
+                    distanceX *= mRenderData.scale.x;
                     distanceY *= mRenderData.scale.y;
                 }
-
                 moveCursorByOffset(distanceX, distanceY);
             }
             if (!(mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) && mIsDragging) {

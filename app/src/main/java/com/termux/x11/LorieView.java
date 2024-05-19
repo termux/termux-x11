@@ -42,6 +42,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private ClipboardManager clipboard;
     private long lastClipboardTimestamp = System.currentTimeMillis();
     private static boolean clipboardSyncEnabled = false;
+    private static boolean hardwareKbdScancodesWorkaround = false;
     private Callback mCallback;
     private final Point p = new Point();
     private final SurfaceHolder.Callback mSurfaceCallback = new SurfaceHolder.Callback() {
@@ -204,6 +205,7 @@ public class LorieView extends SurfaceView implements InputStub {
 
     @Override
     public boolean dispatchKeyEventPreIme(KeyEvent event) {
+        if (hardwareKbdScancodesWorkaround) return false;
         Activity a = getActivity();
         return (a instanceof MainActivity) && ((MainActivity) a).handleKey(event);
     }
@@ -213,6 +215,10 @@ public class LorieView extends SurfaceView implements InputStub {
     static void setClipboardSyncEnabled(boolean enabled) {
         clipboardSyncEnabled = enabled;
         setClipboardSyncEnabled(enabled, enabled);
+    }
+
+    static void setHardwareKbdScancodesWorkaroundEnabled(boolean enabled) {
+        hardwareKbdScancodesWorkaround = enabled;
     }
 
     // It is used in native code

@@ -161,6 +161,12 @@
             android:key="preferScancodes"/>
 
         <SwitchPreferenceCompat
+            android:title="Hardware keyboard scancodes workaround"
+            android:summary="Fixes scancodes on some devices. Might cause problems with multiple layouts."
+            android:defaultValue="true"
+            android:key="hardwareKbdScancodesWorkaround"/>
+
+        <SwitchPreferenceCompat
             android:title="Intercept system shortcuts"
             android:summary="Samsung Dex only. Allows interception of &quot;Alt+F4&quot;, &quot;Meta+D&quot;, &quot;Meta+E&quot;, etc. "
             android:defaultValue="false"

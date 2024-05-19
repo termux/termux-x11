@@ -657,6 +657,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             } else {
                 parent.removeView(pager);
                 parent.addView(pager, 0);
+                if (mExtraKeys != null)
+                    mExtraKeys.unsetSpecialKeys();
             }
             frm.setPadding(0, 0, 0, preferences.getBoolean("adjustHeightForEK", false) && show ? pager.getHeight() : 0);
 

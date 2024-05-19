@@ -558,6 +558,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         hideEKOnVolDown = p.getBoolean("hideEKOnVolDown", false);
         useTermuxEKBarBehaviour = p.getBoolean("useTermuxEKBarBehaviour", false);
         toggleIMEUsingBackKey = p.getBoolean("toggleIMEUsingBackKey", true);
+        LorieView.setHardwareKbdScancodesWorkaroundEnabled(p.getBoolean("hardwareKbdScancodesWorkaround", true));
 
         int requestedOrientation = p.getBoolean("forceLandscape", false) ?
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;

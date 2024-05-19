@@ -57,7 +57,12 @@ set(test_compile_options
         "-fno-strict-aliasing"
         "-Wno-unused-but-set-variable"
         "-Wno-unused-parameter"
-        "-Wno-unused-variable")
+        "-Wno-unused-variable"
+        "-Wno-unused-function"
+        "-Wno-missing-prototypes"
+        "-Wno-macro-redefined"
+        "-Wno-uninitialized"
+        "-Wno-shadow")
 
 set(CMAKE_REQUIRED_QUIET_OLD ${CMAKE_REQUIRED_QUIET})
 set(CMAKE_REQUIRED_QUIET 1)

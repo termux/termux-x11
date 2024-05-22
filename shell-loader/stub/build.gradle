@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace 'com.termux.x11'
+    namespace 'com.termux.x11.stub'
     compileSdkVersion 30
     defaultConfig {
         minSdkVersion 24

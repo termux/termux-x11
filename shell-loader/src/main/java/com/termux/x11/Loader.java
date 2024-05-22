@@ -1,4 +1,5 @@
 package com.termux.x11;
+import com.termux.x11.shell_loader.BuildConfig;
 
 public class Loader {
     /**

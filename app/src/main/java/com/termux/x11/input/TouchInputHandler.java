@@ -6,9 +6,11 @@ package com.termux.x11.input;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.PointF;
 import android.os.Handler;
 import android.os.Build;
+import android.util.DisplayMetrics;
 import android.view.GestureDetector;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -71,6 +73,7 @@ public class TouchInputHandler {
     private InputStrategyInterface mInputStrategy;
     private final InputEventSender mInjector;
     private final MainActivity mActivity;
+    private final DisplayMetrics mMetrics = new DisplayMetrics() ;
 
     /**
      * Used for tracking swipe gestures. Only the Y-direction is needed for responding to swipe-up
@@ -255,13 +258,13 @@ public class TouchInputHandler {
     public void handleHostSizeChanged(int w, int h) {
         mRenderData.imageWidth = w;
         mRenderData.imageHeight = h;
-//        mPanGestureBounds = new Rect(mEdgeSlopInPx, mEdgeSlopInPx, w - mEdgeSlopInPx, h - mEdgeSlopInPx);
         moveCursorToScreenPoint((float) w/2, (float) h/2);
 
         if (mTouchpadHandler != null)
             mTouchpadHandler.handleHostSizeChanged(w, h);
 
         resetTransformation();
+        MainActivity.getRealMetrics(mMetrics);
     }
 
     public void setInputMode(@InputMode int inputMode) {
@@ -273,28 +276,14 @@ public class TouchInputHandler {
             mInputStrategy = new InputStrategyInterface.TrackpadInputStrategy(mInjector);
     }
 
-    public void setTapToMove(boolean enabled) {
-        mInjector.tapToMove = enabled;
-    }
-
-    public void setPreferScancodes(boolean enabled) {
-        mInjector.preferScancodes = enabled;
-    }
-
-    public void setPointerCaptureEnabled(boolean enabled) {
-        mInjector.pointerCapture = enabled;
-    }
-
-    public void setApplyDisplayScaleFactorToTouchpad(boolean enabled) {
-        mInjector.scaleTouchpad = enabled;
-    }
-
-    public void setCapturedPointerSpeedFactor(float value) {
-        mInjector.capturedPointerSpeedFactor = value;
-    }
-
-    public void setTransformCapturedPointer(String value) {
-        switch (value) {
+    public void reloadPreferences(SharedPreferences p) {
+        setInputMode(Integer.parseInt(p.getString("touchMode", "1")));
+        mInjector.tapToMove = p.getBoolean("tapToMove", false);
+        mInjector.preferScancodes = p.getBoolean("preferScancodes", false);
+        mInjector.pointerCapture = p.getBoolean("pointerCapture", false);
+        mInjector.scaleTouchpad = p.getBoolean("scaleTouchpad", true);
+        mInjector.capturedPointerSpeedFactor = ((float) p.getInt("capturedPointerSpeedFactor", 100))/100;
+        switch (p.getString("transformCapturedPointer", "no")) {
             case "c":
                 capturedPointerTransformation = CapturedPointerTransformation.CLOCKWISE;
                 break;
@@ -307,6 +296,8 @@ public class TouchInputHandler {
             default:
                 capturedPointerTransformation = CapturedPointerTransformation.NONE;
         }
+
+        MainActivity.getRealMetrics(mMetrics);
     }
 
     private void moveCursorByOffset(float deltaX, float deltaY) {
@@ -519,6 +510,7 @@ public class TouchInputHandler {
                 {MotionEvent.BUTTON_SECONDARY, InputStub.BUTTON_RIGHT}
         };
 
+        /** @noinspection ReassignedVariable, SuspiciousNameCombination*/
         @SuppressLint("ClickableViewAccessibility")
         boolean onTouch(View v, MotionEvent e) {
             if (e.getAction() == MotionEvent.ACTION_SCROLL) {
@@ -552,7 +544,10 @@ public class TouchInputHandler {
                             x = -x; y = -y; break;
                     }
 
-                    mInjector.sendCursorMove(mInjector.capturedPointerSpeedFactor * x, mInjector.capturedPointerSpeedFactor * y, true);
+                    x *= mInjector.capturedPointerSpeedFactor * mMetrics.density;
+                    y *= mInjector.capturedPointerSpeedFactor * mMetrics.density;
+
+                    mInjector.sendCursorMove(x, y, true);
                     if (axis_relative_x && mTouchpadHandler != null)
                         mTouchpadHandler.mTapDetector.onTouchEvent(e);
                 }
@@ -646,6 +641,7 @@ public class TouchInputHandler {
             return (e.getFlags() & flags) == flags;
         }
 
+        @SuppressLint({"WrongConstant", "InlinedApi"})
         private boolean isScrollingEvent(MotionEvent e) {
             return hasFlags(e, 0x14000000) || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && e.getClassification() == MotionEvent.CLASSIFICATION_TWO_FINGER_SWIPE);
         }

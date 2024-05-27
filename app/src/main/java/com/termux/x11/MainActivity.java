@@ -38,6 +38,7 @@ import android.os.SystemClock;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.service.notification.StatusBarNotification;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.DragEvent;
 import android.view.InputDevice;
@@ -492,7 +493,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 LorieView.connect(fd.detachFd());
                 getLorieView().triggerCallback();
                 clientConnectedStateChanged(true);
-                LorieView.setClipboardSyncEnabled(PreferenceManager.getDefaultSharedPreferences(this).getBoolean("clipboardEnable", false));
+                getLorieView().reloadPreferences(PreferenceManager.getDefaultSharedPreferences(this));
             } else
                 handler.postDelayed(this::tryConnect, 500);
         } catch (Exception e) {
@@ -511,14 +512,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         SharedPreferences p = PreferenceManager.getDefaultSharedPreferences(this);
         LorieView lorieView = getLorieView();
 
-        int mode = Integer.parseInt(p.getString("touchMode", "1"));
-        mInputHandler.setInputMode(mode);
-        mInputHandler.setTapToMove(p.getBoolean("tapToMove", false));
-        mInputHandler.setPreferScancodes(p.getBoolean("preferScancodes", false));
-        mInputHandler.setPointerCaptureEnabled(p.getBoolean("pointerCapture", false));
-        mInputHandler.setApplyDisplayScaleFactorToTouchpad(p.getBoolean("scaleTouchpad", true));
-        mInputHandler.setTransformCapturedPointer(p.getString("transformCapturedPointer", "no"));
-        mInputHandler.setCapturedPointerSpeedFactor(((float) p.getInt("capturedPointerSpeedFactor", 100))/100);
+        mInputHandler.reloadPreferences(p);
+        lorieView.reloadPreferences(p);
         captureVolumeKeys = p.getBoolean("captureVolumeKeys", true);
         if (!p.getBoolean("pointerCapture", false) && lorieView.hasPointerCapture())
             lorieView.releasePointerCapture();
@@ -529,7 +524,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         setTerminalToolbarView();
         onWindowFocusChanged(true);
-        LorieView.setClipboardSyncEnabled(p.getBoolean("clipboardEnable", false));
 
         lorieView.triggerCallback();
 
@@ -558,7 +552,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         hideEKOnVolDown = p.getBoolean("hideEKOnVolDown", false);
         useTermuxEKBarBehaviour = p.getBoolean("useTermuxEKBarBehaviour", false);
         toggleIMEUsingBackKey = p.getBoolean("toggleIMEUsingBackKey", true);
-        LorieView.setHardwareKbdScancodesWorkaroundEnabled(p.getBoolean("hardwareKbdScancodesWorkaround", true));
 
         int requestedOrientation = p.getBoolean("forceLandscape", false) ?
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
@@ -883,5 +876,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private void checkXEvents() {
         getLorieView().handleXEvents();
         handler.postDelayed(this::checkXEvents, 300);
+    }
+
+    public static void getRealMetrics(DisplayMetrics m) {
+        if (getInstance() != null &&
+                getInstance().getLorieView() != null &&
+                getInstance().getLorieView().getDisplay() != null)
+            getInstance().getLorieView().getDisplay().getRealMetrics(m);
     }
 }

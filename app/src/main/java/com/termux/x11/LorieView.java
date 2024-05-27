@@ -14,6 +14,7 @@ import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.preference.PreferenceManager;
 import android.util.AttributeSet;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Surface;
@@ -212,13 +213,10 @@ public class LorieView extends SurfaceView implements InputStub {
 
     ClipboardManager.OnPrimaryClipChangedListener clipboardListener = this::handleClipboardChange;
 
-    static void setClipboardSyncEnabled(boolean enabled) {
-        clipboardSyncEnabled = enabled;
-        setClipboardSyncEnabled(enabled, enabled);
-    }
-
-    static void setHardwareKbdScancodesWorkaroundEnabled(boolean enabled) {
-        hardwareKbdScancodesWorkaround = enabled;
+    public void reloadPreferences(SharedPreferences p) {
+        hardwareKbdScancodesWorkaround = p.getBoolean("hardwareKbdScancodesWorkaround", true);
+        clipboardSyncEnabled = p.getBoolean("clipboardEnable", false);
+        setClipboardSyncEnabled(clipboardSyncEnabled, clipboardSyncEnabled);
     }
 
     // It is used in native code

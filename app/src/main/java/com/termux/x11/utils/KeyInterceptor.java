@@ -1,19 +1,16 @@
 package com.termux.x11.utils;
 
 import android.accessibilityservice.AccessibilityService;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
 
 import com.termux.x11.MainActivity;
-import com.termux.x11.R;
 
 import java.util.LinkedHashSet;
 
 public class KeyInterceptor extends AccessibilityService {
     LinkedHashSet<Integer> pressedKeys = new LinkedHashSet<>();
 
-    public static boolean keyCaptureOnlyWhenPointerIntercepted = false;
     private static KeyInterceptor self;
 
     public KeyInterceptor() {
@@ -36,12 +33,7 @@ public class KeyInterceptor extends AccessibilityService {
         if (instance == null)
             return false;
 
-        boolean intercept = instance.hasWindowFocus()
-                && (instance.findViewById(R.id.terminal_toolbar_text_input) == null
-                || !instance.findViewById(R.id.terminal_toolbar_text_input).isFocused());
-
-        if (intercept && keyCaptureOnlyWhenPointerIntercepted && !instance.getWindow().getDecorView().hasPointerCapture())
-            intercept = false;
+        boolean intercept = instance.shouldInterceptKeys();
 
         if (intercept || (event.getAction() == KeyEvent.ACTION_UP && pressedKeys.contains(event.getKeyCode())))
             ret = instance.handleKey(event);

@@ -97,7 +97,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private boolean hideEKOnVolDown = false;
     private boolean toggleIMEUsingBackKey = false;
     private boolean useTermuxEKBarBehaviour = false;
-    public boolean dexMetaKeyCapture = false;
     private static final int KEY_BACK = 158;
 
     private static boolean oldFullscreen = false;
@@ -210,7 +209,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 }
             }
 
-            result = mInputHandler.sendKeyEvent(v, e);
+            result = mInputHandler.sendKeyEvent(e);
 
             // Do not steal dedicated buttons from a full external keyboard.
             if (useTermuxEKBarBehaviour && mExtraKeys != null && (dev == null || dev.isVirtual()))
@@ -515,12 +514,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         mInputHandler.reloadPreferences(p);
         lorieView.reloadPreferences(p);
         captureVolumeKeys = p.getBoolean("captureVolumeKeys", true);
-        if (!p.getBoolean("pointerCapture", false) && lorieView.hasPointerCapture())
-            lorieView.releasePointerCapture();
-
-        KeyInterceptor.keyCaptureOnlyWhenPointerIntercepted = p.getBoolean("keyCaptureOnlyWhenPointerIntercepted", false);
-        dexMetaKeyCapture = p.getBoolean("dexMetaKeyCapture", false);
-        SamsungDexUtils.dexMetaKeyCapture(this, !KeyInterceptor.keyCaptureOnlyWhenPointerIntercepted && dexMetaKeyCapture);
 
         setTerminalToolbarView();
         onWindowFocusChanged(true);
@@ -616,7 +609,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private void setTerminalToolbarView() {
         final ViewPager terminalToolbarViewPager = getTerminalToolbarViewPager();
 
-        terminalToolbarViewPager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(getLorieView(), e)));
+        terminalToolbarViewPager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(e)));
         terminalToolbarViewPager.addOnPageChangeListener(new X11ToolbarViewPager.OnPageChangeListener(this, terminalToolbarViewPager));
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
@@ -803,7 +796,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         window.setSoftInputMode((reseed ? SOFT_INPUT_ADJUST_RESIZE : SOFT_INPUT_ADJUST_PAN) | SOFT_INPUT_STATE_HIDDEN);
 
         ((FrameLayout) findViewById(android.R.id.content)).getChildAt(0).setFitsSystemWindows(!fullscreen);
-        SamsungDexUtils.dexMetaKeyCapture(this, hasFocus && !KeyInterceptor.keyCaptureOnlyWhenPointerIntercepted && dexMetaKeyCapture);
     }
 
     @Override
@@ -883,5 +875,20 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 getInstance().getLorieView() != null &&
                 getInstance().getLorieView().getDisplay() != null)
             getInstance().getLorieView().getDisplay().getRealMetrics(m);
+    }
+
+    public static void setCapturingEnabled(boolean enabled) {
+        if (getInstance() == null || getInstance().mInputHandler == null)
+            return;
+
+        getInstance().mInputHandler.setCapturingEnabled(enabled);
+    }
+
+    public boolean shouldInterceptKeys() {
+        View textInput = findViewById(R.id.terminal_toolbar_text_input);
+        if (mInputHandler == null || !hasWindowFocus() || (textInput != null && textInput.isFocused()))
+            return false;
+
+        return mInputHandler.shouldInterceptKeys();
     }
 }

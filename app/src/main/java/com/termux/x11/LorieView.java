@@ -14,7 +14,6 @@ import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.preference.PreferenceManager;
 import android.util.AttributeSet;
-import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Surface;
@@ -229,7 +228,7 @@ public class LorieView extends SurfaceView implements InputStub {
         lastClipboardTimestamp = System.currentTimeMillis() + 150;
     }
 
-    // It is used in native code
+    /** @noinspection unused*/ // It is used in native code
     void requestClipboard() {
         if (!clipboardSyncEnabled) {
             sendClipboardEvent("".getBytes(StandardCharsets.UTF_8));

@@ -22,7 +22,6 @@ import androidx.annotation.IntDef;
 import androidx.core.math.MathUtils;
 
 import com.termux.x11.MainActivity;
-import com.termux.x11.utils.KeyInterceptor;
 import com.termux.x11.utils.SamsungDexUtils;
 
 import java.lang.annotation.Retention;
@@ -73,7 +72,9 @@ public class TouchInputHandler {
     private InputStrategyInterface mInputStrategy;
     private final InputEventSender mInjector;
     private final MainActivity mActivity;
-    private final DisplayMetrics mMetrics = new DisplayMetrics() ;
+    private final DisplayMetrics mMetrics = new DisplayMetrics();
+
+    private boolean keyIntercepting = false;
 
     /**
      * Used for tracking swipe gestures. Only the Y-direction is needed for responding to swipe-up
@@ -170,11 +171,8 @@ public class TouchInputHandler {
         if (!view.isFocused() && event.getAction() == MotionEvent.ACTION_DOWN)
             view.requestFocus();
 
-        if (mInjector.pointerCapture && !view.hasPointerCapture() && event.getAction() == MotionEvent.ACTION_UP) {
-            view.requestPointerCapture();
-            if (KeyInterceptor.keyCaptureOnlyWhenPointerIntercepted && mActivity.dexMetaKeyCapture)
-                SamsungDexUtils.dexMetaKeyCapture(mActivity, true);
-        }
+        if (event.getAction() == MotionEvent.ACTION_UP)
+            setCapturingEnabled(true);
 
         if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_STYLUS)
             return mStylusListener.onTouch(event);
@@ -276,6 +274,19 @@ public class TouchInputHandler {
             mInputStrategy = new InputStrategyInterface.TrackpadInputStrategy(mInjector);
     }
 
+    public void setCapturingEnabled(boolean enabled) {
+        if (mInjector.pointerCapture && enabled)
+            mActivity.getLorieView().requestPointerCapture();
+        else
+            mActivity.getLorieView().releasePointerCapture();
+
+        if (mInjector.pauseKeyInterceptingWithEsc) {
+            if (mInjector.dexMetaKeyCapture)
+                SamsungDexUtils.dexMetaKeyCapture(mActivity, enabled);
+            keyIntercepting = enabled;
+        }
+    }
+
     public void reloadPreferences(SharedPreferences p) {
         setInputMode(Integer.parseInt(p.getString("touchMode", "1")));
         mInjector.tapToMove = p.getBoolean("tapToMove", false);
@@ -283,6 +294,8 @@ public class TouchInputHandler {
         mInjector.pointerCapture = p.getBoolean("pointerCapture", false);
         mInjector.scaleTouchpad = p.getBoolean("scaleTouchpad", true);
         mInjector.capturedPointerSpeedFactor = ((float) p.getInt("capturedPointerSpeedFactor", 100))/100;
+        mInjector.dexMetaKeyCapture = p.getBoolean("dexMetaKeyCapture", false);
+        mInjector.pauseKeyInterceptingWithEsc = p.getBoolean("pauseKeyInterceptingWithEsc", false);
         switch (p.getString("transformCapturedPointer", "no")) {
             case "c":
                 capturedPointerTransformation = CapturedPointerTransformation.CLOCKWISE;
@@ -298,6 +311,16 @@ public class TouchInputHandler {
         }
 
         MainActivity.getRealMetrics(mMetrics);
+
+        if (!p.getBoolean("pointerCapture", false) && mActivity.getLorieView().hasPointerCapture())
+            mActivity.getLorieView().releasePointerCapture();
+
+        keyIntercepting = !mInjector.pauseKeyInterceptingWithEsc || mActivity.getLorieView().hasPointerCapture();
+        SamsungDexUtils.dexMetaKeyCapture(mActivity, mInjector.dexMetaKeyCapture && keyIntercepting);
+    }
+
+    public boolean shouldInterceptKeys() {
+        return !mInjector.pauseKeyInterceptingWithEsc || keyIntercepting;
     }
 
     private void moveCursorByOffset(float deltaX, float deltaY) {
@@ -488,8 +511,8 @@ public class TouchInputHandler {
         }
     }
 
-    public boolean sendKeyEvent(View view, KeyEvent event) {
-        return mInjector.sendKeyEvent(view, event);
+    public boolean sendKeyEvent(KeyEvent event) {
+        return mInjector.sendKeyEvent(event);
     }
 
     private class HardwareMouseListener {

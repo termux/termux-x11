@@ -77,9 +77,7 @@ public class X11ToolbarViewPager {
                 });
 
                 editText.setOnCapturedPointerListener((v2, e2) -> {
-                    v2.releasePointerCapture();
-                    if (KeyInterceptor.keyCaptureOnlyWhenPointerIntercepted && mActivity.dexMetaKeyCapture)
-                        SamsungDexUtils.dexMetaKeyCapture(mActivity, false);
+                    MainActivity.setCapturingEnabled(false);
                     return false;
                 });
 

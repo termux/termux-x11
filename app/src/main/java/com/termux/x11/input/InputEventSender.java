@@ -13,11 +13,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import android.graphics.PointF;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
-import android.view.View;
 
 import com.termux.x11.MainActivity;
-import com.termux.x11.utils.KeyInterceptor;
-import com.termux.x11.utils.SamsungDexUtils;
 
 import java.util.List;
 import java.util.TreeSet;
@@ -38,6 +35,8 @@ public final class InputEventSender {
     public boolean pointerCapture = false;
     public boolean scaleTouchpad = false;
     public float capturedPointerSpeedFactor = 100;
+    public boolean dexMetaKeyCapture = false;
+    public boolean pauseKeyInterceptingWithEsc = false;
 
     /** Set of pressed keys for which we've sent TextEvent. */
     private final TreeSet<Integer> mPressedTextKeys;
@@ -136,7 +135,7 @@ public final class InputEventSender {
      * key-events or text-events. This contains some logic for handling some special keys, and
      * avoids sending a key-up event for a key that was previously injected as a text-event.
      */
-    public boolean sendKeyEvent(View v, KeyEvent e) {
+    public boolean sendKeyEvent(KeyEvent e) {
         int keyCode = e.getKeyCode();
         boolean pressed = e.getAction() == KeyEvent.ACTION_DOWN;
 
@@ -208,11 +207,8 @@ public final class InputEventSender {
         if (e.getRepeatCount() > 0)
             return true;
 
-        if (pointerCapture && keyCode == KEYCODE_ESCAPE && !pressed) {
-            v.releasePointerCapture();
-            if (KeyInterceptor.keyCaptureOnlyWhenPointerIntercepted && MainActivity.getInstance().dexMetaKeyCapture)
-                SamsungDexUtils.dexMetaKeyCapture(MainActivity.getInstance(), false);
-        }
+        if (keyCode == KEYCODE_ESCAPE && !pressed && e.hasNoModifiers())
+            MainActivity.setCapturingEnabled(false);
 
         // We try to send all other key codes to the host directly.
         return mInjector.sendKeyEvent(scancode, keyCode, pressed);

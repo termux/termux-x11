@@ -108,10 +108,11 @@ typedef struct {
 
     JavaVM* vm;
     JNIEnv* env;
+    Bool dri3;
 } lorieScreenInfo, *lorieScreenInfoPtr;
 
 ScreenPtr pScreenPtr;
-static lorieScreenInfo lorieScreen = { .root.width = 1280, .root.height = 1024 };
+static lorieScreenInfo lorieScreen = { .root.width = 1280, .root.height = 1024, .dri3 = TRUE };
 static lorieScreenInfoPtr pvfb = &lorieScreen;
 static char *xstartup = NULL;
 
@@ -167,6 +168,9 @@ static void* ddxReadyThread(unused void* cookie) {
 
 void
 ddxReady(void) {
+    if (!xstartup)
+        return;
+
     pthread_t t;
     pthread_create(&t, NULL, ddxReadyThread, NULL);
 }
@@ -198,6 +202,7 @@ void ddxUseMsg(void) {
     ErrorF("-xstartup \"command\"    start `command` after server startup\n");
     ErrorF("-legacy-drawing        use legacy drawing, without using AHardwareBuffers\n");
     ErrorF("-force-bgra            force flipping colours (RGBA->BGRA)\n");
+    ErrorF("-disable-dri3          disabling DRI3 support (to let lavapipe work)\n");
 }
 
 int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
@@ -214,6 +219,11 @@ int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
 
     if (strcmp(argv[i], "-force-bgra") == 0) {
         pvfb->root.flip = TRUE;
+        return 1;
+    }
+
+    if (strcmp(argv[i], "-disable-dri3") == 0) {
+        pvfb->dri3 = FALSE;
         return 1;
     }
 
@@ -563,7 +573,7 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
           || !miSetVisualTypesAndMasks(24, ((1 << TrueColor) | (1 << DirectColor)), 8, TrueColor, 0xFF0000, 0x00FF00, 0x0000FF)
           || !miSetPixmapDepths()
           || !fbScreenInit(pScreen, NULL, pvfb->root.width, pvfb->root.height, monitorResolution, monitorResolution, 0, 32)
-          || !lorieInitDri3(pScreen)
+          || !(!pvfb->dri3 || lorieInitDri3(pScreen))
           || !fbPictureInit(pScreen, 0, 0)
           || !lorieRandRInit(pScreen)
           || !miPointerInitialize(pScreen, &loriePointerSpriteFuncs, &loriePointerCursorFuncs, TRUE)

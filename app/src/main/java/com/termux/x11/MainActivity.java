@@ -69,7 +69,6 @@ import com.termux.x11.input.TouchInputHandler.RenderStub;
 import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.FullscreenWorkaround;
 import com.termux.x11.utils.KeyInterceptor;
-import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
 
@@ -234,7 +233,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
             if (service != null) {
                 try {
-                    service.windowChanged(sfc);
+                    service.windowChanged(sfc, lorieView.getDisplay() != null ? lorieView.getDisplay().getName() : "screen");
                 } catch (RemoteException e) {
                     Log.e("MainActivity", "failed to send windowChanged request", e);
                 }

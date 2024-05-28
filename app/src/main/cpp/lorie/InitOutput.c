@@ -520,6 +520,8 @@ lorieRandRInit(ScreenPtr pScreen) {
     RRCrtcPtr crtc;
     RRModePtr mode;
 
+    char screenName[1024] = "screen";
+
     if (!RRScreenInit(pScreen))
        return FALSE;
 
@@ -534,7 +536,8 @@ lorieRandRInit(ScreenPtr pScreen) {
         || !(mode = lorieCvt(pScreen->width, pScreen->height, 30))
         || !(crtc = RRCrtcCreate(pScreen, NULL))
         || !RRCrtcGammaSetSize(crtc, 256)
-        || !(output = RROutputCreate(pScreen, "screen", 6, NULL))
+        || !(output = RROutputCreate(pScreen, screenName, sizeof(screenName), NULL))
+        || (output->nameLength = strlen(output->name), FalseNoop())
         || !RROutputSetClones(output, NULL, 0)
         || !RROutputSetModes(output, &mode, 1, 0)
         || !RROutputSetCrtcs(output, &crtc, 1)
@@ -602,6 +605,16 @@ CursorForDevice(DeviceIntPtr pDev) {
     }
 
     return NULL;
+}
+
+Bool lorieChangeScreenName(unused ClientPtr pClient, void *closure) {
+    RROutputPtr output = RRFirstOutput(pScreenPtr);
+    memset(output->name, 0, 1024);
+    strncpy(output->name, closure, 1024);
+    output->name[1023] = '\0';
+    output->nameLength = strlen(output->name);
+    free(closure);
+    return TRUE;
 }
 
 Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {

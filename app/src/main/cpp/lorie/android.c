@@ -250,7 +250,12 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectA
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, unused jobject cls, jobject surface) {
+Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, unused jobject cls, jobject surface, jstring jname) {
+    const char *name = !jname ? NULL : (*env)->GetStringUTFChars(env, jname, JNI_FALSE);
+    QueueWorkProc(lorieChangeScreenName, NULL, name ? strndup(name, 1024) : strdup("screen"));
+    if (name)
+        (*env)->ReleaseStringUTFChars(env, jname, name);
+
     QueueWorkProc(lorieChangeWindow, NULL, surface ? (*env)->NewGlobalRef(env, surface) : NULL);
 }
 
@@ -263,7 +268,7 @@ static Bool sendConfigureNotify(unused ClientPtr pClient, void *closure) {
     return TRUE;
 }
 
-static Bool handleClipboardAnnounce(unused ClientPtr pClient, void *closure) {
+static Bool handleClipboardAnnounce(unused ClientPtr pClient, __unused void *closure) {
     // This must be done only on X server thread.
     lorieHandleClipboardAnnounce();
     return TRUE;
@@ -553,7 +558,7 @@ Java_com_termux_x11_LorieView_setClipboardSyncEnabled(unused JNIEnv* env, unused
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendClipboardAnnounce(JNIEnv *env, jobject thiz) {
+Java_com_termux_x11_LorieView_sendClipboardAnnounce(JNIEnv *env, __unused jobject thiz) {
     if (conn_fd != -1) {
         lorieEvent e = { .type = EVENT_CLIPBOARD_ANNOUNCE };
         write(conn_fd, &e, sizeof(e));

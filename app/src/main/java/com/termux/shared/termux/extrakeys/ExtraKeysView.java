@@ -34,6 +34,8 @@ import android.widget.PopupWindow;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.termux.x11.utils.TermuxX11ExtraKeys;
+
 /**
  * A {@link View} showing extra keys (such as Escape, Ctrl, Alt) not normally available on an Android soft
  * keyboards.
@@ -280,13 +282,11 @@ public final class ExtraKeysView extends GridLayout {
 
     /**
      * Reload this instance of {@link ExtraKeysView} with the info passed in {@code extraKeysInfo}.
-     *
-     * @param extraKeysInfo The {@link ExtraKeysInfo} that defines the necessary info for the extra keys.
-     * @param heightPx The height in pixels of the parent surrounding the {@link ExtraKeysView}. It must
-     *                 be a single child.
      */
     @SuppressLint("ClickableViewAccessibility")
-    public void reload(ExtraKeysInfo extraKeysInfo, float heightPx) {
+    public void reload() {
+        TermuxX11ExtraKeys.setExtraKeys();
+        ExtraKeysInfo extraKeysInfo = TermuxX11ExtraKeys.getExtraKeysInfo();
         if (extraKeysInfo == null)
             return;
 

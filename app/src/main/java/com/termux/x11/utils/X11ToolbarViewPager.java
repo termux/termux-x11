@@ -54,10 +54,7 @@ public class X11ToolbarViewPager {
                 layout = inflater.inflate(R.layout.view_terminal_toolbar_extra_keys, collection, false);
                 ExtraKeysView extraKeysView = (ExtraKeysView) layout;
                 mActivity.mExtraKeys = new TermuxX11ExtraKeys(mEventListener, mActivity, extraKeysView);
-                int mTerminalToolbarDefaultHeight = mActivity.getTerminalToolbarViewPager().getLayoutParams().height;
-                int height = mTerminalToolbarDefaultHeight *
-                        ((mActivity.mExtraKeys.getExtraKeysInfo() == null) ? 0 : mActivity.mExtraKeys.getExtraKeysInfo().getMatrix().length);
-                extraKeysView.reload(mActivity.mExtraKeys.getExtraKeysInfo(), height);
+                extraKeysView.reload();
                 extraKeysView.setExtraKeysViewClient(mActivity.mExtraKeys);
                 extraKeysView.setOnHoverListener((v, e) -> true);
                 extraKeysView.setOnGenericMotionListener((v, e) -> true);
@@ -68,7 +65,7 @@ public class X11ToolbarViewPager {
 
                 editText.setOnEditorActionListener((v, actionId, event) -> {
                     String textToSend = editText.getText().toString();
-                    if (textToSend.length() == 0) textToSend = "\r";
+                    if (textToSend.isEmpty()) textToSend = "\r";
                     KeyEvent e = new KeyEvent(0, textToSend, KeyCharacterMap.VIRTUAL_KEYBOARD, 0);
                     mEventListener.onKey(mActivity.getLorieView(), 0, e);
 

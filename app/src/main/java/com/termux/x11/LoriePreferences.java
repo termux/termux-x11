@@ -39,11 +39,16 @@ import androidx.preference.SeekBarPreference;
 
 import android.text.method.LinkMovementMethod;
 import android.util.Log;
+import android.view.InputDevice;
+import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.fragment.app.DialogFragment;
 
 import com.termux.x11.utils.KeyInterceptor;
 import com.termux.x11.utils.SamsungDexUtils;
@@ -52,13 +57,13 @@ import com.termux.x11.utils.TermuxX11ExtraKeys;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
-
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.PatternSyntaxException;
 
 @SuppressWarnings("deprecation")
@@ -83,7 +88,7 @@ public class LoriePreferences extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        loriePreferenceFragment = new LoriePreferenceFragment();
+        loriePreferenceFragment = new LoriePreferenceFragment(null);
         getSupportFragmentManager().beginTransaction().replace(android.R.id.content, loriePreferenceFragment).commit();
 
         ActionBar actionBar = getSupportActionBar();
@@ -121,6 +126,16 @@ public class LoriePreferences extends AppCompatActivity {
     }
 
     public static class LoriePreferenceFragment extends PreferenceFragmentCompat implements OnPreferenceChangeListener, Preference.OnPreferenceClickListener {
+        final String preference;
+        /** @noinspection unused*/ // Used by `androidx.fragment.app.Fragment.instantiate`...
+        public LoriePreferenceFragment() {
+            this(null);
+        }
+
+        public LoriePreferenceFragment(String preference) {
+            this.preference = preference;
+        }
+
         @Override
         public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
             SharedPreferences p = getPreferenceManager().getSharedPreferences();
@@ -132,6 +147,23 @@ public class LoriePreferences extends AppCompatActivity {
             }
 
             addPreferencesFromResource(R.xml.preferences);
+            findPreference("showAdditionalKbd").setLayoutResource(R.layout.preference);
+
+            // Hide what user should not see in this instance
+            PreferenceGroup g = getPreferenceScreen();
+            if (preference != null) {
+                for (int i=0; i < g.getPreferenceCount(); i++) {
+                    if (g.getPreference(i) instanceof PreferenceGroup) {
+                        g.getPreference(i).setVisible(g.getPreference(i).getKey().contentEquals(preference));
+                    }
+                }
+            } else {
+                for (int i=0; i < g.getPreferenceCount(); i++) {
+                    if (g.getPreference(i) instanceof PreferenceGroup) {
+                        g.getPreference(i).setVisible(!g.getPreference(i).getKey().contentEquals("ekbar"));
+                    }
+                }
+            }
         }
 
         @SuppressWarnings("ConstantConditions")
@@ -180,6 +212,21 @@ public class LoriePreferences extends AppCompatActivity {
             findPreference("scaleTouchpad").setVisible("1".equals(p.getString("touchMode", "1")) && !"native".equals(p.getString("displayResolutionMode", "native")));
             findPreference("showMouseHelper").setEnabled("1".equals(p.getString("touchMode", "1")));
 
+            AtomicBoolean stylusAvailable = new AtomicBoolean(false);
+            Arrays.stream(InputDevice.getDeviceIds())
+                    .mapToObj(InputDevice::getDevice)
+                    .filter(Objects::nonNull)
+                    .forEach((device) -> {
+                        //noinspection DataFlowIssue
+                        if (device.supportsSource(InputDevice.SOURCE_STYLUS))
+                            stylusAvailable.set(true);
+                    });
+
+            findPreference("showStylusClickOverride").setVisible(stylusAvailable.get());
+            findPreference("stylusIsMouse").setVisible(stylusAvailable.get());
+            findPreference("stylusButtonContactModifierMode").setEnabled(!p.getBoolean("stylusIsMouse", false));
+            findPreference("stylusButtonContactModifierMode").setVisible(stylusAvailable.get());
+
             boolean requestNotificationPermissionVisible =
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                     && ContextCompat.checkSelfPermission(requireContext(), POST_NOTIFICATIONS) == PERMISSION_DENIED;
@@ -205,20 +252,25 @@ public class LoriePreferences extends AppCompatActivity {
             for (int i=0; i < g.getPreferenceCount(); i++) {
                 g.getPreference(i).setOnPreferenceChangeListener(this);
                 g.getPreference(i).setOnPreferenceClickListener(this);
-                g.getPreference(i).setSingleLineTitle(false);
 
                 if (g.getPreference(i) instanceof PreferenceGroup)
                     setListeners((PreferenceGroup) g.getPreference(i));
             }
         }
 
+        void setMultilineTitle(PreferenceGroup g) {
+            for (int i=0; i < g.getPreferenceCount(); i++) {
+                if (g.getPreference(i) instanceof PreferenceGroup)
+                    setListeners((PreferenceGroup) g.getPreference(i));
+                else {
+                    g.getPreference(i).onDependencyChanged(g.getPreference(i), true);
+                    g.getPreference(i).onDependencyChanged(g.getPreference(i), false);
+                }
+            }
+        }
+
         @Override
         public boolean onPreferenceClick(@NonNull Preference preference) {
-            if ("enableAccessibilityService".contentEquals(preference.getKey())) {
-                Intent intent = new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS);
-                startActivityForResult(intent, 0);
-            }
-
             if ("extra_keys_config".contentEquals(preference.getKey())) {
                 @SuppressLint("InflateParams")
                 View view = getLayoutInflater().inflate(R.layout.extra_keys_config, null, false);
@@ -343,7 +395,7 @@ public class LoriePreferences extends AppCompatActivity {
             intent.setPackage("com.termux.x11");
             requireContext().sendBroadcast(intent);
 
-            handler.postAtTime(this::updatePreferencesLayout, 100);
+            setMultilineTitle(getPreferenceScreen());
             return true;
         }
     }
@@ -616,4 +668,17 @@ public class LoriePreferences extends AppCompatActivity {
     }
 
     static Handler handler = new Handler();
+
+    public void onClick(View view) {
+        new NestedPreferenceFragment().show(getSupportFragmentManager(), "ekbar");
+    }
+
+    public static class NestedPreferenceFragment extends DialogFragment {
+        @Nullable @Override
+        public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+            getChildFragmentManager().beginTransaction().replace(android.R.id.content, new LoriePreferenceFragment("ekbar")).commit();
+
+            return null;
+        }
+    }
 }

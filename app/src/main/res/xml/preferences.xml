@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
-    <PreferenceCategory android:key="output" android:title="Output">
+    <PreferenceCategory android:key="output" android:title="Output" android:singleLineTitle="false" android:iconSpaceReserved="false" >
         <ListPreference
             android:title="Display resolution mode"
             android:key="displayResolutionMode"
@@ -64,12 +64,6 @@
 	        android:title="Keep Screen On"
             android:defaultValue="true"
             android:key="keepScreenOn" />
-
-        <SwitchPreferenceCompat
-            android:title="Adjust display height for extra keys bar"
-            android:summary="May cause screen flickering during toggling EK bar"
-            android:defaultValue="false"
-            android:key="adjustHeightForEK" />
     </PreferenceCategory>
     <PreferenceCategory android:key="pointer" android:title="Pointer">
         <ListPreference
@@ -91,14 +85,26 @@
             android:key="showStylusClickOverride" />
 
         <SwitchPreferenceCompat
+            android:title="Enable stylus mouse mode"
+            android:summary="Make your stylus work like a mouse. When activated, the stylus will only move the cursor and send mouse clicks, ignoring pressure, angle, and tilt."
+            android:defaultValue="false"
+            android:key="stylusIsMouse" />
+
+        <SwitchPreferenceCompat
+            android:title="Stylus button contact modifier mode"
+            android:summary="Enable this option to send right or middle mouse buttons only when the stylus touches the screen while the button is pressed."
+            android:defaultValue="false"
+            android:key="stylusButtonContactModifierMode" />
+
+        <SwitchPreferenceCompat
             android:title="Show mouse click helper overlay"
             android:summary="Onscreen mouse buttons usable with touchpad"
             android:defaultValue="false"
             android:key="showMouseHelper" />
 
         <SwitchPreferenceCompat
-            android:title="Capture external mouse when possible"
-            android:summary="Intercept all hardware mouse events. Pointer is back to Android after pressing Escape key."
+            android:title="Capture external pointer devices when possible"
+            android:summary="Intercept all hardware pointer events. Pointer is back to Android after pressing Escape key."
             android:defaultValue="false"
             android:key="pointerCapture" />
 
@@ -138,17 +144,6 @@
             android:key="captureVolumeKeys"/>
 
         <SwitchPreferenceCompat
-            android:title="Hide additional keyboard on Volume Down key press"
-            android:defaultValue="false"
-            android:key="hideEKOnVolDown" />
-
-        <SwitchPreferenceCompat
-            android:title="Deactivate special keys on additional key bar after each keypress"
-            android:summary="Use long-tap to lock special keys"
-            android:defaultValue="false"
-            android:key="useTermuxEKBarBehaviour" />
-
-        <SwitchPreferenceCompat
             android:title="Show IME with external keyboard"
             android:summary="Show software keyboard while hardware keyboard is connected. Requires WRITE_SECURE_SETTINGS permission."
             android:defaultValue="false"
@@ -175,7 +170,9 @@
         <Preference
             android:title="Enable Accessibility service for intercepting system shortcuts manually."
             android:summary="Open Accessibility settings."
-            android:key="enableAccessibilityService" />
+            android:key="enableAccessibilityService">
+            <intent android:action="android.settings.ACCESSIBILITY_SETTINGS"/>
+        </Preference>
 
         <SwitchPreferenceCompat
             android:title="Enable Accessibility service for intercepting system shortcuts automatically."
@@ -193,16 +190,6 @@
             android:summary="Allows you to use Dex shortcuts while intercepting."
             android:defaultValue="false"
             android:key="filterOutWinkey" />
-
-        <SeekBarPreference
-            android:title="Opacity of extra keys bar, %"
-            android:key="opacityEKBar"
-            android:max="100"
-            android:defaultValue="100" />
-
-        <Preference
-            android:title="Extra keys config"
-            android:key="extra_keys_config" />
     </PreferenceCategory>
 
     <PreferenceCategory android:key="other" android:title="Other">
@@ -214,5 +201,34 @@
         <Preference
             android:title="Request notification permission"
             android:key="requestNotificationPermission" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:key="ekbar">
+        <SwitchPreferenceCompat
+            android:title="Adjust display height for extra keys bar"
+            android:summary="May cause screen flickering during toggling EK bar"
+            android:defaultValue="false"
+            android:key="adjustHeightForEK" />
+
+        <SwitchPreferenceCompat
+            android:title="Hide additional keyboard on Volume Down key press"
+            android:defaultValue="false"
+            android:key="hideEKOnVolDown" />
+
+        <SwitchPreferenceCompat
+            android:title="Deactivate special keys on additional key bar after each keypress"
+            android:summary="Use long-tap to lock special keys"
+            android:defaultValue="false"
+            android:key="useTermuxEKBarBehaviour" />
+
+        <SeekBarPreference
+            android:title="Opacity of extra keys bar, %"
+            android:key="opacityEKBar"
+            android:max="100"
+            android:defaultValue="100" />
+
+        <Preference
+            android:title="Extra keys config"
+            android:key="extra_keys_config" />
     </PreferenceCategory>
 </PreferenceScreen>

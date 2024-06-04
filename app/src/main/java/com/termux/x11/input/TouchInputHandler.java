@@ -8,6 +8,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.PointF;
+import android.hardware.input.InputManager;
 import android.os.Handler;
 import android.os.Build;
 import android.util.DisplayMetrics;
@@ -21,11 +22,16 @@ import android.view.ViewConfiguration;
 import androidx.annotation.IntDef;
 import androidx.core.math.MathUtils;
 
+import com.termux.x11.LorieView;
 import com.termux.x11.MainActivity;
 import com.termux.x11.utils.SamsungDexUtils;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.lang.reflect.InvocationTargetException;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This class is responsible for handling Touch input from the user.  Touch events which manipulate
@@ -141,10 +147,44 @@ public class TouchInputHandler {
         setInputMode(InputMode.TRACKPAD);
         mDexListener = new DexListener(activity);
         mTouchpadHandler = isTouchpad ? null : new TouchInputHandler(activity, mRenderData, renderStub, injector, true);
+
+        refreshInputDevices();
+        ((InputManager) mActivity.getSystemService(Context.INPUT_SERVICE)).registerInputDeviceListener(new InputManager.InputDeviceListener() {
+            @Override
+            public void onInputDeviceAdded(int deviceId) {
+                refreshInputDevices();
+            }
+
+            @Override
+            public void onInputDeviceRemoved(int deviceId) {
+                refreshInputDevices();
+            }
+
+            @Override
+            public void onInputDeviceChanged(int deviceId) {
+                refreshInputDevices();
+            }
+        }, null);
+
     }
 
     public TouchInputHandler(MainActivity activity, RenderStub renderStub, final InputEventSender injector) {
         this(activity, null, renderStub, injector, false);
+    }
+
+    static public void refreshInputDevices() {
+        AtomicBoolean stylusAvailable = new AtomicBoolean(false);
+        Arrays.stream(InputDevice.getDeviceIds())
+                .mapToObj(InputDevice::getDevice)
+                .filter(Objects::nonNull)
+                .forEach((device) -> {
+                    //noinspection DataFlowIssue
+                    android.util.Log.d("STYLUS", "found device " + device.getName() + " sources " + device.getSources());
+                    if (device.supportsSource(InputDevice.SOURCE_STYLUS))
+                        stylusAvailable.set(true);
+                });
+        android.util.Log.d("STYLUS", "requesting stylus " + stylusAvailable.get());
+        LorieView.requestStylusEnabled(stylusAvailable.get());
     }
 
     boolean isDexEvent(MotionEvent event) {
@@ -174,7 +214,8 @@ public class TouchInputHandler {
         if (event.getAction() == MotionEvent.ACTION_UP)
             setCapturingEnabled(true);
 
-        if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_STYLUS)
+        if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_STYLUS
+                || event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_ERASER)
             return mStylusListener.onTouch(event);
 
         if (!isDexEvent(event) && (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_MOUSE
@@ -295,6 +336,8 @@ public class TouchInputHandler {
         mInjector.scaleTouchpad = p.getBoolean("scaleTouchpad", true);
         mInjector.capturedPointerSpeedFactor = ((float) p.getInt("capturedPointerSpeedFactor", 100))/100;
         mInjector.dexMetaKeyCapture = p.getBoolean("dexMetaKeyCapture", false);
+        mInjector.stylusIsMouse = p.getBoolean("stylusIsMouse", false);
+        mInjector.stylusButtonContactModifierMode = p.getBoolean("stylusButtonContactModifierMode", false);
         mInjector.pauseKeyInterceptingWithEsc = p.getBoolean("pauseKeyInterceptingWithEsc", false);
         switch (p.getString("transformCapturedPointer", "no")) {
             case "c":
@@ -592,8 +635,105 @@ public class TouchInputHandler {
         private static final int ACTION_PRIMARY_DOWN = 0xd3;
         private static final int ACTION_PRIMARY_UP = 0xd4;
 
+        private float x = 0, y = 0, pressure = 0, tilt = 0, orientation = 0;
+        private int buttons = 0;
+
+        private int convertOrientation(float value) {
+            int newValue = (int) (((value * 180 / Math.PI) + 360) % 360);
+            if (newValue > 180)
+                newValue = (newValue - 360) % 360;
+            return newValue;
+        }
+
+        private boolean hasButton(MotionEvent e, int button) {
+            return (e.getButtonState() & button) == button;
+        }
+
+        int extractButtons(MotionEvent e) {
+            if (mInjector.stylusButtonContactModifierMode) {
+                if (e.getAction() == MotionEvent.ACTION_DOWN || e.getAction() == MotionEvent.ACTION_MOVE) {
+                    if (hasButton(e, MotionEvent.BUTTON_STYLUS_SECONDARY))
+                        return (1 << 1);
+                    if (hasButton(e, MotionEvent.BUTTON_STYLUS_PRIMARY))
+                        return (1 << 2);
+                    else
+                        return STYLUS_INPUT_HELPER_MODE;
+                } else return 0;
+            } else {
+                int buttons = 0;
+                if (e.getAction() == MotionEvent.ACTION_DOWN || e.getAction() == MotionEvent.ACTION_MOVE)
+                    buttons = STYLUS_INPUT_HELPER_MODE;
+                if (hasButton(e, MotionEvent.BUTTON_STYLUS_SECONDARY))
+                    buttons |= (1 << 1);
+                if (hasButton(e, MotionEvent.BUTTON_STYLUS_PRIMARY))
+                    buttons |= (1 << 2);
+
+                return buttons;
+            }
+        }
+
+        public boolean isExternal(InputDevice d) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                return d.isExternal();
+
+            try {
+                // isExternal is a hidden method that is not accessible through the SDK_INT before Android Q
+                //noinspection DataFlowIssue
+                return (Boolean) InputDevice.class.getMethod("isExternal").invoke(d);
+            } catch (NullPointerException | NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+                return false;
+            }
+        }
+
         @SuppressLint("ClickableViewAccessibility")
         boolean onTouch(MotionEvent e) {
+            if (mInjector.stylusIsMouse)
+                return onTouchMouse(e);
+
+            int action = e.getAction();
+            int tiltX = 0, tiltY = 0;
+            int newButtons = extractButtons(e);
+            float newX = e.getX(e.getActionIndex()), newY = e.getY(e.getActionIndex());
+            InputDevice.MotionRange rangeX = e.getDevice().getMotionRange(MotionEvent.AXIS_X);
+            InputDevice.MotionRange rangeY = e.getDevice().getMotionRange(MotionEvent.AXIS_Y);
+
+            if (MainActivity.getInstance().getLorieView().hasPointerCapture() &&
+                    isExternal(e.getDevice()) && rangeX != null && rangeY != null) {
+                newX *= mRenderData.imageWidth / rangeX.getMax();
+                newY *= mRenderData.imageHeight / rangeY.getMax();
+            } else {
+                newX *= mRenderData.scale.x;
+                newY *= mRenderData.scale.y;
+            }
+
+            if (x == newX && y == newY && pressure == e.getPressure() && tilt == e.getAxisValue(MotionEvent.AXIS_TILT) &&
+                    orientation == e.getAxisValue(MotionEvent.AXIS_ORIENTATION) && buttons == newButtons)
+                return true;
+
+            if (e.getDevice().getMotionRange(MotionEvent.AXIS_TILT) != null &&
+                    e.getDevice().getMotionRange(MotionEvent.AXIS_ORIENTATION) != null) {
+                orientation = e.getAxisValue(MotionEvent.AXIS_ORIENTATION);
+                tilt = e.getAxisValue(MotionEvent.AXIS_TILT);
+                tiltX = (int) Math.round((float) Math.asin(-Math.sin(orientation) * Math.sin(tilt)) * 63.5 - 0.5);
+                tiltY = (int) Math.round((float) Math.asin( Math.cos(orientation) * Math.sin(tilt)) * 63.5 - 0.5);
+            }
+
+            android.util.Log.d("STYLUS_EVENT", "action " + action + " x " + newX + " y " + newY + " pressure " + e.getPressure() + " tilt " + e.getAxisValue(MotionEvent.AXIS_TILT) + " orientation " + e.getAxisValue(MotionEvent.AXIS_ORIENTATION));
+            mInjector.sendStylusEvent(
+                    x = newX,
+                    y = newY,
+                    (int) ((pressure = e.getPressure()) * 65535),
+                    tiltX,
+                    tiltY,
+                    convertOrientation(orientation),
+                    buttons = newButtons,
+                    e.getToolType(e.getActionIndex()) == MotionEvent.TOOL_TYPE_ERASER);
+
+            return true;
+        }
+
+        @SuppressLint("ClickableViewAccessibility")
+        boolean onTouchMouse(MotionEvent e) {
             int action = e.getAction();
             float scaledX = e.getX(e.getActionIndex()) * mRenderData.scale.x, scaledY = e.getY(e.getActionIndex()) * mRenderData.scale.y;
             if (mRenderData.setCursorPosition(scaledX, scaledY))

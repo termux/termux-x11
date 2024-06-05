@@ -360,6 +360,9 @@ public class TouchInputHandler {
 
         keyIntercepting = !mInjector.pauseKeyInterceptingWithEsc || mActivity.getLorieView().hasPointerCapture();
         SamsungDexUtils.dexMetaKeyCapture(mActivity, mInjector.dexMetaKeyCapture && keyIntercepting);
+
+        if(mTouchpadHandler != null)
+            mTouchpadHandler.reloadPreferences(p);
     }
 
     public boolean shouldInterceptKeys() {

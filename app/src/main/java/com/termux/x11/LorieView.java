@@ -42,6 +42,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private ClipboardManager clipboard;
     private long lastClipboardTimestamp = System.currentTimeMillis();
     private static boolean clipboardSyncEnabled = false;
+    private static boolean hardwareKbdScancodesWorkaround = false;
     private Callback mCallback;
     private final Point p = new Point();
     private final SurfaceHolder.Callback mSurfaceCallback = new SurfaceHolder.Callback() {
@@ -204,15 +205,17 @@ public class LorieView extends SurfaceView implements InputStub {
 
     @Override
     public boolean dispatchKeyEventPreIme(KeyEvent event) {
+        if (hardwareKbdScancodesWorkaround) return false;
         Activity a = getActivity();
         return (a instanceof MainActivity) && ((MainActivity) a).handleKey(event);
     }
 
     ClipboardManager.OnPrimaryClipChangedListener clipboardListener = this::handleClipboardChange;
 
-    static void setClipboardSyncEnabled(boolean enabled) {
-        clipboardSyncEnabled = enabled;
-        setClipboardSyncEnabled(enabled, enabled);
+    public void reloadPreferences(SharedPreferences p) {
+        hardwareKbdScancodesWorkaround = p.getBoolean("hardwareKbdScancodesWorkaround", true);
+        clipboardSyncEnabled = p.getBoolean("clipboardEnable", false);
+        setClipboardSyncEnabled(clipboardSyncEnabled, clipboardSyncEnabled);
     }
 
     // It is used in native code
@@ -225,7 +228,7 @@ public class LorieView extends SurfaceView implements InputStub {
         lastClipboardTimestamp = System.currentTimeMillis() + 150;
     }
 
-    // It is used in native code
+    /** @noinspection unused*/ // It is used in native code
     void requestClipboard() {
         if (!clipboardSyncEnabled) {
             sendClipboardEvent("".getBytes(StandardCharsets.UTF_8));

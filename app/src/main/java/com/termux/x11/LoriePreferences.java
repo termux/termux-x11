@@ -141,6 +141,7 @@ public class LoriePreferences extends AppCompatActivity {
                 findPreference("dexMetaKeyCapture").setVisible(false);
             SeekBarPreference scalePreference = findPreference("displayScale");
             SeekBarPreference capturedPointerSpeedFactor = findPreference("capturedPointerSpeedFactor");
+            SeekBarPreference opacityEKBar = findPreference("opacityEKBar");
             scalePreference.setMin(30);
             scalePreference.setMax(200);
             scalePreference.setSeekBarIncrement(10);
@@ -149,32 +150,20 @@ public class LoriePreferences extends AppCompatActivity {
             capturedPointerSpeedFactor.setMax(200);
             capturedPointerSpeedFactor.setSeekBarIncrement(1);
             capturedPointerSpeedFactor.setShowSeekBarValue(true);
+            opacityEKBar.setMin(10);
+            opacityEKBar.setMax(100);
+            opacityEKBar.setSeekBarIncrement(1);
+            opacityEKBar.setShowSeekBarValue(true);
 
-            switch (p.getString("displayResolutionMode", "native")) {
-                case "scaled":
-                    findPreference("displayScale").setVisible(true);
-                    findPreference("displayResolutionExact").setVisible(false);
-                    findPreference("displayResolutionCustom").setVisible(false);
-                    break;
-                case "exact":
-                    findPreference("displayScale").setVisible(false);
-                    findPreference("displayResolutionExact").setVisible(true);
-                    findPreference("displayResolutionCustom").setVisible(false);
-                    break;
-                case "custom":
-                    findPreference("displayScale").setVisible(false);
-                    findPreference("displayResolutionExact").setVisible(false);
-                    findPreference("displayResolutionCustom").setVisible(true);
-                    break;
-                default:
-                    findPreference("displayScale").setVisible(false);
-                    findPreference("displayResolutionExact").setVisible(false);
-                    findPreference("displayResolutionCustom").setVisible(false);
-            }
+            String displayResMode = p.getString("displayResolutionMode", "native");
+            findPreference("displayScale").setVisible(displayResMode.contentEquals("scaled"));
+            findPreference("displayResolutionExact").setVisible(displayResMode.contentEquals("exact"));
+            findPreference("displayResolutionCustom").setVisible(displayResMode.contentEquals("custom"));
 
-            findPreference("hideEKOnVolDown").setEnabled(p.getBoolean("showAdditionalKbd", false));
+            findPreference("hideEKOnVolDown").setEnabled(p.getBoolean("showAdditionalKbd", false) && p.getBoolean("captureVolumeKeys", true));
             findPreference("dexMetaKeyCapture").setEnabled(!p.getBoolean("enableAccessibilityServiceAutomatically", false));
             findPreference("enableAccessibilityServiceAutomatically").setEnabled(!p.getBoolean("dexMetaKeyCapture", false));
+            findPreference("pauseKeyInterceptingWithEsc").setEnabled(p.getBoolean("dexMetaKeyCapture", false) || p.getBoolean("enableAccessibilityServiceAutomatically", false));
             findPreference("filterOutWinkey").setEnabled(p.getBoolean("enableAccessibilityServiceAutomatically", false));
 
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P)
@@ -247,7 +236,7 @@ public class LoriePreferences extends AppCompatActivity {
                         .setPositiveButton("OK",
                                 (dialog, whichButton) -> {
                                     String text = config.getText().toString();
-                                    text = text.length() > 0 ? text : TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS;
+                                    text = !text.isEmpty() ? text : TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS;
                                     preferences
                                             .edit()
                                             .putString("extra_keys_config", text)
@@ -287,7 +276,8 @@ public class LoriePreferences extends AppCompatActivity {
                                 .setNegativeButton("OK", null)
                                 .create()
                                 .show();
-                    } else e.printStackTrace();
+                    } else //noinspection CallToPrintStackTrace
+                        e.printStackTrace();
                     return false;
                 }
             }
@@ -439,7 +429,8 @@ public class LoriePreferences extends AppCompatActivity {
                                                 "Please, launch this command using ADB:\n" +
                                                 "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS");
                                         return;
-                                    } else e.printStackTrace();
+                                    } else //noinspection CallToPrintStackTrace
+                                        e.printStackTrace();
                                 }
                                 break;
                             }
@@ -459,7 +450,7 @@ public class LoriePreferences extends AppCompatActivity {
                                 } catch (NumberFormatException | PatternSyntaxException ignored) {
                                     v = 100;
                                 }
-                                edit.putInt("capturedPointerSpeedFactor", Integer.parseInt(newValue));
+                                edit.putInt("capturedPointerSpeedFactor", v);
                                 break;
                             }
                             case "displayDensity": {

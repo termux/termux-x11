@@ -1,8 +1,10 @@
 package com.termux.x11.utils;
 
 import android.annotation.SuppressLint;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.preference.PreferenceManager;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -75,7 +77,7 @@ public class X11ToolbarViewPager {
                 });
 
                 editText.setOnCapturedPointerListener((v2, e2) -> {
-                    v2.releasePointerCapture();
+                    MainActivity.setCapturingEnabled(false);
                     return false;
                 });
 

@@ -64,6 +64,12 @@
 	        android:title="Keep Screen On"
             android:defaultValue="true"
             android:key="keepScreenOn" />
+
+        <SwitchPreferenceCompat
+            android:title="Adjust display height for extra keys bar"
+            android:summary="May cause screen flickering during toggling EK bar"
+            android:defaultValue="false"
+            android:key="adjustHeightForEK" />
     </PreferenceCategory>
     <PreferenceCategory android:key="pointer" android:title="Pointer">
         <ListPreference
@@ -127,9 +133,20 @@
             android:key="showAdditionalKbd" />
 
         <SwitchPreferenceCompat
+            android:title="Capture volume keys"
+            android:defaultValue="true"
+            android:key="captureVolumeKeys"/>
+
+        <SwitchPreferenceCompat
             android:title="Hide additional keyboard on Volume Down key press"
             android:defaultValue="false"
             android:key="hideEKOnVolDown" />
+
+        <SwitchPreferenceCompat
+            android:title="Deactivate special keys on additional key bar after each keypress"
+            android:summary="Use long-tap to lock special keys"
+            android:defaultValue="false"
+            android:key="useTermuxEKBarBehaviour" />
 
         <SwitchPreferenceCompat
             android:title="Show IME with external keyboard"
@@ -142,6 +159,12 @@
             android:summary="Let X server handle hardware keyboard layout (with DE settings or setxkbmap)."
             android:defaultValue="false"
             android:key="preferScancodes"/>
+
+        <SwitchPreferenceCompat
+            android:title="Hardware keyboard scancodes workaround"
+            android:summary="Fixes scancodes on some devices. Might cause problems with multiple layouts."
+            android:defaultValue="true"
+            android:key="hardwareKbdScancodesWorkaround"/>
 
         <SwitchPreferenceCompat
             android:title="Intercept system shortcuts"
@@ -161,10 +184,21 @@
             android:key="enableAccessibilityServiceAutomatically" />
 
         <SwitchPreferenceCompat
+            android:title="Pause key intercepting with Esc key"
+            android:defaultValue="false"
+            android:key="pauseKeyInterceptingWithEsc" />
+
+        <SwitchPreferenceCompat
             android:title="Filter out intercepted Win (Meta/Mod4) key."
             android:summary="Allows you to use Dex shortcuts while intercepting."
             android:defaultValue="false"
             android:key="filterOutWinkey" />
+
+        <SeekBarPreference
+            android:title="Opacity of extra keys bar, %"
+            android:key="opacityEKBar"
+            android:max="100"
+            android:defaultValue="100" />
 
         <Preference
             android:title="Extra keys config"
@@ -173,7 +207,7 @@
 
     <PreferenceCategory android:key="other" android:title="Other">
         <SwitchPreferenceCompat
-            android:title="Automatic sync clipboard with Android"
+            android:title="Clipboard sharing"
             android:defaultValue="false"
             android:key="clipboardEnable" />
 

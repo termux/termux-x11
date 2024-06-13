@@ -38,6 +38,7 @@ import android.os.SystemClock;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.service.notification.StatusBarNotification;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.DragEvent;
 import android.view.InputDevice;
@@ -68,7 +69,6 @@ import com.termux.x11.input.TouchInputHandler.RenderStub;
 import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.FullscreenWorkaround;
 import com.termux.x11.utils.KeyInterceptor;
-import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
 
@@ -79,7 +79,6 @@ import java.util.Objects;
 @SuppressWarnings({"deprecation", "unused"})
 public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener {
     static final String ACTION_STOP = "com.termux.x11.ACTION_STOP";
-    static final String REQUEST_LAUNCH_EXTERNAL_DISPLAY = "request_launch_external_display";
 
     public static Handler handler = new Handler();
     FrameLayout frm;
@@ -92,10 +91,15 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     static InputMethodManager inputMethodManager;
     private boolean mClientConnected = false;
     private View.OnKeyListener mLorieKeyListener;
+    boolean captureVolumeKeys = false;
     private boolean filterOutWinKey = false;
     private boolean hideEKOnVolDown = false;
     private boolean toggleIMEUsingBackKey = false;
+    private boolean useTermuxEKBarBehaviour = false;
     private static final int KEY_BACK = 158;
+
+    private static boolean oldFullscreen = false;
+    private static boolean oldHideCutout = false;
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @SuppressLint("UnspecifiedRegisterReceiverFlag")
@@ -111,7 +115,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         CmdEntryPoint.requestConnection();
 
                         Log.v("Lorie", "Disconnected");
-                        runOnUiThread(() -> clientConnectedStateChanged(false)); //recreate()); //onPreferencesChanged(""));
+                        runOnUiThread(() -> clientConnectedStateChanged(false));
                     }, 0);
 
                     onReceiveConnection();
@@ -151,7 +155,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             e.putString("touchMode", "1");
             e.apply();
         }
-        
+
+        oldFullscreen = preferences.getBoolean("fullscreen", false);
+        oldHideCutout = preferences.getBoolean("hideCutout", false);
+
         preferences.registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> onPreferencesChanged(key));
 
         getWindow().setFlags(FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS | FLAG_KEEP_SCREEN_ON | FLAG_TRANSLUCENT_STATUS, 0);
@@ -172,6 +179,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
         }, new InputEventSender(lorieView));
         mLorieKeyListener = (v, k, e) -> {
+            InputDevice dev = e.getDevice();
+            boolean result;
+
+            if (!captureVolumeKeys && (k == KEYCODE_VOLUME_DOWN || k == KEYCODE_VOLUME_UP))
+                return false;
+
             if (hideEKOnVolDown && k == KEYCODE_VOLUME_DOWN) {
                 if (e.getAction() == ACTION_UP)
                     toggleExtraKeys();
@@ -195,7 +208,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 }
             }
 
-            return mInputHandler.sendKeyEvent(v, e);
+            result = mInputHandler.sendKeyEvent(e);
+
+            // Do not steal dedicated buttons from a full external keyboard.
+            if (useTermuxEKBarBehaviour && mExtraKeys != null && (dev == null || dev.isVirtual()))
+                mExtraKeys.unsetSpecialKeys();
+
+            return result;
         };
 
         lorieParent.setOnTouchListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));
@@ -214,7 +233,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
             if (service != null) {
                 try {
-                    service.windowChanged(sfc);
+                    service.windowChanged(sfc, lorieView.getDisplay() != null ? lorieView.getDisplay().getName() : "screen");
                 } catch (RemoteException e) {
                     Log.e("MainActivity", "failed to send windowChanged request", e);
                 }
@@ -472,7 +491,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 LorieView.connect(fd.detachFd());
                 getLorieView().triggerCallback();
                 clientConnectedStateChanged(true);
-                LorieView.setClipboardSyncEnabled(PreferenceManager.getDefaultSharedPreferences(this).getBoolean("clipboardEnable", false));
+                getLorieView().reloadPreferences(PreferenceManager.getDefaultSharedPreferences(this));
             } else
                 handler.postDelayed(this::tryConnect, 500);
         } catch (Exception e) {
@@ -491,22 +510,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         SharedPreferences p = PreferenceManager.getDefaultSharedPreferences(this);
         LorieView lorieView = getLorieView();
 
-        int mode = Integer.parseInt(p.getString("touchMode", "1"));
-        mInputHandler.setInputMode(mode);
-        mInputHandler.setTapToMove(p.getBoolean("tapToMove", false));
-        mInputHandler.setPreferScancodes(p.getBoolean("preferScancodes", false));
-        mInputHandler.setPointerCaptureEnabled(p.getBoolean("pointerCapture", false));
-        mInputHandler.setApplyDisplayScaleFactorToTouchpad(p.getBoolean("scaleTouchpad", true));
-        mInputHandler.setTransformCapturedPointer(p.getString("transformCapturedPointer", "no"));
-        mInputHandler.setCapturedPointerSpeedFactor(((float) p.getInt("capturedPointerSpeedFactor", 100))/100);
-        if (!p.getBoolean("pointerCapture", false) && lorieView.hasPointerCapture())
-            lorieView.releasePointerCapture();
-
-        SamsungDexUtils.dexMetaKeyCapture(this, p.getBoolean("dexMetaKeyCapture", false));
+        mInputHandler.reloadPreferences(p);
+        lorieView.reloadPreferences(p);
+        captureVolumeKeys = p.getBoolean("captureVolumeKeys", true);
 
         setTerminalToolbarView();
         onWindowFocusChanged(true);
-        LorieView.setClipboardSyncEnabled(p.getBoolean("clipboardEnable", false));
 
         lorieView.triggerCallback();
 
@@ -533,6 +542,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             KeyInterceptor.shutdown();
 
         hideEKOnVolDown = p.getBoolean("hideEKOnVolDown", false);
+        useTermuxEKBarBehaviour = p.getBoolean("useTermuxEKBarBehaviour", false);
         toggleIMEUsingBackKey = p.getBoolean("toggleIMEUsingBackKey", true);
 
         int requestedOrientation = p.getBoolean("forceLandscape", false) ?
@@ -555,6 +565,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             findViewById(R.id.button_visibility).setAlpha(menuUnselectedTrasparency);
             buttons.setVisibility(View.GONE);
         }
+
+        getTerminalToolbarViewPager().setAlpha(((float) p.getInt("opacityEKBar", 100))/100);
 
         lorieView.requestLayout();
         lorieView.invalidate();
@@ -596,7 +608,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private void setTerminalToolbarView() {
         final ViewPager terminalToolbarViewPager = getTerminalToolbarViewPager();
 
-        terminalToolbarViewPager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(getLorieView(), e)));
+        terminalToolbarViewPager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(e)));
         terminalToolbarViewPager.addOnPageChangeListener(new X11ToolbarViewPager.OnPageChangeListener(this, terminalToolbarViewPager));
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
@@ -613,6 +625,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         (mExtraKeys.getExtraKeysInfo() == null ? 0 : mExtraKeys.getExtraKeysInfo().getMatrix().length));
                 terminalToolbarViewPager.setLayoutParams(layoutParams);
             }
+            frm.setPadding(0, 0, 0, preferences.getBoolean("adjustHeightForEK", false) && terminalToolbarViewPager.getVisibility() == View.VISIBLE ? terminalToolbarViewPager.getHeight() : 0);
         }, 200);
     }
 
@@ -630,7 +643,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             } else {
                 parent.removeView(pager);
                 parent.addView(pager, 0);
+                if (mExtraKeys != null)
+                    mExtraKeys.unsetSpecialKeys();
             }
+            frm.setPadding(0, 0, 0, preferences.getBoolean("adjustHeightForEK", false) && show ? pager.getHeight() : 0);
 
             if (enabled && saveState) {
                 SharedPreferences.Editor edit = preferences.edit();
@@ -653,8 +669,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public boolean handleKey(KeyEvent e) {
         if (filterOutWinKey && (e.getKeyCode() == KEYCODE_META_LEFT || e.getKeyCode() == KEYCODE_META_RIGHT || e.isMetaPressed()))
             return false;
-        mLorieKeyListener.onKey(getLorieView(), e.getKeyCode(), e);
-        return true;
+        return mLorieKeyListener.onKey(getLorieView(), e.getKeyCode(), e);
     }
 
     @SuppressLint("ObsoleteSdkInt")
@@ -724,9 +739,17 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         Window window = getWindow();
         View decorView = window.getDecorView();
         boolean fullscreen = p.getBoolean("fullscreen", false);
+        boolean hideCutout = p.getBoolean("hideCutout", false);
         boolean reseed = p.getBoolean("Reseed", true);
 
-        fullscreen = fullscreen || getIntent().getBooleanExtra(REQUEST_LAUNCH_EXTERNAL_DISPLAY, false);
+        if (oldHideCutout != hideCutout || oldFullscreen != fullscreen) {
+            oldHideCutout = hideCutout;
+            oldFullscreen = fullscreen;
+            // For some reason cutout or fullscreen change makes layout calculations wrong and invalid.
+            // I did not find simple and reliable way to fix it so it is better to start from the beginning.
+            recreate();
+            return;
+        }
 
         int requestedOrientation = p.getBoolean("forceLandscape", false) ?
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
@@ -735,7 +758,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         if (hasFocus) {
             if (SDK_INT >= VERSION_CODES.P) {
-                if (p.getBoolean("hideCutout", false))
+                if (hideCutout)
                     getWindow().getAttributes().layoutInDisplayCutoutMode = (SDK_INT >= VERSION_CODES.R) ?
                             LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS :
                             LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
@@ -772,7 +795,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         window.setSoftInputMode((reseed ? SOFT_INPUT_ADJUST_RESIZE : SOFT_INPUT_ADJUST_PAN) | SOFT_INPUT_STATE_HIDDEN);
 
         ((FrameLayout) findViewById(android.R.id.content)).getChildAt(0).setFitsSystemWindows(!fullscreen);
-        SamsungDexUtils.dexMetaKeyCapture(this, hasFocus && p.getBoolean("dexMetaKeyCapture", false));
     }
 
     @Override
@@ -801,7 +823,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
         toggleExtraKeys(!isInPictureInPictureMode, false);
 
-        frm.setPadding(0, 0, 0, 0);
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
     }
 
@@ -852,5 +873,27 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private void checkXEvents() {
         getLorieView().handleXEvents();
         handler.postDelayed(this::checkXEvents, 300);
+    }
+
+    public static void getRealMetrics(DisplayMetrics m) {
+        if (getInstance() != null &&
+                getInstance().getLorieView() != null &&
+                getInstance().getLorieView().getDisplay() != null)
+            getInstance().getLorieView().getDisplay().getRealMetrics(m);
+    }
+
+    public static void setCapturingEnabled(boolean enabled) {
+        if (getInstance() == null || getInstance().mInputHandler == null)
+            return;
+
+        getInstance().mInputHandler.setCapturingEnabled(enabled);
+    }
+
+    public boolean shouldInterceptKeys() {
+        View textInput = findViewById(R.id.terminal_toolbar_text_input);
+        if (mInputHandler == null || !hasWindowFocus() || (textInput != null && textInput.isFocused()))
+            return false;
+
+        return mInputHandler.shouldInterceptKeys();
     }
 }

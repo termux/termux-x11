@@ -71,10 +71,26 @@ If you plan to use the program with chroot or unshare, you must to run it as roo
 This directory must be accessible from the shell from which you launch termux-x11, i.e. it must be in the same SELinux context, same mount namespace, and so on.
 Also you must set `XKB_CONFIG_ROOT` environment variable pointing to container's `/usr/share/X11/xkb` directory, otherwise you will have `xkbcomp`-related errors.
 You can get loader for nightly build from an artifact of [last successful build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml)
+Do not forget to disable SELinux
 ```
+setenforce 0
 export TMPDIR=/path/to/chroot/container/tmp
 export CLASSPATH=$(/system/bin/pm path com.termux.x11 | cut -d: -f2)
 /system/bin/app_process / com.termux.x11.CmdEntryPoint :0
+```
+
+### Force stopping X server (running in termux background, not an activity)
+
+termux-x11's X server runs in process with name "app_process", not "termux-x11". But you can kill it by searching "com.termux.x11" in commandline.
+So killing it will look like
+```
+pkill -f com.termux.x11
+```
+
+### Closing Android activity (running in foreground, not X server)
+
+```
+am broadcast -a com.termux.x11.ACTION_STOP -p com.termux.x11
 ```
 
 ### Logs

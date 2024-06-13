@@ -1,12 +1,10 @@
 package com.termux.x11.utils;
 
 import android.accessibilityservice.AccessibilityService;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
 
 import com.termux.x11.MainActivity;
-import com.termux.x11.R;
 
 import java.util.LinkedHashSet;
 
@@ -35,9 +33,7 @@ public class KeyInterceptor extends AccessibilityService {
         if (instance == null)
             return false;
 
-        boolean intercept = instance.hasWindowFocus()
-                && (instance.findViewById(R.id.terminal_toolbar_text_input) == null
-                || !instance.findViewById(R.id.terminal_toolbar_text_input).isFocused());
+        boolean intercept = instance.shouldInterceptKeys();
 
         if (intercept || (event.getAction() == KeyEvent.ACTION_UP && pressedKeys.contains(event.getKeyCode())))
             ret = instance.handleKey(event);
@@ -49,8 +45,6 @@ public class KeyInterceptor extends AccessibilityService {
         // I.e. if user switched window with Win+Tab or if he was pressing Ctrl while switching activity.
         if (event.getAction() == KeyEvent.ACTION_UP)
             pressedKeys.remove(event.getKeyCode());
-
-        Log.d("KeyInterceptor", "" + (event.getUnicodeChar() != 0 ? (char) event.getUnicodeChar() : "") + " " + (event.getCharacters() != null ? event.getCharacters() : "") + " " + (ret ? " " : " not ") + "intercepted event " + event);
 
         return ret;
     }

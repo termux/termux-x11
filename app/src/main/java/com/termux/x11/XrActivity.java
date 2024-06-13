@@ -162,7 +162,7 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
 
             if (service != null) {
                 try {
-                    service.windowChanged(new Surface(surface));
+                    service.windowChanged(new Surface(surface), "OpenXR");
                 } catch (RemoteException e) {
                     Log.e("XrActivity", "failed to send windowChanged request", e);
                 }

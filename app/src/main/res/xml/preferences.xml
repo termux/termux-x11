@@ -80,19 +80,19 @@
 
         <SwitchPreferenceCompat
             android:title="Show stylus click options"
-            android:summary="Stylus touch override, left middle or right click (Only for the stylus)"
+            android:summary="Stylus touch override, left, middle or right click (Stylus only)"
             android:defaultValue="false"
             android:key="showStylusClickOverride" />
 
         <SwitchPreferenceCompat
             android:title="Enable stylus mouse mode"
-            android:summary="Make your stylus work like a mouse. When activated, the stylus will only move the cursor and send mouse clicks, ignoring pressure, angle, and tilt."
+            android:summary="Make your stylus work like a mouse. When activated, stylus will only move the cursor and send mouse clicks, ignoring pressure, angle, and tilt."
             android:defaultValue="false"
             android:key="stylusIsMouse" />
 
         <SwitchPreferenceCompat
             android:title="Stylus button contact modifier mode"
-            android:summary="Enable this option to send right or middle mouse buttons only when the stylus touches the screen while the button is pressed."
+            android:summary="Enable this option to send right or middle mouse buttons only when stylus touches the screen while the button is pressed."
             android:defaultValue="false"
             android:key="stylusButtonContactModifierMode" />
 

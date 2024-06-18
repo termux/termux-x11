@@ -13,12 +13,15 @@ import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.preference.PreferenceManager;
+import android.text.InputType;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
@@ -217,6 +220,7 @@ public class LorieView extends SurfaceView implements InputStub {
         hardwareKbdScancodesWorkaround = p.getBoolean("hardwareKbdScancodesWorkaround", true);
         clipboardSyncEnabled = p.getBoolean("clipboardEnable", false);
         setClipboardSyncEnabled(clipboardSyncEnabled, clipboardSyncEnabled);
+        TouchInputHandler.refreshInputDevices();
     }
 
     // It is used in native code
@@ -275,6 +279,17 @@ public class LorieView extends SurfaceView implements InputStub {
             clipboard.removePrimaryClipChangedListener(clipboardListener);
 
         TouchInputHandler.refreshInputDevices();
+    }
+
+    @Override
+    public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+        outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;
+
+        // Note that IME_ACTION_NONE cannot be used as that makes it impossible to input newlines using the on-screen
+        // keyboard on Android TV (see https://github.com/termux/termux-app/issues/221).
+        outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN;
+
+        return super.onCreateInputConnection(outAttrs);
     }
 
     static native void connect(int fd);

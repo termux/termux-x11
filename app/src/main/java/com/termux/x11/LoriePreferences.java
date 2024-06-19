@@ -25,7 +25,6 @@ import androidx.preference.Preference;
 import android.os.Handler;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
-import android.provider.Settings;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
@@ -39,11 +38,16 @@ import androidx.preference.SeekBarPreference;
 
 import android.text.method.LinkMovementMethod;
 import android.util.Log;
+import android.view.InputDevice;
+import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.fragment.app.DialogFragment;
 
 import com.termux.x11.utils.KeyInterceptor;
 import com.termux.x11.utils.SamsungDexUtils;
@@ -52,19 +56,18 @@ import com.termux.x11.utils.TermuxX11ExtraKeys;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
-
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.PatternSyntaxException;
 
 @SuppressWarnings("deprecation")
 public class LoriePreferences extends AppCompatActivity {
     static final String ACTION_PREFERENCES_CHANGED = "com.termux.x11.ACTION_PREFERENCES_CHANGED";
-    static final String SHOW_IME_WITH_HARD_KEYBOARD = "show_ime_with_hard_keyboard";
     LoriePreferenceFragment loriePreferenceFragment;
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -83,7 +86,7 @@ public class LoriePreferences extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        loriePreferenceFragment = new LoriePreferenceFragment();
+        loriePreferenceFragment = new LoriePreferenceFragment(null);
         getSupportFragmentManager().beginTransaction().replace(android.R.id.content, loriePreferenceFragment).commit();
 
         ActionBar actionBar = getSupportActionBar();
@@ -121,6 +124,16 @@ public class LoriePreferences extends AppCompatActivity {
     }
 
     public static class LoriePreferenceFragment extends PreferenceFragmentCompat implements OnPreferenceChangeListener, Preference.OnPreferenceClickListener {
+        final String preference;
+        /** @noinspection unused*/ // Used by `androidx.fragment.app.Fragment.instantiate`...
+        public LoriePreferenceFragment() {
+            this(null);
+        }
+
+        public LoriePreferenceFragment(String preference) {
+            this.preference = preference;
+        }
+
         @Override
         public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
             SharedPreferences p = getPreferenceManager().getSharedPreferences();
@@ -132,6 +145,24 @@ public class LoriePreferences extends AppCompatActivity {
             }
 
             addPreferencesFromResource(R.xml.preferences);
+            //noinspection DataFlowIssue
+            findPreference("showAdditionalKbd").setLayoutResource(R.layout.preference);
+
+            // Hide what user should not see in this instance
+            PreferenceGroup g = getPreferenceScreen();
+            if (preference != null) {
+                for (int i=0; i < g.getPreferenceCount(); i++) {
+                    if (g.getPreference(i) instanceof PreferenceGroup) {
+                        g.getPreference(i).setVisible(g.getPreference(i).getKey().contentEquals(preference));
+                    }
+                }
+            } else {
+                for (int i=0; i < g.getPreferenceCount(); i++) {
+                    if (g.getPreference(i) instanceof PreferenceGroup) {
+                        g.getPreference(i).setVisible(!g.getPreference(i).getKey().contentEquals("ekbar"));
+                    }
+                }
+            }
         }
 
         @SuppressWarnings("ConstantConditions")
@@ -177,8 +208,24 @@ public class LoriePreferences extends AppCompatActivity {
             int modeValue = Integer.parseInt(p.getString("touchMode", "1")) - 1;
             String mode = getResources().getStringArray(R.array.touchscreenInputModesEntries)[modeValue];
             findPreference("touchMode").setSummary(mode);
-            findPreference("scaleTouchpad").setVisible("1".equals(p.getString("touchMode", "1")) && !"native".equals(p.getString("displayResolutionMode", "native")));
+            boolean scaleTouchpadEnabled = "1".equals(p.getString("touchMode", "1")) && !"native".equals(p.getString("displayResolutionMode", "native"));
+            findPreference("scaleTouchpad").setEnabled(scaleTouchpadEnabled);
+            findPreference("scaleTouchpad").setSummary(scaleTouchpadEnabled ? "" : "Requires \"Touchscreen input mode\" to be \"Trackpad\" and \"Display resolution mode\" to be not \"native\"");
             findPreference("showMouseHelper").setEnabled("1".equals(p.getString("touchMode", "1")));
+
+            AtomicBoolean stylusAvailable = new AtomicBoolean(false);
+            Arrays.stream(InputDevice.getDeviceIds())
+                    .mapToObj(InputDevice::getDevice)
+                    .filter(Objects::nonNull)
+                    .forEach((device) -> {
+                        //noinspection DataFlowIssue
+                        if (device.supportsSource(InputDevice.SOURCE_STYLUS))
+                            stylusAvailable.set(true);
+                    });
+
+            findPreference("showStylusClickOverride").setVisible(stylusAvailable.get());
+            findPreference("stylusIsMouse").setVisible(stylusAvailable.get());
+            findPreference("stylusButtonContactModifierMode").setVisible(stylusAvailable.get());
 
             boolean requestNotificationPermissionVisible =
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
@@ -189,13 +236,6 @@ public class LoriePreferences extends AppCompatActivity {
         @Override
         public void onCreate(final Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
-            SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
-
-            String showImeEnabled = Settings.Secure.getString(requireActivity().getContentResolver(), SHOW_IME_WITH_HARD_KEYBOARD);
-            if (showImeEnabled == null) showImeEnabled = "0";
-            SharedPreferences.Editor p = Objects.requireNonNull(preferences).edit();
-            p.putBoolean("showIMEWhileExternalConnected", showImeEnabled.contentEquals("1"));
-            p.apply();
 
             setListeners(getPreferenceScreen());
             updatePreferencesLayout();
@@ -205,20 +245,25 @@ public class LoriePreferences extends AppCompatActivity {
             for (int i=0; i < g.getPreferenceCount(); i++) {
                 g.getPreference(i).setOnPreferenceChangeListener(this);
                 g.getPreference(i).setOnPreferenceClickListener(this);
-                g.getPreference(i).setSingleLineTitle(false);
 
                 if (g.getPreference(i) instanceof PreferenceGroup)
                     setListeners((PreferenceGroup) g.getPreference(i));
             }
         }
 
+        void setMultilineTitle(PreferenceGroup g) {
+            for (int i=0; i < g.getPreferenceCount(); i++) {
+                if (g.getPreference(i) instanceof PreferenceGroup)
+                    setListeners((PreferenceGroup) g.getPreference(i));
+                else {
+                    g.getPreference(i).onDependencyChanged(g.getPreference(i), true);
+                    g.getPreference(i).onDependencyChanged(g.getPreference(i), false);
+                }
+            }
+        }
+
         @Override
         public boolean onPreferenceClick(@NonNull Preference preference) {
-            if ("enableAccessibilityService".contentEquals(preference.getKey())) {
-                Intent intent = new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS);
-                startActivityForResult(intent, 0);
-            }
-
             if ("extra_keys_config".contentEquals(preference.getKey())) {
                 @SuppressLint("InflateParams")
                 View view = getLayoutInflater().inflate(R.layout.extra_keys_config, null, false);
@@ -261,26 +306,6 @@ public class LoriePreferences extends AppCompatActivity {
             String key = preference.getKey();
             Log.e("Preferences", "changed preference: " + key);
             handler.postDelayed(this::updatePreferencesLayout, 100);
-
-            if ("showIMEWhileExternalConnected".contentEquals(key)) {
-                boolean enabled = newValue.toString().contentEquals("true");
-                try {
-                    Settings.Secure.putString(requireActivity().getContentResolver(), SHOW_IME_WITH_HARD_KEYBOARD, enabled ? "1" : "0");
-                } catch (Exception e) {
-                    if (e instanceof SecurityException) {
-                        new AlertDialog.Builder(requireActivity())
-                                .setTitle("Permission denied")
-                                .setMessage("Android requires WRITE_SECURE_SETTINGS permission to change this setting.\n" +
-                                            "Please, launch this command using ADB:\n" +
-                                            "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS")
-                                .setNegativeButton("OK", null)
-                                .create()
-                                .show();
-                    } else //noinspection CallToPrintStackTrace
-                        e.printStackTrace();
-                    return false;
-                }
-            }
 
             if ("displayScale".contentEquals(key)) {
                 int scale = (Integer) newValue;
@@ -343,7 +368,7 @@ public class LoriePreferences extends AppCompatActivity {
             intent.setPackage("com.termux.x11");
             requireContext().sendBroadcast(intent);
 
-            handler.postAtTime(this::updatePreferencesLayout, 100);
+            setMultilineTitle(getPreferenceScreen());
             return true;
         }
     }
@@ -417,23 +442,6 @@ public class LoriePreferences extends AppCompatActivity {
                             continue;
 
                         switch (key) {
-                            case "showIMEWhileExternalConnected": {
-                                boolean enabled = "true".contentEquals(newValue);
-                                try {
-                                    Settings.Secure.putString(context.getContentResolver(), SHOW_IME_WITH_HARD_KEYBOARD, enabled ? "1" : "0");
-                                } catch (Exception e) {
-                                    if (e instanceof SecurityException) {
-                                        setResultCode(1);
-                                        setResultData("Permission denied.\n" +
-                                                "Android requires WRITE_SECURE_SETTINGS permission to change `show_ime_with_hard_keyboard` setting.\n" +
-                                                "Please, launch this command using ADB:\n" +
-                                                "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS");
-                                        return;
-                                    } else //noinspection CallToPrintStackTrace
-                                        e.printStackTrace();
-                                }
-                                break;
-                            }
                             case "displayScale": {
                                 int scale = Integer.parseInt(newValue);
                                 if (scale % 10 != 0) {
@@ -568,6 +576,7 @@ public class LoriePreferences extends AppCompatActivity {
                                 }
                                 break;
                             }
+                            case "showIMEWhileExternalConnected":
                             case "displayStretch":
                             case "Reseed":
                             case "PIP":
@@ -616,4 +625,17 @@ public class LoriePreferences extends AppCompatActivity {
     }
 
     static Handler handler = new Handler();
+
+    public void onClick(View view) {
+        new NestedPreferenceFragment().show(getSupportFragmentManager(), "ekbar");
+    }
+
+    public static class NestedPreferenceFragment extends DialogFragment {
+        @Nullable @Override
+        public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+            getChildFragmentManager().beginTransaction().replace(android.R.id.content, new LoriePreferenceFragment("ekbar")).commit();
+
+            return null;
+        }
+    }
 }

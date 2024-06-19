@@ -29,7 +29,7 @@ static int argc = 0;
 static char** argv = NULL;
 static int conn_fd = -1;
 extern char *__progname; // NOLINT(bugprone-reserved-identifier)
-extern DeviceIntPtr lorieMouse, lorieTouch, lorieKeyboard;
+extern DeviceIntPtr lorieMouse, lorieTouch, lorieKeyboard, loriePen, lorieEraser;
 extern ScreenPtr pScreenPtr;
 extern int ucs2keysym(long ucs);
 void lorieKeysymKeyboardEvent(KeySym keysym, int down);
@@ -42,6 +42,8 @@ typedef enum {
     EVENT_TOUCH,
     EVENT_MOUSE,
     EVENT_KEY,
+    EVENT_STYLUS,
+    EVENT_STYLUS_ENABLE,
     EVENT_UNICODE,
     EVENT_CLIPBOARD_ENABLE,
     EVENT_CLIPBOARD_ANNOUNCE,
@@ -70,6 +72,17 @@ typedef union {
     } key;
     struct {
         uint8_t t;
+        float x, y;
+        uint16_t pressure;
+        int8_t tilt_x, tilt_y;
+        int16_t orientation;
+        uint8_t buttons, eraser, mouse;
+    } stylus;
+    struct {
+        uint8_t t, enable;
+    } stylusEnable;
+    struct {
+        uint8_t t;
         uint32_t code;
     } unicode;
     struct {
@@ -93,7 +106,7 @@ static struct {
     jmethodID toString;
 } CharBuffer = {0};
 
-static void* startServer(unused void* cookie) {
+static void* startServer(__unused void* cookie) {
     lorieSetVM((JavaVM*) cookie);
     char* envp[] = { NULL };
     exit(dix_main(argc, (char**) argv, envp));
@@ -127,7 +140,7 @@ static jclass FindMethodOrDie(JNIEnv *env, jclass clazz, const char* name, const
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectArray args) {
+Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjectArray args) {
     pthread_t t;
     JavaVM* vm = NULL;
     // execv's argv array is a bit incompatible with Java's String[], so we do some converting here...
@@ -250,7 +263,7 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, unused jclass cls, jobjectA
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, unused jobject cls, jobject surface, jstring jname) {
+Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, __unused jobject cls, jobject surface, jstring jname) {
     const char *name = !jname ? NULL : (*env)->GetStringUTFChars(env, jname, JNI_FALSE);
     QueueWorkProc(lorieChangeScreenName, NULL, name ? strndup(name, 1024) : strdup("screen"));
     if (name)
@@ -259,7 +272,7 @@ Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, unused jobject cls,
     QueueWorkProc(lorieChangeWindow, NULL, surface ? (*env)->NewGlobalRef(env, surface) : NULL);
 }
 
-static Bool sendConfigureNotify(unused ClientPtr pClient, void *closure) {
+static Bool sendConfigureNotify(__unused ClientPtr pClient, void *closure) {
     // This must be done only on X server thread.
     lorieEvent* e = closure;
     __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "window changed: %d %d", e->screenSize.width, e->screenSize.height);
@@ -268,19 +281,20 @@ static Bool sendConfigureNotify(unused ClientPtr pClient, void *closure) {
     return TRUE;
 }
 
-static Bool handleClipboardAnnounce(unused ClientPtr pClient, __unused void *closure) {
+static Bool handleClipboardAnnounce(__unused ClientPtr pClient, __unused void *closure) {
     // This must be done only on X server thread.
     lorieHandleClipboardAnnounce();
     return TRUE;
 }
 
-static Bool handleClipboardData(unused ClientPtr pClient, void *closure) {
+static Bool handleClipboardData(__unused ClientPtr pClient, void *closure) {
     // This must be done only on X server thread.
     lorieHandleClipboardData(closure);
     return TRUE;
 }
 
 void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
+    DrawablePtr screenDrawable = &pScreenPtr->GetScreenPixmap(pScreenPtr)->drawable;
     ValuatorMask mask;
     lorieEvent e = {0};
     valuator_mask_zero(&mask);
@@ -306,8 +320,11 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 double x, y;
                 DDXTouchPointInfoPtr touch = TouchFindByDDXID(lorieTouch, e.touch.id, FALSE);
 
-                x = (float) e.touch.x * 0xFFFF / (float) pScreenPtr->GetScreenPixmap(pScreenPtr)->drawable.width;
-                y = (float) e.touch.y * 0xFFFF / (float) pScreenPtr->GetScreenPixmap(pScreenPtr)->drawable.height;
+                x = (float) e.touch.x * 0xFFFF / (float) screenDrawable->width;
+                y = (float) e.touch.y * 0xFFFF / (float) screenDrawable->height;
+
+                x = max(min(x, screenDrawable->width), 0);
+                y = max(min(y, screenDrawable->height), 0);
 
                 // Avoid duplicating events
                 if (touch && touch->active) {
@@ -326,10 +343,54 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 if (e.touch.type == XI_TouchEnd && (!touch || !touch->active))
                     break;
 
-                __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "touch event: %d %d %d %d", e.touch.type, e.touch.id, e.touch.x, e.touch.y);
                 valuator_mask_set_double(&mask, 0, x);
                 valuator_mask_set_double(&mask, 1, y);
                 QueueTouchEvents(lorieTouch, e.touch.type, e.touch.id, 0, &mask);
+                break;
+            }
+            case EVENT_STYLUS: {
+                static int buttons_prev = 0;
+                uint32_t released, pressed, diff;
+                DeviceIntPtr device = e.stylus.mouse ? lorieMouse : (e.stylus.eraser ? lorieEraser : loriePen);
+                if (!device) {
+                    __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "got stylus event but device is not requested\n");
+                    break;
+                }
+                __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "got stylus event %f %f %d %d %d %d %s\n", e.stylus.x, e.stylus.y, e.stylus.pressure, e.stylus.tilt_x, e.stylus.tilt_y, e.stylus.orientation,
+                                    device == lorieMouse ? "lorieMouse" : (device == loriePen ? "loriePen" : "lorieEraser"));
+
+                valuator_mask_set_double(&mask, 0, max(min(e.stylus.x, screenDrawable->width), 0));
+                valuator_mask_set_double(&mask, 1, max(min(e.stylus.y, screenDrawable->height), 0));
+                if (device != lorieMouse) {
+                    valuator_mask_set_double(&mask, 2, e.stylus.pressure);
+                    valuator_mask_set_double(&mask, 3, e.stylus.tilt_x);
+                    valuator_mask_set_double(&mask, 4, e.stylus.tilt_y);
+                    valuator_mask_set_double(&mask, 5, e.stylus.orientation);
+                }
+                QueuePointerEvents(device, MotionNotify, 0, POINTER_ABSOLUTE | POINTER_DESKTOP | (device == lorieMouse ? POINTER_NORAW : 0), &mask);
+
+                diff = buttons_prev ^ e.stylus.buttons;
+                released = diff & ~e.stylus.buttons;
+                pressed = diff & e.stylus.buttons;
+
+                for (int i=0; i<3; i++) {
+                    if (released & 0x1) {
+                        QueuePointerEvents(device, ButtonRelease, i + 1, POINTER_RELATIVE, NULL);
+                        __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "sending %d press", i+1);
+                    }
+                    if (pressed & 0x1) {
+                        QueuePointerEvents(device, ButtonPress, i + 1, POINTER_RELATIVE, NULL);
+                        __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "sending %d release", i+1);
+                    }
+                    released >>= 1;
+                    pressed >>= 1;
+                }
+                buttons_prev = e.stylus.buttons;
+
+                break;
+            }
+            case EVENT_STYLUS_ENABLE: {
+                lorieSetStylusEnabled(e.stylusEnable.enable);
                 break;
             }
             case EVENT_MOUSE: {
@@ -337,6 +398,10 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 switch(e.mouse.detail) {
                     case 0: // BUTTON_UNDEFINED
                         flags = (e.mouse.relative) ? POINTER_RELATIVE | POINTER_ACCELERATE : POINTER_ABSOLUTE | POINTER_SCREEN | POINTER_NORAW;
+                        if (!e.mouse.relative) {
+                            e.mouse.x = max(0, min(e.mouse.x, screenDrawable->width));
+                            e.mouse.y = max(0, min(e.mouse.y, screenDrawable->height));
+                        }
                         valuator_mask_set_double(&mask, 0, (double) e.mouse.x);
                         valuator_mask_set_double(&mask, 1, (double) e.mouse.y);
                         QueuePointerEvents(lorieMouse, MotionNotify, 0, flags, &mask);
@@ -407,14 +472,14 @@ void lorieRequestClipboard(void) {
     }
 }
 
-static Bool addFd(unused ClientPtr pClient, void *closure) {
+static Bool addFd(__unused ClientPtr pClient, void *closure) {
     InputThreadRegisterDev((int) (int64_t) closure, handleLorieEvents, NULL);
     conn_fd = (int) (int64_t) closure;
     return TRUE;
 }
 
 JNIEXPORT jobject JNICALL
-Java_com_termux_x11_CmdEntryPoint_getXConnection(JNIEnv *env, unused jobject cls) {
+Java_com_termux_x11_CmdEntryPoint_getXConnection(JNIEnv *env, __unused jobject cls) {
     int client[2];
     jclass ParcelFileDescriptorClass = (*env)->FindClass(env, "android/os/ParcelFileDescriptor");
     jmethodID adoptFd = (*env)->GetStaticMethodID(env, ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
@@ -435,7 +500,7 @@ void* logcatThread(void *arg) {
 }
 
 JNIEXPORT jobject JNICALL
-Java_com_termux_x11_CmdEntryPoint_getLogcatOutput(JNIEnv *env, unused jobject cls) {
+Java_com_termux_x11_CmdEntryPoint_getLogcatOutput(JNIEnv *env, __unused jobject cls) {
     jclass ParcelFileDescriptorClass = (*env)->FindClass(env, "android/os/ParcelFileDescriptor");
     jmethodID adoptFd = (*env)->GetStaticMethodID(env, ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
     const char *debug = getenv("TERMUX_X11_DEBUG");
@@ -474,7 +539,7 @@ static inline void checkConnection(JNIEnv* env) {
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_connect(unused JNIEnv* env, unused jobject cls, jint fd) {
+Java_com_termux_x11_LorieView_connect(__unused JNIEnv* env, __unused jobject cls, jint fd) {
     if (!Charset.self) {
         // Init clipboard-related JNI stuff
         Charset.self = FindClassOrDie(env, "java/nio/charset/Charset");
@@ -529,7 +594,7 @@ Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, jobject thiz) {
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_startLogcat(JNIEnv *env, unused jobject cls, jint fd) {
+Java_com_termux_x11_LorieView_startLogcat(JNIEnv *env, __unused jobject cls, jint fd) {
     log(DEBUG, "Starting logcat with output to given fd");
 
     switch(fork()) {
@@ -549,7 +614,7 @@ Java_com_termux_x11_LorieView_startLogcat(JNIEnv *env, unused jobject cls, jint 
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_setClipboardSyncEnabled(unused JNIEnv* env, unused jobject cls, jboolean enable, __unused jboolean ignored) {
+Java_com_termux_x11_LorieView_setClipboardSyncEnabled(__unused JNIEnv* env, __unused jobject cls, jboolean enable, __unused jboolean ignored) {
     if (conn_fd != -1) {
         lorieEvent e = { .clipboardEnable = { .t = EVENT_CLIPBOARD_ENABLE, .enable = enable } };
         write(conn_fd, &e, sizeof(e));
@@ -567,7 +632,7 @@ Java_com_termux_x11_LorieView_sendClipboardAnnounce(JNIEnv *env, __unused jobjec
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendClipboardEvent(JNIEnv *env, unused jobject thiz, jbyteArray text) {
+Java_com_termux_x11_LorieView_sendClipboardEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
     if (conn_fd != -1 && text) {
         jsize length = (*env)->GetArrayLength(env, text);
         jbyte* str = (*env)->GetByteArrayElements(env, text, NULL);
@@ -580,7 +645,7 @@ Java_com_termux_x11_LorieView_sendClipboardEvent(JNIEnv *env, unused jobject thi
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendWindowChange(unused JNIEnv* env, unused jobject cls, jint width, jint height, jint framerate) {
+Java_com_termux_x11_LorieView_sendWindowChange(__unused JNIEnv* env, __unused jobject cls, jint width, jint height, jint framerate) {
     if (conn_fd != -1) {
         lorieEvent e = { .screenSize = { .t = EVENT_SCREEN_SIZE, .width = width, .height = height, .framerate = framerate } };
         write(conn_fd, &e, sizeof(e));
@@ -589,7 +654,7 @@ Java_com_termux_x11_LorieView_sendWindowChange(unused JNIEnv* env, unused jobjec
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendMouseEvent(unused JNIEnv* env, unused jobject cls, jfloat x, jfloat y, jint which_button, jboolean button_down, jboolean relative) {
+Java_com_termux_x11_LorieView_sendMouseEvent(__unused JNIEnv* env, __unused jobject cls, jfloat x, jfloat y, jint which_button, jboolean button_down, jboolean relative) {
     if (conn_fd != -1) {
         lorieEvent e = { .mouse = { .t = EVENT_MOUSE, .x = x, .y = y, .detail = which_button, .down = button_down, .relative = relative } };
         write(conn_fd, &e, sizeof(e));
@@ -598,7 +663,7 @@ Java_com_termux_x11_LorieView_sendMouseEvent(unused JNIEnv* env, unused jobject 
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendTouchEvent(unused JNIEnv* env, unused jobject cls, jint action, jint id, jint x, jint y) {
+Java_com_termux_x11_LorieView_sendTouchEvent(__unused JNIEnv* env, __unused jobject cls, jint action, jint id, jint x, jint y) {
     if (conn_fd != -1 && action != -1) {
         lorieEvent e = { .touch = { .t = EVENT_TOUCH, .type = action, .id = id, .x = x, .y = y } };
         write(conn_fd, &e, sizeof(e));
@@ -606,8 +671,28 @@ Java_com_termux_x11_LorieView_sendTouchEvent(unused JNIEnv* env, unused jobject 
     }
 }
 
+JNIEXPORT void JNICALL
+Java_com_termux_x11_LorieView_sendStylusEvent(JNIEnv *env, __unused jobject thiz, jfloat x, jfloat y,
+                                              jint pressure, jint tilt_x, jint tilt_y,
+                                              jint orientation, jint buttons, jboolean eraser, jboolean mouse) {
+    if (conn_fd != -1) {
+        lorieEvent e = { .stylus = { .t = EVENT_STYLUS, .x = x, .y = y, .pressure = pressure, .tilt_x = tilt_x, .tilt_y = tilt_y, .orientation = orientation, .buttons = buttons, .eraser = eraser, .mouse = mouse } };
+        write(conn_fd, &e, sizeof(e));
+        checkConnection(env);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_termux_x11_LorieView_requestStylusEnabled(JNIEnv *env, __unused jclass clazz, jboolean enabled) {
+    if (conn_fd != -1) {
+        lorieEvent e = { .stylusEnable = { .t = EVENT_STYLUS_ENABLE, .enable = enabled } };
+        write(conn_fd, &e, sizeof(e));
+        checkConnection(env);
+    }
+}
+
 JNIEXPORT jboolean JNICALL
-Java_com_termux_x11_LorieView_sendKeyEvent(unused JNIEnv* env, unused jobject cls, jint scan_code, jint key_code, jboolean key_down) {
+Java_com_termux_x11_LorieView_sendKeyEvent(__unused JNIEnv* env, __unused jobject cls, jint scan_code, jint key_code, jboolean key_down) {
     if (conn_fd != -1) {
         int code = (scan_code) ?: android_to_linux_keycode[key_code];
         log(DEBUG, "Sending key: %d (%d %d %d)", code + 8, scan_code, key_code, key_down);
@@ -620,7 +705,7 @@ Java_com_termux_x11_LorieView_sendKeyEvent(unused JNIEnv* env, unused jobject cl
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, unused jobject thiz, jbyteArray text) {
+Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
     if (conn_fd != -1 && text) {
         jsize length = (*env)->GetArrayLength(env, text);
         jbyte *str = (*env)->GetByteArrayElements(env, text, NULL);
@@ -655,7 +740,7 @@ Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, unused jobject thiz, jb
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendUnicodeEvent(JNIEnv *env, unused jobject thiz, jint code) {
+Java_com_termux_x11_LorieView_sendUnicodeEvent(JNIEnv *env, __unused jobject thiz, jint code) {
     if (conn_fd != -1) {
         log(DEBUG, "Sending unicode event: %lc (U+%X)", code, code);
         lorieEvent e = { .unicode = { .t = EVENT_UNICODE, .code = code } };
@@ -675,7 +760,7 @@ void exit(int code) {
 
 #if 1
 // It is needed to redirect stderr to logcat
-static void* stderrToLogcatThread(unused void* cookie) {
+static void* stderrToLogcatThread(__unused void* cookie) {
     FILE *fp;
     int p[2];
     size_t len;

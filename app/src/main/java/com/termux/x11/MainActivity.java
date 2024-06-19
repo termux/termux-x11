@@ -52,6 +52,7 @@ import android.view.Window;
 import android.view.WindowInsets;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
@@ -89,6 +90,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private final int mNotificationId = 7892;
     NotificationManager mNotificationManager;
     static InputMethodManager inputMethodManager;
+    private static boolean showIMEWhileExternalConnected = true;
+    private static boolean externalKeyboardConnected = false;
     private boolean mClientConnected = false;
     private View.OnKeyListener mLorieKeyListener;
     boolean captureVolumeKeys = false;
@@ -294,10 +297,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         overlay.setOnCapturedPointerListener((v, e) -> true);
         overlay.setVisibility(stylusMenuEnabled ? View.VISIBLE : View.GONE);
         View.OnClickListener listener = view -> {
-            TouchInputHandler.STYLUS_INPUT_HELPER_MODE = (view.equals(left) ? 1 : (view.equals(middle) ? 2 : (view.equals(right) ? 3 : 0)));
+            TouchInputHandler.STYLUS_INPUT_HELPER_MODE = (view.equals(left) ? 1 : (view.equals(middle) ? 2 : (view.equals(right) ? 4 : 0)));
             left.setAlpha((TouchInputHandler.STYLUS_INPUT_HELPER_MODE == 1) ? menuSelectedTrasparency : menuUnselectedTrasparency);
             middle.setAlpha((TouchInputHandler.STYLUS_INPUT_HELPER_MODE == 2) ? menuSelectedTrasparency : menuUnselectedTrasparency);
-            right.setAlpha((TouchInputHandler.STYLUS_INPUT_HELPER_MODE == 3) ? menuSelectedTrasparency : menuUnselectedTrasparency);
+            right.setAlpha((TouchInputHandler.STYLUS_INPUT_HELPER_MODE == 4) ? menuSelectedTrasparency : menuUnselectedTrasparency);
             visibility.setAlpha(menuUnselectedTrasparency);
         };
 
@@ -544,6 +547,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         hideEKOnVolDown = p.getBoolean("hideEKOnVolDown", false);
         useTermuxEKBarBehaviour = p.getBoolean("useTermuxEKBarBehaviour", false);
         toggleIMEUsingBackKey = p.getBoolean("toggleIMEUsingBackKey", true);
+        showIMEWhileExternalConnected = p.getBoolean("showIMEWhileExternalConnected", true);
 
         int requestedOrientation = p.getBoolean("forceLandscape", false) ?
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
@@ -606,64 +610,52 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     private void setTerminalToolbarView() {
-        final ViewPager terminalToolbarViewPager = getTerminalToolbarViewPager();
-
-        terminalToolbarViewPager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(e)));
-        terminalToolbarViewPager.addOnPageChangeListener(new X11ToolbarViewPager.OnPageChangeListener(this, terminalToolbarViewPager));
+        final ViewPager pager = getTerminalToolbarViewPager();
+        ViewGroup parent = (ViewGroup) pager.getParent();
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        boolean enabled = preferences.getBoolean("showAdditionalKbd", true);
-        boolean showNow = enabled && preferences.getBoolean("additionalKbdVisible", true);
+        boolean showNow = mClientConnected &&
+                preferences.getBoolean("showAdditionalKbd", true) &&
+                preferences.getBoolean("additionalKbdVisible", true);
 
-        terminalToolbarViewPager.setVisibility(showNow ? View.VISIBLE : View.GONE);
-        findViewById(R.id.terminal_toolbar_view_pager).requestFocus();
+        pager.setVisibility(showNow ? View.VISIBLE : View.INVISIBLE);
 
-        handler.postDelayed(() -> {
-            if (mExtraKeys != null) {
-                ViewGroup.LayoutParams layoutParams = terminalToolbarViewPager.getLayoutParams();
-                layoutParams.height = Math.round(37.5f * getResources().getDisplayMetrics().density *
-                        (mExtraKeys.getExtraKeysInfo() == null ? 0 : mExtraKeys.getExtraKeysInfo().getMatrix().length));
-                terminalToolbarViewPager.setLayoutParams(layoutParams);
-            }
-            frm.setPadding(0, 0, 0, preferences.getBoolean("adjustHeightForEK", false) && terminalToolbarViewPager.getVisibility() == View.VISIBLE ? terminalToolbarViewPager.getHeight() : 0);
-        }, 200);
+        if (showNow) {
+            pager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(e)));
+            pager.clearOnPageChangeListeners();
+            pager.addOnPageChangeListener(new X11ToolbarViewPager.OnPageChangeListener(this, pager));
+            pager.bringToFront();
+        } else {
+            parent.removeView(pager);
+            parent.addView(pager, 0);
+            if (mExtraKeys != null)
+                mExtraKeys.unsetSpecialKeys();
+        }
+
+        ViewGroup.LayoutParams layoutParams = pager.getLayoutParams();
+        layoutParams.height = Math.round(37.5f * getResources().getDisplayMetrics().density *
+                (TermuxX11ExtraKeys.getExtraKeysInfo() == null ? 0 : TermuxX11ExtraKeys.getExtraKeysInfo().getMatrix().length));
+        pager.setLayoutParams(layoutParams);
+
+        frm.setPadding(0, 0, 0, preferences.getBoolean("adjustHeightForEK", false) && showNow ? layoutParams.height : 0);
+        getLorieView().requestFocus();
     }
 
     public void toggleExtraKeys(boolean visible, boolean saveState) {
-        runOnUiThread(() -> {
-            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-            boolean enabled = preferences.getBoolean("showAdditionalKbd", true);
-            ViewPager pager = getTerminalToolbarViewPager();
-            ViewGroup parent = (ViewGroup) pager.getParent();
-            boolean show = enabled && mClientConnected && visible;
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        boolean enabled = preferences.getBoolean("showAdditionalKbd", true);
 
-            if (show) {
-                setTerminalToolbarView();
-                getTerminalToolbarViewPager().bringToFront();
-            } else {
-                parent.removeView(pager);
-                parent.addView(pager, 0);
-                if (mExtraKeys != null)
-                    mExtraKeys.unsetSpecialKeys();
-            }
-            frm.setPadding(0, 0, 0, preferences.getBoolean("adjustHeightForEK", false) && show ? pager.getHeight() : 0);
+        if (enabled && mClientConnected && saveState) {
+            SharedPreferences.Editor edit = preferences.edit();
+            edit.putBoolean("additionalKbdVisible", visible);
+            edit.commit();
+        }
 
-            if (enabled && saveState) {
-                SharedPreferences.Editor edit = preferences.edit();
-                edit.putBoolean("additionalKbdVisible", show);
-                edit.commit();
-            }
-
-            pager.setVisibility(show ? View.VISIBLE : View.INVISIBLE);
-
-            getLorieView().requestFocus();
-        });
+        setTerminalToolbarView();
     }
 
     public void toggleExtraKeys() {
-        int visibility = getTerminalToolbarViewPager().getVisibility();
-        toggleExtraKeys(visibility != View.VISIBLE, true);
-        getLorieView().requestFocus();
+        toggleExtraKeys(getTerminalToolbarViewPager().getVisibility() != View.VISIBLE, true);
     }
 
     public boolean handleKey(KeyEvent e) {
@@ -821,7 +813,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
-        toggleExtraKeys(!isInPictureInPictureMode, false);
+        if (isInPictureInPictureMode)
+            toggleExtraKeys(false, false);
+        else
+            setTerminalToolbarView();
 
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
     }
@@ -840,8 +835,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
      */
     public static void toggleKeyboardVisibility(Context context) {
         Log.d("MainActivity", "Toggling keyboard visibility");
-        if(inputMethodManager != null)
-            inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+        if(inputMethodManager != null) {
+            android.util.Log.d("toggleKeyboardVisibility", "externalKeyboardConnected " + externalKeyboardConnected + " showIMEWhileExternalConnected " + showIMEWhileExternalConnected);
+            if (!externalKeyboardConnected || showIMEWhileExternalConnected)
+                inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+            else
+                inputMethodManager.hideSoftInputFromWindow(getInstance().getLorieView().getWindowToken(), 0);
+        }
     }
 
     @SuppressWarnings("SameParameterValue")
@@ -855,7 +855,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         runOnUiThread(()-> {
             SharedPreferences p = PreferenceManager.getDefaultSharedPreferences(this);
             mClientConnected = connected;
-            toggleExtraKeys(connected && p.getBoolean("additionalKbdVisible", true), true);
+            setTerminalToolbarView();
             findViewById(R.id.mouse_buttons).setVisibility(p.getBoolean("showMouseHelper", false) && "1".equals(p.getString("touchMode", "1")) && mClientConnected ? View.VISIBLE : View.GONE);
             findViewById(R.id.stub).setVisibility(connected?View.INVISIBLE:View.VISIBLE);
             getLorieView().setVisibility(connected?View.VISIBLE:View.INVISIBLE);
@@ -895,5 +895,15 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             return false;
 
         return mInputHandler.shouldInterceptKeys();
+    }
+
+    public void setExternalKeyboardConnected(boolean connected) {
+        externalKeyboardConnected = connected;
+        EditText textInput = findViewById(R.id.terminal_toolbar_text_input);
+        if (textInput != null)
+            textInput.setShowSoftInputOnFocus(!connected || showIMEWhileExternalConnected);
+        if (connected && !showIMEWhileExternalConnected)
+            inputMethodManager.hideSoftInputFromWindow(getLorieView().getWindowToken(), 0);
+        getLorieView().requestFocus();
     }
 }

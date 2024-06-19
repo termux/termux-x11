@@ -37,6 +37,8 @@ public final class InputEventSender {
     public float capturedPointerSpeedFactor = 100;
     public boolean dexMetaKeyCapture = false;
     public boolean pauseKeyInterceptingWithEsc = false;
+    public boolean stylusIsMouse = false;
+    public boolean stylusButtonContactModifierMode = false;
 
     /** Set of pressed keys for which we've sent TextEvent. */
     private final TreeSet<Integer> mPressedTextKeys;
@@ -53,6 +55,11 @@ public final class InputEventSender {
         if (!buttons.contains(button))
             return;
         mInjector.sendMouseEvent(pos != null ? (int) pos.x : 0, pos != null ? (int) pos.y : 0, button, down, relative);
+    }
+
+    public void sendStylusEvent(float x, float y, int pressure, int tiltX, int tiltY, int orientation, int buttons, boolean eraser, boolean mouse) {
+        mInjector.sendStylusEvent(x, y, pressure, tiltX, tiltY, orientation, buttons, eraser, mouse);
+        android.util.Log.d("STYLUS_EVENT", "transformed x " + x + " y " + y + " pressure " + pressure + " tiltX " + tiltX + " tiltY " + tiltY + " orientation " + orientation + " buttons " + buttons + " eraser " + eraser + " mouseMode " + mouse);
     }
 
     public void sendMouseDown(int button, boolean relative) {

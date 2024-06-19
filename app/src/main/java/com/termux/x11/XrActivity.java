@@ -19,13 +19,12 @@ import android.view.Surface;
 import android.view.inputmethod.InputMethodManager;
 
 import com.termux.x11.input.InputStub;
-import com.termux.x11.input.XrKeyboard;
 import com.termux.x11.utils.GLUtility;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
-public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, XrKeyboard.XrKeyboardListener {
+public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     // Order of the enum has to be the same as in xrio/android.c
     public enum ControllerAxis {
         L_PITCH, L_YAW, L_ROLL, L_THUMBSTICK_X, L_THUMBSTICK_Y, L_X, L_Y, L_Z,
@@ -49,6 +48,7 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
 
     private boolean isImmersive = false;
     private boolean isSBS = false;
+    private long lastEnter;
     private final float[] lastAxes = new float[ControllerAxis.values().length];
     private final boolean[] lastButtons = new boolean[ControllerButton.values().length];
     private final float[] mouse = new float[2];
@@ -56,7 +56,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
     private int program;
     private int texture;
     private SurfaceTexture surface;
-    private XrKeyboard text;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,10 +65,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
         view.setEGLContextClientVersion(2);
         view.setRenderer(this);
         frm.addView(view);
-
-        text = new XrKeyboard(this);
-        text.setListener(this);
-        frm.addView(text);
     }
 
     @Override
@@ -189,26 +184,28 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
     }
 
     @Override
-    public void onHideKeyboardRequest() {
-        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        imm.hideSoftInputFromWindow(text.getWindowToken(), 0);
-    }
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        // Meta HorizonOS sends up event only (as for in v66)
+        if (event.getAction() == KeyEvent.ACTION_UP) {
 
-    @Override
-    public void onSendKeyRequest(int keycode) {
-        LorieView view = getLorieView();
-        view.sendKeyEvent(0, keycode, true);
-        try {
-            //give system a chance to notice that backspace was pressed
-            Thread.sleep(30);
-        } catch (Exception ignored) {
+            // The OS sends 4x enter event, filter it
+            if (event.getKeyCode() == KeyEvent.KEYCODE_ENTER) {
+                if (System.currentTimeMillis() - lastEnter < 250) {
+                    return true;
+                }
+                lastEnter = System.currentTimeMillis();
+            }
+
+            // Send key press, give system chance to notice it and send key release
+            getLorieView().sendKeyEvent(0, event.getKeyCode(), true);
+            try {
+                Thread.sleep(50);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            getLorieView().sendKeyEvent(0, event.getKeyCode(), false);
         }
-        view.sendKeyEvent(0, keycode, false);
-    }
-
-    @Override
-    public void onSendTextRequest(String text) {
-        getLorieView().sendTextEvent(text.getBytes());
+        return true;
     }
 
     private void processInput() {
@@ -279,9 +276,8 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer, 
             getInstance().runOnUiThread(() -> {
                 isSBS = false;
                 isImmersive = false;
-                text.reset();
-                InputMethodManager imm = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
                 getWindow().getDecorView().postDelayed(() -> {
+                    InputMethodManager imm = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
                     imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
                 }, 500L);
             });

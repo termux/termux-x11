@@ -210,7 +210,7 @@ public class LoriePreferences extends AppCompatActivity {
             findPreference("touchMode").setSummary(mode);
             boolean scaleTouchpadEnabled = "1".equals(p.getString("touchMode", "1")) && !"native".equals(p.getString("displayResolutionMode", "native"));
             findPreference("scaleTouchpad").setEnabled(scaleTouchpadEnabled);
-            findPreference("scaleTouchpad").setSummary(scaleTouchpadEnabled ? "" : android.text.Html.fromHtml("<font color='red'>Requires \"Touchscreen input mode\" to be \"Trackpad\" and \"Display resolution mode\" to be not \"native\"</font>"));
+            findPreference("scaleTouchpad").setSummary(scaleTouchpadEnabled ? "" : "Requires \"Touchscreen input mode\" to be \"Trackpad\" and \"Display resolution mode\" to be not \"native\"");
             findPreference("showMouseHelper").setEnabled("1".equals(p.getString("touchMode", "1")));
 
             AtomicBoolean stylusAvailable = new AtomicBoolean(false);

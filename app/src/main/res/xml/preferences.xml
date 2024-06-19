@@ -145,8 +145,8 @@
 
         <SwitchPreferenceCompat
             android:title="Show IME with external keyboard"
-            android:summary="Show software keyboard while hardware keyboard is connected. Requires WRITE_SECURE_SETTINGS permission."
-            android:defaultValue="false"
+            android:summary="Show software keyboard while hardware keyboard is connected."
+            android:defaultValue="true"
             android:key="showIMEWhileExternalConnected" />
 
         <SwitchPreferenceCompat

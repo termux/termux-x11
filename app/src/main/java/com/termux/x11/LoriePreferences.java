@@ -25,7 +25,6 @@ import androidx.preference.Preference;
 import android.os.Handler;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
-import android.provider.Settings;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
@@ -69,7 +68,6 @@ import java.util.regex.PatternSyntaxException;
 @SuppressWarnings("deprecation")
 public class LoriePreferences extends AppCompatActivity {
     static final String ACTION_PREFERENCES_CHANGED = "com.termux.x11.ACTION_PREFERENCES_CHANGED";
-    static final String SHOW_IME_WITH_HARD_KEYBOARD = "show_ime_with_hard_keyboard";
     LoriePreferenceFragment loriePreferenceFragment;
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -147,6 +145,7 @@ public class LoriePreferences extends AppCompatActivity {
             }
 
             addPreferencesFromResource(R.xml.preferences);
+            //noinspection DataFlowIssue
             findPreference("showAdditionalKbd").setLayoutResource(R.layout.preference);
 
             // Hide what user should not see in this instance
@@ -209,7 +208,9 @@ public class LoriePreferences extends AppCompatActivity {
             int modeValue = Integer.parseInt(p.getString("touchMode", "1")) - 1;
             String mode = getResources().getStringArray(R.array.touchscreenInputModesEntries)[modeValue];
             findPreference("touchMode").setSummary(mode);
-            findPreference("scaleTouchpad").setVisible("1".equals(p.getString("touchMode", "1")) && !"native".equals(p.getString("displayResolutionMode", "native")));
+            boolean scaleTouchpadEnabled = "1".equals(p.getString("touchMode", "1")) && !"native".equals(p.getString("displayResolutionMode", "native"));
+            findPreference("scaleTouchpad").setEnabled(scaleTouchpadEnabled);
+            findPreference("scaleTouchpad").setSummary(scaleTouchpadEnabled ? "" : android.text.Html.fromHtml("<font color='red'>Requires \"Touchscreen input mode\" to be \"Trackpad\" and \"Display resolution mode\" to be not \"native\"</font>"));
             findPreference("showMouseHelper").setEnabled("1".equals(p.getString("touchMode", "1")));
 
             AtomicBoolean stylusAvailable = new AtomicBoolean(false);
@@ -224,7 +225,6 @@ public class LoriePreferences extends AppCompatActivity {
 
             findPreference("showStylusClickOverride").setVisible(stylusAvailable.get());
             findPreference("stylusIsMouse").setVisible(stylusAvailable.get());
-            findPreference("stylusButtonContactModifierMode").setEnabled(!p.getBoolean("stylusIsMouse", false));
             findPreference("stylusButtonContactModifierMode").setVisible(stylusAvailable.get());
 
             boolean requestNotificationPermissionVisible =
@@ -236,13 +236,6 @@ public class LoriePreferences extends AppCompatActivity {
         @Override
         public void onCreate(final Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
-            SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
-
-            String showImeEnabled = Settings.Secure.getString(requireActivity().getContentResolver(), SHOW_IME_WITH_HARD_KEYBOARD);
-            if (showImeEnabled == null) showImeEnabled = "0";
-            SharedPreferences.Editor p = Objects.requireNonNull(preferences).edit();
-            p.putBoolean("showIMEWhileExternalConnected", showImeEnabled.contentEquals("1"));
-            p.apply();
 
             setListeners(getPreferenceScreen());
             updatePreferencesLayout();
@@ -313,26 +306,6 @@ public class LoriePreferences extends AppCompatActivity {
             String key = preference.getKey();
             Log.e("Preferences", "changed preference: " + key);
             handler.postDelayed(this::updatePreferencesLayout, 100);
-
-            if ("showIMEWhileExternalConnected".contentEquals(key)) {
-                boolean enabled = newValue.toString().contentEquals("true");
-                try {
-                    Settings.Secure.putString(requireActivity().getContentResolver(), SHOW_IME_WITH_HARD_KEYBOARD, enabled ? "1" : "0");
-                } catch (Exception e) {
-                    if (e instanceof SecurityException) {
-                        new AlertDialog.Builder(requireActivity())
-                                .setTitle("Permission denied")
-                                .setMessage("Android requires WRITE_SECURE_SETTINGS permission to change this setting.\n" +
-                                            "Please, launch this command using ADB:\n" +
-                                            "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS")
-                                .setNegativeButton("OK", null)
-                                .create()
-                                .show();
-                    } else //noinspection CallToPrintStackTrace
-                        e.printStackTrace();
-                    return false;
-                }
-            }
 
             if ("displayScale".contentEquals(key)) {
                 int scale = (Integer) newValue;
@@ -469,23 +442,6 @@ public class LoriePreferences extends AppCompatActivity {
                             continue;
 
                         switch (key) {
-                            case "showIMEWhileExternalConnected": {
-                                boolean enabled = "true".contentEquals(newValue);
-                                try {
-                                    Settings.Secure.putString(context.getContentResolver(), SHOW_IME_WITH_HARD_KEYBOARD, enabled ? "1" : "0");
-                                } catch (Exception e) {
-                                    if (e instanceof SecurityException) {
-                                        setResultCode(1);
-                                        setResultData("Permission denied.\n" +
-                                                "Android requires WRITE_SECURE_SETTINGS permission to change `show_ime_with_hard_keyboard` setting.\n" +
-                                                "Please, launch this command using ADB:\n" +
-                                                "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS");
-                                        return;
-                                    } else //noinspection CallToPrintStackTrace
-                                        e.printStackTrace();
-                                }
-                                break;
-                            }
                             case "displayScale": {
                                 int scale = Integer.parseInt(newValue);
                                 if (scale % 10 != 0) {
@@ -620,6 +576,7 @@ public class LoriePreferences extends AppCompatActivity {
                                 }
                                 break;
                             }
+                            case "showIMEWhileExternalConnected":
                             case "displayStretch":
                             case "Reseed":
                             case "PIP":

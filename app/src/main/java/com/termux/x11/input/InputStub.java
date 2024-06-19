@@ -42,5 +42,5 @@ public interface InputStub {
     /** Sends an event, not flushing connection. */
     void sendTouchEvent(int action, int pointerId, int x, int y);
 
-    void sendStylusEvent(float x, float y, int pressure, int tiltX, int tiltY, int orientation, int buttons, boolean eraser);
+    void sendStylusEvent(float x, float y, int pressure, int tiltX, int tiltY, int orientation, int buttons, boolean eraser, boolean mouseMode);
 }

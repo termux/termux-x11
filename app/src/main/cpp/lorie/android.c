@@ -76,7 +76,7 @@ typedef union {
         uint16_t pressure;
         int8_t tilt_x, tilt_y;
         int16_t orientation;
-        uint8_t buttons, eraser;
+        uint8_t buttons, eraser, mouse;
     } stylus;
     struct {
         uint8_t t, enable;
@@ -349,35 +349,39 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 break;
             }
             case EVENT_STYLUS: {
-                int button;
                 static int buttons_prev = 0;
                 uint32_t released, pressed, diff;
-                DeviceIntPtr device = e.stylus.eraser ? lorieEraser : loriePen;
+                DeviceIntPtr device = e.stylus.mouse ? lorieMouse : (e.stylus.eraser ? lorieEraser : loriePen);
                 if (!device) {
                     __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "got stylus event but device is not requested\n");
                     break;
                 }
-                __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "got stylus event %f %f %d %d %d %d %p\n", e.stylus.x, e.stylus.y, e.stylus.pressure, e.stylus.tilt_x, e.stylus.tilt_y, e.stylus.orientation, device);
+                __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "got stylus event %f %f %d %d %d %d %s\n", e.stylus.x, e.stylus.y, e.stylus.pressure, e.stylus.tilt_x, e.stylus.tilt_y, e.stylus.orientation,
+                                    device == lorieMouse ? "lorieMouse" : (device == loriePen ? "loriePen" : "lorieEraser"));
 
                 valuator_mask_set_double(&mask, 0, max(min(e.stylus.x, screenDrawable->width), 0));
                 valuator_mask_set_double(&mask, 1, max(min(e.stylus.y, screenDrawable->height), 0));
-                valuator_mask_set_double(&mask, 2, e.stylus.pressure);
-                valuator_mask_set_double(&mask, 3, e.stylus.tilt_x);
-                valuator_mask_set_double(&mask, 4, e.stylus.tilt_y);
-                valuator_mask_set_double(&mask, 5, e.stylus.orientation);
-                QueuePointerEvents(device, MotionNotify, 0, POINTER_ABSOLUTE | POINTER_DESKTOP, &mask);
+                if (device != lorieMouse) {
+                    valuator_mask_set_double(&mask, 2, e.stylus.pressure);
+                    valuator_mask_set_double(&mask, 3, e.stylus.tilt_x);
+                    valuator_mask_set_double(&mask, 4, e.stylus.tilt_y);
+                    valuator_mask_set_double(&mask, 5, e.stylus.orientation);
+                }
+                QueuePointerEvents(device, MotionNotify, 0, POINTER_ABSOLUTE | POINTER_DESKTOP | (device == lorieMouse ? POINTER_NORAW : 0), &mask);
 
                 diff = buttons_prev ^ e.stylus.buttons;
                 released = diff & ~e.stylus.buttons;
                 pressed = diff & e.stylus.buttons;
 
-                button = 1;
                 for (int i=0; i<3; i++) {
-                    if (released & 0x1)
-                        QueuePointerEvents(device, ButtonRelease, button, POINTER_RELATIVE, NULL);
-                    if (pressed & 0x1)
-                        QueuePointerEvents(device, ButtonPress, button, POINTER_RELATIVE, NULL);
-                    button++;
+                    if (released & 0x1) {
+                        QueuePointerEvents(device, ButtonRelease, i + 1, POINTER_RELATIVE, NULL);
+                        __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "sending %d press", i+1);
+                    }
+                    if (pressed & 0x1) {
+                        QueuePointerEvents(device, ButtonPress, i + 1, POINTER_RELATIVE, NULL);
+                        __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "sending %d release", i+1);
+                    }
                     released >>= 1;
                     pressed >>= 1;
                 }
@@ -670,9 +674,9 @@ Java_com_termux_x11_LorieView_sendTouchEvent(__unused JNIEnv* env, __unused jobj
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_sendStylusEvent(JNIEnv *env, __unused jobject thiz, jfloat x, jfloat y,
                                               jint pressure, jint tilt_x, jint tilt_y,
-                                              jint orientation, jint buttons, jboolean eraser) {
+                                              jint orientation, jint buttons, jboolean eraser, jboolean mouse) {
     if (conn_fd != -1) {
-        lorieEvent e = { .stylus = { .t = EVENT_STYLUS, .x = x, .y = y, .pressure = pressure, .tilt_x = tilt_x, .tilt_y = tilt_y, .orientation = orientation, .buttons = buttons, .eraser = eraser } };
+        lorieEvent e = { .stylus = { .t = EVENT_STYLUS, .x = x, .y = y, .pressure = pressure, .tilt_x = tilt_x, .tilt_y = tilt_y, .orientation = orientation, .buttons = buttons, .eraser = eraser, .mouse = mouse } };
         write(conn_fd, &e, sizeof(e));
         checkConnection(env);
     }

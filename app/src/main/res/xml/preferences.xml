@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
     <PreferenceCategory android:key="output" android:title="Output" android:singleLineTitle="false" android:iconSpaceReserved="false" >
         <ListPreference
             android:title="Display resolution mode"
@@ -128,20 +129,10 @@
     </PreferenceCategory>
     <PreferenceCategory android:key="kbd" android:title="Keyboard">
         <SwitchPreferenceCompat
-            android:title="Toggle keyboard using back key"
-            android:defaultValue="true"
-            android:key="toggleIMEUsingBackKey" />
-
-        <SwitchPreferenceCompat
             android:title="Show additional keyboard"
             android:summary="Show keyboard with additional keys."
             android:defaultValue="true"
             android:key="showAdditionalKbd" />
-
-        <SwitchPreferenceCompat
-            android:title="Capture volume keys"
-            android:defaultValue="true"
-            android:key="captureVolumeKeys"/>
 
         <SwitchPreferenceCompat
             android:title="Show IME with external keyboard"
@@ -187,7 +178,7 @@
 
         <SwitchPreferenceCompat
             android:title="Filter out intercepted Win (Meta/Mod4) key."
-            android:summary="Allows you to use Dex shortcuts while intercepting."
+            android:summary="Allows you to use Dex shortcuts while intercepting. Requires Accessibility service to work."
             android:defaultValue="false"
             android:key="filterOutWinkey" />
     </PreferenceCategory>
@@ -201,19 +192,18 @@
         <Preference
             android:title="Request notification permission"
             android:key="requestNotificationPermission" />
+
+        <Preference
+            android:title="Configure response to user actions"
+            android:key="configureResponseToUserActions" />
     </PreferenceCategory>
 
-    <PreferenceCategory android:key="ekbar">
+    <PreferenceCategory android:key="ekbar" app:isPreferenceVisible="false">
         <SwitchPreferenceCompat
             android:title="Adjust display height for extra keys bar"
             android:summary="May cause screen flickering during toggling EK bar"
             android:defaultValue="false"
             android:key="adjustHeightForEK" />
-
-        <SwitchPreferenceCompat
-            android:title="Hide additional keyboard on Volume Down key press"
-            android:defaultValue="false"
-            android:key="hideEKOnVolDown" />
 
         <SwitchPreferenceCompat
             android:title="Deactivate special keys on additional key bar after each keypress"
@@ -230,5 +220,42 @@
         <Preference
             android:title="Extra keys config"
             android:key="extra_keys_config" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:key="userActions" app:isPreferenceVisible="false">
+        <ListPreference
+            android:title="Three finger swipe up"
+            android:key="swipeUpAction"
+            android:defaultValue="default"
+            android:entries="@array/userActionsValues"
+            android:entryValues="@array/userActionsValues" />
+
+        <ListPreference
+            android:title="Three finger swipe down"
+            android:key="swipeDownAction"
+            android:defaultValue="none"
+            android:entries="@array/userActionsValues"
+            android:entryValues="@array/userActionsValues" />
+
+        <ListPreference
+            android:title="Volume up"
+            android:key="volumeUpAction"
+            android:defaultValue="none"
+            android:entries="@array/userActionsValues"
+            android:entryValues="@array/userActionsValues" />
+
+        <ListPreference
+            android:title="Volume down"
+            android:key="volumeDownAction"
+            android:defaultValue="default"
+            android:entries="@array/userActionsValues"
+            android:entryValues="@array/userActionsValues" />
+
+        <ListPreference
+            android:title="Back button"
+            android:key="backButtonAction"
+            android:defaultValue="default"
+            android:entries="@array/userActionsValues"
+            android:entryValues="@array/userActionsValues" />
     </PreferenceCategory>
 </PreferenceScreen>

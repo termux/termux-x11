@@ -305,7 +305,6 @@ public class LorieView extends SurfaceView implements InputStub {
     static public native void requestStylusEnabled(boolean enabled);
     public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
     public native void sendTextEvent(byte[] text);
-    public native void sendUnicodeEvent(int code);
 
     static {
         System.loadLibrary("Xlorie");

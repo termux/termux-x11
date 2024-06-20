@@ -20,6 +20,8 @@ import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentManager;
+import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 
 import android.os.Handler;
@@ -156,12 +158,6 @@ public class LoriePreferences extends AppCompatActivity {
                         g.getPreference(i).setVisible(g.getPreference(i).getKey().contentEquals(preference));
                     }
                 }
-            } else {
-                for (int i=0; i < g.getPreferenceCount(); i++) {
-                    if (g.getPreference(i) instanceof PreferenceGroup) {
-                        g.getPreference(i).setVisible(!g.getPreference(i).getKey().contentEquals("ekbar"));
-                    }
-                }
             }
         }
 
@@ -191,10 +187,11 @@ public class LoriePreferences extends AppCompatActivity {
             findPreference("displayResolutionExact").setVisible(displayResMode.contentEquals("exact"));
             findPreference("displayResolutionCustom").setVisible(displayResMode.contentEquals("custom"));
 
-            findPreference("hideEKOnVolDown").setEnabled(p.getBoolean("showAdditionalKbd", false) && p.getBoolean("captureVolumeKeys", true));
             findPreference("dexMetaKeyCapture").setEnabled(!p.getBoolean("enableAccessibilityServiceAutomatically", false));
             findPreference("enableAccessibilityServiceAutomatically").setEnabled(!p.getBoolean("dexMetaKeyCapture", false));
-            findPreference("pauseKeyInterceptingWithEsc").setEnabled(p.getBoolean("dexMetaKeyCapture", false) || p.getBoolean("enableAccessibilityServiceAutomatically", false));
+            boolean pauseKeyInterceptingWithEscEnabled = p.getBoolean("dexMetaKeyCapture", false) || p.getBoolean("enableAccessibilityServiceAutomatically", false);
+            findPreference("pauseKeyInterceptingWithEsc").setEnabled(pauseKeyInterceptingWithEscEnabled);
+            findPreference("pauseKeyInterceptingWithEsc").setSummary(pauseKeyInterceptingWithEscEnabled ? "" : "Requires intercepting system shortcuts with Dex mode or with Accessibility service");
             findPreference("filterOutWinkey").setEnabled(p.getBoolean("enableAccessibilityServiceAutomatically", false));
 
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P)
@@ -203,13 +200,16 @@ public class LoriePreferences extends AppCompatActivity {
             findPreference("displayResolutionMode").setSummary(p.getString("displayResolutionMode", "native"));
             findPreference("displayResolutionExact").setSummary(p.getString("displayResolutionExact", "1280x1024"));
             findPreference("displayResolutionCustom").setSummary(p.getString("displayResolutionCustom", "1280x1024"));
-            findPreference("displayStretch").setEnabled("exact".contentEquals(p.getString("displayResolutionMode", "native")) || "custom".contentEquals(p.getString("displayResolutionMode", "native")));
+            boolean displayStretchEnabled = "exact".contentEquals(p.getString("displayResolutionMode", "native")) || "custom".contentEquals(p.getString("displayResolutionMode", "native"));
+            findPreference("displayStretch").setEnabled(displayStretchEnabled);
+            findPreference("displayStretch").setSummary(displayStretchEnabled ? "" : "Requires \"display resolution mode\" to be \"exact\" or \"custom\"");
 
             int modeValue = Integer.parseInt(p.getString("touchMode", "1")) - 1;
             String mode = getResources().getStringArray(R.array.touchscreenInputModesEntries)[modeValue];
             findPreference("touchMode").setSummary(mode);
             boolean scaleTouchpadEnabled = "1".equals(p.getString("touchMode", "1")) && !"native".equals(p.getString("displayResolutionMode", "native"));
             findPreference("scaleTouchpad").setEnabled(scaleTouchpadEnabled);
+            findPreference("scaleTouchpad").setSummary(scaleTouchpadEnabled ? "" : "Requires \"Touchscreen input mode\" to be \"Trackpad\" and \"Display resolution mode\" to be not \"native\"");
             findPreference("scaleTouchpad").setSummary(scaleTouchpadEnabled ? "" : "Requires \"Touchscreen input mode\" to be \"Trackpad\" and \"Display resolution mode\" to be not \"native\"");
             findPreference("showMouseHelper").setEnabled("1".equals(p.getString("touchMode", "1")));
 
@@ -231,6 +231,32 @@ public class LoriePreferences extends AppCompatActivity {
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                     && ContextCompat.checkSelfPermission(requireContext(), POST_NOTIFICATIONS) == PERMISSION_DENIED;
             findPreference("requestNotificationPermission").setVisible(requestNotificationPermissionVisible);
+
+            setNoActionOptionText(findPreference("volumeDownAction"), "android volume control");
+            setNoActionOptionText(findPreference("volumeUpAction"), "android volume control");
+            setDefaultOptionText(findPreference("swipeDownAction"), "toggle additional key bar");
+            setDefaultOptionText(findPreference("swipeUpAction"), "none");
+            setDefaultOptionText(findPreference("volumeDownAction"), "send volume down");
+            setDefaultOptionText(findPreference("volumeUpAction"), "send volume up");
+            setDefaultOptionText(findPreference("backButtonAction"), "toggle soft keyboard");
+        }
+
+        private void setNoActionOptionText(Preference preference, CharSequence text) {
+            ListPreference p = (ListPreference) preference;
+            CharSequence[] options = p.getEntries();
+            for (int i=0; i<options.length; i++) {
+                if ("no action".contentEquals(options[i]))
+                    options[i] = "no action (" + text + ")";
+            }
+        }
+
+        private void setDefaultOptionText(Preference preference, CharSequence text) {
+            ListPreference p = (ListPreference) preference;
+            CharSequence[] options = p.getEntries();
+            for (int i=0; i<options.length; i++) {
+                if ("default".contentEquals(options[i]))
+                    options[i] = "default (" + text + ")";
+            }
         }
 
         @Override
@@ -291,6 +317,10 @@ public class LoriePreferences extends AppCompatActivity {
                         .setNegativeButton("Cancel", (dialog, whichButton) -> dialog.dismiss())
                         .create()
                         .show();
+            }
+            if ("configureResponseToUserActions".contentEquals(preference.getKey())) {
+                //noinspection DataFlowIssue
+                new NestedPreferenceFragment("userActions").show(getActivity().getSupportFragmentManager());
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && "requestNotificationPermission".contentEquals(preference.getKey()))
@@ -627,15 +657,23 @@ public class LoriePreferences extends AppCompatActivity {
     static Handler handler = new Handler();
 
     public void onClick(View view) {
-        new NestedPreferenceFragment().show(getSupportFragmentManager(), "ekbar");
+        new NestedPreferenceFragment("ekbar").show(getSupportFragmentManager());
     }
 
     public static class NestedPreferenceFragment extends DialogFragment {
+        private final String fragment;
+        NestedPreferenceFragment(String fragment) {
+            this.fragment = fragment;
+        }
+
         @Nullable @Override
         public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-            getChildFragmentManager().beginTransaction().replace(android.R.id.content, new LoriePreferenceFragment("ekbar")).commit();
-
+            getChildFragmentManager().beginTransaction().replace(android.R.id.content, new LoriePreferenceFragment(fragment)).commit();
             return null;
+        }
+
+        public void show(@NonNull FragmentManager manager) {
+            show(manager, fragment);
         }
     }
 }

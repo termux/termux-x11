@@ -317,18 +317,13 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 break;
             }
             case EVENT_TOUCH: {
-                double x, y;
+                double x = max(min((float) e.touch.x, screenDrawable->width), 0);
+                double y = max(min((float) e.touch.y, screenDrawable->height), 0);
                 DDXTouchPointInfoPtr touch = TouchFindByDDXID(lorieTouch, e.touch.id, FALSE);
-
-                x = (float) e.touch.x * 0xFFFF / (float) screenDrawable->width;
-                y = (float) e.touch.y * 0xFFFF / (float) screenDrawable->height;
-
-                x = max(min(x, screenDrawable->width), 0);
-                y = max(min(y, screenDrawable->height), 0);
 
                 // Avoid duplicating events
                 if (touch && touch->active) {
-                    double oldx, oldy;
+                    double oldx = 0, oldy = 0;
                     if (e.touch.type == XI_TouchUpdate &&
                         valuator_mask_fetch_double(touch->valuators, 0, &oldx) &&
                         valuator_mask_fetch_double(touch->valuators, 1, &oldy) &&
@@ -343,8 +338,8 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 if (e.touch.type == XI_TouchEnd && (!touch || !touch->active))
                     break;
 
-                valuator_mask_set_double(&mask, 0, x);
-                valuator_mask_set_double(&mask, 1, y);
+                valuator_mask_set_double(&mask, 0, x * 0xFFFF / (float) screenDrawable->width);
+                valuator_mask_set_double(&mask, 1, y * 0xFFFF / (float) screenDrawable->height);
                 QueueTouchEvents(lorieTouch, e.touch.type, e.touch.id, 0, &mask);
                 break;
             }
@@ -735,17 +730,6 @@ Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, __unused jobject thiz, 
         }
 
         (*env)->ReleaseByteArrayElements(env, text, str, JNI_ABORT);
-        checkConnection(env);
-    }
-}
-
-JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendUnicodeEvent(JNIEnv *env, __unused jobject thiz, jint code) {
-    if (conn_fd != -1) {
-        log(DEBUG, "Sending unicode event: %lc (U+%X)", code, code);
-        lorieEvent e = { .unicode = { .t = EVENT_UNICODE, .code = code } };
-        write(conn_fd, &e, sizeof(e));
-
         checkConnection(env);
     }
 }

@@ -4,8 +4,14 @@
 
 package com.termux.x11.input;
 
+import static android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC;
+import static android.view.KeyEvent.KEYCODE_BACK;
+import static android.view.KeyEvent.KEYCODE_VOLUME_DOWN;
+import static android.view.KeyEvent.KEYCODE_VOLUME_UP;
+
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.PointF;
 import android.hardware.input.InputManager;
@@ -22,6 +28,7 @@ import android.view.ViewConfiguration;
 import androidx.annotation.IntDef;
 import androidx.core.math.MathUtils;
 
+import com.termux.x11.LoriePreferences;
 import com.termux.x11.LorieView;
 import com.termux.x11.MainActivity;
 import com.termux.x11.utils.SamsungDexUtils;
@@ -32,6 +39,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
  * This class is responsible for handling Touch input from the user.  Touch events which manipulate
@@ -64,7 +72,6 @@ public class TouchInputHandler {
     }
 
     private final RenderData mRenderData;
-    private final RenderStub mRenderStub;
     private final GestureDetector mScroller;
     private final TapGestureDetector mTapDetector;
     private final StylusListener mStylusListener = new StylusListener();
@@ -79,6 +86,15 @@ public class TouchInputHandler {
     private final InputEventSender mInjector;
     private final MainActivity mActivity;
     private final DisplayMetrics mMetrics = new DisplayMetrics();
+
+    private final Consumer<Boolean> noAction = (down) -> {};
+    private Consumer<Boolean> swipeUpAction = noAction;
+    private Consumer<Boolean> swipeDownAction = noAction;
+    private Consumer<Boolean> volumeUpAction = noAction;
+    private Consumer<Boolean> volumeDownAction = noAction;
+    private Consumer<Boolean> backButtonAction = noAction;
+
+    private static final int KEY_BACK = 158;
 
     private boolean keyIntercepting = false;
 
@@ -114,12 +130,11 @@ public class TouchInputHandler {
 
     @CapturedPointerTransformation int capturedPointerTransformation = CapturedPointerTransformation.NONE;
 
-    private TouchInputHandler(MainActivity activity, RenderData renderData, RenderStub renderStub,
+    private TouchInputHandler(MainActivity activity, RenderData renderData,
                               final InputEventSender injector, boolean isTouchpad) {
-        if (renderStub == null || injector == null)
+        if (injector == null)
             throw new NullPointerException();
 
-        mRenderStub = renderStub;
         mRenderData = renderData != null ? renderData :new RenderData();
         mInjector = injector;
         mActivity = activity;
@@ -146,7 +161,7 @@ public class TouchInputHandler {
 
         setInputMode(InputMode.TRACKPAD);
         mDexListener = new DexListener(activity);
-        mTouchpadHandler = isTouchpad ? null : new TouchInputHandler(activity, mRenderData, renderStub, injector, true);
+        mTouchpadHandler = isTouchpad ? null : new TouchInputHandler(activity, mRenderData, injector, true);
 
         refreshInputDevices();
         ((InputManager) mActivity.getSystemService(Context.INPUT_SERVICE)).registerInputDeviceListener(new InputManager.InputDeviceListener() {
@@ -157,10 +172,9 @@ public class TouchInputHandler {
                 refreshInputDevices();
             }
 
-            /** @noinspection DataFlowIssue*/
             @Override
             public void onInputDeviceRemoved(int deviceId) {
-                android.util.Log.d("InputDeviceListener", "removed " + InputDevice.getDevice(deviceId).getName());
+                android.util.Log.d("InputDeviceListener", "device removed");
                 refreshInputDevices();
             }
 
@@ -174,8 +188,8 @@ public class TouchInputHandler {
 
     }
 
-    public TouchInputHandler(MainActivity activity, RenderStub renderStub, final InputEventSender injector) {
-        this(activity, null, renderStub, injector, false);
+    public TouchInputHandler(MainActivity activity, final InputEventSender injector) {
+        this(activity, null, injector, false);
     }
 
     static public void refreshInputDevices() {
@@ -190,7 +204,7 @@ public class TouchInputHandler {
                     android.util.Log.d("DEVICES", "found device \"" + device.getName() + "\" " +
                             (device.supportsSource(InputDevice.SOURCE_STYLUS) ? ((isExternal(device) ? "external " : "") + "stylus ") : "") +
                             ((device.supportsSource(InputDevice.SOURCE_KEYBOARD) && device.getKeyboardType() == InputDevice.KEYBOARD_TYPE_ALPHABETIC) ? ((isExternal(device) ? "external " : "") + "keyboard ") : "") +
-                            "sources " + String.format("0x%08X", device.getSources()) + "   " + device.supportsSource(InputDevice.SOURCE_KEYBOARD) + " " + (device.getKeyboardType() == InputDevice.KEYBOARD_TYPE_ALPHABETIC) + " " + isExternal(device) + "  " + (device.supportsSource(InputDevice.SOURCE_KEYBOARD) && device.getKeyboardType() == InputDevice.KEYBOARD_TYPE_ALPHABETIC && isExternal(device)));
+                            "sources " + String.format("0x%08X", device.getSources()));
 
                     if (device.supportsSource(InputDevice.SOURCE_STYLUS))
                         stylusAvailable.set(true);
@@ -393,8 +407,25 @@ public class TouchInputHandler {
         keyIntercepting = !mInjector.pauseKeyInterceptingWithEsc || mActivity.getLorieView().hasPointerCapture();
         SamsungDexUtils.dexMetaKeyCapture(mActivity, mInjector.dexMetaKeyCapture && keyIntercepting);
 
+        swipeUpAction = extractUserActionFromPreferences(p, "swipeUp", noAction);
+        swipeDownAction = extractUserActionFromPreferences(p, "swipeDown", (down) -> { if (down) mActivity.toggleExtraKeys(); });
+        volumeUpAction = extractUserActionFromPreferences(p, "volumeUp", (down) -> MainActivity.getInstance().getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_UP, down));
+        volumeDownAction = extractUserActionFromPreferences(p, "volumeDown", (down) -> MainActivity.getInstance().getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_DOWN, down));
+        backButtonAction = extractUserActionFromPreferences(p, "backButton", (down) -> { if (down) MainActivity.toggleKeyboardVisibility(mActivity); } );
+
         if(mTouchpadHandler != null)
             mTouchpadHandler.reloadPreferences(p);
+    }
+
+    private Consumer<Boolean> extractUserActionFromPreferences(SharedPreferences p, String name, Consumer<Boolean> defaultAction) {
+        switch(p.getString(name + "Action", name.contains("volume") ? "no" : "default")) {
+            case "no action": return noAction;
+            case "toggle soft keyboard": return (down) -> { if (down) MainActivity.toggleKeyboardVisibility(mActivity); };
+            case "toggle additional key bar": return (down) -> { if (down) mActivity.toggleExtraKeys(); };
+            case "open preferences": return (down) -> { if (down) mActivity.startActivity(new Intent(mActivity, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}); };
+            case "release pointer and keyboard capture": return (down) -> { if (down) setCapturingEnabled(false); };
+            default: return defaultAction;
+        }
     }
 
     public boolean shouldInterceptKeys() {
@@ -425,9 +456,9 @@ public class TouchInputHandler {
     /** Processes a (multi-finger) swipe gesture. */
     private boolean onSwipe() {
         if (mTotalMotionY > mSwipeThreshold)
-            mRenderStub.swipeDown();
+            swipeDownAction.accept(true);
         else if (mTotalMotionY < -mSwipeThreshold)
-            mRenderStub.swipeUp();
+            swipeUpAction.accept(true);
         else
             return false;
 
@@ -520,7 +551,6 @@ public class TouchInputHandler {
                 mGestureListenerHandler.sendEmptyMessageDelayed(InputStub.BUTTON_LEFT, ViewConfiguration.getDoubleTapTimeout());
         }
 
-
         private float mLastFocusX;
         private float mLastFocusY;
         @Override
@@ -589,8 +619,48 @@ public class TouchInputHandler {
         }
     }
 
-    public boolean sendKeyEvent(KeyEvent event) {
-        return mInjector.sendKeyEvent(event);
+    public boolean sendKeyEvent(KeyEvent e) {
+        int k = e.getKeyCode();
+
+        if (!MainActivity.isConnected()) {
+            if (e.getKeyCode() == KEYCODE_BACK)
+                mActivity.finish();
+
+            return false;
+        }
+
+        if (k == KEYCODE_VOLUME_DOWN) {
+            if (volumeDownAction == noAction)
+                return false;
+
+            volumeDownAction.accept(e.getAction() == KeyEvent.ACTION_DOWN);
+            return true;
+        }
+
+        if (k == KEYCODE_VOLUME_UP) {
+            if (volumeUpAction == noAction)
+                return false;
+
+            volumeUpAction.accept(e.getAction() == KeyEvent.ACTION_DOWN);
+            return true;
+        }
+
+        if (k == KEYCODE_BACK) {
+            if (e.isFromSource(InputDevice.SOURCE_MOUSE) || e.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) {
+                if (e.getRepeatCount() != 0) // ignore auto-repeat
+                    return true;
+                if (e.getAction() == KeyEvent.ACTION_UP || e.getAction() == KeyEvent.ACTION_DOWN)
+                    mActivity.getLorieView().sendMouseEvent(-1, -1, InputStub.BUTTON_RIGHT, e.getAction() == KeyEvent.ACTION_DOWN, true);
+                return true;
+            }
+
+            if (e.getScanCode() == KEY_BACK && e.getDevice().getKeyboardType() != KEYBOARD_TYPE_ALPHABETIC || e.getScanCode() == 0) {
+                backButtonAction.accept(e.getAction() == KeyEvent.ACTION_DOWN);
+                return true;
+            }
+        }
+
+        return mInjector.sendKeyEvent(e);
     }
 
     private class HardwareMouseListener {
@@ -664,10 +734,6 @@ public class TouchInputHandler {
     }
 
     private class StylusListener {
-        // I've got this on SM-N770F
-        private static final int ACTION_PRIMARY_DOWN = 0xd3;
-        private static final int ACTION_PRIMARY_UP = 0xd4;
-
         private float x = 0, y = 0, pressure = 0, tilt = 0, orientation = 0;
         private int buttons = 0;
 
@@ -886,27 +952,6 @@ public class TouchInputHandler {
             mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, true, false);
             mInjector.sendMouseEvent(mRenderData.getCursorPosition(), InputStub.BUTTON_LEFT, false, false);
             return true;
-        }
-    }
-
-
-    /**
-     * Interface with a set of functions to control the behavior of the remote host renderer.
-     */
-    public interface RenderStub {
-        /**
-         * Informs the stub that swipe was performed.
-         */
-        void swipeUp();
-
-        /**
-         * Informs the stub that swipe was performed.
-         */
-        void swipeDown();
-
-        class NullStub implements RenderStub {
-            @Override public void swipeUp() {}
-            @Override public void swipeDown() {}
         }
     }
 }

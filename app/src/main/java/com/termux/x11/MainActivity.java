@@ -3,7 +3,6 @@ package com.termux.x11;
 import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.os.Build.VERSION.SDK_INT;
-import static android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC;
 import static android.view.KeyEvent.*;
 import static android.view.WindowManager.LayoutParams.*;
 import static com.termux.x11.CmdEntryPoint.ACTION_START;
@@ -66,7 +65,6 @@ import androidx.viewpager.widget.ViewPager;
 
 import com.termux.x11.input.InputEventSender;
 import com.termux.x11.input.InputStub;
-import com.termux.x11.input.TouchInputHandler.RenderStub;
 import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.FullscreenWorkaround;
 import com.termux.x11.utils.KeyInterceptor;
@@ -94,12 +92,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private static boolean externalKeyboardConnected = false;
     private boolean mClientConnected = false;
     private View.OnKeyListener mLorieKeyListener;
-    boolean captureVolumeKeys = false;
     private boolean filterOutWinKey = false;
-    private boolean hideEKOnVolDown = false;
-    private boolean toggleIMEUsingBackKey = false;
     private boolean useTermuxEKBarBehaviour = false;
-    private static final int KEY_BACK = 158;
 
     private static boolean oldFullscreen = false;
     private static boolean oldHideCutout = false;
@@ -171,47 +165,15 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         frm = findViewById(R.id.frame);
         findViewById(R.id.preferences_button).setOnClickListener((l) -> startActivity(new Intent(this, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}));
         findViewById(R.id.help_button).setOnClickListener((l) -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/termux/termux-x11/blob/master/README.md#running-graphical-applications"))));
+        findViewById(R.id.exit_button).setOnClickListener((l) -> finish());
 
         LorieView lorieView = findViewById(R.id.lorieView);
         View lorieParent = (View) lorieView.getParent();
 
-        mInputHandler = new TouchInputHandler(this, new RenderStub.NullStub() {
-            @Override
-            public void swipeDown() {
-                toggleExtraKeys();
-            }
-        }, new InputEventSender(lorieView));
+        mInputHandler = new TouchInputHandler(this, new InputEventSender(lorieView));
         mLorieKeyListener = (v, k, e) -> {
             InputDevice dev = e.getDevice();
-            boolean result;
-
-            if (!captureVolumeKeys && (k == KEYCODE_VOLUME_DOWN || k == KEYCODE_VOLUME_UP))
-                return false;
-
-            if (hideEKOnVolDown && k == KEYCODE_VOLUME_DOWN) {
-                if (e.getAction() == ACTION_UP)
-                    toggleExtraKeys();
-                return true;
-            }
-
-            if (k == KEYCODE_BACK) {
-                if (e.isFromSource(InputDevice.SOURCE_MOUSE) || e.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) {
-                    if (e.getRepeatCount() != 0) // ignore auto-repeat
-                        return true;
-                    if (e.getAction() == KeyEvent.ACTION_UP || e.getAction() == KeyEvent.ACTION_DOWN)
-                        lorieView.sendMouseEvent(-1, -1, InputStub.BUTTON_RIGHT, e.getAction() == KeyEvent.ACTION_DOWN, true);
-                    return true;
-                }
-
-                if (e.getScanCode() == KEY_BACK && e.getDevice().getKeyboardType() != KEYBOARD_TYPE_ALPHABETIC || e.getScanCode() == 0) {
-                    if (toggleIMEUsingBackKey && e.getAction() == ACTION_UP)
-                        toggleKeyboardVisibility(MainActivity.this);
-
-                    return true;
-                }
-            }
-
-            result = mInputHandler.sendKeyEvent(e);
+            boolean result = mInputHandler.sendKeyEvent(e);
 
             // Do not steal dedicated buttons from a full external keyboard.
             if (useTermuxEKBarBehaviour && mExtraKeys != null && (dev == null || dev.isVirtual()))
@@ -515,7 +477,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         mInputHandler.reloadPreferences(p);
         lorieView.reloadPreferences(p);
-        captureVolumeKeys = p.getBoolean("captureVolumeKeys", true);
 
         setTerminalToolbarView();
         onWindowFocusChanged(true);
@@ -544,9 +505,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         } else if (checkSelfPermission(WRITE_SECURE_SETTINGS) == PERMISSION_GRANTED)
             KeyInterceptor.shutdown();
 
-        hideEKOnVolDown = p.getBoolean("hideEKOnVolDown", false);
         useTermuxEKBarBehaviour = p.getBoolean("useTermuxEKBarBehaviour", false);
-        toggleIMEUsingBackKey = p.getBoolean("toggleIMEUsingBackKey", true);
         showIMEWhileExternalConnected = p.getBoolean("showIMEWhileExternalConnected", true);
 
         int requestedOrientation = p.getBoolean("forceLandscape", false) ?
@@ -841,6 +800,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
             else
                 inputMethodManager.hideSoftInputFromWindow(getInstance().getLorieView().getWindowToken(), 0);
+
+            getInstance().getLorieView().requestFocus();
         }
     }
 
@@ -862,6 +823,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             if (connected)
                 getLorieView().setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
         });
+    }
+
+    public static boolean isConnected() {
+        if (getInstance() == null)
+            return false;
+
+        return getInstance().mClientConnected;
     }
 
     private void checkXEvents() {

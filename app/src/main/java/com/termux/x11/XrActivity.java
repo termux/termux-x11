@@ -190,10 +190,10 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
             // The OS sends 4x enter event, filter it
             if (event.getKeyCode() == KeyEvent.KEYCODE_ENTER) {
-                if (System.currentTimeMillis() - lastEnter < 250) {
+                if (event.getDownTime() - lastEnter < 250) {
                     return true;
                 }
-                lastEnter = System.currentTimeMillis();
+                lastEnter = event.getDownTime();
             }
 
             // Send key press, give system chance to notice it and send key release

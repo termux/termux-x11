@@ -41,6 +41,8 @@ public class GLUtility {
 
     private static final String TAG = "GLUtility";
 
+    private static float lastAspect;
+
     public static int createProgram(boolean externalTexture) {
         if (externalTexture) {
             return createProgram(SIMPLE_VERTEX_SHADER, SIMPLE_FRAGMENT_EXT_SHADER);
@@ -69,41 +71,27 @@ public class GLUtility {
     }
 
     public static void drawTexture(int type, int program, int texture, float aspect) {
-        float[] vertices = new float[] {
-                -1, aspect,
-                -1, -aspect,
-                1, -aspect,
-                1, aspect,
-        };
+        if (Math.abs(lastAspect - aspect) > 0.00001f) {
 
-        float[] uvs = new float[] {
-                0, 1,
-                0, 0,
-                1, 0,
-                1, 1
-        };
+            float[] vertices = new float[] {
+                    -1, aspect,   -1, -aspect,   1, -aspect,
+                    -1, aspect,    1, -aspect,   1,  aspect,
+            };
+            float[] uvs = new float[] {
+                    0, 1,   0, 0,   1, 0,
+                    0, 1,   1, 0,   1, 1
+            };
 
-        short[] indices = new short[] {
-                0, 1, 2,
-                0, 2, 3
-        };
+            attribPointer(program, "a_Position", vertices, 2);
+            attribPointer(program, "a_TexCoord", uvs, 2);
+
+            lastAspect = aspect;
+        }
 
         GLES20.glUseProgram(program);
-        attribPointer(program, "a_Position", vertices, 2);
-        attribPointer(program, "a_TexCoord", uvs, 2);
-
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
         GLES20.glBindTexture(type, texture);
-        GLES20.glDrawElements(
-                GLES20.GL_TRIANGLES,
-                indices.length,
-                GLES20.GL_UNSIGNED_SHORT,
-                ByteBuffer.allocateDirect(indices.length * 2)
-                        .order(ByteOrder.nativeOrder())
-                        .asShortBuffer()
-                        .put(indices)
-                        .position(0)
-        );
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6);
     }
 
     private static void attribPointer(int program, String location, float[] data, int stride) {

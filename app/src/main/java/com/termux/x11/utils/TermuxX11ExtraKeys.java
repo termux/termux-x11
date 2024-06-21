@@ -9,8 +9,6 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.KeyCharacterMap;
@@ -25,6 +23,7 @@ import androidx.viewpager.widget.ViewPager;
 import com.termux.shared.termux.extrakeys.*;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.MainActivity;
+import com.termux.x11.Prefs;
 import com.termux.x11.R;
 
 import org.json.JSONException;
@@ -203,16 +202,14 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     /**
      * Set the terminal extra keys and style.
      */
-    @SuppressWarnings("deprecation")
     public static void setExtraKeys() {
         mExtraKeysInfo = null;
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.getInstance());
 
         try {
             // The mMap stores the extra key and style string values while loading properties
             // Check {@link #getExtraKeysInternalPropertyValueFromValue(String)} and
             // {@link #getExtraKeysStyleInternalPropertyValueFromValue(String)}
-            String extrakeys = preferences.getString("extra_keys_config", TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS);
+            String extrakeys = Prefs.obtain(MainActivity.getInstance()).extra_keys_config.get();
             mExtraKeysInfo = new ExtraKeysInfo(extrakeys, "extra-keys-style", ExtraKeysConstants.CONTROL_CHARS_ALIASES);
         } catch (JSONException e) {
             Toast.makeText(MainActivity.getInstance(), "Could not load and set the \"extra-keys\" property from the properties file: " + e, Toast.LENGTH_LONG).show();

@@ -2,12 +2,12 @@ package com.termux.x11.utils;
 
 import static android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN;
 
-import android.content.SharedPreferences;
-import android.preference.PreferenceManager;
 import android.graphics.Rect;
 import android.widget.FrameLayout;
 import android.view.View;
 import android.app.Activity;
+
+import com.termux.x11.Prefs;
 
 @SuppressWarnings("deprecation")
 public class FullscreenWorkaround {
@@ -28,13 +28,11 @@ public class FullscreenWorkaround {
     }
 
     private void possiblyResizeChildOfContent() {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(mActivity);
+        Prefs p = Prefs.obtain(mActivity);
         if (
                 !mActivity.hasWindowFocus() ||
                 !((mActivity.getWindow().getAttributes().flags & FLAG_FULLSCREEN) == FLAG_FULLSCREEN) ||
-                !preferences.getBoolean("Reseed", true) ||
-                !preferences.getBoolean("fullscreen", false) ||
-                SamsungDexUtils.checkDeXEnabled(mActivity)
+                !p.Reseed.get() || !p.fullscreen.get() || SamsungDexUtils.checkDeXEnabled(mActivity)
         )
             return;
 

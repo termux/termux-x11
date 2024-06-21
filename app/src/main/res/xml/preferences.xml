@@ -134,6 +134,12 @@
             android:defaultValue="true"
             android:key="showAdditionalKbd" />
 
+        <!-- this preference should be a part of `Prefs` but should not appear in PreferenceScreen -->
+        <SwitchPreferenceCompat
+            app:isPreferenceVisible="false"
+            android:defaultValue="true"
+            android:key="additionalKbdVisible" />
+
         <SwitchPreferenceCompat
             android:title="Show IME with external keyboard"
             android:summary="Show software keyboard while hardware keyboard is connected."

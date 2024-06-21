@@ -31,6 +31,7 @@ import androidx.core.math.MathUtils;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.LorieView;
 import com.termux.x11.MainActivity;
+import com.termux.x11.Prefs;
 import com.termux.x11.utils.SamsungDexUtils;
 
 import java.lang.annotation.Retention;
@@ -372,20 +373,20 @@ public class TouchInputHandler {
         }
     }
 
-    public void reloadPreferences(SharedPreferences p) {
-        setInputMode(Integer.parseInt(p.getString("touchMode", "1")));
-        mInjector.tapToMove = p.getBoolean("tapToMove", false);
-        mInjector.preferScancodes = p.getBoolean("preferScancodes", false);
-        mInjector.pointerCapture = p.getBoolean("pointerCapture", false);
-        mInjector.scaleTouchpad = p.getBoolean("scaleTouchpad", true) &&
-                "1".equals(p.getString("touchMode", "1")) &&
-                !"native".equals(p.getString("displayResolutionMode", "native"));
-        mInjector.capturedPointerSpeedFactor = ((float) p.getInt("capturedPointerSpeedFactor", 100))/100;
-        mInjector.dexMetaKeyCapture = p.getBoolean("dexMetaKeyCapture", false);
-        mInjector.stylusIsMouse = p.getBoolean("stylusIsMouse", false);
-        mInjector.stylusButtonContactModifierMode = p.getBoolean("stylusButtonContactModifierMode", false);
-        mInjector.pauseKeyInterceptingWithEsc = p.getBoolean("pauseKeyInterceptingWithEsc", false);
-        switch (p.getString("transformCapturedPointer", "no")) {
+    public void reloadPreferences(Prefs p) {
+        setInputMode(Integer.parseInt(p.touchMode.get()));
+        mInjector.tapToMove = p.tapToMove.get();
+        mInjector.preferScancodes = p.preferScancodes.get();;
+        mInjector.pointerCapture = p.pointerCapture.get();
+        mInjector.scaleTouchpad = p.scaleTouchpad.get() &&
+                "1".equals(p.touchMode.get()) &&
+                !"native".equals(p.displayResolutionMode.get());
+        mInjector.capturedPointerSpeedFactor = ((float) p.capturedPointerSpeedFactor.get())/100;
+        mInjector.dexMetaKeyCapture = p.dexMetaKeyCapture.get();
+        mInjector.stylusIsMouse = p.stylusIsMouse.get();
+        mInjector.stylusButtonContactModifierMode = p.stylusButtonContactModifierMode.get();
+        mInjector.pauseKeyInterceptingWithEsc = p.pauseKeyInterceptingWithEsc.get();
+        switch (p.transformCapturedPointer.get()) {
             case "c":
                 capturedPointerTransformation = CapturedPointerTransformation.CLOCKWISE;
                 break;
@@ -401,17 +402,17 @@ public class TouchInputHandler {
 
         MainActivity.getRealMetrics(mMetrics);
 
-        if (!p.getBoolean("pointerCapture", false) && mActivity.getLorieView().hasPointerCapture())
+        if (!p.pointerCapture.get() && mActivity.getLorieView().hasPointerCapture())
             mActivity.getLorieView().releasePointerCapture();
 
         keyIntercepting = !mInjector.pauseKeyInterceptingWithEsc || mActivity.getLorieView().hasPointerCapture();
         SamsungDexUtils.dexMetaKeyCapture(mActivity, mInjector.dexMetaKeyCapture && keyIntercepting);
 
-        swipeUpAction = extractUserActionFromPreferences(p, "swipeUp", noAction);
-        swipeDownAction = extractUserActionFromPreferences(p, "swipeDown", (down) -> { if (down) mActivity.toggleExtraKeys(); });
-        volumeUpAction = extractUserActionFromPreferences(p, "volumeUp", (down) -> MainActivity.getInstance().getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_UP, down));
-        volumeDownAction = extractUserActionFromPreferences(p, "volumeDown", (down) -> MainActivity.getInstance().getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_DOWN, down));
-        backButtonAction = extractUserActionFromPreferences(p, "backButton", (down) -> { if (down) MainActivity.toggleKeyboardVisibility(mActivity); } );
+        swipeUpAction = extractUserActionFromPreferences(p.get(), "swipeUp", noAction);
+        swipeDownAction = extractUserActionFromPreferences(p.get(), "swipeDown", (down) -> { if (down) mActivity.toggleExtraKeys(); });
+        volumeUpAction = extractUserActionFromPreferences(p.get(), "volumeUp", (down) -> MainActivity.getInstance().getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_UP, down));
+        volumeDownAction = extractUserActionFromPreferences(p.get(), "volumeDown", (down) -> MainActivity.getInstance().getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_DOWN, down));
+        backButtonAction = extractUserActionFromPreferences(p.get(), "backButton", (down) -> { if (down) MainActivity.toggleKeyboardVisibility(mActivity); } );
 
         if(mTouchpadHandler != null)
             mTouchpadHandler.reloadPreferences(p);

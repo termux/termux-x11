@@ -7,12 +7,10 @@ import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.ContextWrapper;
-import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
-import android.preference.PreferenceManager;
 import android.text.InputType;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -128,27 +126,27 @@ public class LorieView extends SurfaceView implements InputStub {
     }
 
     void getDimensionsFromSettings() {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        Prefs prefs = Prefs.obtain(MainActivity.getInstance());
         int width = getMeasuredWidth();
         int height = getMeasuredHeight();
         int w = width;
         int h = height;
-        switch(preferences.getString("displayResolutionMode", "native")) {
+        switch(prefs.displayResolutionMode.get()) {
             case "scaled": {
-                int scale = preferences.getInt("displayScale", 100);
+                int scale = prefs.displayScale.get();
                 w = width * 100 / scale;
                 h = height * 100 / scale;
                 break;
             }
             case "exact": {
-                String[] resolution = preferences.getString("displayResolutionExact", "1280x1024").split("x");
+                String[] resolution = prefs.displayResolutionExact.get().split("x");
                 w = Integer.parseInt(resolution[0]);
                 h = Integer.parseInt(resolution[1]);
                 break;
             }
             case "custom": {
                 try {
-                    String[] resolution = preferences.getString("displayResolutionCustom", "1280x1024").split("x");
+                    String[] resolution = prefs.displayResolutionCustom.get().split("x");
                     w = Integer.parseInt(resolution[0]);
                     h = Integer.parseInt(resolution[1]);
                 } catch (NumberFormatException | PatternSyntaxException ignored) {
@@ -169,10 +167,10 @@ public class LorieView extends SurfaceView implements InputStub {
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
 
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
-        if (preferences.getBoolean("displayStretch", false)
-              || "native".equals(preferences.getString("displayResolutionMode", "native"))
-              || "scaled".equals(preferences.getString("displayResolutionMode", "native"))) {
+        Prefs prefs = Prefs.obtain(MainActivity.getInstance());
+        if (prefs.displayStretch.get()
+              || "native".equals(prefs.displayResolutionMode.get())
+              || "scaled".equals(prefs.displayResolutionMode.get())) {
             getHolder().setSizeFromLayout();
             return;
         }
@@ -216,9 +214,9 @@ public class LorieView extends SurfaceView implements InputStub {
 
     ClipboardManager.OnPrimaryClipChangedListener clipboardListener = this::handleClipboardChange;
 
-    public void reloadPreferences(SharedPreferences p) {
-        hardwareKbdScancodesWorkaround = p.getBoolean("hardwareKbdScancodesWorkaround", true);
-        clipboardSyncEnabled = p.getBoolean("clipboardEnable", false);
+    public void reloadPreferences(Prefs p) {
+        hardwareKbdScancodesWorkaround = p.hardwareKbdScancodesWorkaround.get();
+        clipboardSyncEnabled = p.clipboardEnable.get();
         setClipboardSyncEnabled(clipboardSyncEnabled, clipboardSyncEnabled);
         TouchInputHandler.refreshInputDevices();
     }

@@ -46,7 +46,7 @@
             android:key="PIP" />
 
         <SwitchPreferenceCompat
-            android:title="Fullscreen on device display"
+            android:title="Fullscreen"
             android:summary="Toggles immersive mode in your device display"
             android:defaultValue="false"
             android:key="fullscreen" />

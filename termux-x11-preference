@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 COMMAND=("am" "broadcast" "-a" "com.termux.x11.CHANGE_PREFERENCE" "-p" "com.termux.x11")
 help() {
-  echo "$0 {list} {key:value}..."
+  echo "$0 [list] {key:value} [{key2:value2}]..."
   exit 1
 }
 
@@ -22,7 +22,20 @@ list() {
 }
 
 if [ $# -eq 0 ]; then
-  help
+  if [ -t 0 ]; then
+    help
+  else
+    OLD_LENGTH="${#COMMAND[@]}"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      [ -z "$line" ] && continue
+      key=$(echo "$line" | sed -E 's/^"([^"]+)".*/\1/')
+      value=$(echo "$line" | sed -E 's/^"[^"]+"="(.*)"/\1/')
+      COMMAND+=("-e" "$key" "$value")
+    done
+    if [[ "$OLD_LENGTH" == "${#COMMAND[@]}" ]]; then
+      help
+    fi
+  fi
 fi
 
 while [[ $# -gt 0 ]]; do

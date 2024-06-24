@@ -408,24 +408,29 @@ public class TouchInputHandler {
         keyIntercepting = !mInjector.pauseKeyInterceptingWithEsc || mActivity.getLorieView().hasPointerCapture();
         SamsungDexUtils.dexMetaKeyCapture(mActivity, mInjector.dexMetaKeyCapture && keyIntercepting);
 
-        swipeUpAction = extractUserActionFromPreferences(p.get(), "swipeUp", noAction);
-        swipeDownAction = extractUserActionFromPreferences(p.get(), "swipeDown", (down) -> { if (down) mActivity.toggleExtraKeys(); });
-        volumeUpAction = extractUserActionFromPreferences(p.get(), "volumeUp", (down) -> MainActivity.getInstance().getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_UP, down));
-        volumeDownAction = extractUserActionFromPreferences(p.get(), "volumeDown", (down) -> MainActivity.getInstance().getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_DOWN, down));
-        backButtonAction = extractUserActionFromPreferences(p.get(), "backButton", (down) -> { if (down) MainActivity.toggleKeyboardVisibility(mActivity); } );
+        swipeUpAction = extractUserActionFromPreferences(p, "swipeUp");
+        swipeDownAction = extractUserActionFromPreferences(p, "swipeDown");
+        volumeUpAction = extractUserActionFromPreferences(p, "volumeUp");
+        volumeDownAction = extractUserActionFromPreferences(p, "volumeDown");
+        backButtonAction = extractUserActionFromPreferences(p, "backButton");
 
         if(mTouchpadHandler != null)
             mTouchpadHandler.reloadPreferences(p);
     }
 
-    private Consumer<Boolean> extractUserActionFromPreferences(SharedPreferences p, String name, Consumer<Boolean> defaultAction) {
-        switch(p.getString(name + "Action", name.contains("volume") ? "no" : "default")) {
-            case "no action": return noAction;
+    private Consumer<Boolean> extractUserActionFromPreferences(Prefs p, String name) {
+        LoriePreferences.PrefsProto.Preference pref = p.keys.get(name + "Action");
+        if (pref == null)
+            return noAction;
+
+        switch(pref.asList().get()) {
             case "toggle soft keyboard": return (down) -> { if (down) MainActivity.toggleKeyboardVisibility(mActivity); };
             case "toggle additional key bar": return (down) -> { if (down) mActivity.toggleExtraKeys(); };
             case "open preferences": return (down) -> { if (down) mActivity.startActivity(new Intent(mActivity, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}); };
             case "release pointer and keyboard capture": return (down) -> { if (down) setCapturingEnabled(false); };
-            default: return defaultAction;
+            case "send volume up": return (down) -> MainActivity.getInstance().getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_UP, down);
+            case "send volume down": return (down) -> MainActivity.getInstance().getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_DOWN, down);
+            default: return noAction;
         }
     }
 

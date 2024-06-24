@@ -13,6 +13,7 @@ import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.text.InputType;
 import android.util.AttributeSet;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Surface;
@@ -126,7 +127,7 @@ public class LorieView extends SurfaceView implements InputStub {
     }
 
     void getDimensionsFromSettings() {
-        Prefs prefs = Prefs.obtain(MainActivity.getInstance());
+        Prefs prefs = MainActivity.getPrefs();
         int width = getMeasuredWidth();
         int height = getMeasuredHeight();
         int w = width;
@@ -167,7 +168,7 @@ public class LorieView extends SurfaceView implements InputStub {
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
 
-        Prefs prefs = Prefs.obtain(MainActivity.getInstance());
+        Prefs prefs = MainActivity.getPrefs();
         if (prefs.displayStretch.get()
               || "native".equals(prefs.displayResolutionMode.get())
               || "scaled".equals(prefs.displayResolutionMode.get())) {

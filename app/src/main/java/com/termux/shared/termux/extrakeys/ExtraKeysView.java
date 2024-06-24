@@ -60,7 +60,7 @@ import com.termux.x11.utils.TermuxX11ExtraKeys;
  * in {@link ExtraKeysView#ExtraKeysView(Context, AttributeSet)} by calling the respective functions.
  * If you extend {@link ExtraKeysView}, you can also set them in the constructor, but do call super().
  * <p>
- * After this you will have to make a call to {@link ExtraKeysView#reload(ExtraKeysInfo, float) and pass
+ * After this you will have to make a call to {@link ExtraKeysView#reload() and pass
  * it the {@link ExtraKeysInfo} to load and display the extra keys. Read its class javadocs for more
  * info on how to create it.
  * <p>
@@ -161,9 +161,6 @@ public final class ExtraKeysView extends GridLayout {
     /** The background color for the extra keys button when its active. Defaults to
      * {@link #DEFAULT_BUTTON_ACTIVE_BACKGROUND_COLOR}. */
     private int mButtonActiveBackgroundColor;
-
-    /** Defines whether text for the extra keys button should be all capitalized automatically. */
-    private boolean mButtonTextAllCaps = true;
 
 
     /**
@@ -322,7 +319,7 @@ public final class ExtraKeysView extends GridLayout {
                 });
                 button.setText(buttonInfo.display);
                 button.setTextColor(mButtonTextColor);
-                button.setAllCaps(mButtonTextAllCaps);
+                button.setAllCaps(true);
                 button.setPadding(0, 0, 0, 0);
 
                 button.setOnClickListener(view -> {
@@ -498,7 +495,7 @@ public final class ExtraKeysView extends GridLayout {
             button.setTextColor(mButtonTextColor);
         }
         button.setText(extraButton.display);
-        button.setAllCaps(mButtonTextAllCaps);
+        button.setAllCaps(true);
         button.setPadding(0, 0, 0, 0);
         button.setMinHeight(0);
         button.setMinWidth(0);

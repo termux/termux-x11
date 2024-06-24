@@ -7,6 +7,7 @@ import android.widget.FrameLayout;
 import android.view.View;
 import android.app.Activity;
 
+import com.termux.x11.MainActivity;
 import com.termux.x11.Prefs;
 
 @SuppressWarnings("deprecation")
@@ -28,7 +29,7 @@ public class FullscreenWorkaround {
     }
 
     private void possiblyResizeChildOfContent() {
-        Prefs p = Prefs.obtain(mActivity);
+        Prefs p = MainActivity.getPrefs();
         if (
                 !mActivity.hasWindowFocus() ||
                 !((mActivity.getWindow().getAttributes().flags & FLAG_FULLSCREEN) == FLAG_FULLSCREEN) ||

@@ -56,7 +56,22 @@
     </string-array>
     <string-array name="userActionsValues">
         <item>no action</item>
-        <item>default</item>
+        <item>toggle soft keyboard</item>
+        <item>toggle additional key bar</item>
+        <item>open preferences</item>
+        <item>release pointer and keyboard capture</item>
+    </string-array>
+    <string-array name="userActionsVolumeDownValues">
+        <item>no action</item>
+        <item>send volume down</item>
+        <item>toggle soft keyboard</item>
+        <item>toggle additional key bar</item>
+        <item>open preferences</item>
+        <item>release pointer and keyboard capture</item>
+    </string-array>
+    <string-array name="userActionsVolumeUpValues">
+        <item>no action</item>
+        <item>send volume up</item>
         <item>toggle soft keyboard</item>
         <item>toggle additional key bar</item>
         <item>open preferences</item>

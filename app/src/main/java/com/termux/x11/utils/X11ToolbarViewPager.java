@@ -109,11 +109,9 @@ public class X11ToolbarViewPager {
         public void destroyItem(@NonNull ViewGroup collection, int position, @NonNull Object view) {
             collection.removeView((View) view);
         }
-
     }
 
     public static class OnPageChangeListener extends ViewPager.SimpleOnPageChangeListener {
-
         final MainActivity act;
         final ViewPager mTerminalToolbarViewPager;
 

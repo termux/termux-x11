@@ -12,7 +12,7 @@
         <SeekBarPreference
             android:title="Display scale, %"
             android:key="displayScale"
-            android:max="200"
+            android:max="300"
             android:defaultValue="100" />
 
         <ListPreference
@@ -202,9 +202,15 @@
         <Preference
             android:title="Configure response to user actions"
             android:key="configureResponseToUserActions" />
+
+        <SwitchPreferenceCompat
+            android:title="Store preferences for secondary displays separately"
+            android:summary="Open this screen on display you want to configure"
+            android:defaultValue="false"
+            android:key="storeSecondaryDisplayPreferencesSeparately" />
     </PreferenceCategory>
 
-    <PreferenceCategory android:key="ekbar" app:isPreferenceVisible="false">
+    <PreferenceCategory android:key="ekbar" android:title="Extra key bar preferences" app:isPreferenceVisible="false">
         <SwitchPreferenceCompat
             android:title="Adjust display height for extra keys bar"
             android:summary="May cause screen flickering during toggling EK bar"
@@ -228,39 +234,39 @@
             android:key="extra_keys_config" />
     </PreferenceCategory>
 
-    <PreferenceCategory android:key="userActions" app:isPreferenceVisible="false">
+    <PreferenceCategory android:key="userActions" android:title="Response to user actions" app:isPreferenceVisible="false">
         <ListPreference
             android:title="Three finger swipe up"
             android:key="swipeUpAction"
-            android:defaultValue="default"
+            android:defaultValue="no action"
             android:entries="@array/userActionsValues"
             android:entryValues="@array/userActionsValues" />
 
         <ListPreference
             android:title="Three finger swipe down"
             android:key="swipeDownAction"
-            android:defaultValue="none"
+            android:defaultValue="toggle additional key bar"
             android:entries="@array/userActionsValues"
             android:entryValues="@array/userActionsValues" />
 
         <ListPreference
             android:title="Volume up"
             android:key="volumeUpAction"
-            android:defaultValue="none"
-            android:entries="@array/userActionsValues"
-            android:entryValues="@array/userActionsValues" />
+            android:defaultValue="no action"
+            android:entries="@array/userActionsVolumeUpValues"
+            android:entryValues="@array/userActionsVolumeUpValues" />
 
         <ListPreference
             android:title="Volume down"
             android:key="volumeDownAction"
-            android:defaultValue="default"
-            android:entries="@array/userActionsValues"
-            android:entryValues="@array/userActionsValues" />
+            android:defaultValue="no action"
+            android:entries="@array/userActionsVolumeDownValues"
+            android:entryValues="@array/userActionsVolumeDownValues" />
 
         <ListPreference
             android:title="Back button"
             android:key="backButtonAction"
-            android:defaultValue="default"
+            android:defaultValue="toggle soft keyboard"
             android:entries="@array/userActionsValues"
             android:entryValues="@array/userActionsValues" />
     </PreferenceCategory>

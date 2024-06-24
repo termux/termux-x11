@@ -23,7 +23,6 @@ import androidx.viewpager.widget.ViewPager;
 import com.termux.shared.termux.extrakeys.*;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.MainActivity;
-import com.termux.x11.Prefs;
 import com.termux.x11.R;
 
 import org.json.JSONException;
@@ -209,7 +208,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
             // The mMap stores the extra key and style string values while loading properties
             // Check {@link #getExtraKeysInternalPropertyValueFromValue(String)} and
             // {@link #getExtraKeysStyleInternalPropertyValueFromValue(String)}
-            String extrakeys = Prefs.obtain(MainActivity.getInstance()).extra_keys_config.get();
+            String extrakeys = MainActivity.getPrefs().extra_keys_config.get();
             mExtraKeysInfo = new ExtraKeysInfo(extrakeys, "extra-keys-style", ExtraKeysConstants.CONTROL_CHARS_ALIASES);
         } catch (JSONException e) {
             Toast.makeText(MainActivity.getInstance(), "Could not load and set the \"extra-keys\" property from the properties file: " + e, Toast.LENGTH_LONG).show();

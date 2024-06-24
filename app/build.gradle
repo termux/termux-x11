@@ -99,12 +99,8 @@ afterEvaluate {
         out << '    put("extra_keys_config", extra_keys_config);\n'
         out << '  }};\n'
         out << '\n'
-        out << '  private Prefs(Context ctx) {\n'
+        out << '  public Prefs(Context ctx) {\n'
         out << '    super(ctx);\n'
-        out << '  }\n'
-        out << '  \n'
-        out << '  public static Prefs obtain(Context ctx) {\n'
-        out << '    return new Prefs(ctx);\n'
         out << '  }\n'
         out << '}\n'
     }

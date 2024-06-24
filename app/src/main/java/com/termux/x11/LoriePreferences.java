@@ -129,6 +129,7 @@ public class LoriePreferences extends AppCompatActivity {
     }
 
     public static class LoriePreferenceFragment extends PreferenceFragmentCompat implements OnPreferenceChangeListener, Preference.OnPreferenceClickListener {
+        private final Runnable updateLayout = this::updatePreferencesLayout;
         private static final Method onSetInitialValue;
         static {
             try {
@@ -223,6 +224,8 @@ public class LoriePreferences extends AppCompatActivity {
             boolean displayStretchEnabled = "exact".contentEquals(prefs.displayResolutionMode.get()) || "custom".contentEquals(prefs.displayResolutionMode.get());
             findPreference("displayStretch").setEnabled(displayStretchEnabled);
             findPreference("displayStretch").setSummary(displayStretchEnabled ? "" : "Requires \"display resolution mode\" to be \"exact\" or \"custom\"");
+            findPreference("adjustResolution").setEnabled(displayStretchEnabled);
+            findPreference("adjustResolution").setSummary(displayStretchEnabled ? "" : "Requires \"display resolution mode\" to be \"exact\" or \"custom\"");
 
             int modeValue = Integer.parseInt(prefs.touchMode.get()) - 1;
             String mode = getResources().getStringArray(R.array.touchscreenInputModesEntries)[modeValue];
@@ -344,7 +347,8 @@ public class LoriePreferences extends AppCompatActivity {
         public boolean onPreferenceChange(Preference preference, Object newValue) {
             String key = preference.getKey();
             Log.e("Preferences", "changed preference: " + key);
-            handler.postDelayed(this::updatePreferencesLayout, 50);
+            handler.removeCallbacks(updateLayout);
+            handler.postDelayed(updateLayout, 50);
 
             if ("displayScale".contentEquals(key)) {
                 int scale = (Integer) newValue;

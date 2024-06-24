@@ -29,6 +29,11 @@
             android:summary="Example: 1280x1024" />
 
         <SwitchPreferenceCompat
+            android:title="Adjust the set resolution to fit screen orientation"
+            android:defaultValue="false"
+            android:key="adjustResolution" />
+
+        <SwitchPreferenceCompat
             android:title="Stretch to fit display"
             android:defaultValue="false"
             android:key="displayStretch" />

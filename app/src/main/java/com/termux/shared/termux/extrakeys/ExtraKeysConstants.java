@@ -88,6 +88,8 @@ public class ExtraKeysConstants {
             put("KEYBOARD", "⌨"); // U+2328 ⌨ KEYBOARD not well known but easy to understand
             put("PASTE", "⎘"); // U+2398
             put("SCROLL", "⇳"); // U+21F3
+            put("PREFERENCES", "⚙"); // U+2699 GEAR not well known but easy to understand
+            put("EXIT", "╳"); // U+2573 BOX DRAWINGS LIGHT DIAGONAL CROSS not well known but easy to understand
         }};
 
         public static final ExtraKeyDisplayMap LESS_KNOWN_CHARACTERS_DISPLAY = new ExtraKeyDisplayMap() {{

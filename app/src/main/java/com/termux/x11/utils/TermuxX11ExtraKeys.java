@@ -18,12 +18,10 @@ import android.widget.Button;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.viewpager.widget.ViewPager;
 
 import com.termux.shared.termux.extrakeys.*;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.MainActivity;
-import com.termux.x11.R;
 
 import org.json.JSONException;
 
@@ -33,6 +31,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     private final View.OnKeyListener mEventListener;
     private final MainActivity mActivity;
     private final ExtraKeysView mExtraKeysView;
+    private final ClipboardManager mClipboardManager;
     static private ExtraKeysInfo mExtraKeysInfo;
 
     private boolean ctrlDown;
@@ -41,12 +40,13 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     private boolean metaDown;
 
     /** Defines the key for extra keys */
-    public static final String DEFAULT_IVALUE_EXTRA_KEYS = "[['ESC','/',{key: '-', popup: '|'},'HOME','UP','END','PGUP'], ['TAB','CTRL','ALT','LEFT','DOWN','RIGHT','PGDN']]"; // Double row
+    public static final String DEFAULT_IVALUE_EXTRA_KEYS = "[['ESC','/',{key: '-', popup: '|'},'HOME','UP','END','PGUP','PREFERENCES'], ['TAB','CTRL','ALT','LEFT','DOWN','RIGHT','PGDN','KEYBOARD']]"; // Double row
 
     public TermuxX11ExtraKeys(@NonNull View.OnKeyListener eventlistener, MainActivity activity, ExtraKeysView extrakeysview) {
         mEventListener = eventlistener;
         mActivity = activity;
         mExtraKeysView = extrakeysview;
+        mClipboardManager = (ClipboardManager) mActivity.getSystemService(Context.CLIPBOARD_SERVICE);
     }
 
     private final KeyCharacterMap mVirtualKeyboardKeyCharacterMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD);
@@ -161,37 +161,24 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
         return false;
     }
 
-    public void paste(CharSequence input) {
-        KeyEvent[] events = mVirtualKeyboardKeyCharacterMap.getEvents(input.toString().toCharArray());
-        if (events != null) {
-            for (KeyEvent event : events) {
-                int keyCode = event.getKeyCode();
-                mEventListener.onKey(mActivity.getLorieView(), keyCode, event);
-            }
-        }
-    }
-
-    private ViewPager getToolbarViewPager() {
-        return mActivity.findViewById(R.id.terminal_toolbar_view_pager);
-    }
-
     @SuppressLint("RtlHardcoded")
     public void onLorieExtraKeyButtonClick(View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean metaDown, boolean fnDown) {
-        if ("KEYBOARD".equals(key)) {
-            if (getToolbarViewPager()!=null) {
-                getToolbarViewPager().requestFocus();
-                toggleKeyboardVisibility(mActivity);
-            }
-        } else if ("DRAWER".equals(key)) {
-            Intent preferencesIntent = new Intent(mActivity, LoriePreferences.class);
-            preferencesIntent.setAction(ACTION_START_PREFERENCES_ACTIVITY);
-            mActivity.startActivity(preferencesIntent);
-        } else if ("PASTE".equals(key)) {
-            ClipboardManager clipboard = (ClipboardManager) mActivity.getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData clipData = clipboard.getPrimaryClip();
+        if ("KEYBOARD".equals(key))
+            toggleKeyboardVisibility(mActivity);
+        else if ("PREFERENCES".equals(key))
+            mActivity.startActivity(new Intent(mActivity, LoriePreferences.class) {{ setAction(ACTION_START_PREFERENCES_ACTIVITY); }});
+        else if ("EXIT".equals(key))
+            mActivity.finish();
+        else if ("PASTE".equals(key)) {
+            ClipData clipData = mClipboardManager.getPrimaryClip();
             if (clipData != null) {
                 CharSequence pasted = clipData.getItemAt(0).coerceToText(mActivity);
-                if (!TextUtils.isEmpty(pasted)) paste(pasted);
+                if (!TextUtils.isEmpty(pasted)) {
+                    KeyEvent[] events = mVirtualKeyboardKeyCharacterMap.getEvents(pasted.toString().toCharArray());
+                    if (events != null)
+                        for (KeyEvent event : events)
+                            mEventListener.onKey(mActivity.getLorieView(), event.getKeyCode(), event);
+                }
             }
         } else {
             onTerminalExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, metaDown, fnDown);

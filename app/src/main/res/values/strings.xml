@@ -37,8 +37,7 @@
     <string name="preferences_button_text">   PREFERENCES   </string>
     <string name="help_button_text">   HELP   </string>
     <string name="exit_button_text">   EXIT   </string>
-    <string name="extra_keys_config_desc">Here you can set value of extra-keys variable like in Termux app (read <a href="http://wiki.termux.com/wiki/Touch_Keyboard#Extra_Keys_Row">this</a>) and more (e.g. META).
-    Put empty string for the default value.</string>
+    <string name="extra_keys_config_desc">Here you can set value of extra-keys variable like in Termux app (read <a href="http://wiki.termux.com/wiki/Touch_Keyboard#Extra_Keys_Row">this</a>) and more \nE.g. <b>META</b> for <i>META key</i>, <b>KEYBOARD</b> for <i>soft keyboard toggling key</i>, <b>PREFERENCES</b> for <i>preferences opening key</i>, <b>EXIT</b> for <i>application exit key</i>.\nPut empty string for the default value.</string>
 
     <!-- Log Level -->
     <string name="log_level_title">Log Level</string>

@@ -76,17 +76,25 @@ public class LoriePreferences extends AppCompatActivity {
         @SuppressLint("UnspecifiedRegisterReceiverFlag")
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction())) {
-                if (intent.getBooleanExtra("fromBroadcast", false)) {
-                    getSupportFragmentManager().getFragments().forEach(fragment -> {
-                        if (fragment instanceof LoriePreferenceFragment) {
-                            ((LoriePreferenceFragment) fragment).reloadPrefs();
-                        }
-                    });
-                }
-            }
+            if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction()) &&
+                    intent.getBooleanExtra("fromBroadcast", false))
+                reloadPrefs();
         }
     };
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus)
+            reloadPrefs();
+    }
+
+    private void reloadPrefs() {
+        getSupportFragmentManager().getFragments().forEach(fragment -> {
+            if (fragment instanceof LoriePreferenceFragment)
+                ((LoriePreferenceFragment) fragment).reloadPrefs();
+        });
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -389,11 +397,12 @@ public class LoriePreferences extends AppCompatActivity {
                     return false;
                 }
             }
-
-            Intent intent = new Intent(ACTION_PREFERENCES_CHANGED);
-            intent.putExtra("key", key);
-            intent.setPackage("com.termux.x11");
-            requireContext().sendBroadcast(intent);
+            
+            requireContext().sendBroadcast(new Intent(ACTION_PREFERENCES_CHANGED) {{
+                putExtra("key", key);
+                putExtra("fromBroadcast", true);
+                setPackage("com.termux.x11");
+            }});
 
             setMultilineTitle(getPreferenceScreen());
             return true;

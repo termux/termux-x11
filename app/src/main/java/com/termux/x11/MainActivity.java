@@ -828,7 +828,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         // an imperfect workaround for Gboard CJK keyboard in DeX soft keyboard mode
         // in that particular mode during language switching, InputConnection#requestCursorUpdates() is not called and no signal can be picked up. 
         // therefore, check to activate CJK keyboard is done upon a keypress.  
-        if (SamsungDexUtils.checkDeXEnabled(this))
+        if (getLorieView().enableGboardCJK && SamsungDexUtils.checkDeXEnabled(this))
             getLorieView().checkRestartInput(false);
         handler.postDelayed(this::checkXEvents, 300);
     }

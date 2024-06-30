@@ -11,6 +11,7 @@ import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
+import android.os.Build;
 import android.text.InputType;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -18,8 +19,10 @@ import android.view.KeyEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
+import android.view.inputmethod.InputMethodManager;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
@@ -45,6 +48,10 @@ public class LorieView extends SurfaceView implements InputStub {
     private long lastClipboardTimestamp = System.currentTimeMillis();
     private static boolean clipboardSyncEnabled = false;
     private static boolean hardwareKbdScancodesWorkaround = false;
+    private InputMethodManager mIMM = (InputMethodManager)getContext().getSystemService( Context.INPUT_METHOD_SERVICE);
+    private String mImeLang;
+    private boolean mImeCJK;
+    public boolean enableGboardCJK;
     private Callback mCallback;
     private final Point p = new Point();
     private final SurfaceHolder.Callback mSurfaceCallback = new SurfaceHolder.Callback() {
@@ -219,6 +226,8 @@ public class LorieView extends SurfaceView implements InputStub {
         clipboardSyncEnabled = p.clipboardEnable.get();
         setClipboardSyncEnabled(clipboardSyncEnabled, clipboardSyncEnabled);
         TouchInputHandler.refreshInputDevices();
+        enableGboardCJK = p.enableGboardCJK.get();
+        mIMM.restartInput(this);
     }
 
     // It is used in native code
@@ -279,6 +288,14 @@ public class LorieView extends SurfaceView implements InputStub {
         TouchInputHandler.refreshInputDevices();
     }
 
+    public void checkRestartInput(boolean recheck) {
+        if (!enableGboardCJK) return;
+        if (mIMM.getCurrentInputMethodSubtype().getLanguageTag().length() >= 2 && !mIMM.getCurrentInputMethodSubtype().getLanguageTag().substring(0, 2).equals(mImeLang))
+            mIMM.restartInput(this);
+        else if (recheck) { // recheck needed because sometimes requestCursorUpdates() is called too fast, before InputMethodManager detect change in IM subtype
+            MainActivity.handler.postDelayed(() -> checkRestartInput(false), 40);
+        }
+    }
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;
@@ -287,7 +304,40 @@ public class LorieView extends SurfaceView implements InputStub {
         // keyboard on Android TV (see https://github.com/termux/termux-app/issues/221).
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN;
 
-        return super.onCreateInputConnection(outAttrs);
+        if (enableGboardCJK) {
+            mImeLang = mIMM.getCurrentInputMethodSubtype().getLanguageTag();
+            if (mImeLang.length() > 2)
+                mImeLang = mImeLang.substring(0, 2);
+            mImeCJK = mImeLang.equals("zh") || mImeLang.equals("ko") || mImeLang.equals("ja");
+            outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS |
+                    (mImeCJK ? InputType.TYPE_TEXT_VARIATION_NORMAL : InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+            return new BaseInputConnection(this, false) {
+                @Override
+                public boolean requestCursorUpdates(int cursorUpdateMode) {
+                    // workaround for Gboard
+                    // Gboard calls requestCursorUpdates() whenever switching language
+                    // check and then restart keyboard in different inputtype when needed
+                    checkRestartInput(true);
+                    return super.requestCursorUpdates(cursorUpdateMode);
+                }
+
+                @Override
+                public boolean commitText(CharSequence text, int newCursorPosition) {
+                    boolean result = super.commitText(text, newCursorPosition);
+                    if (mImeCJK)
+                        // suppress Gboard CJK keyboard suggestion
+                        // this workaround does not work well for non-CJK keyboards
+                        // , when typing fast and two keypresses (commitText) are close in time
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                            mIMM.invalidateInput(LorieView.this);
+                        else
+                            mIMM.restartInput(LorieView.this);
+                    return result;
+                }
+            };
+        } else {
+            return super.onCreateInputConnection(outAttrs);
+        }
     }
 
     static native void connect(int fd);

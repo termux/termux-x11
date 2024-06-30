@@ -192,6 +192,12 @@
             android:summary="Allows you to use Dex shortcuts while intercepting. Requires Accessibility service to work."
             android:defaultValue="false"
             android:key="filterOutWinkey" />
+
+        <SwitchPreferenceCompat
+            android:title="Workaround to enable CJK Gboard"
+            android:summary="May require Android 14 and Gboard 14"
+            android:defaultValue="false"
+            android:key="enableGboardCJK" />
     </PreferenceCategory>
 
     <PreferenceCategory android:key="other" android:title="Other">

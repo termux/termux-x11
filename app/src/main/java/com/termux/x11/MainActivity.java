@@ -66,6 +66,7 @@ import com.termux.x11.input.InputStub;
 import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.FullscreenWorkaround;
 import com.termux.x11.utils.KeyInterceptor;
+import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
 
@@ -824,6 +825,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     private void checkXEvents() {
         getLorieView().handleXEvents();
+        // an imperfect workaround for Gboard CJK keyboard in DeX soft keyboard mode
+        // in that particular mode during language switching, InputConnection#requestCursorUpdates() is not called and no signal can be picked up. 
+        // therefore, check to activate CJK keyboard is done upon a keypress.  
+        if (getLorieView().enableGboardCJK && SamsungDexUtils.checkDeXEnabled(this))
+            getLorieView().checkRestartInput(false);
         handler.postDelayed(this::checkXEvents, 300);
     }
 

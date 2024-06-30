@@ -31,8 +31,6 @@ import com.termux.x11.input.InputStub;
 import com.termux.x11.input.TouchInputHandler;
 
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.PatternSyntaxException;
 
 @Keep @SuppressLint("WrongConstant")
@@ -53,7 +51,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private InputMethodManager mIMM = (InputMethodManager)getContext().getSystemService( Context.INPUT_METHOD_SERVICE);
     private String mImeLang;
     private boolean mImeCJK;
-    private boolean enableGboardCJK;
+    public boolean enableGboardCJK;
     private Callback mCallback;
     private final Point p = new Point();
     private final SurfaceHolder.Callback mSurfaceCallback = new SurfaceHolder.Callback() {
@@ -295,13 +293,7 @@ public class LorieView extends SurfaceView implements InputStub {
         if (mIMM.getCurrentInputMethodSubtype().getLanguageTag().length() >= 2 && !mIMM.getCurrentInputMethodSubtype().getLanguageTag().substring(0, 2).equals(mImeLang))
             mIMM.restartInput(this);
         else if (recheck) { // recheck needed because sometimes requestCursorUpdates() is called too fast, before InputMethodManager detect change in IM subtype
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-                CompletableFuture.delayedExecutor(40, TimeUnit.MILLISECONDS).execute(() -> { checkRestartInput(false); });
-            else
-                new Thread(() -> { try {
-                    Thread.sleep(40);
-                    checkRestartInput(false);
-                } catch (Exception e) { System.err.println(e); } }).start();
+            MainActivity.handler.postDelayed(() -> checkRestartInput(false), 40);
         }
     }
     @Override

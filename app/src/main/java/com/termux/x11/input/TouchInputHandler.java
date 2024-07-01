@@ -12,7 +12,6 @@ import static android.view.KeyEvent.KEYCODE_VOLUME_UP;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.graphics.PointF;
 import android.hardware.display.DisplayManager;
 import android.hardware.input.InputManager;
@@ -270,10 +269,9 @@ public class TouchInputHandler {
     public boolean handleTouchEvent(View view0, View view, MotionEvent event) {
         // Regular touchpads and Dex touchpad (in captured mode) send events as finger too,
         // but they should be handled as touchscreens with trackpad mode.
-        if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER &&
-                mTouchpadHandler != null && (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) {
+        if (mTouchpadHandler != null && ((event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER &&
+                (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) || isDexEvent(event)))
             return mTouchpadHandler.handleTouchEvent(view0, view, event);
-        }
 
         if (view0 != view) {
             int[] view0Location = new int[2];
@@ -427,7 +425,7 @@ public class TouchInputHandler {
     public void reloadPreferences(Prefs p) {
         setInputMode(Integer.parseInt(p.touchMode.get()));
         mInjector.tapToMove = p.tapToMove.get();
-        mInjector.preferScancodes = p.preferScancodes.get();;
+        mInjector.preferScancodes = p.preferScancodes.get();
         mInjector.pointerCapture = p.pointerCapture.get();
         mInjector.scaleTouchpad = p.scaleTouchpad.get() &&
                 "1".equals(p.touchMode.get()) &&
@@ -552,14 +550,16 @@ public class TouchInputHandler {
                 int transform = capturedPointerTransformation == CapturedPointerTransformation.AUTO ?
                         mDisplayRotation : capturedPointerTransformation;
                 switch (transform) {
-                    case CapturedPointerTransformation.NONE:
-                        break;
                     case CapturedPointerTransformation.CLOCKWISE:
                         temp = distanceX; distanceX = -distanceY; distanceY = temp; break;
                     case CapturedPointerTransformation.COUNTER_CLOCKWISE:
-                        temp = distanceX; distanceX = distanceY; distanceY = -temp; break;
+                        temp = distanceX;
+                        // noinspection SuspiciousNameCombination
+                        distanceX = distanceY; distanceY = -temp; break;
                     case CapturedPointerTransformation.UPSIDE_DOWN:
                         distanceX = -distanceX; distanceY = -distanceY; break;
+                    default:
+                        break;
                 }
                 distanceX *= mInjector.capturedPointerSpeedFactor;
                 distanceY *= mInjector.capturedPointerSpeedFactor;
@@ -787,14 +787,14 @@ public class TouchInputHandler {
                     float temp;
 
                     switch (capturedPointerTransformation) {
-                        case CapturedPointerTransformation.NONE:
-                            break;
                         case CapturedPointerTransformation.CLOCKWISE:
                             temp = x; x = -y; y = temp; break;
                         case CapturedPointerTransformation.COUNTER_CLOCKWISE:
                             temp = x; x = y; y = -temp; break;
                         case CapturedPointerTransformation.UPSIDE_DOWN:
                             x = -x; y = -y; break;
+                        default:
+                            break;
                     }
 
                     x *= mInjector.capturedPointerSpeedFactor * mMetrics.density;

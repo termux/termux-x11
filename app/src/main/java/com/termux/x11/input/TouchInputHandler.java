@@ -531,15 +531,8 @@ public class TouchInputHandler {
             if ((e2.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD
                     && mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) {
                 float temp;
-                int transform = capturedPointerTransformation;
-                if (capturedPointerTransformation == CapturedPointerTransformation.AUTO) {
-                    for (Display display : mDisplayManager.getDisplays()) {
-                        if (display.getState() == Display.STATE_ON) {
-                            transform = display.getRotation() % 4;
-                            break;
-                        }
-                    }
-                }
+                int transform = capturedPointerTransformation == CapturedPointerTransformation.AUTO ?
+                        mDisplayManager.getDisplay(Display.DEFAULT_DISPLAY).getRotation() % 4 : capturedPointerTransformation;
                 switch (transform) {
                     case CapturedPointerTransformation.NONE:
                         break;

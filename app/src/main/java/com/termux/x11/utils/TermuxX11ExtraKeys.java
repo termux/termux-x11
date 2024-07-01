@@ -165,7 +165,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     public void onLorieExtraKeyButtonClick(View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean metaDown, boolean fnDown) {
         if ("KEYBOARD".equals(key))
             toggleKeyboardVisibility(mActivity);
-        else if ("PREFERENCES".equals(key))
+        else if ("DRAWER".equals(key) || "PREFERENCES".equals(key))
             mActivity.startActivity(new Intent(mActivity, LoriePreferences.class) {{ setAction(ACTION_START_PREFERENCES_ACTIVITY); }});
         else if ("EXIT".equals(key))
             mActivity.finish();

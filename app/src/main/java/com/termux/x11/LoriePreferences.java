@@ -202,7 +202,7 @@ public class LoriePreferences extends AppCompatActivity {
             scalePreference.setUpdatesContinuously(true);
             scalePreference.setSeekBarIncrement(10);
             scalePreference.setShowSeekBarValue(true);
-            capturedPointerSpeedFactor.setMin(30);
+            capturedPointerSpeedFactor.setMin(1);
             capturedPointerSpeedFactor.setMax(200);
             capturedPointerSpeedFactor.setSeekBarIncrement(1);
             capturedPointerSpeedFactor.setShowSeekBarValue(true);

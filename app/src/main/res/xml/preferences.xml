@@ -23,10 +23,10 @@
             android:entryValues="@array/displayResolution" />
 
         <EditTextPreference
-            android:title="Display resolution"
+            android:title="@string/display_resolution_custom"
             android:key="displayResolutionCustom"
             android:defaultValue="1280x1024"
-            android:summary="Example: 1280x1024" />
+            android:summary="@string/example_1280x1024" />
 
         <SwitchPreferenceCompat
             android:title="@string/adjust_the_set_resolution_to_fit_screen_orientation"

@@ -119,4 +119,6 @@
     <string name="volume_up">Volume up</string>
     <string name="volume_down">Volume down</string>
     <string name="back_button">Back button</string>
+    <string name="display_resolution_custom">Display resolution</string>
+    <string name="example_1280x1024">Example: 1280x1024</string>
 </resources>

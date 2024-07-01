@@ -14,10 +14,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.PointF;
+import android.hardware.display.DisplayManager;
 import android.hardware.input.InputManager;
 import android.os.Handler;
 import android.os.Build;
 import android.util.DisplayMetrics;
+import android.view.Display;
 import android.view.GestureDetector;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -156,6 +158,7 @@ public class TouchInputHandler {
         mRenderData = renderData != null ? renderData :new RenderData();
         mInjector = injector;
         mActivity = activity;
+        mDisplayManager = (DisplayManager) mActivity.getSystemService(Context.DISPLAY_SERVICE);
 
         GestureListener listener = new GestureListener();
         mScroller = new GestureDetector(/*desktop*/ activity, listener, null, false);
@@ -365,7 +368,7 @@ public class TouchInputHandler {
     }
 
     public void setInputMode(@InputMode int inputMode) {
-        if (SamsungDexUtils.checkDeXEnabled(mContext)) {
+        if (SamsungDexUtils.checkDeXEnabled(mActivity)) {
             mInputStrategy = new InputStrategyInterface.TrackpadInputStrategy(mInjector);
             return;
         }

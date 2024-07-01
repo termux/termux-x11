@@ -14,10 +14,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.PointF;
+import android.hardware.display.DisplayManager;
 import android.hardware.input.InputManager;
 import android.os.Handler;
 import android.os.Build;
 import android.util.DisplayMetrics;
+import android.view.Display;
 import android.view.GestureDetector;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -63,13 +65,15 @@ public class TouchInputHandler {
         int TOUCH = 3;
     }
 
-    @IntDef({CapturedPointerTransformation.NONE, CapturedPointerTransformation.CLOCKWISE, CapturedPointerTransformation.COUNTER_CLOCKWISE, CapturedPointerTransformation.UPSIDE_DOWN})
+    @IntDef({CapturedPointerTransformation.AUTO, CapturedPointerTransformation.NONE, CapturedPointerTransformation.COUNTER_CLOCKWISE, CapturedPointerTransformation.UPSIDE_DOWN, CapturedPointerTransformation.CLOCKWISE})
     @Retention(RetentionPolicy.SOURCE)
     public @interface CapturedPointerTransformation {
+        // values correspond to transformation needed given getRotation(), e.g. getRotation() = 1 requires counter-clockwise transformation
+        int AUTO = -1;
         int NONE = 0;
-        int CLOCKWISE = 1;
-        int COUNTER_CLOCKWISE = 2;
-        int UPSIDE_DOWN = 3;
+        int COUNTER_CLOCKWISE = 1;
+        int UPSIDE_DOWN = 2;
+        int CLOCKWISE = 3;
     }
 
     private final RenderData mRenderData;
@@ -128,8 +132,40 @@ public class TouchInputHandler {
      * is performing a drag operation.
      */
     private boolean mIsDragging;
+    private static DisplayManager mDisplayManager;
+    private static int mDisplayRotation;
+    private static final DisplayManager.DisplayListener mDisplayListener = new DisplayManager.DisplayListener() {
+        @Override
+        public void onDisplayAdded(int displayId) {
+            mDisplayRotation = mDisplayManager.getDisplay(Display.DEFAULT_DISPLAY).getRotation() % 4;
+        }
 
-    @CapturedPointerTransformation int capturedPointerTransformation = CapturedPointerTransformation.NONE;
+        @Override
+        public void onDisplayRemoved(int displayId) {
+            mDisplayRotation = mDisplayManager.getDisplay(Display.DEFAULT_DISPLAY).getRotation() % 4;
+        }
+
+        @Override
+        public void onDisplayChanged(int displayId) {
+            mDisplayRotation = mDisplayManager.getDisplay(Display.DEFAULT_DISPLAY).getRotation() % 4;
+        }
+    };
+
+    @CapturedPointerTransformation static int capturedPointerTransformation = CapturedPointerTransformation.NONE;
+    private final int[][] buttons = {
+            {MotionEvent.BUTTON_PRIMARY, InputStub.BUTTON_LEFT},
+            {MotionEvent.BUTTON_TERTIARY, InputStub.BUTTON_MIDDLE},
+            {MotionEvent.BUTTON_SECONDARY, InputStub.BUTTON_RIGHT}
+    };
+    private int savedBS = 0;
+    private int currentBS = 0;
+    boolean isMouseButtonChanged(int mask) {
+        return (savedBS & mask) != (currentBS & mask);
+    }
+
+    boolean mouseButtonDown(int mask) {
+        return ((currentBS & mask) != 0);
+    }
 
     private TouchInputHandler(MainActivity activity, RenderData renderData,
                               final InputEventSender injector, boolean isTouchpad) {
@@ -139,6 +175,11 @@ public class TouchInputHandler {
         mRenderData = renderData != null ? renderData :new RenderData();
         mInjector = injector;
         mActivity = activity;
+        if (mDisplayManager == null) {
+            mDisplayManager = (DisplayManager) mActivity.getSystemService(Context.DISPLAY_SERVICE);
+            mDisplayRotation = mDisplayManager.getDisplay(Display.DEFAULT_DISPLAY).getRotation() % 4;
+            mDisplayManager.registerDisplayListener(mDisplayListener, null);
+        }
 
         GestureListener listener = new GestureListener();
         mScroller = new GestureDetector(/*desktop*/ activity, listener, null, false);
@@ -227,6 +268,13 @@ public class TouchInputHandler {
     }
 
     public boolean handleTouchEvent(View view0, View view, MotionEvent event) {
+        // Regular touchpads and Dex touchpad (in captured mode) send events as finger too,
+        // but they should be handled as touchscreens with trackpad mode.
+        if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER &&
+                mTouchpadHandler != null && (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) {
+            return mTouchpadHandler.handleTouchEvent(view0, view, event);
+        }
+
         if (view0 != view) {
             int[] view0Location = new int[2];
             int[] viewLocation = new int[2];
@@ -252,20 +300,13 @@ public class TouchInputHandler {
 
         if (!isDexEvent(event) && (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_MOUSE
                 || (event.getSource() & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE)
-                || (event.getSource() & InputDevice.SOURCE_MOUSE_RELATIVE) == InputDevice.SOURCE_MOUSE_RELATIVE
-                || (event.getPointerCount() == 1 && mTouchpadHandler == null
-                   && (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD))
+                || (event.getSource() & InputDevice.SOURCE_MOUSE_RELATIVE) == InputDevice.SOURCE_MOUSE_RELATIVE)
             return mHMListener.onTouch(view, event);
 
         if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER) {
-            // Dex touchpad sends events as finger, but it should be considered as a mouse.
+            // Dex touchpad (in non-captured mode) sends events as finger, but it should be considered as a mouse.
             if (isDexEvent(event) && mDexListener.onTouch(view, event))
                 return true;
-
-            // Regular touchpads and Dex touchpad send events as finger too,
-            // but they should be handled as touchscreens with trackpad mode.
-            if (mTouchpadHandler != null && (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD)
-                return mTouchpadHandler.handleTouchEvent(view, view, event);
 
             // Give the underlying input strategy a chance to observe the current motion event before
             // passing it to the gesture detectors.  This allows the input strategy to react to the
@@ -281,6 +322,14 @@ public class TouchInputHandler {
             mTapDetector.onTouchEvent(event);
             mSwipePinchDetector.onTouchEvent(event);
 
+            // For hardware touchpad in DeX (captured mode), handle physical click buttons
+            if ((event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) {
+                currentBS = event.getButtonState();
+                for (int[] button: buttons)
+                    if (isMouseButtonChanged(button[0]))
+                        mInjector.sendMouseEvent(null, button[1], mouseButtonDown(button[0]), true);
+                savedBS = currentBS;
+            }
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     mSuppressCursorMovement = false;
@@ -339,7 +388,9 @@ public class TouchInputHandler {
     }
 
     public void setInputMode(@InputMode int inputMode) {
-        if (inputMode == InputMode.TOUCH)
+        if (mTouchpadHandler == null)
+            mInputStrategy = new InputStrategyInterface.TrackpadInputStrategy(mInjector);
+        else if (inputMode == InputMode.TOUCH)
             mInputStrategy = new InputStrategyInterface.NullInputStrategy();
         else if (inputMode == InputMode.SIMULATED_TOUCH)
             mInputStrategy = new InputStrategyInterface.SimulatedTouchInputStrategy(mRenderData, mInjector, mActivity);
@@ -395,6 +446,9 @@ public class TouchInputHandler {
                 break;
             case "ud":
                 capturedPointerTransformation = CapturedPointerTransformation.UPSIDE_DOWN;
+                break;
+            case "at":
+                capturedPointerTransformation = CapturedPointerTransformation.AUTO;
                 break;
             default:
                 capturedPointerTransformation = CapturedPointerTransformation.NONE;
@@ -489,6 +543,28 @@ public class TouchInputHandler {
         @Override
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
             int pointerCount = e2.getPointerCount();
+
+            // For captured touchpad pointer:
+            // Automatic (for touchpad) mode is needed because touchpads ignore screen orientation and report physical X and Y
+            if ((e2.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD
+                    && mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) {
+                float temp;
+                int transform = capturedPointerTransformation == CapturedPointerTransformation.AUTO ?
+                        mDisplayRotation : capturedPointerTransformation;
+                switch (transform) {
+                    case CapturedPointerTransformation.NONE:
+                        break;
+                    case CapturedPointerTransformation.CLOCKWISE:
+                        temp = distanceX; distanceX = -distanceY; distanceY = temp; break;
+                    case CapturedPointerTransformation.COUNTER_CLOCKWISE:
+                        temp = distanceX; distanceX = distanceY; distanceY = -temp; break;
+                    case CapturedPointerTransformation.UPSIDE_DOWN:
+                        distanceX = -distanceX; distanceY = -distanceY; break;
+                }
+                distanceX *= mInjector.capturedPointerSpeedFactor;
+                distanceY *= mInjector.capturedPointerSpeedFactor;
+            }
+
 
             if (pointerCount >= 3 && !mSwipeCompleted) {
                 // Note that distance values are reversed. For example, dragging a finger in the

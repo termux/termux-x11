@@ -133,6 +133,23 @@ public class TouchInputHandler {
      */
     private boolean mIsDragging;
     private static DisplayManager mDisplayManager;
+    private static int mDisplayRotation;
+    private static final DisplayManager.DisplayListener mDisplayListener = new DisplayManager.DisplayListener() {
+        @Override
+        public void onDisplayAdded(int displayId) {
+            mDisplayRotation = mDisplayManager.getDisplay(Display.DEFAULT_DISPLAY).getRotation() % 4;
+        }
+
+        @Override
+        public void onDisplayRemoved(int displayId) {
+            mDisplayRotation = mDisplayManager.getDisplay(Display.DEFAULT_DISPLAY).getRotation() % 4;
+        }
+
+        @Override
+        public void onDisplayChanged(int displayId) {
+            mDisplayRotation = mDisplayManager.getDisplay(Display.DEFAULT_DISPLAY).getRotation() % 4;
+        }
+    };
 
     @CapturedPointerTransformation static int capturedPointerTransformation = CapturedPointerTransformation.NONE;
     private final int[][] buttons = {
@@ -158,7 +175,11 @@ public class TouchInputHandler {
         mRenderData = renderData != null ? renderData :new RenderData();
         mInjector = injector;
         mActivity = activity;
-        mDisplayManager = (DisplayManager) mActivity.getSystemService(Context.DISPLAY_SERVICE);
+        if (mDisplayManager == null) {
+            mDisplayManager = (DisplayManager) mActivity.getSystemService(Context.DISPLAY_SERVICE);
+            mDisplayRotation = mDisplayManager.getDisplay(Display.DEFAULT_DISPLAY).getRotation() % 4;
+            mDisplayManager.registerDisplayListener(mDisplayListener, null);
+        }
 
         GestureListener listener = new GestureListener();
         mScroller = new GestureDetector(/*desktop*/ activity, listener, null, false);
@@ -529,7 +550,7 @@ public class TouchInputHandler {
                     && mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) {
                 float temp;
                 int transform = capturedPointerTransformation == CapturedPointerTransformation.AUTO ?
-                        mDisplayManager.getDisplay(Display.DEFAULT_DISPLAY).getRotation() % 4 : capturedPointerTransformation;
+                        mDisplayRotation : capturedPointerTransformation;
                 switch (transform) {
                     case CapturedPointerTransformation.NONE:
                         break;

@@ -37,6 +37,7 @@ import android.provider.Settings;
 import android.service.notification.StatusBarNotification;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Display;
 import android.view.DragEvent;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -201,7 +202,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
             if (service != null) {
                 try {
-                    service.windowChanged(sfc, lorieView.getDisplay() != null ? lorieView.getDisplay().getName() : "screen");
+                    String name;
+                    if (lorieView.getDisplay().getDisplayId() == Display.DEFAULT_DISPLAY)
+                        name = "Builtin Display";
+                    else if (SamsungDexUtils.checkDeXEnabled(this))
+                        name = "Dex Display";
+                    else
+                        name = "External Display";
+                    service.windowChanged(sfc, name);
                 } catch (RemoteException e) {
                     Log.e("MainActivity", "failed to send windowChanged request", e);
                 }

@@ -247,6 +247,13 @@ public class TouchInputHandler {
     }
 
     public boolean handleTouchEvent(View view0, View view, MotionEvent event) {
+        // Regular touchpads and Dex touchpad (in captured mode) send events as finger too,
+        // but they should be handled as touchscreens with trackpad mode.
+        if (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER &&
+                mTouchpadHandler != null && (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) {
+            return mTouchpadHandler.handleTouchEvent(view0, view, event);
+        }
+
         if (view0 != view) {
             int[] view0Location = new int[2];
             int[] viewLocation = new int[2];
@@ -279,11 +286,6 @@ public class TouchInputHandler {
             // Dex touchpad (in non-captured mode) sends events as finger, but it should be considered as a mouse.
             if (isDexEvent(event) && mDexListener.onTouch(view, event))
                 return true;
-
-            // Regular touchpads and Dex touchpad (in captured mode) send events as finger too,
-            // but they should be handled as touchscreens with trackpad mode.
-            if (mTouchpadHandler != null && (event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD)
-                return mTouchpadHandler.handleTouchEvent(view, view, event);
 
             // Give the underlying input strategy a chance to observe the current motion event before
             // passing it to the gesture detectors.  This allows the input strategy to react to the
@@ -368,11 +370,9 @@ public class TouchInputHandler {
     }
 
     public void setInputMode(@InputMode int inputMode) {
-        if (SamsungDexUtils.checkDeXEnabled(mActivity)) {
+        if (mTouchpadHandler == null)
             mInputStrategy = new InputStrategyInterface.TrackpadInputStrategy(mInjector);
-            return;
-        }
-        if (inputMode == InputMode.TOUCH)
+        else if (inputMode == InputMode.TOUCH)
             mInputStrategy = new InputStrategyInterface.NullInputStrategy();
         else if (inputMode == InputMode.SIMULATED_TOUCH)
             mInputStrategy = new InputStrategyInterface.SimulatedTouchInputStrategy(mRenderData, mInjector, mActivity);

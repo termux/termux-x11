@@ -301,18 +301,15 @@ public class TouchInputHandler {
             mTapDetector.onTouchEvent(event);
             mSwipePinchDetector.onTouchEvent(event);
 
+            // For hardware touchpad in DeX (captured mode), handle physical click buttons
+            if ((event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) {
+                currentBS = event.getButtonState();
+                for (int[] button: buttons)
+                    if (isMouseButtonChanged(button[0]))
+                        mInjector.sendMouseEvent(null, button[1], mouseButtonDown(button[0]), true);
+                savedBS = currentBS;
+            }
             switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_BUTTON_PRESS:
-                case MotionEvent.ACTION_BUTTON_RELEASE:
-                    // For hardware touchpad in DeX (captured mode), handle physical click buttons
-                    if ((event.getSource() & InputDevice.SOURCE_TOUCHPAD) == InputDevice.SOURCE_TOUCHPAD) {
-                        currentBS = event.getButtonState();
-                        for (int[] button: buttons)
-                            if (isMouseButtonChanged(button[0]))
-                                mInjector.sendMouseEvent(null, button[1], mouseButtonDown(button[0]), true);
-                        savedBS = currentBS;
-                        break;
-                    }
                 case MotionEvent.ACTION_DOWN:
                     mSuppressCursorMovement = false;
                     mSwipeCompleted = false;

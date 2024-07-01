@@ -328,6 +328,8 @@ public class LoriePreferences extends AppCompatActivity {
                                     prefs.extra_keys_config.put(!text.isEmpty() ? text : TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS);
                                 }
                         )
+                        .setNeutralButton("Reset",
+                                (dialog, whichButton) -> prefs.extra_keys_config.put(TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS))
                         .setNegativeButton("Cancel", (dialog, whichButton) -> dialog.dismiss())
                         .create()
                         .show();

@@ -43,8 +43,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
 <b>PREFERENCES</b> for <i>preferences opening key</i>, \n
 <b>MOUSE_HELPER</b> for <i>mouse helper toggling key</i>, \n
 <b>STYLUS_HELPER</b> for <i>stylus click override overlay toggling key</i>, \n
-<b>EXIT</b> for <i>application exit key</i>.\n
-Put empty string for the default value.</string>
+<b>EXIT</b> for <i>application exit key</i>.</string>
 
     <!-- Log Level -->
     <string name="log_level_title">Log Level</string>

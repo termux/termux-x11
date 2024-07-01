@@ -12,6 +12,7 @@ import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
+import android.text.Editable;
 import android.text.InputType;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -312,11 +313,16 @@ public class LorieView extends SurfaceView implements InputStub {
             outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS |
                     (mImeCJK ? InputType.TYPE_TEXT_VARIATION_NORMAL : InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
             return new BaseInputConnection(this, false) {
+                // workaround for Gboard
+                // Gboard calls requestCursorUpdates() whenever switching language
+                // check and then restart keyboard in different inputType when needed
+                @Override
+                public Editable getEditable() {
+                    checkRestartInput(true);
+                    return super.getEditable();
+                }
                 @Override
                 public boolean requestCursorUpdates(int cursorUpdateMode) {
-                    // workaround for Gboard
-                    // Gboard calls requestCursorUpdates() whenever switching language
-                    // check and then restart keyboard in different inputtype when needed
                     checkRestartInput(true);
                     return super.requestCursorUpdates(cursorUpdateMode);
                 }

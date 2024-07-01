@@ -254,7 +254,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     //Register the needed events to handle stylus as left, middle and right click
     @SuppressLint("ClickableViewAccessibility")
     private void initStylusAuxButtons() {
-        boolean stylusMenuEnabled = prefs.showStylusClickOverride.get();
+        boolean stylusMenuEnabled = prefs.showStylusClickOverride.get() && mClientConnected;
         final float menuUnselectedTrasparency = 0.66f;
         final float menuSelectedTrasparency = 1.0f;
         Button left = findViewById(R.id.button_left_click);
@@ -340,9 +340,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         });
     }
 
-    public void showStylusAuxButtons(boolean show) {
+    private void showStylusAuxButtons(boolean show) {
         LinearLayout buttons = findViewById(R.id.mouse_helper_visibility);
-        if (show) {
+        if (mClientConnected && show) {
             buttons.setVisibility(View.VISIBLE);
         } else {
             //Reset default input back to normal
@@ -355,6 +355,19 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             findViewById(R.id.button_visibility).setAlpha(menuUnselectedTrasparency);
             buttons.setVisibility(View.GONE);
         }
+    }
+
+    public void toggleStylusAuxButtons() {
+        showMouseAuxButtons(findViewById(R.id.mouse_helper_visibility).getVisibility() != View.VISIBLE);
+    }
+
+    private void showMouseAuxButtons(boolean show) {
+        findViewById(R.id.mouse_buttons)
+                .setVisibility((mClientConnected && show && "1".equals(prefs.touchMode.get())) ? View.VISIBLE : View.GONE);
+    }
+
+    public void toggleMouseAuxButtons() {
+        showMouseAuxButtons(findViewById(R.id.mouse_buttons).getVisibility() != View.VISIBLE);
     }
 
     void setSize(View v, int width, int height) {
@@ -539,6 +552,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             setRequestedOrientation(requestedOrientation);
 
         findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && mClientConnected ? View.VISIBLE : View.GONE);
+        showMouseAuxButtons(prefs.showMouseHelper.get());
         showStylusAuxButtons(prefs.showStylusClickOverride.get());
 
         getTerminalToolbarViewPager().setAlpha(((float) prefs.opacityEKBar.get())/100);

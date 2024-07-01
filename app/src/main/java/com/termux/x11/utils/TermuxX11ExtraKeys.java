@@ -183,17 +183,12 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
                             mEventListener.onKey(mActivity.getLorieView(), event.getKeyCode(), event);
                 }
             }
-        } else if ("MOUSE_HELPER".equals(key)) {
-            View v = mActivity.findViewById(R.id.mouse_buttons);
-            if (v != null && isConnected())
-                v.setVisibility(v.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
-        } else if ("STYLUS_HELPER".equals(key)) {
-            View v = mActivity.findViewById(R.id.mouse_helper_visibility);
-            if (isConnected())
-                mActivity.showStylusAuxButtons(v.getVisibility() != View.VISIBLE);
-        } else {
+        } else if ("MOUSE_HELPER".equals(key))
+            mActivity.toggleMouseAuxButtons();
+        else if ("STYLUS_HELPER".equals(key))
+            mActivity.toggleStylusAuxButtons();
+        else
             onTerminalExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, metaDown, fnDown);
-        }
     }
 
     /**

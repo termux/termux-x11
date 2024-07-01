@@ -81,7 +81,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public static Handler handler = new Handler();
     FrameLayout frm;
     private TouchInputHandler mInputHandler;
-    private ICmdEntryInterface service = null;
+    protected ICmdEntryInterface service = null;
     public TermuxX11ExtraKeys mExtraKeys;
     private Notification mNotification;
     private final int mNotificationId = 7892;
@@ -799,6 +799,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @SuppressWarnings("SameParameterValue")
     void clientConnectedStateChanged(boolean connected) {
+        if (connected && XrActivity.isEnabled() && !(this instanceof XrActivity)) {
+            XrActivity.openIntent(this);
+            mClientConnected = connected;
+            return;
+        }
+
         runOnUiThread(()-> {
             mClientConnected = connected;
             setTerminalToolbarView();

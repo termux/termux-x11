@@ -1,6 +1,7 @@
 package com.termux.x11.utils;
 
 import static com.termux.shared.termux.extrakeys.ExtraKeysConstants.PRIMARY_KEY_CODES_FOR_STRINGS;
+import static com.termux.x11.MainActivity.isConnected;
 import static com.termux.x11.MainActivity.toggleKeyboardVisibility;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -15,6 +16,7 @@ import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -22,6 +24,7 @@ import androidx.annotation.NonNull;
 import com.termux.shared.termux.extrakeys.*;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.MainActivity;
+import com.termux.x11.R;
 
 import org.json.JSONException;
 
@@ -180,6 +183,14 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
                             mEventListener.onKey(mActivity.getLorieView(), event.getKeyCode(), event);
                 }
             }
+        } else if ("MOUSE_HELPER".equals(key)) {
+            View v = mActivity.findViewById(R.id.mouse_buttons);
+            if (v != null && isConnected())
+                v.setVisibility(v.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+        } else if ("STYLUS_HELPER".equals(key)) {
+            View v = mActivity.findViewById(R.id.mouse_helper_visibility);
+            if (isConnected())
+                mActivity.showStylusAuxButtons(v.getVisibility() != View.VISIBLE);
         } else {
             onTerminalExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, metaDown, fnDown);
         }

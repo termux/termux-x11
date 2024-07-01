@@ -277,8 +277,8 @@ public class TouchInputHandler {
             int[] view0Location = new int[2];
             int[] viewLocation = new int[2];
 
-            view0.getLocationOnScreen(view0Location);
-            view.getLocationOnScreen(viewLocation);
+            view0.getLocationInWindow(view0Location);
+            view.getLocationInWindow(viewLocation);
 
             int offsetX = viewLocation[0] - view0Location[0];
             int offsetY = viewLocation[1] - view0Location[1];

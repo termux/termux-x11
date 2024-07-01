@@ -340,6 +340,23 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         });
     }
 
+    public void showStylusAuxButtons(boolean show) {
+        LinearLayout buttons = findViewById(R.id.mouse_helper_visibility);
+        if (show) {
+            buttons.setVisibility(View.VISIBLE);
+        } else {
+            //Reset default input back to normal
+            TouchInputHandler.STYLUS_INPUT_HELPER_MODE = 1;
+            final float menuUnselectedTrasparency = 0.66f;
+            final float menuSelectedTrasparency = 1.0f;
+            findViewById(R.id.button_left_click).setAlpha(menuSelectedTrasparency);
+            findViewById(R.id.button_right_click).setAlpha(menuUnselectedTrasparency);
+            findViewById(R.id.button_middle_click).setAlpha(menuUnselectedTrasparency);
+            findViewById(R.id.button_visibility).setAlpha(menuUnselectedTrasparency);
+            buttons.setVisibility(View.GONE);
+        }
+    }
+
     void setSize(View v, int width, int height) {
         ViewGroup.LayoutParams p = v.getLayoutParams();
         p.width = (int) (width * getResources().getDisplayMetrics().density);
@@ -373,7 +390,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             }
             handler.postDelayed(() -> {
                 int[] offset = new int[2];
-                frm.getLocationOnScreen(offset);
+                frm.getLocationInWindow(offset);
                 primaryLayer.setX(MathUtils.clamp(primaryLayer.getX(), offset[0], offset[0] + frm.getWidth() - primaryLayer.getWidth()));
                 primaryLayer.setY(MathUtils.clamp(primaryLayer.getY(), offset[1], offset[1] + frm.getHeight() - primaryLayer.getHeight()));
             }, 10);
@@ -406,7 +423,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             public boolean onTouch(View v, MotionEvent e) {
                 switch(e.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        primaryLayer.getLocationOnScreen(startPosition);
+                        primaryLayer.getLocationInWindow(startPosition);
                         startOffset[0] = e.getX();
                         startOffset[1] = e.getY();
                         startTime = SystemClock.uptimeMillis();
@@ -415,15 +432,15 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     case MotionEvent.ACTION_MOVE: {
                         int[] offset = new int[2];
                         int[] offset2 = new int[2];
-                        primaryLayer.getLocationOnScreen(offset);
-                        frm.getLocationOnScreen(offset2);
+                        primaryLayer.getLocationInWindow(offset);
+                        frm.getLocationInWindow(offset2);
                         primaryLayer.setX(MathUtils.clamp(offset[0] - startOffset[0] + e.getX(), offset2[0], offset2[0] + frm.getWidth() - primaryLayer.getWidth()));
                         primaryLayer.setY(MathUtils.clamp(offset[1] - startOffset[1] + e.getY(), offset2[1], offset2[1] + frm.getHeight() - primaryLayer.getHeight()));
                         break;
                     }
                     case MotionEvent.ACTION_UP: {
                         final int[] _pos = new int[2];
-                        primaryLayer.getLocationOnScreen(_pos);
+                        primaryLayer.getLocationInWindow(_pos);
                         int deltaX = (int) (startOffset[0] - e.getX()) + (startPosition[0] - _pos[0]);
                         int deltaY = (int) (startOffset[1] - e.getY()) + (startPosition[1] - _pos[1]);
                         pos.setPressed(false);
@@ -522,20 +539,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             setRequestedOrientation(requestedOrientation);
 
         findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && mClientConnected ? View.VISIBLE : View.GONE);
-        LinearLayout buttons = findViewById(R.id.mouse_helper_visibility);
-        if (prefs.showStylusClickOverride.get()) {
-            buttons.setVisibility(View.VISIBLE);
-        } else {
-            //Reset default input back to normal
-            TouchInputHandler.STYLUS_INPUT_HELPER_MODE = 1;
-            final float menuUnselectedTrasparency = 0.66f;
-            final float menuSelectedTrasparency = 1.0f;
-            findViewById(R.id.button_left_click).setAlpha(menuSelectedTrasparency);
-            findViewById(R.id.button_right_click).setAlpha(menuUnselectedTrasparency);
-            findViewById(R.id.button_middle_click).setAlpha(menuUnselectedTrasparency);
-            findViewById(R.id.button_visibility).setAlpha(menuUnselectedTrasparency);
-            buttons.setVisibility(View.GONE);
-        }
+        showStylusAuxButtons(prefs.showStylusClickOverride.get());
 
         getTerminalToolbarViewPager().setAlpha(((float) prefs.opacityEKBar.get())/100);
 
@@ -809,7 +813,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     void clientConnectedStateChanged(boolean connected) {
         if (connected && XrActivity.isEnabled() && !(this instanceof XrActivity)) {
             XrActivity.openIntent(this);
-            mClientConnected = connected;
+            mClientConnected = true;
             return;
         }
 

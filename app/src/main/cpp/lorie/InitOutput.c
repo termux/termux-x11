@@ -137,6 +137,7 @@ static void* ddxReadyThread(unused void* cookie) {
             sprintf(DISPLAY, ":%s", display);
             setenv("DISPLAY", DISPLAY, 1);
             unsetenv("CLASSPATH");
+            execlp(xstartup, xstartup, NULL);
             execlp("sh", "sh", "-c", xstartup, NULL);
             dprintf(2, "Failed to start command `sh -c \"%s\"`: %s\n", xstartup, strerror(errno));
             abort();
@@ -168,6 +169,8 @@ static void* ddxReadyThread(unused void* cookie) {
 
 void
 ddxReady(void) {
+    if (!xstartup)
+        xstartup = getenv("TERMUX_X11_XSTARTUP");
     if (!xstartup)
         return;
 

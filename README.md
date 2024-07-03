@@ -49,6 +49,14 @@ You may replace `xfce4-session` if you use other than Xfce
 ~ $ termux-x11 :1 -xstartup "xfce4-session"
 ```
 
+Also you can do 
+```
+export TERMUX_X11_XSTARTUP="xfce4-session"
+termux-x11 :1
+```
+In this case you can same TERMUX_X11_XSTARTUP somewhere in `.bashrc` or other script and not type it every time you invoke termux-x11.  
+
+
 If you're done using Termux:X11 just simply exit it through it's notification drawer by expanding the Termux:X11 notification then "Exit"
 But you should pay attention that `termux-x11` command is still running and can not be killed this way.
 

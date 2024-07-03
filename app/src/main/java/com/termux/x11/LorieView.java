@@ -24,6 +24,7 @@ import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
+import android.view.inputmethod.InputMethodSubtype;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
@@ -49,7 +50,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private long lastClipboardTimestamp = System.currentTimeMillis();
     private static boolean clipboardSyncEnabled = false;
     private static boolean hardwareKbdScancodesWorkaround = false;
-    private InputMethodManager mIMM = (InputMethodManager)getContext().getSystemService( Context.INPUT_METHOD_SERVICE);
+    private final InputMethodManager mIMM = (InputMethodManager)getContext().getSystemService( Context.INPUT_METHOD_SERVICE);
     private String mImeLang;
     private boolean mImeCJK;
     public boolean enableGboardCJK;
@@ -291,8 +292,12 @@ public class LorieView extends SurfaceView implements InputStub {
     }
 
     public void checkRestartInput(boolean recheck) {
-        if (!enableGboardCJK) return;
-        if (mIMM.getCurrentInputMethodSubtype().getLanguageTag().length() >= 2 && !mIMM.getCurrentInputMethodSubtype().getLanguageTag().substring(0, 2).equals(mImeLang))
+        if (!enableGboardCJK)
+            return;
+
+        InputMethodSubtype methodSubtype = mIMM.getCurrentInputMethodSubtype();
+        String languageTag = methodSubtype == null ? null : methodSubtype.getLanguageTag();
+        if (languageTag != null && languageTag.length() >= 2 && !languageTag.substring(0, 2).equals(mImeLang))
             mIMM.restartInput(this);
         else if (recheck) { // recheck needed because sometimes requestCursorUpdates() is called too fast, before InputMethodManager detect change in IM subtype
             MainActivity.handler.postDelayed(() -> checkRestartInput(false), 40);
@@ -308,10 +313,11 @@ public class LorieView extends SurfaceView implements InputStub {
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN;
 
         if (enableGboardCJK) {
-            mImeLang = mIMM.getCurrentInputMethodSubtype().getLanguageTag();
-            if (mImeLang.length() > 2)
+            InputMethodSubtype methodSubtype = mIMM.getCurrentInputMethodSubtype();
+            mImeLang = methodSubtype == null ? null : methodSubtype.getLanguageTag();
+            if (mImeLang != null && mImeLang.length() > 2)
                 mImeLang = mImeLang.substring(0, 2);
-            mImeCJK = mImeLang.equals("zh") || mImeLang.equals("ko") || mImeLang.equals("ja");
+            mImeCJK = mImeLang != null && (mImeLang.equals("zh") || mImeLang.equals("ko") || mImeLang.equals("ja"));
             outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS |
                     (mImeCJK ? InputType.TYPE_TEXT_VARIATION_NORMAL : InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
             return new BaseInputConnection(this, false) {

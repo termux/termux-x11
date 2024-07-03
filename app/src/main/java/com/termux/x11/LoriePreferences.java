@@ -12,7 +12,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.database.ContentObserver;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 
@@ -25,6 +27,8 @@ import androidx.preference.Preference;
 
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
+import android.os.Message;
 import android.preference.PreferenceManager;
 
 import androidx.annotation.Nullable;
@@ -38,6 +42,7 @@ import androidx.preference.PreferenceGroup;
 import androidx.preference.Preference.OnPreferenceChangeListener;
 import androidx.preference.SeekBarPreference;
 
+import android.provider.Settings;
 import android.text.method.LinkMovementMethod;
 import android.util.Log;
 import android.view.Display;
@@ -78,7 +83,28 @@ public class LoriePreferences extends AppCompatActivity {
         public void onReceive(Context context, Intent intent) {
             if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction()) &&
                     intent.getBooleanExtra("fromBroadcast", false))
-                reloadPrefs();
+                updatePreferencesLayout();
+        }
+    };
+
+    private final ContentObserver accessibilityObserver = new ContentObserver(null) {
+        private final Handler mHandler = new Handler(Looper.getMainLooper()) {
+            @Override
+            public void handleMessage(@NonNull Message msg) {
+                android.util.Log.d("ContentObserver", "reload called");
+                updatePreferencesLayout();
+            }
+        };
+
+        @Override
+        public boolean deliverSelfNotifications() {
+            return true;
+        }
+
+        @Override
+        public void onChange(boolean selfChange) {
+            if (!mHandler.hasMessages(1))
+                mHandler.sendEmptyMessageDelayed(1, 200);
         }
     };
 
@@ -86,13 +112,13 @@ public class LoriePreferences extends AppCompatActivity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus)
-            reloadPrefs();
+            updatePreferencesLayout();
     }
 
-    private void reloadPrefs() {
+    private void updatePreferencesLayout() {
         getSupportFragmentManager().getFragments().forEach(fragment -> {
             if (fragment instanceof LoriePreferenceFragment)
-                ((LoriePreferenceFragment) fragment).reloadPrefs();
+                ((LoriePreferenceFragment) fragment).updatePreferencesLayout();
         });
     }
 
@@ -108,6 +134,12 @@ public class LoriePreferences extends AppCompatActivity {
             actionBar.setHomeButtonEnabled(true);
             actionBar.setTitle("Preferences");
         }
+
+        Uri ENABLED_ACCESSIBILITY_SERVICES = Settings.Secure.getUriFor(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        Uri ACCESSIBILITY_ENABLED = Settings.Secure.getUriFor(Settings.Secure.ACCESSIBILITY_ENABLED);
+
+        getContentResolver().registerContentObserver(ENABLED_ACCESSIBILITY_SERVICES, true, accessibilityObserver);
+        getContentResolver().registerContentObserver(ACCESSIBILITY_ENABLED, true, accessibilityObserver);
     }
 
     @SuppressLint("WrongConstant")
@@ -191,6 +223,9 @@ public class LoriePreferences extends AppCompatActivity {
 
         @SuppressWarnings("ConstantConditions")
         void updatePreferencesLayout() {
+            if (getContext() == null)
+                return;
+
             reloadPrefs();
             if (!SamsungDexUtils.available())
                 findPreference("dexMetaKeyCapture").setVisible(false);
@@ -218,10 +253,13 @@ public class LoriePreferences extends AppCompatActivity {
 
             findPreference("dexMetaKeyCapture").setEnabled(!prefs.enableAccessibilityServiceAutomatically.get());
             findPreference("enableAccessibilityServiceAutomatically").setEnabled(!prefs.dexMetaKeyCapture.get());
-            boolean pauseKeyInterceptingWithEscEnabled = prefs.dexMetaKeyCapture.get() || prefs.enableAccessibilityServiceAutomatically.get();
+            boolean pauseKeyInterceptingWithEscEnabled =
+                    prefs.dexMetaKeyCapture.get() ||
+                            prefs.enableAccessibilityServiceAutomatically.get() ||
+                            KeyInterceptor.isEnabled();
             findPreference("pauseKeyInterceptingWithEsc").setEnabled(pauseKeyInterceptingWithEscEnabled);
             findPreference("pauseKeyInterceptingWithEsc").setSummary(pauseKeyInterceptingWithEscEnabled ? "" : "Requires intercepting system shortcuts with Dex mode or with Accessibility service");
-            findPreference("filterOutWinkey").setEnabled(prefs.enableAccessibilityServiceAutomatically.get());
+            findPreference("filterOutWinkey").setEnabled(prefs.enableAccessibilityServiceAutomatically.get() || KeyInterceptor.isEnabled());
 
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P)
                 findPreference("hideCutout").setVisible(false);

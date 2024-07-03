@@ -1,6 +1,7 @@
 package com.termux.x11.utils;
 
 import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.Context;
 import android.provider.Settings;
 import android.view.KeyEvent;
@@ -51,6 +52,11 @@ public class KeyInterceptor extends AccessibilityService {
             self.pressedKeys.clear();
             self = null;
         }
+    }
+
+    public static boolean isEnabled() {
+        AccessibilityServiceInfo info = self == null ? null : self.getServiceInfo();
+        return info != null && info.getId() != null;
     }
 
     @Override

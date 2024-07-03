@@ -33,7 +33,6 @@ import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.os.SystemClock;
-import android.provider.Settings;
 import android.service.notification.StatusBarNotification;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -56,7 +55,6 @@ import android.widget.ImageButton;
 import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
 import androidx.core.math.MathUtils;
@@ -524,24 +522,10 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         lorieView.triggerCallback();
 
         filterOutWinKey = prefs.filterOutWinkey.get();
-        if (prefs.enableAccessibilityServiceAutomatically.get()) {
-            try {
-                Settings.Secure.putString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, "com.termux.x11/.utils.KeyInterceptor");
-                Settings.Secure.putString(getContentResolver(), Settings.Secure.ACCESSIBILITY_ENABLED, "1");
-            } catch (SecurityException e) {
-                new AlertDialog.Builder(this)
-                        .setTitle("Permission denied")
-                        .setMessage("Android requires WRITE_SECURE_SETTINGS permission to start accessibility service automatically.\n" +
-                                "Please, launch this command using ADB:\n" +
-                                "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS")
-                        .setNegativeButton("OK", null)
-                        .create()
-                        .show();
-
-                prefs.enableAccessibilityServiceAutomatically.put(false);
-            }
-        } else if (checkSelfPermission(WRITE_SECURE_SETTINGS) == PERMISSION_GRANTED)
-            KeyInterceptor.shutdown();
+        if (prefs.enableAccessibilityServiceAutomatically.get())
+            KeyInterceptor.launch(this);
+        else if (checkSelfPermission(WRITE_SECURE_SETTINGS) == PERMISSION_GRANTED)
+            KeyInterceptor.shutdown(true);
 
         useTermuxEKBarBehaviour = prefs.useTermuxEKBarBehaviour.get();
         showIMEWhileExternalConnected = prefs.showIMEWhileExternalConnected.get();

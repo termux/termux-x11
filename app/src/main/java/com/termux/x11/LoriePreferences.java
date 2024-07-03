@@ -386,7 +386,7 @@ public class LoriePreferences extends AppCompatActivity {
 
             if ("enableAccessibilityServiceAutomatically".contentEquals(key)) {
                 if (!((Boolean) newValue))
-                    KeyInterceptor.shutdown();
+                    KeyInterceptor.shutdown(false);
                 if (requireContext().checkSelfPermission(WRITE_SECURE_SETTINGS) != PERMISSION_GRANTED) {
                     new AlertDialog.Builder(requireContext())
                             .setTitle("Permission denied")
@@ -477,7 +477,7 @@ public class LoriePreferences extends AppCompatActivity {
                             }
                             case "enableAccessibilityServiceAutomatically": {
                                 if (!"true".equals(newValue))
-                                    KeyInterceptor.shutdown();
+                                    KeyInterceptor.shutdown(false);
                                 else if (context.checkSelfPermission(WRITE_SECURE_SETTINGS) != PERMISSION_GRANTED) {
                                     setResultCode(1);
                                     setResultData("Permission denied.\n" +

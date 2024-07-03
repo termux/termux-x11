@@ -265,7 +265,8 @@ public class LorieView extends SurfaceView implements InputStub {
         if (clipboardSyncEnabled && desc != null &&
                 lastClipboardTimestamp < desc.getTimestamp() &&
                 desc.getMimeTypeCount() == 1 &&
-                desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)) {
+                (desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) ||
+                        desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_HTML))) {
             lastClipboardTimestamp = desc.getTimestamp();
             sendClipboardAnnounce();
             Log.d("CLIP", "sending clipboard announce");
@@ -297,6 +298,7 @@ public class LorieView extends SurfaceView implements InputStub {
             MainActivity.handler.postDelayed(() -> checkRestartInput(false), 40);
         }
     }
+
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;

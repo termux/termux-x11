@@ -203,7 +203,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             if (service != null) {
                 try {
                     String name;
-                    if (lorieView.getDisplay().getDisplayId() == Display.DEFAULT_DISPLAY)
+                    if (lorieView.getDisplay() == null || lorieView.getDisplay().getDisplayId() == Display.DEFAULT_DISPLAY)
                         name = "Builtin Display";
                     else if (SamsungDexUtils.checkDeXEnabled(this))
                         name = "Dex Display";

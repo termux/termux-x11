@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+<PreferenceScreen xmlns:tools="http://schemas.android.com/tools"
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <PreferenceCategory android:key="output" android:title="Output" android:singleLineTitle="false" android:iconSpaceReserved="false" >
         <ListPreference
             android:title="Display resolution mode"
             android:key="displayResolutionMode"
+            android:summary="%s"
             android:defaultValue="native"
             android:entries="@array/displayResolutionVariants"
             android:entryValues="@array/displayResolutionVariants" />
@@ -18,15 +20,17 @@
         <ListPreference
             android:title="Display resolution"
             android:key="displayResolutionExact"
+            android:summary="%s"
             android:defaultValue="1280x1024"
             android:entries="@array/displayResolution"
-            android:entryValues="@array/displayResolution" />
+            android:entryValues="@array/displayResolution"
+            tools:ignore="DuplicateSpeakableTextCheck" />
 
         <EditTextPreference
             android:title="Display resolution"
             android:key="displayResolutionCustom"
             android:defaultValue="1280x1024"
-            android:summary="Example: 1280x1024" />
+            app:useSimpleSummaryProvider="true" />
 
         <SwitchPreferenceCompat
             android:title="Adjust the set resolution to fit screen orientation"
@@ -60,6 +64,7 @@
             android:title="Force screen orientation"
             android:key="forceOrientation"
             android:defaultValue="no"
+            android:summary="%s"
             android:entries="@array/forceOrientationVariants"
             android:entryValues="@array/forceOrientationVariants" />
 
@@ -77,6 +82,7 @@
         <ListPreference
             android:title="Touchscreen input mode"
             android:key="touchMode"
+            android:summary="%s"
             android:defaultValue="1"
             android:entries="@array/touchscreenInputModesEntries"
             android:entryValues="@array/touchscreenInputModesValues" />
@@ -119,6 +125,7 @@
         <ListPreference
             android:title="Transform captured pointer movements"
             android:key="transformCapturedPointer"
+            android:summary="%s"
             android:defaultValue="no"
             android:entries="@array/transformCapturedPointerEntries"
             android:entryValues="@array/transformCapturedPointerValues" />
@@ -251,6 +258,7 @@
         <ListPreference
             android:title="Three finger swipe up"
             android:key="swipeUpAction"
+            android:summary="%s"
             android:defaultValue="no action"
             android:entries="@array/userActionsValues"
             android:entryValues="@array/userActionsValues" />
@@ -258,6 +266,7 @@
         <ListPreference
             android:title="Three finger swipe down"
             android:key="swipeDownAction"
+            android:summary="%s"
             android:defaultValue="toggle additional key bar"
             android:entries="@array/userActionsValues"
             android:entryValues="@array/userActionsValues" />
@@ -265,6 +274,7 @@
         <ListPreference
             android:title="Volume up"
             android:key="volumeUpAction"
+            android:summary="%s"
             android:defaultValue="no action"
             android:entries="@array/userActionsVolumeUpValues"
             android:entryValues="@array/userActionsVolumeUpValues" />
@@ -272,6 +282,7 @@
         <ListPreference
             android:title="Volume down"
             android:key="volumeDownAction"
+            android:summary="%s"
             android:defaultValue="no action"
             android:entries="@array/userActionsVolumeDownValues"
             android:entryValues="@array/userActionsVolumeDownValues" />
@@ -279,6 +290,7 @@
         <ListPreference
             android:title="Back button"
             android:key="backButtonAction"
+            android:summary="%s"
             android:defaultValue="toggle soft keyboard"
             android:entries="@array/userActionsValues"
             android:entryValues="@array/userActionsValues" />

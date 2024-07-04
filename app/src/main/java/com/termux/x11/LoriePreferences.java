@@ -264,18 +264,12 @@ public class LoriePreferences extends AppCompatActivity {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P)
                 findPreference("hideCutout").setVisible(false);
 
-            findPreference("displayResolutionMode").setSummary(prefs.displayResolutionMode.get());
-            findPreference("displayResolutionExact").setSummary(prefs.displayResolutionExact.get());
-            findPreference("displayResolutionCustom").setSummary(prefs.displayResolutionCustom.get());
             boolean displayStretchEnabled = "exact".contentEquals(prefs.displayResolutionMode.get()) || "custom".contentEquals(prefs.displayResolutionMode.get());
             findPreference("displayStretch").setEnabled(displayStretchEnabled);
             findPreference("displayStretch").setSummary(displayStretchEnabled ? "" : "Requires \"display resolution mode\" to be \"exact\" or \"custom\"");
             findPreference("adjustResolution").setEnabled(displayStretchEnabled);
             findPreference("adjustResolution").setSummary(displayStretchEnabled ? "" : "Requires \"display resolution mode\" to be \"exact\" or \"custom\"");
 
-            int modeValue = Integer.parseInt(prefs.touchMode.get()) - 1;
-            String mode = getResources().getStringArray(R.array.touchscreenInputModesEntries)[modeValue];
-            findPreference("touchMode").setSummary(mode);
             boolean scaleTouchpadEnabled = "1".equals(prefs.touchMode.get()) && !"native".equals(prefs.displayResolutionMode.get());
             findPreference("scaleTouchpad").setEnabled(scaleTouchpadEnabled);
             findPreference("scaleTouchpad").setSummary(scaleTouchpadEnabled ? "" : "Requires \"Touchscreen input mode\" to be \"Trackpad\" and \"Display resolution mode\" to be not \"native\"");

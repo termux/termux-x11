@@ -517,7 +517,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         lorieView.reloadPreferences(prefs);
 
         setTerminalToolbarView();
-        onWindowFocusChanged(true);
+        onWindowFocusChanged(hasWindowFocus());
 
         lorieView.triggerCallback();
 
@@ -529,11 +529,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         useTermuxEKBarBehaviour = prefs.useTermuxEKBarBehaviour.get();
         showIMEWhileExternalConnected = prefs.showIMEWhileExternalConnected.get();
-
-        int requestedOrientation = prefs.forceLandscape.get() ?
-                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
-        if (getRequestedOrientation() != requestedOrientation)
-            setRequestedOrientation(requestedOrientation);
 
         findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && mClientConnected ? View.VISIBLE : View.GONE);
         showMouseAuxButtons(prefs.showMouseHelper.get());
@@ -705,8 +700,15 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             return;
         }
 
-        int requestedOrientation = prefs.forceLandscape.get() ?
-                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        int requestedOrientation;
+        switch (prefs.forceOrientation.get()) {
+            case "portrait": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT; break;
+            case "landscape": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE; break;
+            case "reverse portrait": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT; break;
+            case "reverse landscape": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE; break;
+            default: requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        }
+
         if (getRequestedOrientation() != requestedOrientation)
             setRequestedOrientation(requestedOrientation);
 

@@ -79,4 +79,11 @@
         <item>open preferences</item>
         <item>release pointer and keyboard capture</item>
     </string-array>
+    <string-array name="forceOrientationVariants">
+        <item>no</item>
+        <item>portrait</item>
+        <item>landscape</item>
+        <item>reverse portrait</item>
+        <item>reverse landscape</item>
+    </string-array>
 </resources>

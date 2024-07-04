@@ -56,10 +56,12 @@
             android:defaultValue="false"
             android:key="fullscreen" />
 
-        <SwitchPreferenceCompat
-            android:title="Force landscape orientation"
-            android:defaultValue="false"
-            android:key="forceLandscape" />
+        <ListPreference
+            android:title="Force screen orientation"
+            android:key="forceOrientation"
+            android:defaultValue="no"
+            android:entries="@array/forceOrientationVariants"
+            android:entryValues="@array/forceOrientationVariants" />
 
         <SwitchPreferenceCompat
             android:title="Hide display cutout (if any)"

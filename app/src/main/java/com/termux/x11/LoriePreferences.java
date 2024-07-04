@@ -282,6 +282,9 @@ public class LoriePreferences extends AppCompatActivity {
             findPreference("scaleTouchpad").setSummary(scaleTouchpadEnabled ? "" : "Requires \"Touchscreen input mode\" to be \"Trackpad\" and \"Display resolution mode\" to be not \"native\"");
             findPreference("showMouseHelper").setEnabled("1".equals(prefs.touchMode.get()));
 
+            int transformCapturedPointerIndex = Arrays.asList(getResources().getStringArray(R.array.transformCapturedPointerValues)).indexOf(prefs.transformCapturedPointer.get());
+            findPreference("transformCapturedPointer").setSummary(transformCapturedPointerIndex < 0 ? "" : getResources().getStringArray(R.array.transformCapturedPointerEntries)[transformCapturedPointerIndex]);
+
             AtomicBoolean stylusAvailable = new AtomicBoolean(false);
             Arrays.stream(InputDevice.getDeviceIds())
                     .mapToObj(InputDevice::getDevice)

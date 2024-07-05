@@ -465,6 +465,8 @@ public class TouchInputHandler {
         volumeUpAction = extractUserActionFromPreferences(p, "volumeUp");
         volumeDownAction = extractUserActionFromPreferences(p, "volumeDown");
         backButtonAction = extractUserActionFromPreferences(p, "backButton");
+        mInjector.escapeKeyAction = extractUserActionFromPreferences(p, "escapeKey");
+        mInjector.ctrlAltKeyAction = extractUserActionFromPreferences(p, "ctrlAltKey");
 
         if(mTouchpadHandler != null)
             mTouchpadHandler.reloadPreferences(p);

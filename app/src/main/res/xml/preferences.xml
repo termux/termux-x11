@@ -118,7 +118,7 @@
 
         <SwitchPreferenceCompat
             android:title="Capture external pointer devices when possible"
-            android:summary="Intercept all hardware pointer events. Pointer is back to Android after pressing Escape key."
+            android:summary="Intercept all hardware pointer events. Customize &quot;Response to user actions&quot; to return pointer to Android. "
             android:defaultValue="false"
             android:key="pointerCapture" />
 
@@ -292,6 +292,22 @@
             android:key="backButtonAction"
             android:summary="%s"
             android:defaultValue="toggle soft keyboard"
+            android:entries="@array/userActionsValues"
+            android:entryValues="@array/userActionsValues" />
+
+        <ListPreference
+            android:title="Escape"
+            android:key="escapeKeyAction"
+            android:summary="%s"
+            android:defaultValue="release pointer and keyboard capture"
+            android:entries="@array/userActionsValues"
+            android:entryValues="@array/userActionsValues" />
+
+        <ListPreference
+            android:title="Ctrl + Alt (availability varies across IMEs and devices)"
+            android:key="ctrlAltKeyAction"
+            android:summary="%s"
+            android:defaultValue="release pointer and keyboard capture"
             android:entries="@array/userActionsValues"
             android:entryValues="@array/userActionsValues" />
     </PreferenceCategory>

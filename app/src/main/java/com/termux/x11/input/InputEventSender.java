@@ -18,6 +18,7 @@ import com.termux.x11.MainActivity;
 
 import java.util.List;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 
 /**
  * A set of functions to send users' activities, which are represented by Android classes, to
@@ -39,6 +40,9 @@ public final class InputEventSender {
     public boolean pauseKeyInterceptingWithEsc = false;
     public boolean stylusIsMouse = false;
     public boolean stylusButtonContactModifierMode = false;
+    public boolean ctrlAltMonitor = false;
+    public Consumer<Boolean> escapeKeyAction = (down) -> {};
+    public Consumer<Boolean> ctrlAltKeyAction = (down) -> {};
 
     /** Set of pressed keys for which we've sent TextEvent. */
     private final TreeSet<Integer> mPressedTextKeys;
@@ -215,7 +219,24 @@ public final class InputEventSender {
             return true;
 
         if (keyCode == KEYCODE_ESCAPE && !pressed && e.hasNoModifiers())
-            MainActivity.setCapturingEnabled(false);
+            escapeKeyAction.accept(true);
+
+        if (!(e.isAltPressed() && e.isCtrlPressed()) && ctrlAltMonitor) {
+            ctrlAltMonitor = false;
+            ctrlAltKeyAction.accept(true);
+        }
+        if (e.isAltPressed() && e.isCtrlPressed())
+            ctrlAltMonitor = true;
+        if (ctrlAltMonitor)
+            switch (keyCode) {
+                case KEYCODE_ALT_LEFT:
+                case KEYCODE_ALT_RIGHT:
+                case KEYCODE_CTRL_LEFT:
+                case KEYCODE_CTRL_RIGHT:
+                    break;
+                default:
+                    ctrlAltMonitor = false;
+            }
 
         // We try to send all other key codes to the host directly.
         return mInjector.sendKeyEvent(scancode, keyCode, pressed);

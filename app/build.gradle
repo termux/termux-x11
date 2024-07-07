@@ -9,7 +9,7 @@ android {
         minSdkVersion 26
         targetSdkVersion 34
         versionCode 15
-        def commit='-' + 'git rev-parse --verify --short HEAD'.execute().text.trim()
+        def commit= 'git rev-parse --verify --short HEAD'.execute().text.trim()
         def version = "1.03.01"
         versionName "${version}-${commit.length()==1?"nongit":commit}-${(new Date()).format("dd.MM.yy")}"
         buildConfigField "String", "COMMIT", "\"" + ("git rev-parse HEAD\n".execute().getText().trim() ?: (System.getenv('CURRENT_COMMIT') ?: "NO_COMMIT")) + "\""
@@ -63,18 +63,18 @@ afterEvaluate {
 
         for (int i = 0; i < preferenceNodes.length; i++) {
             def node = preferenceNodes.item(i)
-            if (node.nodeName == 'EditTextPreference')
-                preferences << [ type: 'String',  key: node.getAttribute("android:key"), default: node.getAttribute("android:defaultValue") ]
+            if (node.nodeName == 'EditTextPreference' && node.getAttribute("app:key") != "extra_keys_config")
+                preferences << [ type: 'String',  key: node.getAttribute("app:key"), default: node.getAttribute("app:defaultValue") ]
             else if (node.nodeName == 'SeekBarPreference')
-                preferences << [ type: 'Int', key: node.getAttribute("android:key"), default: node.getAttribute("android:defaultValue") ]
+                preferences << [ type: 'Int', key: node.getAttribute("app:key"), default: node.getAttribute("app:defaultValue") ]
             else if (node.nodeName == 'ListPreference') {
-                def entries = node.getAttribute("android:entries")
-                def values = node.getAttribute("android:entryValues")
-                preferences << [type: 'List', key: node.getAttribute("android:key"), default: node.getAttribute("android:defaultValue"),
+                def entries = node.getAttribute("app:entries")
+                def values = node.getAttribute("app:entryValues")
+                preferences << [type: 'List', key: node.getAttribute("app:key"), default: node.getAttribute("app:defaultValue"),
                                 entries: entries.substring(7, entries.length()), values: values.substring(7, values.length())]
             }
             else if (node.nodeName == 'SwitchPreferenceCompat')
-                preferences << [ type: 'Boolean',  key: node.getAttribute("android:key"), default: node.getAttribute("android:defaultValue") ]
+                preferences << [ type: 'Boolean',  key: node.getAttribute("app:key"), default: node.getAttribute("app:defaultValue") ]
         }
 
         def out = file('build/generated/java/com/termux/x11/Prefs.java')

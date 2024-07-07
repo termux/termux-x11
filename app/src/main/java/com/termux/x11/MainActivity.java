@@ -14,12 +14,12 @@ import android.app.AppOpsManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
@@ -75,7 +75,8 @@ import java.util.Objects;
 @SuppressLint("ApplySharedPref")
 @SuppressWarnings({"deprecation", "unused"})
 public class MainActivity extends AppCompatActivity implements View.OnApplyWindowInsetsListener {
-    static final String ACTION_STOP = "com.termux.x11.ACTION_STOP";
+    public static final String ACTION_STOP = "com.termux.x11.ACTION_STOP";
+    public static final String ACTION_CUSTOM = "com.termux.x11.ACTION_CUSTOM";
 
     public static Handler handler = new Handler();
     FrameLayout frm;
@@ -97,6 +98,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     private static boolean oldFullscreen = false;
     private static boolean oldHideCutout = false;
+    private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> onPreferencesChanged(key);
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @SuppressLint("UnspecifiedRegisterReceiverFlag")
@@ -126,6 +128,9 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 Log.d("MainActivity", "preference: " + intent.getStringExtra("key"));
                 if (!"additionalKbdVisible".equals(intent.getStringExtra("key")))
                     onPreferencesChanged("");
+            } else if (ACTION_CUSTOM.equals(intent.getAction())) {
+                android.util.Log.d("ACTION_CUSTOM", "action " + intent.getStringExtra("what"));
+                mInputHandler.extractUserActionFromPreferences(prefs, intent.getStringExtra("what")).accept(true);
             }
         }
     };
@@ -158,7 +163,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         oldFullscreen = prefs.fullscreen.get();
         oldHideCutout = prefs.hideCutout.get();
 
-        prefs.get().registerOnSharedPreferenceChangeListener((sharedPreferences, key) -> onPreferencesChanged(key));
+        prefs.get().registerOnSharedPreferenceChangeListener(preferencesChangedListener);
 
         getWindow().setFlags(FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS | FLAG_KEEP_SCREEN_ON | FLAG_TRANSLUCENT_STATUS, 0);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -217,6 +222,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         registerReceiver(receiver, new IntentFilter(ACTION_START) {{
             addAction(ACTION_PREFERENCES_CHANGED);
             addAction(ACTION_STOP);
+            addAction(ACTION_CUSTOM);
         }}, SDK_INT >= VERSION_CODES.TIRAMISU ? RECEIVER_EXPORTED : 0);
 
         inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
@@ -538,12 +544,19 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         lorieView.requestLayout();
         lorieView.invalidate();
+
+        for (StatusBarNotification notification: mNotificationManager.getActiveNotifications())
+            if (notification.getId() == mNotificationId) {
+                mNotification = buildNotification();
+                mNotificationManager.notify(mNotificationId, mNotification);
+            }
     }
 
     @Override
     public void onResume() {
         super.onResume();
 
+        mNotification = buildNotification();
         mNotificationManager.notify(mNotificationId, mNotification);
 
         setTerminalToolbarView();
@@ -552,16 +565,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     public void onPause() {
-        View view = getCurrentFocus();
-        if (view == null) {
-            view = getLorieView();
-            view.requestFocus();
-        }
-        inputMethodManager.hideSoftInputFromWindow(view.getWindowToken(), 0);
+        inputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
 
         for (StatusBarNotification notification: mNotificationManager.getActiveNotifications())
             if (notification.getId() == mNotificationId)
                 mNotificationManager.cancel(mNotificationId);
+
         super.onPause();
     }
 
@@ -623,38 +632,24 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @SuppressLint("ObsoleteSdkInt")
     Notification buildNotification() {
-        Intent preferencesIntent = new Intent(this, LoriePreferences.class);
-        preferencesIntent.putExtra("key", "value");
-        preferencesIntent.setAction(Intent.ACTION_MAIN);
-
-        Intent exitIntent = new Intent(ACTION_STOP);
-        exitIntent.setPackage(getPackageName());
-
-        PendingIntent pIntent = PendingIntent.getActivity(this, 0, preferencesIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        PendingIntent pExitIntent = PendingIntent.getBroadcast(this, 0, exitIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-        NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        return new NotificationCompat.Builder(this, getNotificationChannel(notificationManager))
+        NotificationCompat.Builder builder =  new NotificationCompat.Builder(this, getNotificationChannel(mNotificationManager))
                 .setContentTitle("Termux:X11")
                 .setSmallIcon(R.drawable.ic_x11_icon)
                 .setContentText("Pull down to show options")
-                .setContentIntent(pIntent)
                 .setOngoing(true)
                 .setPriority(Notification.PRIORITY_MAX)
                 .setSilent(true)
                 .setShowWhen(false)
-                .setColor(0xFF607D8B)
-                .addAction(0, "Exit", pExitIntent)
-                .addAction(0, "Preferences", pIntent)
-                .build();
+                .setColor(0xFF607D8B);
+        return mInputHandler.setupNotification(prefs, builder).build();
     }
 
     private String getNotificationChannel(NotificationManager notificationManager){
         String channelId = getResources().getString(R.string.app_name);
         String channelName = getResources().getString(R.string.app_name);
-        NotificationChannel channel = new NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_DEFAULT);
-        channel.setImportance(NotificationManager.IMPORTANCE_DEFAULT);
-        channel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
+        NotificationChannel channel = new NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_HIGH);
+        channel.setImportance(NotificationManager.IMPORTANCE_HIGH);
+        channel.setLockscreenVisibility(Notification.VISIBILITY_SECRET);
         if (SDK_INT >= VERSION_CODES.Q)
             channel.setAllowBubbles(false);
         notificationManager.createNotificationChannel(channel);
@@ -667,14 +662,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
 
-        if (newConfig.orientation != orientation) {
-            View view = getCurrentFocus();
-            if (view == null) {
-                view = getLorieView();
-                view.requestFocus();
-            }
-            inputMethodManager.hideSoftInputFromWindow(view.getWindowToken(), 0);
-        }
+        if (newConfig.orientation != orientation)
+            inputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
 
         orientation = newConfig.orientation;
         setTerminalToolbarView();
@@ -803,7 +792,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             if (!externalKeyboardConnected || showIMEWhileExternalConnected)
                 inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
             else
-                inputMethodManager.hideSoftInputFromWindow(getInstance().getLorieView().getWindowToken(), 0);
+                inputMethodManager.hideSoftInputFromWindow(getInstance().getWindow().getDecorView().getRootView().getWindowToken(), 0);
 
             getInstance().getLorieView().requestFocus();
         }
@@ -879,7 +868,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (textInput != null)
             textInput.setShowSoftInputOnFocus(!connected || showIMEWhileExternalConnected);
         if (connected && !showIMEWhileExternalConnected)
-            inputMethodManager.hideSoftInputFromWindow(getLorieView().getWindowToken(), 0);
+            inputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
         getLorieView().requestFocus();
     }
 }

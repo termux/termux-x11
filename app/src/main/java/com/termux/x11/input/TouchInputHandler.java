@@ -10,6 +10,7 @@ import static android.view.KeyEvent.KEYCODE_VOLUME_DOWN;
 import static android.view.KeyEvent.KEYCODE_VOLUME_UP;
 
 import android.annotation.SuppressLint;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.PointF;
@@ -27,6 +28,7 @@ import android.view.View;
 import android.view.ViewConfiguration;
 
 import androidx.annotation.IntDef;
+import androidx.core.app.NotificationCompat;
 import androidx.core.math.MathUtils;
 
 import com.termux.x11.LoriePreferences;
@@ -470,7 +472,7 @@ public class TouchInputHandler {
             mTouchpadHandler.reloadPreferences(p);
     }
 
-    private Consumer<Boolean> extractUserActionFromPreferences(Prefs p, String name) {
+    public Consumer<Boolean> extractUserActionFromPreferences(Prefs p, String name) {
         LoriePreferences.PrefsProto.Preference pref = p.keys.get(name + "Action");
         if (pref == null)
             return noAction;
@@ -480,10 +482,65 @@ public class TouchInputHandler {
             case "toggle additional key bar": return (down) -> { if (down) mActivity.toggleExtraKeys(); };
             case "open preferences": return (down) -> { if (down) mActivity.startActivity(new Intent(mActivity, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}); };
             case "release pointer and keyboard capture": return (down) -> { if (down) setCapturingEnabled(false); };
-            case "send volume up": return (down) -> MainActivity.getInstance().getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_UP, down);
-            case "send volume down": return (down) -> MainActivity.getInstance().getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_DOWN, down);
+            case "exit": return (down) -> { if (down) mActivity.finish(); };
+            case "send volume up": return (down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_UP, down);
+            case "send volume down": return (down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_DOWN, down);
             default: return noAction;
         }
+    }
+
+    public PendingIntent extractIntentFromPreferences(Prefs p, String name, int requestCode) {
+        LoriePreferences.PrefsProto.Preference pref = p.keys.get(name + "Action");
+        if (pref == null)
+            return null;
+
+        switch(pref.asList().get()) {
+            case "open preferences":
+                return PendingIntent.getActivity(mActivity, requestCode, new Intent(mActivity, LoriePreferences.class) {{
+                    putExtra("key", "value");
+                    setPackage(mActivity.getPackageName());
+                    setAction(Intent.ACTION_MAIN);
+                }}, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            case "exit":
+            case "toggle soft keyboard":
+            case "toggle additional key bar":
+            case "release pointer and keyboard capture":
+                return PendingIntent.getBroadcast(mActivity, requestCode, new Intent(MainActivity.ACTION_CUSTOM) {{
+                    putExtra("what", name);
+                    setPackage(mActivity.getPackageName());
+                }}, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            default: return null;
+        }
+    }
+
+    public String extractTitleFromPreferences(Prefs p, String name) {
+        LoriePreferences.PrefsProto.Preference pref = p.keys.get(name + "Action");
+        if (pref == null)
+            return null;
+
+        switch(pref.asList().get()) {
+            case "open preferences": return "Preferences";
+            case "exit": return "Exit";
+            case "toggle soft keyboard": return "Toggle IME";
+            case "toggle additional key bar": return "Toggle additional keyboard";
+            case "release pointer and keyboard capture": return "Release captures";
+            default: return null;
+        }
+    }
+
+    public NotificationCompat.Builder setupNotification(Prefs prefs, NotificationCompat.Builder builder) {
+        PendingIntent i;
+
+        if ((i = extractIntentFromPreferences(prefs, "notificationTap", 0)) != null)
+            builder.setContentIntent(i);
+
+        if ((i = extractIntentFromPreferences(prefs, "notificationButton0", 1)) != null)
+            builder.addAction(0, extractTitleFromPreferences(prefs, "notificationButton0"), i);
+
+        if ((i = extractIntentFromPreferences(prefs, "notificationButton1", 2)) != null)
+            builder.addAction(0, extractTitleFromPreferences(prefs, "notificationButton1"), i);
+
+        return builder;
     }
 
     public boolean shouldInterceptKeys() {

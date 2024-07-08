@@ -11,6 +11,7 @@ import android.opengl.GLES11Ext;
 import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.RemoteException;
 import android.util.Log;
 import android.view.Display;
@@ -48,6 +49,8 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
     private boolean isImmersive = false;
     private boolean isSBS = false;
+    private boolean hasFocus = false;
+    private boolean keyboardDisabled;
     private long lastEnter;
     private final float[] lastAxes = new float[ControllerAxis.values().length];
     private final boolean[] lastButtons = new boolean[ControllerButton.values().length];
@@ -184,7 +187,27 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     }
 
     @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        this.hasFocus = hasFocus;
+        if (hasFocus) {
+            keyboardDisabled = true;
+            new Handler().postDelayed(() -> keyboardDisabled = false, 250);
+        }
+    }
+
+    @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // Ignore event madness when disabling software keyboard
+        if (keyboardDisabled) {
+            return true;
+        }
+
+        // Bluetooth/OTG keyboards work properly with the standard flow
+        if (hasFocus) {
+            return super.dispatchKeyEvent(event);
+        }
+
         // Meta HorizonOS sends up event only (as for in v66)
         if (event.getAction() == KeyEvent.ACTION_UP) {
 

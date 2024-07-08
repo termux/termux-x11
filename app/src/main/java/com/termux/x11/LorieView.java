@@ -140,7 +140,7 @@ public class LorieView extends SurfaceView implements InputStub {
         int height = getMeasuredHeight();
         if (XrActivity.isEnabled()) {
             width = 1024;
-            height = 1024;
+            height = 768;
         }
         int w = width;
         int h = height;

@@ -49,7 +49,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
     private boolean isImmersive = false;
     private boolean isSBS = false;
-    private boolean hasFocus = false;
     private boolean keyboardDisabled;
     private long lastEnter;
     private final float[] lastAxes = new float[ControllerAxis.values().length];
@@ -189,7 +188,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        this.hasFocus = hasFocus;
         if (hasFocus) {
             keyboardDisabled = true;
             new Handler().postDelayed(() -> keyboardDisabled = false, 250);
@@ -204,7 +202,7 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         }
 
         // Bluetooth/OTG keyboards work properly with the standard flow
-        if (hasFocus) {
+        if (hasWindowFocus()) {
             return super.dispatchKeyEvent(event);
         }
 

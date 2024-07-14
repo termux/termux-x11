@@ -501,6 +501,9 @@ public class TouchInputHandler {
                     setPackage(mActivity.getPackageName());
                     setAction(Intent.ACTION_MAIN);
                 }}, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            case "restart activity":
+                return PendingIntent.getActivity(mActivity, requestCode,
+                        Intent.makeRestartActivityTask(mActivity.getComponentName()), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             case "exit":
             case "toggle soft keyboard":
             case "toggle additional key bar":
@@ -521,6 +524,7 @@ public class TouchInputHandler {
         switch(pref.asList().get()) {
             case "open preferences": return "Preferences";
             case "exit": return "Exit";
+            case "restart activity": return "Restart";
             case "toggle soft keyboard": return "Toggle IME";
             case "toggle additional key bar": return "Toggle additional keyboard";
             case "release pointer and keyboard capture": return "Release captures";

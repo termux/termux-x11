@@ -234,6 +234,11 @@
             app:title="Request notification permission"
             app:key="requestNotificationPermission" />
 
+        <SwitchPreferenceCompat
+            app:title="Meta Oculus XR mode"
+            app:defaultValue="true"
+            app:key="xrMode" />
+
         <Preference
             app:title="Configure response to user actions"
             app:key="configureResponseToUserActions"

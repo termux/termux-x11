@@ -78,7 +78,7 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     }
 
     public static boolean isEnabled() {
-        return isSupported();
+        return prefs.xrMode.get() && isSupported();
     }
 
     public static boolean isSupported() {

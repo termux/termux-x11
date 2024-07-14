@@ -138,6 +138,10 @@ public class LorieView extends SurfaceView implements InputStub {
         Prefs prefs = MainActivity.getPrefs();
         int width = getMeasuredWidth();
         int height = getMeasuredHeight();
+        if (XrActivity.isEnabled()) {
+            width = 1024;
+            height = 768;
+        }
         int w = width;
         int h = height;
         switch(prefs.displayResolutionMode.get()) {
@@ -180,8 +184,11 @@ public class LorieView extends SurfaceView implements InputStub {
         if (prefs.displayStretch.get()
               || "native".equals(prefs.displayResolutionMode.get())
               || "scaled".equals(prefs.displayResolutionMode.get())) {
-            getHolder().setSizeFromLayout();
-            return;
+
+            if (!XrActivity.isEnabled()) {
+                getHolder().setSizeFromLayout();
+                return;
+            }
         }
 
         getDimensionsFromSettings();

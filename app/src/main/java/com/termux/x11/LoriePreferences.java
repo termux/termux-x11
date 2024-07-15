@@ -49,7 +49,6 @@ import android.text.method.LinkMovementMethod;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Display;
-import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.MenuItem;
 import android.view.View;
@@ -309,9 +308,9 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             setEnabled("enableAccessibilityServiceAutomatically", !prefs.dexMetaKeyCapture.get());
             setEnabled("pauseKeyInterceptingWithEsc", prefs.dexMetaKeyCapture.get() ||
                     prefs.enableAccessibilityServiceAutomatically.get() ||
-                    KeyInterceptor.isEnabled());
-            setEnabled("enableAccessibilityServiceAutomatically", prefs.enableAccessibilityServiceAutomatically.get() || KeyInterceptor.isEnabled());
-            setEnabled("filterOutWinkey", prefs.enableAccessibilityServiceAutomatically.get() || KeyInterceptor.isEnabled());
+                    KeyInterceptor.isLaunched());
+            setEnabled("enableAccessibilityServiceAutomatically", prefs.enableAccessibilityServiceAutomatically.get() || KeyInterceptor.isLaunched());
+            setEnabled("filterOutWinkey", prefs.enableAccessibilityServiceAutomatically.get() || KeyInterceptor.isLaunched());
 
             boolean displayStretchEnabled = "exact".contentEquals(prefs.displayResolutionMode.get()) || "custom".contentEquals(prefs.displayResolutionMode.get());
             setEnabled("displayStretch", displayStretchEnabled);

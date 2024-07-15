@@ -154,7 +154,11 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
         int id = item.getItemId();
 
         if (id == android.R.id.home) {
-            onBackPressed();
+            if (getSupportFragmentManager().getBackStackEntryCount() == 0)
+                finish();
+            else
+                onBackPressed();
+
             return true;
         }
 

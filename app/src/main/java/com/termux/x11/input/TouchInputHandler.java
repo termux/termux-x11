@@ -516,20 +516,15 @@ public class TouchInputHandler {
         }
     }
 
+    @SuppressLint("DiscouragedApi")
     public String extractTitleFromPreferences(Prefs p, String name) {
         LoriePreferences.PrefsProto.Preference pref = p.keys.get(name + "Action");
         if (pref == null)
             return null;
 
-        switch(pref.asList().get()) {
-            case "open preferences": return "Preferences";
-            case "exit": return "Exit";
-            case "restart activity": return "Restart";
-            case "toggle soft keyboard": return "Toggle IME";
-            case "toggle additional key bar": return "Toggle additional keyboard";
-            case "release pointer and keyboard capture": return "Release captures";
-            default: return null;
-        }
+        String key = pref.asList().get().replace(' ', '_');
+        int id = mActivity.getResources().getIdentifier("notification_" + key, "string", mActivity.getPackageName());
+        return id == 0 ? null : mActivity.getResources().getString(id);
     }
 
     public NotificationCompat.Builder setupNotification(Prefs prefs, NotificationCompat.Builder builder) {

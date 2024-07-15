@@ -39,9 +39,9 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.PreferenceDataStore;
 import androidx.preference.PreferenceFragmentCompat;
-import androidx.preference.PreferenceGroup;
 
 import androidx.preference.Preference.OnPreferenceChangeListener;
+import androidx.preference.PreferenceScreen;
 import androidx.preference.SeekBarPreference;
 
 import android.provider.Settings;
@@ -221,6 +221,12 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                 action.accept(p);
         }
 
+        @SuppressLint("DiscouragedApi")
+        int findId(String name) {
+            //noinspection DataFlowIssue
+            return getResources().getIdentifier("pref_" + name, "string", getContext().getPackageName());
+        }
+
         /** @noinspection DataFlowIssue*/
         @Override @SuppressLint("ApplySharedPref")
         public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
@@ -230,17 +236,37 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                 prefs.touchMode.put("1");
 
             setPreferencesFromResource(R.xml.preferences, root == null ? "main" : root);
+
+            int id;
+            PreferenceScreen screen = getPreferenceScreen();
+            if ((id = findId(screen.getKey())) != 0)
+                getPreferenceScreen().setTitle(getResources().getString(id));
+            for (int i=0; i<getPreferenceScreen().getPreferenceCount(); i++) {
+                Preference p = screen.getPreference(i);
+                p.setOnPreferenceChangeListener(this);
+                p.setPreferenceDataStore(prefs);
+
+                if ((id = findId(p.getKey())) != 0)
+                    p.setTitle(getResources().getString(id));
+
+                if ((id = findId(p.getKey() + "_summary")) != 0)
+                    p.setSummary(getResources().getString(id));
+
+                if (p instanceof ListPreference) {
+                    ListPreference list = (ListPreference) p;
+                    list.setEntries(prefs.keys.get(p.getKey()).asList().getEntries());
+                    list.setEntryValues(prefs.keys.get(p.getKey()).asList().getValues());
+                    list.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
+                }
+            }
+
             with("showAdditionalKbd", p -> p.setLayoutResource(R.layout.preference));
             with("version", p -> p.setSummary(BuildConfig.VERSION_NAME));
 
-            String requiresExactOrCustom = "Requires \"display resolution mode\" to be \"exact\" or \"custom\"";
-            String requiresIntercepting = "Requires intercepting system shortcuts with Dex mode or with Accessibility service";
-            String requiresTrackpadAndNative = "Requires \"Touchscreen input mode\" to be \"Trackpad\" and \"Display resolution mode\" to be not \"native\"";
-
-            setSummary("displayStretch", requiresExactOrCustom);
-            setSummary("adjustResolution", requiresExactOrCustom);
-            setSummary("pauseKeyInterceptingWithEsc", requiresIntercepting);
-            setSummary("scaleTouchpad", requiresTrackpadAndNative);
+            setSummary("displayStretch", R.string.pref_summary_requiresExactOrCustom);
+            setSummary("adjustResolution", R.string.pref_summary_requiresExactOrCustom);
+            setSummary("pauseKeyInterceptingWithEsc", R.string.pref_summary_requiresIntercepting);
+            setSummary("scaleTouchpad", R.string.pref_summary_requiresTrackpadAndNative);
 
             if (!SamsungDexUtils.available())
                 setVisible("dexMetaKeyCapture", false);
@@ -256,26 +282,18 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             setVisible("showStylusClickOverride", stylusAvailable);
             setVisible("stylusIsMouse", stylusAvailable);
             setVisible("stylusButtonContactModifierMode", stylusAvailable);
-
-            ListPreference p;
-            for (String key: prefs.keys.keySet()) {
-                if (!key.endsWith("Action") || (p = findPreference(key)) == null)
-                    continue;
-
-                p.setEntries(prefs.keys.get(key).asList().getEntries());
-                p.setEntryValues(prefs.keys.get(key).asList().getValues());
-            }
+            setVisible("xrMode", XrActivity.isSupported());
 
             setNoActionOptionText(findPreference("volumeDownAction"), "android volume control");
             setNoActionOptionText(findPreference("volumeUpAction"), "android volume control");
         }
 
-        private void setSummary(CharSequence key, CharSequence disabled) {
+        private void setSummary(CharSequence key, int disabled) {
             Preference pref = findPreference(key);
             if (pref != null)
                 pref.setSummaryProvider(new Preference.SummaryProvider<>() {
                     @Nullable @Override public CharSequence provideSummary(@NonNull Preference p) {
-                        return p.isEnabled() ? null : disabled;
+                        return p.isEnabled() ? null : getResources().getString(disabled);
                     }
                 });
         }
@@ -297,7 +315,11 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             if (getContext() == null)
                 return;
 
-            reloadPrefs();
+            for (String key : prefs.keys.keySet()) {
+                Preference p = findPreference(key);
+                if (p != null)
+                    onSetInitialValue(p);
+            }
 
             String displayResMode = prefs.displayResolutionMode.get();
             setVisible("displayScale", displayResMode.contentEquals("scaled"));
@@ -341,18 +363,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
         public void onCreate(final Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
 
-            setListeners(getPreferenceScreen());
             updatePreferencesLayout();
-        }
-
-        void setListeners(PreferenceGroup g) {
-            for (int i=0; i < g.getPreferenceCount(); i++) {
-                g.getPreference(i).setOnPreferenceChangeListener(this);
-                g.getPreference(i).setPreferenceDataStore(prefs);
-
-                if (g.getPreference(i) instanceof PreferenceGroup)
-                    setListeners((PreferenceGroup) g.getPreference(i));
-            }
         }
 
         @Override
@@ -376,14 +387,6 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
             updatePreferencesLayout();
             return super.onPreferenceTreeClick(p);
-        }
-
-        public void reloadPrefs() {
-            for (String key : prefs.keys.keySet()) {
-                Preference p = findPreference(key);
-                if (p != null)
-                    onSetInitialValue(p);
-            }
         }
 
         @SuppressLint("ApplySharedPref")

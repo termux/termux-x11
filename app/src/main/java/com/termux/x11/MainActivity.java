@@ -635,7 +635,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         NotificationCompat.Builder builder =  new NotificationCompat.Builder(this, getNotificationChannel(mNotificationManager))
                 .setContentTitle("Termux:X11")
                 .setSmallIcon(R.drawable.ic_x11_icon)
-                .setContentText("Pull down to show options")
+                .setContentText(getResources().getText(R.string.notification_content_text))
                 .setOngoing(true)
                 .setPriority(Notification.PRIORITY_MAX)
                 .setSilent(true)

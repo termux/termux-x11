@@ -96,8 +96,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     public static Prefs prefs = null;
 
-    private static boolean oldFullscreen = false;
-    private static boolean oldHideCutout = false;
+    private static boolean oldFullscreen = false, oldHideCutout = false, oldXrMode = false;
     private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> onPreferencesChanged(key);
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -162,6 +161,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         oldFullscreen = prefs.fullscreen.get();
         oldHideCutout = prefs.hideCutout.get();
+        oldXrMode = prefs.xrMode.get();
 
         prefs.get().registerOnSharedPreferenceChangeListener(preferencesChangedListener);
 
@@ -513,6 +513,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     void onPreferencesChanged(String key) {
         prefs.recheckStoringSecondaryDisplayPreferences();
+
+        if (oldXrMode != prefs.xrMode.get() && XrActivity.isSupported() &&
+                prefs.xrMode.get() != this instanceof XrActivity) {
+            startActivity(Intent.makeRestartActivityTask(getComponentName()));
+            finish();
+        }
 
         if ("additionalKbdVisible".equals(key))
             return;

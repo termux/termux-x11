@@ -22,6 +22,7 @@
         <ListPreference app:key="forceOrientation" app:defaultValue="no" app:entries="@array/forceOrientationVariants" app:entryValues="@array/forceOrientationVariants" />
         <SwitchPreferenceCompat app:key="hideCutout" app:defaultValue="false" />
         <SwitchPreferenceCompat app:defaultValue="true" app:key="keepScreenOn" />
+        <SwitchPreferenceCompat app:key="xrMode" app:defaultValue="false" />
     </PreferenceScreen>
     <PreferenceScreen app:key="pointer">
         <ListPreference app:key="touchMode" app:defaultValue="1" app:entries="@array/touchscreenInputModesEntries" app:entryValues="@array/touchscreenInputModesValues" />
@@ -54,7 +55,6 @@
     <PreferenceScreen app:key="other">
         <SwitchPreferenceCompat app:key="clipboardEnable" app:defaultValue="true" />
         <Preference app:key="requestNotificationPermission" />
-        <SwitchPreferenceCompat app:key="xrMode" app:defaultValue="false" />
         <Preference app:key="configureResponseToUserActions" app:fragment="userActions" />
         <SwitchPreferenceCompat app:key="storeSecondaryDisplayPreferencesSeparately" app:defaultValue="false" />
     </PreferenceScreen>

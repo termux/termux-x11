@@ -67,10 +67,10 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         // We should not care about multiple instances, it should be called only by `Termux:X11` app
         // which is single instance...
         Bundle bundle = new Bundle();
-        bundle.putBinder("", this);
+        bundle.putBinder(null, this);
 
         Intent intent = new Intent(ACTION_START);
-        intent.putExtra("", bundle);
+        intent.putExtra(null, bundle);
         intent.setPackage(targetPackage);
 
         if (getuid() == 0 || getuid() == 2000)

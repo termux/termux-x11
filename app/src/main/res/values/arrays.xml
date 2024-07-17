@@ -62,6 +62,7 @@
         <item>toggle additional key bar</item>
         <item>open preferences</item>
         <item>release pointer and keyboard capture</item>
+        <item>toggle fullscreen</item>
         <item>restart activity</item>
         <item>exit</item>
     </string-array>

@@ -24,6 +24,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="notification_toggle_soft_keyboard">Toggle IME</string>
     <string name="notification_toggle_additional_key_bar">Toggle additional keyboard</string>
     <string name="notification_release_pointer_and_keyboard_capture">Release captures</string>
+    <string name="notification_toggle_fullscreen">Toggle fullscreen</string>
 
     <string name="pref_main">Preferences</string>
     <string name="pref_output">Output</string>

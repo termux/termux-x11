@@ -529,12 +529,16 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         handler.postDelayed(this::onPreferencesChangedCallback, 100);
     }
 
+    /** @noinspection CommentedOutCode*/
+    @SuppressLint("UnsafeIntentLaunch")
     void onPreferencesChangedCallback() {
         prefs.recheckStoringSecondaryDisplayPreferences();
 
         if (oldXrMode != prefs.xrMode.get() && XrActivity.isSupported() &&
                 prefs.xrMode.get() != this instanceof XrActivity) {
-            startActivity(Intent.makeRestartActivityTask(getComponentName()));
+            /* Going back to 2d mode does not work */
+            // getBaseContext().startActivity(new Intent(this, MainActivity.class)
+            //        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
             finish();
             return;
         }

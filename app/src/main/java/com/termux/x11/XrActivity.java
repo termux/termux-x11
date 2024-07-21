@@ -2,11 +2,12 @@ package com.termux.x11;
 
 import android.app.Activity;
 import android.app.ActivityOptions;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
-import android.hardware.display.DisplayManager;
 import android.opengl.GLES11Ext;
 import android.opengl.GLSurfaceView;
 import android.os.Build;
@@ -44,6 +45,8 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         CANVAS_DISTANCE, IMMERSIVE, PASSTHROUGH, SBS, VIEWPORT_WIDTH, VIEWPORT_HEIGHT,
     }
 
+    public static final String ACTION_STOP_XR = "com.termux.x11.CmdEntryPoint.ACTION_STOP_XR";
+
     private static boolean isDeviceDetectionFinished = false;
     private static boolean isDeviceSupported = false;
 
@@ -67,6 +70,16 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         view.setEGLContextClientVersion(2);
         view.setRenderer(this);
         frm.addView(view);
+
+        registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (ACTION_STOP_XR.equals(intent.getAction())) {
+                    teardown();
+                    System.exit(0);
+                }
+            }
+        }, new IntentFilter(ACTION_STOP_XR) {}, 0);
     }
 
     @Override
@@ -101,7 +114,7 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         Intent intent = new Intent(context, XrActivity.class);
 
         // 1. Locate the main display ID and add that to the intent
-        final int mainDisplayId = getMainDisplay(context);
+        final int mainDisplayId = Display.DEFAULT_DISPLAY;
         ActivityOptions options = ActivityOptions.makeBasic().setLaunchDisplayId(mainDisplayId);
 
         // 2. Set the flags: start in a new task
@@ -113,17 +126,6 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
 
         // 4. Finish the previous activity: this avoids an audio bug
         context.finish();
-    }
-
-    private static int getMainDisplay(Context context) {
-        final DisplayManager displayManager =
-                (DisplayManager) context.getSystemService(Context.DISPLAY_SERVICE);
-        for (Display display : displayManager.getDisplays()) {
-            if (display.getDisplayId() == Display.DEFAULT_DISPLAY) {
-                return display.getDisplayId();
-            }
-        }
-        return -1;
     }
 
     @Override
@@ -377,8 +379,8 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
     private native void teardown();
     private native boolean beginFrame();
     private native void finishFrame();
-    public native float[] getAxes();
-    public native boolean[] getButtons();
-    public native int getRenderParam(int param);
-    public native void setRenderParam(int param, int value);
+    private native float[] getAxes();
+    private native boolean[] getButtons();
+    private native int getRenderParam(int param);
+    private native void setRenderParam(int param, int value);
 }

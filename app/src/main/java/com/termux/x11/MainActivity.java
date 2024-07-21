@@ -534,11 +534,17 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     void onPreferencesChangedCallback() {
         prefs.recheckStoringSecondaryDisplayPreferences();
 
-        if (oldXrMode != prefs.xrMode.get() && XrActivity.isSupported() &&
-                prefs.xrMode.get() != this instanceof XrActivity) {
-            /* Going back to 2d mode does not work */
-            // getBaseContext().startActivity(new Intent(this, MainActivity.class)
-            //        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
+        if (oldXrMode != prefs.xrMode.get() && XrActivity.isSupported()) {
+            getBaseContext().startActivity(new Intent(this, MainActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
+
+            if (oldXrMode) {
+                // XR process and 2D preferences screen are two different processes.
+                // To close XR, it is needed to do it using a broadcast.
+                Intent intent = new Intent(XrActivity.ACTION_STOP_XR);
+                intent.setPackage(getPackageName());
+                getBaseContext().sendBroadcast(intent);
+            }
             finish();
             return;
         }

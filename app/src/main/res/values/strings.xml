@@ -47,7 +47,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="pref_PIP_summary">Show app in picture-in-picture mode when home button or recents button is pressed</string>
     <string name="pref_fullscreen">Fullscreen</string>
     <string name="pref_fullscreen_summary">Toggle immersive mode in your device display</string>
-    <string name="pref_forceOrientation">Force screen orientation</string>
+    <string name="pref_forceOrientation">Screen orientation</string>
     <string name="pref_hideCutout">Hide display cutout (if any)</string>
     <string name="pref_keepScreenOn">Keep Screen On</string>
 

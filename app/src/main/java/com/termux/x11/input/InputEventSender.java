@@ -42,12 +42,14 @@ public final class InputEventSender {
 
     /** Set of pressed keys for which we've sent TextEvent. */
     private final TreeSet<Integer> mPressedTextKeys;
+    private final TreeSet<Integer> mPressedKeys;
 
     public InputEventSender(InputStub injector) {
         if (injector == null)
             throw new NullPointerException();
         mInjector = injector;
         mPressedTextKeys = new TreeSet<>();
+        mPressedKeys = new TreeSet<>();
     }
 
     private static final List<Integer> buttons = List.of(BUTTON_UNDEFINED, BUTTON_LEFT, BUTTON_MIDDLE, BUTTON_RIGHT);
@@ -146,6 +148,11 @@ public final class InputEventSender {
         int keyCode = e.getKeyCode();
         boolean pressed = e.getAction() == KeyEvent.ACTION_DOWN;
 
+        if ((e.getFlags() & KeyEvent.FLAG_CANCELED) == KeyEvent.FLAG_CANCELED) {
+            android.util.Log.d("KeyEvent", "We've got key event with FLAG_CANCELED, it will not be consumed. Details: " + e);
+            return true;
+        }
+
         // Events received from software keyboards generate TextEvent in two
         // cases:
         //   1. This is an ACTION_MULTIPLE event.
@@ -211,8 +218,15 @@ public final class InputEventSender {
         }
 
         // Ignoring Android's autorepeat.
-        if (e.getRepeatCount() > 0)
+        // But some weird IMEs (or firmwares) send first event with repeatCount=1 (not 0)
+        // Probably related to preceding event with FLAG_CANCELLED flag
+        if (e.getRepeatCount() > 0 && mPressedKeys.contains(keyCode))
             return true;
+
+        if (pressed)
+            mPressedKeys.add(keyCode);
+        else
+            mPressedKeys.remove(keyCode);
 
         if (keyCode == KEYCODE_ESCAPE && !pressed && e.hasNoModifiers())
             MainActivity.setCapturingEnabled(false);

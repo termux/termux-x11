@@ -58,7 +58,7 @@ E.g. <b>元</b> 于 <i>元键</i>, \n
     <string name="pref_stylusIsMouse">启用触控笔鼠标模式</string>
     <string name="pref_stylusIsMouse_summary">让您的触控笔像鼠标一样工作。激活后，触控笔将只移动光标并发送鼠标点击，忽略压力、角度和倾斜</string>
     <string name="pref_stylusButtonContactModifierMode">触控笔按钮接触修饰模式</string>
-    <string name="pref_stylusButtonContactModifierMode_summary">启用此选项，仅当触控笔触碰到屏幕时才发送鼠标右键或中键</string></string>
+    <string name="pref_stylusButtonContactModifierMode_summary">启用此选项，仅当触控笔触碰到屏幕时才发送鼠标右键或中键</string>
     <string name="pref_showMouseHelper">显示鼠标点击助手覆盖</string>
     <string name="pref_showMouseHelper_summary">触摸板可用屏幕鼠标按钮</string>
     <string name="pref_pointerCapture">尽可能捕获外部指针设备</string>

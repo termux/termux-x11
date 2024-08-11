@@ -6,11 +6,11 @@
 <resources>
     <string name="app_name">&TERMUX_X11_APP_NAME;</string>
 
-    <string name="not_connected">未连接</string>
+    <string name="not_connected">无连接</string>
     <string name="preferences_button_text">   偏好   </string>
     <string name="help_button_text">   帮助   </string>
     <string name="exit_button_text">   退出   </string>
-    <string name="extra_keys_config_desc">在这里，你可以像Termux应用程序一样设置额外键变量的值 (读 <a href="http://wiki.termux.com/wiki/Touch_Keyboard#Extra_Keys_Row">这里</a>) 和更多的 \n
+    <string name="extra_keys_config_desc">在这里，你可以像Termux应用程序一样设置额外键变量的值 (读 <a href="http://wiki.termux.com/wiki/Touch_Keyboard#Extra_Keys_Row">这里</a>) 和更多 \n
 E.g. <b>元</b> 于 <i>元键</i>, \n
 <b>键盘</b> 于 <i>软键盘切换键</i>, \n
 <b>偏好</b> 于 <i>偏好设置打开键</i>, \n

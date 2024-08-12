@@ -75,7 +75,7 @@
         <item>send volume up</item>
     </string-array>
     <string-array name="forceOrientationVariants">
-        <item>no</item>
+        <item>auto</item>
         <item>portrait</item>
         <item>landscape</item>
         <item>reverse portrait</item>

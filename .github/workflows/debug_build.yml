@@ -27,7 +27,7 @@ jobs:
       with:
         submodules: recursive
     - name: Validation
-      uses: gradle/actions/wrapper-validation@v3
+      uses: gradle/actions/wrapper-validation@v4
       
     - name: Java setup
       uses: actions/setup-java@v4

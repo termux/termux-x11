@@ -25,12 +25,13 @@ or
 Just like any other X server.
 
 ## Setup Instructions
-Application runs only on Android 8+ devices.
-For this one you must enable the `x11-repo` repository can be done by executing `pkg install x11-repo` command
+Termux:X11 requres Android 8 or later. It consists of an Android app and a companion termux package, and you must install both.
 
-For X applications to work, you must install Termux-x11 companion package. 
-You can install nightly companion package from repositories with `pkg in x11-repo && pkg in termux-x11-nightly`
-Or you can download an artifact from [last successful build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml) and installing `termux-x11-*-debug.apk` (according to device `architecture`, universal if you are doubting) and `*.deb` (if you use termux with `pkg`) or `*.tar.xz` (if you use termux with `pacman`) files from `termux-companion packages` artifact.
+The Android app is available via the [nightly release tag](https://github.com/termux/termux-x11/releases/tag/nightly) of this repository. Download and install the `app-$ARCHITECTURE-debug.apk` matching your device's CPU architecture. (You can choose `app-universal-debug.apk` if you are not sure which architecture to pick, and it'll use a few extra MB of storage.) 
+
+The companion termux package is available from the termux graphical repository. You can ensure it's enabled and install this package with `pkg i x11-repo && pkg i termux-x11-nightly`. If you need to, you can also download a `.deb` or `*.tar.xz` from the same nightly release tag as above.
+
+Finally, most people will want to use a desktop environment with Termux:X11. If you don't know what that means or don't know which one to pick, run `pkg i xfce` (also from `x11-repo`) to install a good one to start with. The rest of these instructions will assume that your goal is to run an XFCE desktop, or that you can modify the instructions as you follow them for your actual goal.
 
 ## Running Graphical Applications
 You can start your desired graphical application by doing:

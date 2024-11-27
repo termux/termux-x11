@@ -507,7 +507,7 @@ lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD
 static Bool
 lorieRRCrtcSet(unused ScreenPtr pScreen, RRCrtcPtr crtc, RRModePtr mode, int x, int y,
                Rotation rotation, int numOutput, RROutputPtr *outputs) {
-  return RRCrtcNotify(crtc, mode, x, y, rotation, NULL, numOutput, outputs);
+  return (crtc && mode) ? RRCrtcNotify(crtc, mode, x, y, rotation, NULL, numOutput, outputs) : FALSE;
 }
 
 static Bool

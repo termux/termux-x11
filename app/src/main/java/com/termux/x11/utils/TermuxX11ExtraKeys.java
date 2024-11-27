@@ -1,7 +1,6 @@
 package com.termux.x11.utils;
 
 import static com.termux.shared.termux.extrakeys.ExtraKeysConstants.PRIMARY_KEY_CODES_FOR_STRINGS;
-import static com.termux.x11.MainActivity.isConnected;
 import static com.termux.x11.MainActivity.toggleKeyboardVisibility;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -16,7 +15,6 @@ import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.Button;
-import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -24,7 +22,6 @@ import androidx.annotation.NonNull;
 import com.termux.shared.termux.extrakeys.*;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.MainActivity;
-import com.termux.x11.R;
 
 import org.json.JSONException;
 
@@ -57,34 +54,33 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
 
     @Override
     public void onExtraKeyButtonClick(View view, ExtraKeyButton buttonInfo, Button button) {
-        Log.e("keys", "key " + buttonInfo.display);
         if (buttonInfo.macro) {
             String[] keys = buttonInfo.key.split(" ");
-            boolean ctrlDown = false;
-            boolean altDown = false;
-            boolean shiftDown = false;
-            boolean metaDown = false;
-            boolean fnDown = false;
+            boolean ctrlDown = false, altDown = false, shiftDown = false, metaDown = false, fnDown = false;
             for (String key : keys) {
-                if (SpecialButton.CTRL.getKey().equals(key)) {
+                if (SpecialButton.CTRL.getKey().equals(key))
                     ctrlDown = true;
-                } else if (SpecialButton.ALT.getKey().equals(key)) {
+                else if (SpecialButton.ALT.getKey().equals(key))
                     altDown = true;
-                } else if (SpecialButton.SHIFT.getKey().equals(key)) {
+                else if (SpecialButton.SHIFT.getKey().equals(key))
                     shiftDown = true;
-                } else if (SpecialButton.META.getKey().equals(key)) {
+                else if (SpecialButton.META.getKey().equals(key))
                     metaDown = true;
-                } else if (SpecialButton.FN.getKey().equals(key)) {
+                else if (SpecialButton.FN.getKey().equals(key))
                     fnDown = true;
-                } else {
-                    ctrlDown = false;
-                    altDown = false;
-                    shiftDown = false;
-                    metaDown = false;
-                    fnDown = false;
-                }
-                onLorieExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, metaDown, fnDown);
             }
+
+            for (String key : keys) {
+                if (!SpecialButton.CTRL.getKey().equals(key)
+                        && !SpecialButton.ALT.getKey().equals(key)
+                        && !SpecialButton.SHIFT.getKey().equals(key)
+                        && !SpecialButton.META.getKey().equals(key)
+                        && !SpecialButton.FN.getKey().equals(key))
+                    onLorieExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, metaDown, fnDown);
+            }
+
+            if (ctrlDown || altDown || shiftDown || metaDown || fnDown)
+                onLorieExtraKeyButtonClick(view, null, false, false, false, false, false);
         } else {
             onLorieExtraKeyButtonClick(view, buttonInfo.key, false, false, false, false, false);
         }
@@ -117,7 +113,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
 
             mActivity.getLorieView().sendKeyEvent(0, keyCode, true);
             mActivity.getLorieView().sendKeyEvent(0, keyCode, false);
-        } else {
+        } else if (key != null) {
             // not a control char
             mActivity.getLorieView().sendTextEvent(key.getBytes(UTF_8));
         }

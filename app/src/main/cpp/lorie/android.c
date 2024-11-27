@@ -564,7 +564,10 @@ Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, jobject thiz) {
         if (read(conn_fd, &e, sizeof(e)) == sizeof(e)) {
             switch(e.type) {
                 case EVENT_CLIPBOARD_SEND: {
+                    if (!e.clipboardSend.count)
+                        break;
                     char clipboard[e.clipboardSend.count + 1];
+                    memset(clipboard, 0, e.clipboardSend.count + 1);
                     read(conn_fd, clipboard, sizeof(clipboard));
                     clipboard[e.clipboardSend.count] = 0;
                     log(DEBUG, "Clipboard content (%zu symbols) is %s", strlen(clipboard), clipboard);

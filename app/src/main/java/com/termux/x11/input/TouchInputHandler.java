@@ -211,7 +211,9 @@ public class TouchInputHandler {
             /** @noinspection DataFlowIssue*/
             @Override
             public void onInputDeviceAdded(int deviceId) {
-                android.util.Log.d("InputDeviceListener", "added " + InputDevice.getDevice(deviceId).getName());
+                InputDevice dev = InputDevice.getDevice(deviceId);
+                String name = dev != null ? dev.getName() : "null";
+                android.util.Log.d("InputDeviceListener", "added " + name);
                 refreshInputDevices();
             }
 
@@ -224,7 +226,9 @@ public class TouchInputHandler {
             /** @noinspection DataFlowIssue*/
             @Override
             public void onInputDeviceChanged(int deviceId) {
-                android.util.Log.d("InputDeviceListener", "changed " + InputDevice.getDevice(deviceId).getName());
+                InputDevice dev = InputDevice.getDevice(deviceId);
+                String name = dev != null ? dev.getName() : "null";
+                android.util.Log.d("InputDeviceListener", "changed " + name);
                 refreshInputDevices();
             }
         }, null);

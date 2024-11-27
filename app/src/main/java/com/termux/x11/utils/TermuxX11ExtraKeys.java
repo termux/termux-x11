@@ -79,8 +79,10 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
                     onLorieExtraKeyButtonClick(view, key, ctrlDown, altDown, shiftDown, metaDown, fnDown);
             }
 
-            if (ctrlDown || altDown || shiftDown || metaDown || fnDown)
+            if (ctrlDown || altDown || shiftDown || metaDown || fnDown) {
                 onLorieExtraKeyButtonClick(view, null, false, false, false, false, false);
+                unsetSpecialKeys();
+            }
         } else {
             onLorieExtraKeyButtonClick(view, buttonInfo.key, false, false, false, false, false);
         }

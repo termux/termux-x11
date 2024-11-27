@@ -238,6 +238,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         }
 
         onReceiveConnection(getIntent());
+        findViewById(android.R.id.content).addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> makeSureHelpersAreVisibleAndInScreenBounds());
     }
 
     @Override
@@ -352,13 +353,35 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         }
     }
 
+    private void makeSureHelpersAreVisibleAndInScreenBounds() {
+        int[] offset = new int[2];
+        int[] offset2 = new int[2];
+        View mouseAuxButtons = findViewById(R.id.mouse_buttons);
+        View stylusAuxButtons = findViewById(R.id.mouse_helper_visibility);
+        frm.getLocationInWindow(offset2);
+
+        if (mouseAuxButtons.getVisibility() == View.VISIBLE) {
+            mouseAuxButtons.getLocationInWindow(offset);
+            mouseAuxButtons.setX(MathUtils.clamp(offset[0], offset2[0], offset2[0] + frm.getWidth() - mouseAuxButtons.getWidth()));
+            mouseAuxButtons.setY(MathUtils.clamp(offset[1], offset2[1], offset2[1] + frm.getHeight() - mouseAuxButtons.getHeight()));
+        }
+
+        if (stylusAuxButtons.getVisibility() == View.VISIBLE) {
+            stylusAuxButtons.getLocationInWindow(offset);
+            stylusAuxButtons.setX(MathUtils.clamp(offset[0], offset2[0], offset2[0] + frm.getWidth() - stylusAuxButtons.getWidth()));
+            stylusAuxButtons.setY(MathUtils.clamp(offset[1], offset2[1], offset2[1] + frm.getHeight() - stylusAuxButtons.getHeight()));
+        }
+    }
+
     public void toggleStylusAuxButtons() {
         showMouseAuxButtons(findViewById(R.id.mouse_helper_visibility).getVisibility() != View.VISIBLE);
+        makeSureHelpersAreVisibleAndInScreenBounds();
     }
 
     private void showMouseAuxButtons(boolean show) {
         findViewById(R.id.mouse_buttons)
                 .setVisibility((mClientConnected && show && "1".equals(prefs.touchMode.get())) ? View.VISIBLE : View.GONE);
+        makeSureHelpersAreVisibleAndInScreenBounds();
     }
 
     public void toggleMouseAuxButtons() {

@@ -255,6 +255,7 @@ int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
             loge("Failed to lock native buffer (%p, error %d)", new, status);
             loge("Forcing legacy drawing");
             *legacy_drawing = 1;
+            AHardwareBuffer_release(new);
             return 1;
         }
 
@@ -276,6 +277,7 @@ int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
                 loge("Forcing legacy drawing");
                 *legacy_drawing = 1;
             }
+            AHardwareBuffer_release(new);
         } else {
             // For some reason all devices I checked had no GL_EXT_texture_format_BGRA8888 support, but some of them still provided BGRA extension.
             // EGL does not provide functions to query texture format in runtime.
@@ -341,6 +343,10 @@ int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
                 *legacy_drawing = 1;
             }
             eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+            eglDestroyContext(egl_display, testctx);
+            eglDestroyImageKHR(egl_display, img);
+            eglDestroySurface(egl_display, checksfc);
+            AHardwareBuffer_release(new);
         }
     }
 

@@ -25,7 +25,7 @@ or
 Just like any other X server.
 
 ## Setup Instructions
-Termux:X11 requres Android 8 or later. It consists of an Android app and a companion termux package, and you must install both.
+Termux:X11 requires Android 8 or later. It consists of an Android app and a companion termux package, and you must install both.
 
 The Android app is available via the [nightly release tag](https://github.com/termux/termux-x11/releases/tag/nightly) of this repository. Download and install the `app-$ARCHITECTURE-debug.apk` matching your device's CPU architecture. (You can choose `app-universal-debug.apk` if you are not sure which architecture to pick, and it'll use a few extra MB of storage.) 
 

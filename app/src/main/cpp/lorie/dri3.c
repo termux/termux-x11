@@ -9,6 +9,7 @@
 #include <android/hardware_buffer.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include "drm_fourcc.h"
 #include "screenint.h"
 #include "lorie.h"
 #include "renderer.h"
@@ -441,12 +442,13 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
         return NULL;
     }
 
-    if (modifier != RAW_MMAPPABLE_FD && modifier != AHARDWAREBUFFER_SOCKET_FD) {
+    if (modifier != RAW_MMAPPABLE_FD && modifier != AHARDWAREBUFFER_SOCKET_FD &&
+        modifier != DRM_FORMAT_MOD_INVALID) {
         log(ERROR, "DRI3: Modifier is not RAW_MMAPPABLE_FD or AHARDWAREBUFFER_SOCKET_FD");
         return NULL;
     }
 
-    if (modifier == RAW_MMAPPABLE_FD) {
+    if (modifier == DRM_FORMAT_MOD_INVALID || modifier == RAW_MMAPPABLE_FD) {
         void *addr = mmap(NULL, strides[0] * height, PROT_READ, MAP_SHARED, fds[0], offsets[0]);
         if (!addr || addr == MAP_FAILED) {
             log(ERROR, "DRI3: RAW_MMAPPABLE_FD: mmap failed");

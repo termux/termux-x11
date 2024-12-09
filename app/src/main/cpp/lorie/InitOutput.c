@@ -71,6 +71,7 @@ from The Open Group.
 #include "cursorstr.h"
 #include "propertyst.h"
 #include "shmint.h"
+#include "misyncshm.h"
 #include "glxserver.h"
 #include "glxutil.h"
 #include "fbconfigs.h"
@@ -591,6 +592,7 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
 
     QueueWorkProc(resetRootCursor, NULL, NULL);
     ShmRegisterFbFuncs(pScreen);
+    miSyncShmScreenInit(pScreen);
 
     return TRUE;
 }                               /* end lorieScreenInit */

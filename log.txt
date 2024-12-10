@@ -1,0 +1,40 @@
+12-10 12:28:54.790  9774  9774 I shmem   : int libandroid_shmdt(const void *): deleting shmid 262e0002
+12-10 12:28:54.790  9774  9774 I shmem   : void *libandroid_shmat(int, const void *, int): mapped addr 0x7f03012000 for FD 12 ID 0
+12-10 12:28:54.790  9774  9774 I shmem   : int libandroid_shmctl(int, int, struct shmid64_ds *): IPC_RMID for shmid=262e0003
+12-10 12:28:54.878  9701  9714 F libc    : Fatal signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0 in tid 9714 (Thread-2), pid 9701 (main)
+12-10 12:28:54.949  9788  9788 I crash_dump64: obtaining output fd from tombstoned, type: kDebuggerdTombstoneProto
+12-10 12:28:54.955  9788  9788 I crash_dump64: performing dump of process 9701 (target tid = 9714)
+12-10 12:28:55.859  9788  9788 F DEBUG   : *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+12-10 12:28:55.859  9788  9788 F DEBUG   : Build fingerprint: 'samsung/r8sxx/r8s:13/TP1A.220624.014/G780FXXSLFXK8:user/release-keys'
+12-10 12:28:55.859  9788  9788 F DEBUG   : Revision: '5'
+12-10 12:28:55.859  9788  9788 F DEBUG   : ABI: 'arm64'
+12-10 12:28:55.859  9788  9788 F DEBUG   : Processor: '5'
+12-10 12:28:55.859  9788  9788 F DEBUG   : Timestamp: 2024-12-10 12:28:54.966095558+0200
+12-10 12:28:55.859  9788  9788 F DEBUG   : Process uptime: 3s
+12-10 12:28:55.859  9788  9788 F DEBUG   : Cmdline: /system/bin/app_process -Xnoimage-dex2oat / com.termux.x11.Loader :0
+12-10 12:28:55.859  9788  9788 F DEBUG   : pid: 9701, tid: 9714, name: Thread-2  >>> /system/bin/app_process <<<
+12-10 12:28:55.859  9788  9788 F DEBUG   : uid: 10677
+12-10 12:28:55.859  9788  9788 F DEBUG   : signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0000000000000000
+12-10 12:28:55.859  9788  9788 F DEBUG   : Cause: null pointer dereference
+12-10 12:28:55.859  9788  9788 F DEBUG   :     x0  0000007af07a4500  x1  0000007af0bc2ea0  x2  0000007af07a1a80  x3  00000000fffffc18
+12-10 12:28:55.859  9788  9788 F DEBUG   :     x4  00000000fffffc18  x5  0000000000000005  x6  0000000000000005  x7  0000000000000000
+12-10 12:28:55.859  9788  9788 F DEBUG   :     x8  0000000000000000  x9  0000007af0bc2ee8  x10 0000000000000000  x11 0000007b017a36a2
+12-10 12:28:55.859  9788  9788 F DEBUG   :     x12 0000000000000000  x13 0000000000000008  x14 fffffffffc000000  x15 0000000000000020
+12-10 12:28:55.859  9788  9788 F DEBUG   :     x16 0000007bcc36ba60  x17 0000007bcc35b27c  x18 0000007b010fa000  x19 0000007af07a1a80
+12-10 12:28:55.859  9788  9788 F DEBUG   :     x20 0000000000000000  x21 0000007b01460000  x22 0000007af07a1af8  x23 0000000000000000
+12-10 12:28:55.859  9788  9788 F DEBUG   :     x24 0000000000000000  x25 0000000000000000  x26 0000007af0bc2ea0  x27 0000007af07a4500
+12-10 12:28:55.859  9788  9788 F DEBUG   :     x28 0000007af0bc2ea0  x29 0000007b0145f840
+12-10 12:28:55.859  9788  9788 F DEBUG   :     lr  0000007b016cec34  sp  0000007b0145f800  pc  0000007b01541814  pst 0000000060000000
+12-10 12:28:55.859  9788  9788 F DEBUG   : backtrace:
+12-10 12:28:55.859  9788  9788 F DEBUG   :       #00 pc 00000000000dd814  /data/app/~~icrIP9lFtudTNvyq4Up7PA==/com.termux.x11-f8XbvRBJvKMjDg5nzBh4Jg==/base.apk!libXlorie.so (BuildId: f55f96980d2018cfb44ce32a001bfd2c53231be2)
+12-10 12:28:55.859  9788  9788 F DEBUG   :       #01 pc 000000000026ac30  /data/app/~~icrIP9lFtudTNvyq4Up7PA==/com.termux.x11-f8XbvRBJvKMjDg5nzBh4Jg==/base.apk!libXlorie.so (BuildId: f55f96980d2018cfb44ce32a001bfd2c53231be2)
+12-10 12:28:55.859  9788  9788 F DEBUG   :       #02 pc 000000000024fdac  /data/app/~~icrIP9lFtudTNvyq4Up7PA==/com.termux.x11-f8XbvRBJvKMjDg5nzBh4Jg==/base.apk!libXlorie.so (BuildId: f55f96980d2018cfb44ce32a001bfd2c53231be2)
+12-10 12:28:55.859  9788  9788 F DEBUG   :       #03 pc 000000000024fbe4  /data/app/~~icrIP9lFtudTNvyq4Up7PA==/com.termux.x11-f8XbvRBJvKMjDg5nzBh4Jg==/base.apk!libXlorie.so (BuildId: f55f96980d2018cfb44ce32a001bfd2c53231be2)
+12-10 12:28:55.859  9788  9788 F DEBUG   :       #04 pc 000000000024ee88  /data/app/~~icrIP9lFtudTNvyq4Up7PA==/com.termux.x11-f8XbvRBJvKMjDg5nzBh4Jg==/base.apk!libXlorie.so (BuildId: f55f96980d2018cfb44ce32a001bfd2c53231be2)
+12-10 12:28:55.859  9788  9788 F DEBUG   :       #05 pc 000000000024f6b4  /data/app/~~icrIP9lFtudTNvyq4Up7PA==/com.termux.x11-f8XbvRBJvKMjDg5nzBh4Jg==/base.apk!libXlorie.so (BuildId: f55f96980d2018cfb44ce32a001bfd2c53231be2)
+12-10 12:28:55.859  9788  9788 F DEBUG   :       #06 pc 0000000000251220  /data/app/~~icrIP9lFtudTNvyq4Up7PA==/com.termux.x11-f8XbvRBJvKMjDg5nzBh4Jg==/base.apk!libXlorie.so (BuildId: f55f96980d2018cfb44ce32a001bfd2c53231be2)
+12-10 12:28:55.859  9788  9788 F DEBUG   :       #07 pc 0000000000216434  /data/app/~~icrIP9lFtudTNvyq4Up7PA==/com.termux.x11-f8XbvRBJvKMjDg5nzBh4Jg==/base.apk!libXlorie.so (BuildId: f55f96980d2018cfb44ce32a001bfd2c53231be2)
+12-10 12:28:55.859  9788  9788 F DEBUG   :       #08 pc 00000000002205ec  /data/app/~~icrIP9lFtudTNvyq4Up7PA==/com.termux.x11-f8XbvRBJvKMjDg5nzBh4Jg==/base.apk!libXlorie.so (BuildId: f55f96980d2018cfb44ce32a001bfd2c53231be2)
+12-10 12:28:55.859  9788  9788 F DEBUG   :       #09 pc 00000000000d97e0  /data/app/~~icrIP9lFtudTNvyq4Up7PA==/com.termux.x11-f8XbvRBJvKMjDg5nzBh4Jg==/base.apk!libXlorie.so (BuildId: f55f96980d2018cfb44ce32a001bfd2c53231be2)
+12-10 12:28:55.859  9788  9788 F DEBUG   :       #10 pc 00000000000ef678  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+208) (BuildId: ae97b4676db8ce3f620ba6bf7932eba6)
+12-10 12:28:55.859  9788  9788 F DEBUG   :       #11 pc 000000000008c30c  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+64) (BuildId: ae97b4676db8ce3f620ba6bf7932eba6)

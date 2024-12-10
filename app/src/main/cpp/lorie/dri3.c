@@ -190,25 +190,38 @@ static RegionPtr lorieCopyArea(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC, in
     loriePixFromDrawable(pDst, 1);
     loriePixPriv(pDst, 1);
     RegionPtr r = NULL;
-    Bool wasLocked = TRUE;
-    if (pPixPriv0 && !pPixPriv1) {
-        wasLocked = pSrcPix0->devPrivate.ptr != NULL;
-        if (!wasLocked) {
-            void *addr = NULL;
-            int error;
-            if ((error = AHardwareBuffer_lock(pPixPriv0->buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, &addr)) != 0)
+    void *addr[2] = {0};
+    int error;
+
+    if (pPixPriv0) {
+        if (pSrcPix0->devPrivate.ptr == NULL) {
+            if ((error = AHardwareBuffer_lock(pPixPriv0->buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, &addr[0])) != 0)
                 log(ERROR, "DRI3: AHardwareBuffer_lock failed: %d", error);
-            if (addr)
-                pSrc->pScreen->ModifyPixmapHeader(pSrcPix0, 0, 0, 0, 0, 0, addr);
+            if (addr[0])
+                pSrc->pScreen->ModifyPixmapHeader(pSrcPix0, 0, 0, 0, 0, 0, addr[0]);
+        }
+    }
+    if (pPixPriv1) {
+        if (pDstPix1->devPrivate.ptr == NULL) {
+            if ((error = AHardwareBuffer_lock(pPixPriv1->buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, &addr[1])) != 0)
+                log(ERROR, "DRI3: AHardwareBuffer_lock failed: %d", error);
+            if (addr[1])
+                pSrc->pScreen->ModifyPixmapHeader(pDstPix1, 0, 0, 0, 0, 0, addr[1]);
         }
     }
 
-    if (!pPixPriv1)
-        r = (*pGC->ops->CopyArea) (pSrc, pDst, pGC, srcx, srcy, w, h, dstx, dsty);
+    if (((PixmapPtr) pSrc)->devPrivate.ptr && ((PixmapPtr) pDst)->devPrivate.ptr) {
+        r = (*pGC->ops->CopyArea)(pSrc, pDst, pGC, srcx, srcy, w, h, dstx, dsty);
+    }
 
-    if (!wasLocked) {
+    if (addr[0]) {
         AHardwareBuffer_unlock(pPixPriv0->buffer, NULL);
         pSrcPix0->devPrivate.ptr = NULL;
+    }
+
+    if (addr[1]) {
+        AHardwareBuffer_unlock(pPixPriv1->buffer, NULL);
+        pDstPix1->devPrivate.ptr = NULL;
     }
     LORIE_GC_OP_EPILOGUE(pGC)
     return r;

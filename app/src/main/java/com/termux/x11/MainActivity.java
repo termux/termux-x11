@@ -92,6 +92,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private View.OnKeyListener mLorieKeyListener;
     private boolean filterOutWinKey = false;
     private boolean useTermuxEKBarBehaviour = false;
+    private boolean isInPictureInPictureMode = false;
 
     public static Prefs prefs = null;
 
@@ -340,6 +341,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         LinearLayout buttons = findViewById(R.id.mouse_helper_visibility);
         if (mClientConnected && show) {
             buttons.setVisibility(View.VISIBLE);
+            buttons.setAlpha(isInPictureInPictureMode ? 0.f : 1.f);
         } else {
             //Reset default input back to normal
             TouchInputHandler.STYLUS_INPUT_HELPER_MODE = 1;
@@ -374,13 +376,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     public void toggleStylusAuxButtons() {
-        showMouseAuxButtons(findViewById(R.id.mouse_helper_visibility).getVisibility() != View.VISIBLE);
+        showStylusAuxButtons(findViewById(R.id.mouse_helper_visibility).getVisibility() != View.VISIBLE);
         makeSureHelpersAreVisibleAndInScreenBounds();
     }
 
     private void showMouseAuxButtons(boolean show) {
-        findViewById(R.id.mouse_buttons)
-                .setVisibility((mClientConnected && show && "1".equals(prefs.touchMode.get())) ? View.VISIBLE : View.GONE);
+        View v = findViewById(R.id.mouse_buttons);
+        v.setVisibility((mClientConnected && show && "1".equals(prefs.touchMode.get())) ? View.VISIBLE : View.GONE);
+        v.setAlpha(isInPictureInPictureMode ? 0.f : 1.f);
         makeSureHelpersAreVisibleAndInScreenBounds();
     }
 
@@ -595,7 +598,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         showMouseAuxButtons(prefs.showMouseHelper.get());
         showStylusAuxButtons(prefs.showStylusClickOverride.get());
 
-        getTerminalToolbarViewPager().setAlpha(((float) prefs.opacityEKBar.get())/100);
+        getTerminalToolbarViewPager().setAlpha(isInPictureInPictureMode ? 0.f : ((float) prefs.opacityEKBar.get())/100);
 
         lorieView.requestLayout();
         lorieView.invalidate();
@@ -644,7 +647,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         boolean showNow = mClientConnected && prefs.showAdditionalKbd.get() && prefs.additionalKbdVisible.get();
 
         pager.setVisibility(showNow ? View.VISIBLE : View.INVISIBLE);
-        pager.setAlpha(isInPictureInPictureMode() ? 0.0f : 1.0f);
 
         if (showNow) {
             pager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(e)));
@@ -822,10 +824,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
-        if (isInPictureInPictureMode)
-            toggleExtraKeys(false, false);
-        else
-            setTerminalToolbarView();
+        this.isInPictureInPictureMode = isInPictureInPictureMode;
+        final ViewPager pager = getTerminalToolbarViewPager();
+        getTerminalToolbarViewPager().setAlpha(isInPictureInPictureMode ? 0.f : ((float) prefs.opacityEKBar.get())/100);
+        pager.setAlpha(isInPictureInPictureMode ? 0.f : 1.f);
+        findViewById(R.id.mouse_buttons).setAlpha(isInPictureInPictureMode ? 0.f : 1.f);
+        findViewById(R.id.mouse_helper_visibility).setAlpha(isInPictureInPictureMode ? 0.f : 1.f);
 
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
     }

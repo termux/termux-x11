@@ -644,6 +644,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         boolean showNow = mClientConnected && prefs.showAdditionalKbd.get() && prefs.additionalKbdVisible.get();
 
         pager.setVisibility(showNow ? View.VISIBLE : View.INVISIBLE);
+        pager.setAlpha(isInPictureInPictureMode() ? 0.0f : 1.0f);
 
         if (showNow) {
             pager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(e)));

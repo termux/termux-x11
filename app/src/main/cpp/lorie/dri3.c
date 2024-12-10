@@ -193,24 +193,21 @@ static RegionPtr lorieCopyArea(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC, in
     void *addr[2] = {0};
     int error;
 
-    if (pPixPriv0) {
-        if (pSrcPix0->devPrivate.ptr == NULL) {
-            if ((error = AHardwareBuffer_lock(pPixPriv0->buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, &addr[0])) != 0)
-                log(ERROR, "DRI3: AHardwareBuffer_lock failed: %d", error);
-            if (addr[0])
-                pSrc->pScreen->ModifyPixmapHeader(pSrcPix0, 0, 0, 0, 0, 0, addr[0]);
-        }
+    if (pSrcPix0 && pSrcPix0->devPrivate.ptr == NULL && pPixPriv0) {
+        if ((error = AHardwareBuffer_lock(pPixPriv0->buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, &addr[0])) != 0)
+            log(ERROR, "DRI3: AHardwareBuffer_lock failed: %d", error);
+        if (addr[0])
+            pSrc->pScreen->ModifyPixmapHeader(pSrcPix0, 0, 0, 0, 0, 0, addr[0]);
     }
-    if (pPixPriv1) {
-        if (pDstPix1->devPrivate.ptr == NULL) {
-            if ((error = AHardwareBuffer_lock(pPixPriv1->buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, &addr[1])) != 0)
-                log(ERROR, "DRI3: AHardwareBuffer_lock failed: %d", error);
-            if (addr[1])
-                pSrc->pScreen->ModifyPixmapHeader(pDstPix1, 0, 0, 0, 0, 0, addr[1]);
-        }
+    if (pDstPix1 && pDstPix1->devPrivate.ptr == NULL && pPixPriv1) {
+        if ((error = AHardwareBuffer_lock(pPixPriv1->buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, &addr[1])) != 0)
+            log(ERROR, "DRI3: AHardwareBuffer_lock failed: %d", error);
+        if (addr[1])
+            pSrc->pScreen->ModifyPixmapHeader(pDstPix1, 0, 0, 0, 0, 0, addr[1]);
     }
 
-    if (((PixmapPtr) pSrc)->devPrivate.ptr && ((PixmapPtr) pDst)->devPrivate.ptr) {
+    if ((pSrc->type == DRAWABLE_WINDOW || (pSrc->type == DRAWABLE_PIXMAP && pSrcPix0->devPrivate.ptr))
+            && (pDst->type == DRAWABLE_WINDOW || (pDst->type == DRAWABLE_WINDOW && pDstPix1->devPrivate.ptr))) {
         r = (*pGC->ops->CopyArea)(pSrc, pDst, pGC, srcx, srcy, w, h, dstx, dsty);
     }
 

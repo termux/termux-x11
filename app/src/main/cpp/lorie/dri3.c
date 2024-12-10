@@ -207,7 +207,7 @@ static RegionPtr lorieCopyArea(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC, in
     }
 
     if ((pSrc->type == DRAWABLE_WINDOW || (pSrc->type == DRAWABLE_PIXMAP && pSrcPix0->devPrivate.ptr))
-            && (pDst->type == DRAWABLE_WINDOW || (pDst->type == DRAWABLE_WINDOW && pDstPix1->devPrivate.ptr))) {
+            && (pDst->type == DRAWABLE_WINDOW || (pDst->type == DRAWABLE_PIXMAP && pDstPix1->devPrivate.ptr))) {
         r = (*pGC->ops->CopyArea)(pSrc, pDst, pGC, srcx, srcy, w, h, dstx, dsty);
     }
 

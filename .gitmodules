@@ -4,35 +4,35 @@
 	ignore = dirty
 [submodule "app/src/main/cpp/pixman"]
 	path = app/src/main/cpp/pixman
-	url = https://gitlab.freedesktop.org/pixman/pixman
+	url = https://gitlab.freedesktop.org/pixman/pixman.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libfontenc"]
 	path = app/src/main/cpp/libfontenc
-	url = https://gitlab.freedesktop.org/xorg/lib/libfontenc
+	url = https://gitlab.freedesktop.org/xorg/lib/libfontenc.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libxau"]
 	path = app/src/main/cpp/libxau
-	url = https://gitlab.freedesktop.org/xorg/lib/libxau
+	url = https://gitlab.freedesktop.org/xorg/lib/libxau.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libxdmcp"]
 	path = app/src/main/cpp/libxdmcp
-	url = https://gitlab.freedesktop.org/xorg/lib/libxdmcp
+	url = https://gitlab.freedesktop.org/xorg/lib/libxdmcp.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libxfont"]
 	path = app/src/main/cpp/libxfont
-	url = https://gitlab.freedesktop.org/xorg/lib/libxfont
+	url = https://gitlab.freedesktop.org/xorg/lib/libxfont.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libxkbfile"]
 	path = app/src/main/cpp/libxkbfile
-	url = https://gitlab.freedesktop.org/xorg/lib/libxkbfile
+	url = https://gitlab.freedesktop.org/xorg/lib/libxkbfile.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libxshmfence"]
 	path = app/src/main/cpp/libxshmfence
-	url = https://gitlab.freedesktop.org/xorg/lib/libxshmfence
+	url = https://gitlab.freedesktop.org/xorg/lib/libxshmfence.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libxtrans"]
 	path = app/src/main/cpp/libxtrans
-	url = https://gitlab.freedesktop.org/xorg/lib/libxtrans
+	url = https://gitlab.freedesktop.org/xorg/lib/libxtrans.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libepoxy"]
 	path = app/src/main/cpp/libepoxy
@@ -40,27 +40,27 @@
 	ignore = dirty
 [submodule "app/src/main/cpp/libxcvt"]
 	path = app/src/main/cpp/libxcvt
-	url = https://gitlab.freedesktop.org/xorg/lib/libxcvt
+	url = https://gitlab.freedesktop.org/xorg/lib/libxcvt.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libx11"]
 	path = app/src/main/cpp/libx11
-	url = https://gitlab.freedesktop.org/xorg/lib/libx11
+	url = https://gitlab.freedesktop.org/xorg/lib/libx11.git
 	ignore = dirty
 [submodule "app/src/main/cpp/xorgproto"]
 	path = app/src/main/cpp/xorgproto
-	url = https://gitlab.freedesktop.org/xorg/proto/xorgproto
+	url = https://gitlab.freedesktop.org/xorg/proto/xorgproto.git
 	ignore = dirty
 [submodule "app/src/main/cpp/xkbcomp"]
 	path = app/src/main/cpp/xkbcomp
-	url = https://gitlab.freedesktop.org/xorg/app/xkbcomp
+	url = https://gitlab.freedesktop.org/xorg/app/xkbcomp.git
 	ignore = dirty
 [submodule "app/src/main/cpp/xserver"]
 	path = app/src/main/cpp/xserver
-	url = https://gitlab.freedesktop.org/xorg/xserver
+	url = https://gitlab.freedesktop.org/xorg/xserver.git
 	ignore = dirty
 [submodule "app/src/main/cpp/bzip2"]
 	path = app/src/main/cpp/bzip2
-	url = https://gitlab.com/bzip2/bzip2
+	url = https://gitlab.com/bzip2/bzip2.git
 [submodule "app/src/main/cpp/OpenXR-SDK"]
 	path = app/src/main/cpp/OpenXR-SDK
 	url = https://github.com/KhronosGroup/OpenXR-SDK.git

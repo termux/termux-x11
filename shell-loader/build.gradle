@@ -1,5 +1,10 @@
 //file:noinspection UnnecessaryQualifiedReference, GrDeprecatedAPIUsage
-apply plugin: 'com.android.application'
+
+// Detect android studio sync and disable generating run/debug configuration for shell-loader
+if (gradle.startParameter.taskNames.isEmpty())
+    apply plugin: 'com.android.library'
+else
+    apply plugin: 'com.android.application'
 
 android.namespace 'com.termux.x11.shell_loader'
 android.defaultConfig.minSdkVersion 21
@@ -9,7 +14,9 @@ android.buildFeatures.buildConfig true
 android.compileOptions.sourceCompatibility JavaVersion.VERSION_1_8
 android.compileOptions.targetCompatibility JavaVersion.VERSION_1_8
 dependencies.compileOnly project(':shell-loader:stub')
-android.applicationVariants.configureEach { outputs.configureEach { outputFileName = "shell-loader-debug.apk" } }
+
+if (!gradle.startParameter.taskNames.isEmpty())
+    android.applicationVariants.configureEach { outputs.configureEach { outputFileName = "shell-loader-debug.apk" } }
 
 def signingConfig = project(':app').android.signingConfigs.debug
 def keyStore = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())

@@ -22,15 +22,11 @@ import android.view.Surface;
 
 import androidx.annotation.Keep;
 
-import java.io.DataInputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.ConnectException;
-import java.net.InetAddress;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URL;
-import java.util.Arrays;
 
 @Keep @SuppressLint({"StaticFieldLeak", "UnsafeDynamicallyLoadedCode"})
 public class CmdEntryPoint extends ICmdEntryInterface.Stub {
@@ -132,36 +128,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     }
 
     void spawnListeningThread() {
-        new Thread(() -> { // New thread is needed to avoid android.os.NetworkOnMainThreadException
-            /*
-                The purpose of this function is simple. If the application has not been launched
-                before running termux-x11, the initial sendBroadcast had no effect because no one
-                received the intent. To allow the application to reconnect freely, we will listen on
-                port `PORT` and when receiving a magic phrase, we will send another intent.
-             */
-            Log.e("CmdEntryPoint", "Listening port " + PORT);
-            try (ServerSocket listeningSocket =
-                         new ServerSocket(PORT, 0, InetAddress.getByName("127.0.0.1"))) {
-                listeningSocket.setReuseAddress(true);
-                while(true) {
-                    try (Socket client = listeningSocket.accept()) {
-                        Log.e("CmdEntryPoint", "Somebody connected!");
-                        // We should ensure that it is some
-                        byte[] b = new byte[MAGIC.length];
-                        DataInputStream reader = new DataInputStream(client.getInputStream());
-                        reader.readFully(b);
-                        if (Arrays.equals(MAGIC, b)) {
-                            Log.e("CmdEntryPoint", "New client connection!");
-                            sendBroadcast();
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace(System.err);
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace(System.err);
-            }
-        }).start();
+        new Thread(() -> listenForConnections(PORT, MAGIC)).start();
     }
 
     public static void requestConnection() {
@@ -215,6 +182,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public native ParcelFileDescriptor getXConnection();
     public native ParcelFileDescriptor getLogcatOutput();
     private static native boolean connected();
+    private native void listenForConnections(int port, byte[] bytes);
 
     static {
         try {

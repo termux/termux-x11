@@ -11,8 +11,8 @@ import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
-import android.os.Build;
 import android.text.Editable;
+import android.text.InputFilter;
 import android.text.InputType;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -23,8 +23,7 @@ import android.view.SurfaceView;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
-import android.view.inputmethod.InputMethodManager;
-import android.view.inputmethod.InputMethodSubtype;
+import android.widget.TextView;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
@@ -32,8 +31,11 @@ import androidx.annotation.NonNull;
 import com.termux.x11.input.InputStub;
 import com.termux.x11.input.TouchInputHandler;
 
-import java.nio.charset.StandardCharsets;
+import java.nio.CharBuffer;
+import java.util.Arrays;
 import java.util.regex.PatternSyntaxException;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 @Keep @SuppressLint("WrongConstant")
 @SuppressWarnings("deprecation")
@@ -50,12 +52,102 @@ public class LorieView extends SurfaceView implements InputStub {
     private long lastClipboardTimestamp = System.currentTimeMillis();
     private static boolean clipboardSyncEnabled = false;
     private static boolean hardwareKbdScancodesWorkaround = false;
-    private final InputMethodManager mIMM = (InputMethodManager)getContext().getSystemService( Context.INPUT_METHOD_SERVICE);
-    private String mImeLang;
-    private boolean mImeCJK;
-    public boolean enableGboardCJK;
     private Callback mCallback;
     private final Point p = new Point();
+    private TextView composingView;
+    private final Editable mEditable = new Editable() {
+        // Wrap editable methods and hook and intercept changes
+        void onChange() {
+            int len = thiz.length();
+            char[] chars = new char[len];
+            thiz.getChars(0, len, chars, 0);
+            onComposingTextChange(chars, len);
+        }
+        private final Editable thiz = Editable.Factory.getInstance().newEditable("");
+        @Override public int length() { return thiz.length(); }
+        @Override public char charAt(int index) { return thiz.charAt(index); }
+        @NonNull @Override public CharSequence subSequence(int start, int end) { return thiz.subSequence(start, end); }
+        @Override public <T> T[] getSpans(int start, int end, Class<T> type) { return thiz.getSpans(start, end, type); }
+        @Override public int getSpanStart(Object tag) { return thiz.getSpanStart(tag); }
+        @Override public int getSpanEnd(Object tag) { return thiz.getSpanEnd(tag); }
+        @Override public int getSpanFlags(Object tag) { return thiz.getSpanFlags(tag); }
+        @Override public int nextSpanTransition(int start, int limit, Class type) { return thiz.nextSpanTransition(start, limit, type); }
+        @Override public void setSpan(Object what, int start, int end, int flags) { thiz.setSpan(what, start, end, flags); onChange(); }
+        @Override public void removeSpan(Object what) { thiz.removeSpan(what); onChange(); }
+        @Override public void getChars(int start, int end, char[] dest, int destoff) { thiz.getChars(start, end, dest, destoff); }
+        @NonNull @Override public Editable replace(int st, int en, CharSequence source, int start, int end) { Editable e = thiz.replace(st, en, source, start, end); onChange(); android.util.Log.d("EDITABLE", "replace0"); return e; }
+        @NonNull @Override public Editable replace(int st, int en, CharSequence text) { Editable e = thiz.replace(st, en, text); onChange();  android.util.Log.d("EDITABLE", "replace1" + st + " " + en + " " + text); return e; }
+        @NonNull @Override public Editable insert(int where, CharSequence text, int start, int end) { Editable e = thiz.insert(where, text, start, end); onChange(); android.util.Log.d("EDITABLE", "insert0"); return e; }
+        @NonNull @Override public Editable insert(int where, CharSequence text) { Editable e = thiz.insert(where, text); onChange(); android.util.Log.d("EDITABLE", "insert1"); return e; }
+        @NonNull @Override public Editable delete(int st, int en) { Editable e = thiz.delete(st, en); onChange(); android.util.Log.d("EDITABLE", "delete"); return e; }
+        @NonNull @Override public Editable append(CharSequence text) { Editable e = thiz.append(text); onChange(); android.util.Log.d("EDITABLE", "append0"); return e; }
+        @NonNull @Override public Editable append(CharSequence text, int start, int end) { Editable e = thiz.append(text, start, end); onChange(); android.util.Log.d("EDITABLE", "append1"); return e; }
+        @NonNull @Override public Editable append(char text) { Editable e = thiz.append(text); onChange(); android.util.Log.d("EDITABLE", "append2"); return e; }
+        @Override public void clear() { thiz.clear(); onChange(); }
+        @Override public void clearSpans() { thiz.clearSpans(); onChange(); }
+        @Override public void setFilters(InputFilter[] filters) { thiz.setFilters(filters); onChange(); }
+        @Override public InputFilter[] getFilters() { return thiz.getFilters(); }
+    };
+    private final InputConnection mConnection = new BaseInputConnection(this, false) {
+        private final CharSequence seq = "        ";
+
+        @Override
+        public Editable getEditable() {
+            return mEditable;
+        }
+
+        // Needed to send arrow keys with IME's cursor control feature
+        @Override
+        public CharSequence getTextBeforeCursor(int length, int flags) {
+            return seq;
+        }
+
+        // Needed to send arrow keys with IME's cursor control feature
+        @Override
+        public CharSequence getTextAfterCursor(int length, int flags) {
+            return seq;
+        }
+
+        @Override
+        public boolean deleteSurroundingText(int beforeLength, int afterLength) {
+            for (int i=0; i<beforeLength; i++) {
+                LorieView.this.sendKeyEvent(0, KeyEvent.KEYCODE_DEL, true);
+                LorieView.this.sendKeyEvent(0, KeyEvent.KEYCODE_DEL, false);
+            }
+            for (int i=0; i<afterLength; i++) {
+                LorieView.this.sendKeyEvent(0, KeyEvent.KEYCODE_FORWARD_DEL, true);
+                LorieView.this.sendKeyEvent(0, KeyEvent.KEYCODE_FORWARD_DEL, false);
+            }
+            return true;
+        }
+
+        // Needed to send arrow keys with IME's cursor control feature
+        @Override
+        public boolean setComposingRegion(int start, int end) {
+            return true;
+        }
+
+        @Override
+        public boolean commitText(CharSequence text, int newCursorPosition) {
+            sendTextEvent(text.toString().getBytes(UTF_8));
+            return true;
+        }
+
+        @Override
+        public boolean finishComposingText() {
+            synchronized (mEditable) {
+                if (mEditable.length() <= 0)
+                    return true;
+
+                char[] t = new char[mEditable.length()];
+                mEditable.getChars(0, mEditable.length(), t, 0);
+                mEditable.clear();
+                sendTextEvent(UTF_8.encode(CharBuffer.wrap(t)).array());
+            }
+
+            return true;
+        }
+    };
     private final SurfaceHolder.Callback mSurfaceCallback = new SurfaceHolder.Callback() {
         @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
             holder.setFormat(PixelFormat.BGRA_8888);
@@ -88,6 +180,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private void init() {
         getHolder().addCallback(mSurfaceCallback);
         clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+        nativeInit();
     }
 
     public void setCallback(Callback callback) {
@@ -235,8 +328,6 @@ public class LorieView extends SurfaceView implements InputStub {
         clipboardSyncEnabled = p.clipboardEnable.get();
         setClipboardSyncEnabled(clipboardSyncEnabled, clipboardSyncEnabled);
         TouchInputHandler.refreshInputDevices();
-        enableGboardCJK = p.enableGboardCJK.get();
-        mIMM.restartInput(this);
     }
 
     // It is used in native code
@@ -252,14 +343,14 @@ public class LorieView extends SurfaceView implements InputStub {
     /** @noinspection unused*/ // It is used in native code
     void requestClipboard() {
         if (!clipboardSyncEnabled) {
-            sendClipboardEvent("".getBytes(StandardCharsets.UTF_8));
+            sendClipboardEvent("".getBytes(UTF_8));
             return;
         }
 
         CharSequence clip = clipboard.getText();
         if (clip != null) {
             String text = String.valueOf(clipboard.getText());
-            sendClipboardEvent(text.getBytes(StandardCharsets.UTF_8));
+            sendClipboardEvent(text.getBytes(UTF_8));
             Log.d("CLIP", "sending clipboard contents: " + text);
         }
     }
@@ -298,69 +389,41 @@ public class LorieView extends SurfaceView implements InputStub {
         TouchInputHandler.refreshInputDevices();
     }
 
-    public void checkRestartInput(boolean recheck) {
-        if (!enableGboardCJK)
+    public void setComposingView(TextView v) {
+        composingView = v;
+    }
+
+    private void onComposingTextChange(char[] chars, int len) {
+        if (composingView == null)
             return;
 
-        InputMethodSubtype methodSubtype = mIMM.getCurrentInputMethodSubtype();
-        String languageTag = methodSubtype == null ? null : methodSubtype.getLanguageTag();
-        if (languageTag != null && languageTag.length() >= 2 && !languageTag.substring(0, 2).equals(mImeLang))
-            mIMM.restartInput(this);
-        else if (recheck) { // recheck needed because sometimes requestCursorUpdates() is called too fast, before InputMethodManager detect change in IM subtype
-            MainActivity.handler.postDelayed(() -> checkRestartInput(false), 40);
-        }
+        composingView.setText(String.format("   %s   ", new String(chars, 0, len)));
+        composingView.setVisibility(len == 0 ? LorieView.INVISIBLE : LorieView.VISIBLE);
     }
 
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
-        outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;
+        outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_VARIATION_NORMAL;
+        outAttrs.actionLabel = "↵";
 
         // Note that IME_ACTION_NONE cannot be used as that makes it impossible to input newlines using the on-screen
         // keyboard on Android TV (see https://github.com/termux/termux-app/issues/221).
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN;
-
-        if (enableGboardCJK) {
-            InputMethodSubtype methodSubtype = mIMM.getCurrentInputMethodSubtype();
-            mImeLang = methodSubtype == null ? null : methodSubtype.getLanguageTag();
-            if (mImeLang != null && mImeLang.length() > 2)
-                mImeLang = mImeLang.substring(0, 2);
-            mImeCJK = mImeLang != null && (mImeLang.equals("zh") || mImeLang.equals("ko") || mImeLang.equals("ja"));
-            outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS |
-                    (mImeCJK ? InputType.TYPE_TEXT_VARIATION_NORMAL : InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
-            return new BaseInputConnection(this, false) {
-                // workaround for Gboard
-                // Gboard calls requestCursorUpdates() whenever switching language
-                // check and then restart keyboard in different inputType when needed
-                @Override
-                public Editable getEditable() {
-                    checkRestartInput(true);
-                    return super.getEditable();
-                }
-                @Override
-                public boolean requestCursorUpdates(int cursorUpdateMode) {
-                    checkRestartInput(true);
-                    return super.requestCursorUpdates(cursorUpdateMode);
-                }
-
-                @Override
-                public boolean commitText(CharSequence text, int newCursorPosition) {
-                    boolean result = super.commitText(text, newCursorPosition);
-                    if (mImeCJK)
-                        // suppress Gboard CJK keyboard suggestion
-                        // this workaround does not work well for non-CJK keyboards
-                        // , when typing fast and two keypresses (commitText) are close in time
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-                            mIMM.invalidateInput(LorieView.this);
-                        else
-                            mIMM.restartInput(LorieView.this);
-                    return result;
-                }
-            };
-        } else {
-            return super.onCreateInputConnection(outAttrs);
-        }
+        return mConnection;
     }
 
+    // Used in native method
+    /** @noinspection unused*/
+    private void flushComposingView() {
+        synchronized (mEditable) {
+            if (mEditable.length() <= 0)
+                return;
+        }
+
+        mConnection.finishComposingText();
+    }
+
+    private native void nativeInit();
     static native void connect(int fd);
     native void handleXEvents();
     static native void startLogcat(int fd);

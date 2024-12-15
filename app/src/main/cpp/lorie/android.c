@@ -567,7 +567,6 @@ Java_com_termux_x11_CmdEntryPoint_listenForConnections(JNIEnv *env, jobject thiz
             }
         }
         close(client);
-        client = -1;
     }
 }
 
@@ -589,8 +588,11 @@ static inline void checkConnection(JNIEnv* env) {
     }
 }
 
+static jobject mLorieView = NULL;
+static jmethodID mFlushComposingView = NULL;
+
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_connect(__unused JNIEnv* env, __unused jobject cls, jint fd) {
+Java_com_termux_x11_LorieView_nativeInit(JNIEnv *env, jobject thiz) {
     if (!Charset.self) {
         // Init clipboard-related JNI stuff
         Charset.self = FindClassOrDie(env, "java/nio/charset/Charset");
@@ -601,6 +603,19 @@ Java_com_termux_x11_LorieView_connect(__unused JNIEnv* env, __unused jobject cls
         CharBuffer.toString = FindMethodOrDie(env, CharBuffer.self, "toString", "()Ljava/lang/String;", JNI_FALSE);
     }
 
+    mLorieView = (*env)->NewGlobalRef(env, thiz);
+    mFlushComposingView = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, thiz), "flushComposingView", "()V");
+}
+
+static void flushComposingView(JNIEnv* env) {
+    if (!env || !mLorieView || !mFlushComposingView)
+        return;
+
+    (*env)->CallVoidMethod(env, mLorieView, mFlushComposingView);
+}
+
+JNIEXPORT void JNICALL
+Java_com_termux_x11_LorieView_connect(__unused JNIEnv* env, __unused jobject cls, jint fd) {
     conn_fd = fd;
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
     checkConnection(env);
@@ -679,6 +694,7 @@ Java_com_termux_x11_LorieView_setClipboardSyncEnabled(__unused JNIEnv* env, __un
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_sendClipboardAnnounce(JNIEnv *env, __unused jobject thiz) {
     if (conn_fd != -1) {
+        flushComposingView(env);
         lorieEvent e = { .type = EVENT_CLIPBOARD_ANNOUNCE };
         write(conn_fd, &e, sizeof(e));
         checkConnection(env);
@@ -688,6 +704,7 @@ Java_com_termux_x11_LorieView_sendClipboardAnnounce(JNIEnv *env, __unused jobjec
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_sendClipboardEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
     if (conn_fd != -1 && text) {
+        flushComposingView(env);
         jsize length = (*env)->GetArrayLength(env, text);
         jbyte* str = (*env)->GetByteArrayElements(env, text, NULL);
         lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = length } };
@@ -701,6 +718,7 @@ Java_com_termux_x11_LorieView_sendClipboardEvent(JNIEnv *env, __unused jobject t
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_sendWindowChange(__unused JNIEnv* env, __unused jobject cls, jint width, jint height, jint framerate) {
     if (conn_fd != -1) {
+        flushComposingView(env);
         lorieEvent e = { .screenSize = { .t = EVENT_SCREEN_SIZE, .width = width, .height = height, .framerate = framerate } };
         write(conn_fd, &e, sizeof(e));
         checkConnection(env);
@@ -710,6 +728,7 @@ Java_com_termux_x11_LorieView_sendWindowChange(__unused JNIEnv* env, __unused jo
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_sendMouseEvent(__unused JNIEnv* env, __unused jobject cls, jfloat x, jfloat y, jint which_button, jboolean button_down, jboolean relative) {
     if (conn_fd != -1) {
+        flushComposingView(env);
         lorieEvent e = { .mouse = { .t = EVENT_MOUSE, .x = x, .y = y, .detail = which_button, .down = button_down, .relative = relative } };
         write(conn_fd, &e, sizeof(e));
         checkConnection(env);
@@ -719,6 +738,7 @@ Java_com_termux_x11_LorieView_sendMouseEvent(__unused JNIEnv* env, __unused jobj
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_sendTouchEvent(__unused JNIEnv* env, __unused jobject cls, jint action, jint id, jint x, jint y) {
     if (conn_fd != -1 && action != -1) {
+        flushComposingView(env);
         lorieEvent e = { .touch = { .t = EVENT_TOUCH, .type = action, .id = id, .x = x, .y = y } };
         write(conn_fd, &e, sizeof(e));
         checkConnection(env);
@@ -730,6 +750,7 @@ Java_com_termux_x11_LorieView_sendStylusEvent(JNIEnv *env, __unused jobject thiz
                                               jint pressure, jint tilt_x, jint tilt_y,
                                               jint orientation, jint buttons, jboolean eraser, jboolean mouse) {
     if (conn_fd != -1) {
+        flushComposingView(env);
         lorieEvent e = { .stylus = { .t = EVENT_STYLUS, .x = x, .y = y, .pressure = pressure, .tilt_x = tilt_x, .tilt_y = tilt_y, .orientation = orientation, .buttons = buttons, .eraser = eraser, .mouse = mouse } };
         write(conn_fd, &e, sizeof(e));
         checkConnection(env);
@@ -739,6 +760,7 @@ Java_com_termux_x11_LorieView_sendStylusEvent(JNIEnv *env, __unused jobject thiz
 JNIEXPORT void JNICALL
 Java_com_termux_x11_LorieView_requestStylusEnabled(JNIEnv *env, __unused jclass clazz, jboolean enabled) {
     if (conn_fd != -1) {
+        flushComposingView(env);
         lorieEvent e = { .stylusEnable = { .t = EVENT_STYLUS_ENABLE, .enable = enabled } };
         write(conn_fd, &e, sizeof(e));
         checkConnection(env);
@@ -748,6 +770,7 @@ Java_com_termux_x11_LorieView_requestStylusEnabled(JNIEnv *env, __unused jclass 
 JNIEXPORT jboolean JNICALL
 Java_com_termux_x11_LorieView_sendKeyEvent(__unused JNIEnv* env, __unused jobject cls, jint scan_code, jint key_code, jboolean key_down) {
     if (conn_fd != -1) {
+        flushComposingView(env);
         int code = (scan_code) ?: android_to_linux_keycode[key_code];
         log(DEBUG, "Sending key: %d (%d %d %d)", code + 8, scan_code, key_code, key_down);
         lorieEvent e = { .key = { .t = EVENT_KEY, .key = code + 8, .state = key_down } };
@@ -788,7 +811,7 @@ Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, __unused jobject thiz, 
             p += len;
             if (p - (char*) str >= length)
                 break;
-            usleep(30000);
+//            usleep(30000);
         }
 
         (*env)->ReleaseByteArrayElements(env, text, str, JNI_ABORT);

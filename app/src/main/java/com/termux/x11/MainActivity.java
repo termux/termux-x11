@@ -24,6 +24,7 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
@@ -185,6 +186,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         lorieView.setOnCapturedPointerListener((v, e) -> mInputHandler.handleTouchEvent(lorieView, lorieView, e));
         lorieParent.setOnCapturedPointerListener((v, e) -> mInputHandler.handleTouchEvent(lorieView, lorieView, e));
         lorieView.setOnKeyListener(mLorieKeyListener);
+        lorieView.setComposingView(findViewById(R.id.composingView));
 
         lorieView.setCallback((sfc, surfaceWidth, surfaceHeight, screenWidth, screenHeight) -> {
             int framerate = (int) ((lorieView.getDisplay() != null) ? lorieView.getDisplay().getRefreshRate() : 30);
@@ -240,6 +242,12 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         onReceiveConnection(getIntent());
         findViewById(android.R.id.content).addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> makeSureHelpersAreVisibleAndInScreenBounds());
+        findViewById(android.R.id.content).getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            View composingView = findViewById(R.id.composingView);
+            ViewGroup parent = (ViewGroup) composingView.getParent();
+            if (parent.getChildAt(parent.getChildCount() - 1) != composingView)
+                composingView.bringToFront();
+        });
     }
 
     @Override
@@ -893,11 +901,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     private void checkXEvents() {
         getLorieView().handleXEvents();
-        // an imperfect workaround for Gboard CJK keyboard in DeX soft keyboard mode
-        // in that particular mode during language switching, InputConnection#requestCursorUpdates() is not called and no signal can be picked up. 
-        // therefore, check to activate CJK keyboard is done upon a keypress.  
-        if (getLorieView().enableGboardCJK && SamsungDexUtils.checkDeXEnabled(this))
-            getLorieView().checkRestartInput(false);
         handler.postDelayed(this::checkXEvents, 300);
     }
 

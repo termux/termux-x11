@@ -64,6 +64,7 @@ typedef struct {
 
 typedef struct {
     AHardwareBuffer* buffer;
+    Bool flipped;
 } LorieAHBPixPrivRec, *LorieAHBPixPrivPtr;
 
 static Bool FalseNoop() { return FALSE; }
@@ -183,6 +184,32 @@ static void loriePutImage(DrawablePtr pDrawable, GCPtr pGC, int depth, int x, in
     LORIE_GC_OP_EPILOGUE(pGC)
 }
 
+static void fbCopyUpsideDown(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable, GCPtr pGC, BoxPtr pbox, int nbox, int dx, int dy, Bool reverse, Bool upsidedown, Pixel bitplane, void *closure) {
+    // It is a copy of fbCopyNtoN with line reversing. Nothing special.
+    CARD8 alu = pGC ? pGC->alu : GXcopy;
+    FbBits pm = pGC ? fbGetGCPrivate(pGC)->pm : FB_ALLONES, *src, *dst;
+    FbStride srcStride, dstStride;
+    int h, srcBpp, srcXoff, srcYoff, dstBpp, dstXoff, dstYoff;
+
+    fbGetDrawable(pSrcDrawable, src, srcStride, srcBpp, srcXoff, srcYoff);
+    fbGetDrawable(pDstDrawable, dst, dstStride, dstBpp, dstXoff, dstYoff);
+
+    while (nbox--) {
+        h = pbox->y2 - pbox->y1;
+        if (pm == FB_ALLONES && alu == GXcopy && !reverse && !upsidedown) {
+            for (int j=0; j<h; j++)
+                if (!pixman_blt((uint32_t *) src, (uint32_t *) dst, srcStride, dstStride, srcBpp, dstBpp, (pbox->x1 + dx + srcXoff), (pbox->y1 + dy + srcYoff + j), (pbox->x1 + dstXoff), (pbox->y1 + dstYoff + h - j - 1), (pbox->x2 - pbox->x1), 1))
+                    goto fallback;
+            goto next;
+        }
+        fallback:
+        for (int j=0; j<h; j++)
+            fbBlt(src + (pbox->y1 + dy + srcYoff + j) * srcStride, srcStride, (pbox->x1 + dx + srcXoff) * srcBpp, dst + (pbox->y1 + dstYoff + h - j - 1) * dstStride,dstStride, (pbox->x1 + dstXoff) * dstBpp, (pbox->x2 - pbox->x1) * dstBpp, 1, alu, pm, dstBpp, reverse, upsidedown);
+        next:
+        pbox++;
+    }
+}
+
 static RegionPtr lorieCopyArea(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC, int srcx, int srcy, int w, int h, int dstx, int dsty) {
     LORIE_GC_OP_PROLOGUE(pGC)
     loriePixFromDrawable(pSrc, 0);
@@ -208,7 +235,12 @@ static RegionPtr lorieCopyArea(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC, in
 
     if ((pSrc->type == DRAWABLE_WINDOW || (pSrc->type == DRAWABLE_PIXMAP && pSrcPix0->devPrivate.ptr))
             && (pDst->type == DRAWABLE_WINDOW || (pDst->type == DRAWABLE_PIXMAP && pDstPix1->devPrivate.ptr))) {
-        r = (*pGC->ops->CopyArea)(pSrc, pDst, pGC, srcx, srcy, w, h, dstx, dsty);
+        Bool flipped0 = pPixPriv0 && pPixPriv0->flipped, flipped1 = pPixPriv1 && pPixPriv1->flipped;
+        if (flipped0 == flipped1)
+            r = (*pGC->ops->CopyArea)(pSrc, pDst, pGC, srcx, srcy, w, h, dstx, dsty);
+        else {
+            r = miDoCopy(pSrc, pDst, pGC, srcx, srcy,w, h, dstx, dsty, fbCopyUpsideDown, 0, 0);
+        }
     }
 
     if (addr[0]) {
@@ -444,6 +476,7 @@ lorieDestroyPixmap(PixmapPtr pPixmap) {
 static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *fds, CARD16 width, CARD16 height,
                                     const CARD32 *strides, const CARD32 *offsets, CARD8 depth, __unused CARD8 bpp, CARD64 modifier) {
     const CARD64 AHARDWAREBUFFER_SOCKET_FD = 1255;
+    const CARD64 AHARDWAREBUFFER_FLIPPED_SOCKET_FD = 1256;
     const CARD64 RAW_MMAPPABLE_FD = 1274;
     PixmapPtr pixmap = NullPixmap;
     LorieAHBPixPrivPtr pPixPriv = NULL;
@@ -452,7 +485,7 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
         return NULL;
     }
 
-    if (modifier != RAW_MMAPPABLE_FD && modifier != AHARDWAREBUFFER_SOCKET_FD &&
+    if (modifier != RAW_MMAPPABLE_FD && modifier != AHARDWAREBUFFER_SOCKET_FD && modifier != AHARDWAREBUFFER_FLIPPED_SOCKET_FD &&
         modifier != DRM_FORMAT_MOD_INVALID) {
         log(ERROR, "DRI3: Modifier is not RAW_MMAPPABLE_FD or AHARDWAREBUFFER_SOCKET_FD");
         return NULL;
@@ -476,7 +509,7 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
         screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, strides[0], addr);
 
         return pixmap;
-    } else if (modifier == AHARDWAREBUFFER_SOCKET_FD) {
+    } else if (modifier == AHARDWAREBUFFER_SOCKET_FD || modifier == AHARDWAREBUFFER_FLIPPED_SOCKET_FD) {
         AHardwareBuffer_Desc desc;
         struct stat info;
         int r;
@@ -530,6 +563,7 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
         }
 
         pixmap->devPrivate.ptr = NULL;
+        pPixPriv->flipped = modifier == AHARDWAREBUFFER_FLIPPED_SOCKET_FD;
         screen->ModifyPixmapHeader(pixmap, desc.width, desc.height, 0, 0, desc.stride * 4, NULL);
         return pixmap;
     }

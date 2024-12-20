@@ -383,7 +383,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     private void showMouseAuxButtons(boolean show) {
         View v = findViewById(R.id.mouse_buttons);
         v.setVisibility((mClientConnected && show && "1".equals(prefs.touchMode.get())) ? View.VISIBLE : View.GONE);
-        v.setAlpha(isInPictureInPictureMode ? 0.f : 1.f);
+        v.setAlpha(isInPictureInPictureMode ? 0.f : 0.7f);
         makeSureHelpersAreVisibleAndInScreenBounds();
     }
 
@@ -826,9 +826,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
         this.isInPictureInPictureMode = isInPictureInPictureMode;
         final ViewPager pager = getTerminalToolbarViewPager();
-        getTerminalToolbarViewPager().setAlpha(isInPictureInPictureMode ? 0.f : ((float) prefs.opacityEKBar.get())/100);
-        pager.setAlpha(isInPictureInPictureMode ? 0.f : 1.f);
-        findViewById(R.id.mouse_buttons).setAlpha(isInPictureInPictureMode ? 0.f : 1.f);
+        pager.setAlpha(isInPictureInPictureMode ? 0.f : ((float) prefs.opacityEKBar.get())/100);
+        findViewById(R.id.mouse_buttons).setAlpha(isInPictureInPictureMode ? 0.f : 0.7f);
         findViewById(R.id.mouse_helper_visibility).setAlpha(isInPictureInPictureMode ? 0.f : 1.f);
 
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);

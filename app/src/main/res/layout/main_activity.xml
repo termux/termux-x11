@@ -276,6 +276,18 @@
         android:background="@android:color/black"
         android:layout_gravity="bottom|center"/>
 
+    <TextView
+        android:id="@+id/composingView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal|bottom"
+        android:visibility="invisible"
+        android:background="@android:color/black"
+        android:textColor="#FFFFFF"
+        android:textSize="25sp"
+        android:focusable="false"
+        android:focusableInTouchMode="false" />
+
     <View
         android:id="@+id/activity_termux_bottom_space_view"
         android:layout_width="match_parent"

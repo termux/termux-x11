@@ -41,7 +41,7 @@ from The Open Group.
 #endif
 
 #include <stdio.h>
-#include <sys/timerfd.h>
+#include <sys/eventfd.h>
 #include <sys/errno.h>
 #include <libxcvt/libxcvt.h>
 #include <X11/X.h>
@@ -89,6 +89,7 @@ from The Open Group.
 extern DeviceIntPtr lorieMouse, lorieKeyboard;
 
 typedef struct {
+    bool ready;
     CloseScreenProcPtr CloseScreen;
     CreateScreenResourcesProcPtr CreateScreenResources;
 
@@ -97,7 +98,7 @@ typedef struct {
     OsTimerPtr fpsTimer;
 
     Bool cursorMoved;
-    int timerFd;
+    int eventFd;
 
     struct {
         AHardwareBuffer* buffer;
@@ -434,21 +435,19 @@ static inline Bool loriePixmapLock(PixmapPtr pixmap) {
     return pvfb->root.locked;
 }
 
-static void lorieTimerCallback(int fd, unused int r, void *arg) {
-    char dummy[8];
-    read(fd, dummy, 8);
+static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     if (renderer_should_redraw() && RegionNotEmpty(DamageRegion(pvfb->damage))) {
-        int redrawn = FALSE;
-        ScreenPtr pScreen = (ScreenPtr) arg;
+        int redrawn = FALSE;;
 
-        loriePixmapUnlock(pScreen->GetScreenPixmap(pScreen));
+        loriePixmapUnlock(pScreenPtr->devPrivate);
         redrawn = renderer_redraw(pvfb->env, pvfb->root.flip);
-        if (loriePixmapLock(pScreen->GetScreenPixmap(pScreen)) && redrawn)
+        if (loriePixmapLock(pScreenPtr->devPrivate) && redrawn)
             DamageEmpty(pvfb->damage);
     } else if (pvfb->cursorMoved)
         renderer_redraw(pvfb->env, pvfb->root.flip);
 
     pvfb->cursorMoved = FALSE;
+    return TRUE;
 }
 
 static CARD32 lorieFramecounter(unused OsTimerPtr timer, unused CARD32 time, unused void *arg) {
@@ -473,12 +472,14 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->damage);
     pvfb->fpsTimer = TimerSet(NULL, 0, 5000, lorieFramecounter, pScreen);
     lorieUpdateBuffer();
+    pvfb->ready = true;
 
     return TRUE;
 }
 
 static Bool
 lorieCloseScreen(ScreenPtr pScreen) {
+    pvfb->ready = false;
     unwrap(pvfb, pScreen, CloseScreen)
     // No need to call fbDestroyPixmap since AllocatePixmap sets pixmap as PRIVATE_SCREEN so it is destroyed automatically.
     return pScreen->CloseScreen(pScreen);
@@ -558,19 +559,34 @@ static Bool resetRootCursor(unused ClientPtr pClient, unused void *closure) {
     return TRUE;
 }
 
+void lorieTriggerWorkingQueue(void) {
+    eventfd_write(pvfb->eventFd, 1);
+}
+
+static void lorieWorkingQueueCallback(int fd, int __unused ready, void __unused *data) {
+    // Nothing to do here. It is needed to finish ospoll_wait.
+    eventfd_t dummy;
+    eventfd_read(fd, &dummy);
+}
+
+void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d) {
+    AChoreographer_postFrameCallback(d, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, d);
+    if (pvfb->ready) {
+        QueueWorkProc(lorieRedraw, NULL, NULL);
+        lorieTriggerWorkingQueue();
+    }
+}
+
 static Bool
 lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
-    static int timerFd = -1;
+    static int eventFd = -1;
     pScreenPtr = pScreen;
 
-    if (timerFd == -1) {
-        struct itimerspec spec = {0};
-        timerFd = timerfd_create(CLOCK_MONOTONIC,  0);
-        timerfd_settime(timerFd, 0, &spec, NULL);
-    }
+    if (eventFd == -1)
+        eventFd = eventfd(0, EFD_CLOEXEC);
 
-    pvfb->timerFd = timerFd;
-    SetNotifyFd(timerFd, lorieTimerCallback, X_NOTIFY_READ, pScreen);
+    pvfb->eventFd = eventFd;
+    SetNotifyFd(eventFd, lorieWorkingQueueCallback, X_NOTIFY_READ, NULL);
 
     miSetZeroLineBias(pScreen, 0);
     pScreen->blackPixel = 0;
@@ -650,11 +666,7 @@ void lorieConfigureNotify(int width, int height, int framerate) {
     }
 
     if (framerate > 0) {
-        long nsecs = 1000 * 1000 * 1000 / framerate;
-        struct itimerspec spec = { { 0, nsecs }, { 0, nsecs } };
-        timerfd_settime(lorieScreen.timerFd, 0, &spec, NULL);
-        log(VERBOSE, "New framerate is %d", framerate);
-
+        log(VERBOSE, "New reported framerate is %d", framerate);
         FakeScreenFps = framerate;
         present_fake_screen_init(pScreen);
     }

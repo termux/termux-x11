@@ -264,6 +264,10 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
 
     (*env)->GetJavaVM(env, &vm);
 
+    AChoreographer *choreographer = AChoreographer_getInstance();
+    // Trigger it first time
+    AChoreographer_postFrameCallback(choreographer, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, choreographer);
+
     pthread_create(&t, NULL, startServer, vm);
     return JNI_TRUE;
 }
@@ -276,6 +280,7 @@ Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, __unused jobject cl
         (*env)->ReleaseStringUTFChars(env, jname, name);
 
     QueueWorkProc(lorieChangeWindow, NULL, surface ? (*env)->NewGlobalRef(env, surface) : NULL);
+    lorieTriggerWorkingQueue();
 }
 
 static Bool sendConfigureNotify(__unused ClientPtr pClient, void *closure) {
@@ -320,6 +325,7 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 lorieEvent *copy = calloc(1, sizeof(lorieEvent));
                 *copy = e;
                 QueueWorkProc(sendConfigureNotify, NULL, copy);
+                lorieTriggerWorkingQueue();
                 break;
             }
             case EVENT_TOUCH: {
@@ -442,12 +448,14 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 break;
             case EVENT_CLIPBOARD_ANNOUNCE:
                 QueueWorkProc(handleClipboardAnnounce, NULL, NULL);
+                lorieTriggerWorkingQueue();
                 break;
             case EVENT_CLIPBOARD_SEND: {
                 char *data = calloc(1, e.clipboardSend.count + 1);
                 read(conn_fd, data, e.clipboardSend.count);
                 data[e.clipboardSend.count] = 0;
                 QueueWorkProc(handleClipboardData, NULL, data);
+                lorieTriggerWorkingQueue();
             }
         }
 
@@ -487,6 +495,7 @@ Java_com_termux_x11_CmdEntryPoint_getXConnection(JNIEnv *env, __unused jobject c
     socketpair(AF_UNIX, SOCK_STREAM, 0, client);
     fcntl(client[0], F_SETFL, fcntl(client[0], F_GETFL, 0) | O_NONBLOCK);
     QueueWorkProc(addFd, NULL, (void*) (int64_t) client[1]);
+    lorieTriggerWorkingQueue();
 
     return (*env)->CallStaticObjectMethod(env, ParcelFileDescriptorClass, adoptFd, client[0]);
 }

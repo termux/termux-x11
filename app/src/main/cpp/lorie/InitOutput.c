@@ -89,8 +89,17 @@ from The Open Group.
 
 extern DeviceIntPtr lorieMouse, lorieKeyboard;
 
+#define lorieGCPriv(pGC) LorieGCPrivPtr pGCPriv = dixLookupPrivate(&(pGC)->devPrivates, &lorieGCPrivateKey)
+static DevPrivateKeyRec lorieGCPrivateKey;
+typedef struct {
+    const GCOps *ops;
+    const GCFuncs *funcs;
+} LorieGCPrivRec, *LorieGCPrivPtr;
+static Bool lorieCreateGC(GCPtr pGC);
+
 typedef struct {
     bool ready;
+    CreateGCProcPtr CreateGC;
     CloseScreenProcPtr CloseScreen;
     CreateScreenResourcesProcPtr CreateScreenResources;
 
@@ -667,6 +676,7 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     pScreen->whitePixel = 1;
 
     if (FALSE
+          || !dixRegisterPrivateKey(&lorieGCPrivateKey, PRIVATE_GC, sizeof(LorieGCPrivRec))
           || !miSetVisualTypesAndMasks(24, ((1 << TrueColor) | (1 << DirectColor)), 8, TrueColor, 0xFF0000, 0x00FF00, 0x0000FF)
           || !miSetPixmapDepths()
           || !fbScreenInit(pScreen, NULL, pvfb->root.width, pvfb->root.height, monitorResolution, monitorResolution, 0, 32)
@@ -679,6 +689,7 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
 
     wrap(pvfb, pScreen, CreateScreenResources, lorieCreateScreenResources)
     wrap(pvfb, pScreen, CloseScreen, lorieCloseScreen)
+    wrap(pvfb, pScreen, CreateGC, lorieCreateGC)
 
     QueueWorkProc(resetRootCursor, NULL, NULL);
     ShmRegisterFbFuncs(pScreen);
@@ -779,6 +790,282 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
 void lorieSetVM(JavaVM* vm) {
     pvfb->vm = vm;
     (*vm)->AttachCurrentThread(vm, &pvfb->env, NULL);
+}
+
+#define LORIE_GC_OP_PROLOGUE(pGC) \
+    lorieGCPriv(pGC);  \
+    const GCFuncs *oldFuncs = pGC->funcs; \
+    const GCOps *oldOps = pGC->ops; \
+    unwrap(pGCPriv, pGC, funcs);  \
+    unwrap(pGCPriv, pGC, ops); \
+
+#define LORIE_GC_OP_EPILOGUE(pGC) \
+    wrap(pGCPriv, pGC, funcs, oldFuncs); \
+    wrap(pGCPriv, pGC, ops, oldOps)
+
+#define LORIE_GC_FUNC_PROLOGUE(pGC) \
+    lorieGCPriv(pGC); \
+    unwrap(pGCPriv, pGC, funcs); \
+    if (pGCPriv->ops) unwrap(pGCPriv, pGC, ops)
+
+#define LORIE_GC_FUNC_EPILOGUE(pGC) \
+    wrap(pGCPriv, pGC, funcs, &lorieGCFuncs);  \
+    if (pGCPriv->ops) wrap(pGCPriv, pGC, ops, &lorieGCOps)
+
+static const GCOps lorieGCOps;
+static const GCFuncs lorieGCFuncs;
+
+static void lorieValidateGC(GCPtr pGC, unsigned long stateChanges, DrawablePtr pDrawable) {
+    LORIE_GC_FUNC_PROLOGUE(pGC)
+    (*pGC->funcs->ValidateGC) (pGC, stateChanges, pDrawable);
+    LORIE_GC_FUNC_EPILOGUE(pGC)
+}
+
+static void lorieChangeGC(GCPtr pGC, unsigned long mask) {
+    LORIE_GC_FUNC_PROLOGUE(pGC)
+    (*pGC->funcs->ChangeGC) (pGC, mask);
+    LORIE_GC_FUNC_EPILOGUE(pGC)
+}
+
+static void lorieCopyGC(GCPtr pGCSrc, unsigned long mask, GCPtr pGCDst) {
+    LORIE_GC_FUNC_PROLOGUE(pGCSrc)
+    (*pGCSrc->funcs->CopyGC) (pGCSrc, mask, pGCDst);
+    LORIE_GC_FUNC_EPILOGUE(pGCSrc)
+}
+
+static void lorieDestroyGC(GCPtr pGC) {
+    LORIE_GC_FUNC_PROLOGUE(pGC)
+    (*pGC->funcs->DestroyGC) (pGC);
+    LORIE_GC_FUNC_EPILOGUE(pGC)
+}
+
+static void lorieChangeClip(GCPtr pGC, int type, void *pvalue, int nrects) {
+    LORIE_GC_FUNC_PROLOGUE(pGC)
+    (*pGC->funcs->ChangeClip) (pGC, type, pvalue, nrects);
+    LORIE_GC_FUNC_EPILOGUE(pGC)
+}
+
+static void lorieDestroyClip(GCPtr pGC) {
+    LORIE_GC_FUNC_PROLOGUE(pGC)
+    (*pGC->funcs->DestroyClip) (pGC);
+    LORIE_GC_FUNC_EPILOGUE(pGC)
+}
+
+static void lorieCopyClip(GCPtr pgcDst, GCPtr pgcSrc) {
+    LORIE_GC_FUNC_PROLOGUE(pgcDst)
+    (*pgcDst->funcs->CopyClip) (pgcDst, pgcSrc);
+    LORIE_GC_FUNC_EPILOGUE(pgcDst)
+}
+
+static const GCFuncs lorieGCFuncs = {
+        lorieValidateGC, lorieChangeGC, lorieCopyGC, lorieDestroyGC,
+        lorieChangeClip, lorieDestroyClip, lorieCopyClip
+};
+#define LOCK_DRAWABLE(a) if (a == pScreenPtr->devPrivate || (a && a->type == DRAWABLE_WINDOW)) pthread_mutex_lock(&pvfb->state->lock)
+#define UNLOCK_DRAWABLE(a) if (a == pScreenPtr->devPrivate || (a && a->type == DRAWABLE_WINDOW)) pthread_mutex_unlock(&pvfb->state->lock)
+
+static void lorieFillSpans(DrawablePtr pDrawable, GCPtr pGC, int nInit, DDXPointPtr pptInit, int * pwidthInit, int fSorted) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->FillSpans) (pDrawable, pGC, nInit, pptInit, pwidthInit, fSorted);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static void lorieSetSpans(DrawablePtr pDrawable, GCPtr pGC, char * psrc, DDXPointPtr ppt, int * pwidth, int nspans, int fSorted) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->SetSpans) (pDrawable, pGC, psrc, ppt, pwidth, nspans, fSorted);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static void loriePutImage(DrawablePtr pDrawable, GCPtr pGC, int depth, int x, int y, int w, int h, int leftPad, int format, char * pBits) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->PutImage) (pDrawable, pGC, depth, x, y, w, h, leftPad, format, pBits);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static RegionPtr lorieCopyArea(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC, int srcx, int srcy, int w, int h, int dstx, int dsty) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDst);
+    RegionPtr r = (*pGC->ops->CopyArea) (pSrc, pDst, pGC, srcx, srcy, w, h, dstx, dsty);
+    UNLOCK_DRAWABLE(pDst);
+    LORIE_GC_OP_EPILOGUE(pGC)
+    return r;
+}
+
+static RegionPtr lorieCopyPlane(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC, int srcx, int srcy, int width, int height, int dstx, int dsty, unsigned long bitPlane) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDst);
+    RegionPtr r = (*pGC->ops->CopyPlane) (pSrc, pDst, pGC, srcx, srcy, width, height, dstx, dsty, bitPlane);
+    UNLOCK_DRAWABLE(pDst);
+    LORIE_GC_OP_EPILOGUE(pGC)
+    return r;
+}
+
+static void loriePolyPoint(DrawablePtr pDrawable, GCPtr pGC, int mode, int npt, DDXPointPtr pptInit) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->PolyPoint) (pDrawable, pGC, mode, npt, pptInit);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static void loriePolylines(DrawablePtr pDrawable, GCPtr pGC, int mode, int npt, DDXPointPtr pptInit) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->Polylines) (pDrawable, pGC, mode, npt, pptInit);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static void loriePolySegment(DrawablePtr pDrawable, GCPtr pGC, int nseg, xSegment * pSegs) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->PolySegment) (pDrawable, pGC, nseg, pSegs);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static void loriePolyRectangle(DrawablePtr pDrawable, GCPtr pGC, int nrects, xRectangle * pRects) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->PolyRectangle) (pDrawable, pGC, nrects, pRects);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static void loriePolyArc(DrawablePtr pDrawable, GCPtr pGC, int narcs, xArc * parcs) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->PolyArc) (pDrawable, pGC, narcs, parcs);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static void lorieFillPolygon(DrawablePtr pDrawable, GCPtr pGC, int shape, int mode, int count, DDXPointPtr pPts) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->FillPolygon) (pDrawable, pGC, shape, mode, count, pPts);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static void loriePolyFillRect(DrawablePtr pDrawable, GCPtr pGC, int nrectFill, xRectangle * prectInit) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->PolyFillRect) (pDrawable, pGC, nrectFill, prectInit);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static void loriePolyFillArc(DrawablePtr pDrawable, GCPtr pGC, int narcs, xArc * parcs) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->PolyFillArc) (pDrawable, pGC, narcs, parcs);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static int loriePolyText8(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int count, char * chars) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    int r = (*pGC->ops->PolyText8) (pDrawable, pGC, x, y, count, chars);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+    return r;
+}
+
+static int loriePolyText16(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int count, unsigned short * chars) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    int r = (*pGC->ops->PolyText16) (pDrawable, pGC, x, y, count, chars);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+    return r;
+}
+
+static void lorieImageText8(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int count, char * chars) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->ImageText8) (pDrawable, pGC, x, y, count, chars);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static void lorieImageText16(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int count, unsigned short * chars) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->ImageText16) (pDrawable, pGC, x, y, count, chars);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static void lorieImageGlyphBlt(DrawablePtr pDrawable, GCPtr pGC, int x, int y, unsigned int nglyph, CharInfoPtr *ppci, void *pglyphBase) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->ImageGlyphBlt) (pDrawable, pGC, x, y, nglyph, ppci, pglyphBase);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static void loriePolyGlyphBlt(DrawablePtr pDrawable, GCPtr pGC, int x, int y, unsigned int nglyph, CharInfoPtr *ppci, void *pglyphBase) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDrawable);
+    (*pGC->ops->PolyGlyphBlt) (pDrawable, pGC, x, y, nglyph, ppci, pglyphBase);
+    UNLOCK_DRAWABLE(pDrawable);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static void loriePushPixels(GCPtr pGC, PixmapPtr pSrc, DrawablePtr pDst, int w, int h, int x, int y) {
+    LORIE_GC_OP_PROLOGUE(pGC)
+    LOCK_DRAWABLE(pDst);
+    (*pGC->ops->PushPixels) (pGC, pSrc, pDst, w, h, x, y);
+    UNLOCK_DRAWABLE(pDst);
+    LORIE_GC_OP_EPILOGUE(pGC)
+}
+
+static const GCOps lorieGCOps = {
+        lorieFillSpans, lorieSetSpans,
+        loriePutImage, lorieCopyArea,
+        lorieCopyPlane, loriePolyPoint,
+        loriePolylines, loriePolySegment,
+        loriePolyRectangle, loriePolyArc,
+        lorieFillPolygon, loriePolyFillRect,
+        loriePolyFillArc, loriePolyText8,
+        loriePolyText16, lorieImageText8,
+        lorieImageText16, lorieImageGlyphBlt,
+        loriePolyGlyphBlt, loriePushPixels,
+};
+
+/*
+ * Root window memory is shared across two processes (X server and Android activity)
+ * so we should make sure there is no simultaneous reading/writing in two different processes.
+ * That means we should lock out interprocess mutex before performing any operation
+ * to prevent tearing and segmentation faults.
+ * We lock mutex for all windows including root window because all windows share root window memory with some offset.
+ */
+
+static Bool
+lorieCreateGC(GCPtr pGC) {
+    ScreenPtr pScreen = pGC->pScreen;
+
+    lorieGCPriv(pGC);
+    Bool ret;
+
+    unwrap(pvfb, pScreen, CreateGC)
+    if ((ret = (*pScreen->CreateGC) (pGC))) {
+        pGCPriv->funcs = pGC->funcs;
+        pGCPriv->ops = pGC->ops;
+        pGC->funcs = &lorieGCFuncs;
+        pGC->ops = &lorieGCOps;
+    }
+    wrap(pvfb, pScreen, CreateGC, lorieCreateGC)
+
+    return ret;
 }
 
 static GLboolean drawableSwapBuffers(unused ClientPtr client, unused __GLXdrawable * drawable) { return TRUE; }

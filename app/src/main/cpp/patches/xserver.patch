@@ -96,7 +96,7 @@ diff --git a/os/osinit.c b/os/osinit.c
 index 8575319ff..06c44a416 100644
 --- a/os/osinit.c
 +++ b/os/osinit.c
-@@ -170,11 +170,11 @@ OsInit(void)
+@@ -170,11 +170,9 @@ OsInit(void)
  #endif
  
      if (!been_here) {
@@ -106,9 +106,9 @@ index 8575319ff..06c44a416 100644
          int i;
  
 -        int siglist[] = { SIGSEGV, SIGQUIT, SIGILL, SIGFPE, SIGBUS,
-+        int siglist[] = { SIGQUIT, SIGILL, SIGFPE, SIGBUS,
-             SIGABRT,
-             SIGSYS,
++        int siglist[] = { SIGQUIT, SIGILL, SIGFPE,
+-            SIGABRT,
+-            SIGSYS,
              SIGXCPU,
 diff --git a/os/utils.c b/os/utils.c
 index 92a66e81a..d2ca69684 100644

@@ -185,10 +185,15 @@ Java_com_termux_x11_LorieView_sendClipboardEvent(JNIEnv *env, __unused jobject t
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendWindowChange(__unused JNIEnv* env, __unused jobject cls, jint width, jint height, jint framerate) {
+Java_com_termux_x11_LorieView_sendWindowChange(__unused JNIEnv* env, __unused jobject cls, jint width, jint height, jint framerate, jstring jname) {
     if (conn_fd != -1) {
-        lorieEvent e = { .screenSize = { .t = EVENT_SCREEN_SIZE, .width = width, .height = height, .framerate = framerate } };
+        const char *name = (!jname || width <= 0 || height <= 0) ? NULL : (*env)->GetStringUTFChars(env, jname, JNI_FALSE);
+        lorieEvent e = { .screenSize = { .t = EVENT_SCREEN_SIZE, .width = width, .height = height, .framerate = framerate, .name_size = (name ? strlen(name) : 0) } };
         write(conn_fd, &e, sizeof(e));
+        if (name) {
+            write(conn_fd, name, strlen(name));
+            (*env)->ReleaseStringUTFChars(env, jname, name);
+        }
         checkConnection(env);
     }
 }

@@ -367,7 +367,7 @@ public class LorieView extends SurfaceView implements InputStub {
     static native void setClipboardSyncEnabled(boolean enabled, boolean ignored);
     public native void sendClipboardAnnounce();
     public native void sendClipboardEvent(byte[] text);
-    static native void sendWindowChange(int width, int height, int framerate);
+    static native void sendWindowChange(int width, int height, int framerate, String name);
     public native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
     public native void sendTouchEvent(int action, int id, int x, int y);
     public native void sendStylusEvent(float x, float y, int pressure, int tiltX, int tiltY, int orientation, int buttons, boolean eraser, boolean mouseMode);

@@ -11,9 +11,8 @@
 #include "linux/input-event-codes.h"
 
 void lorieSetVM(JavaVM* vm);
-Bool lorieChangeScreenName(ClientPtr pClient, void *closure);
 Bool lorieChangeWindow(ClientPtr pClient, void *closure);
-void lorieConfigureNotify(int width, int height, int framerate);
+void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name);
 void lorieEnableClipboardSync(Bool enable);
 void lorieSendClipboardData(const char* data);
 void lorieInitClipboard(void);
@@ -44,6 +43,8 @@ typedef union {
     struct {
         uint8_t t;
         uint16_t width, height, framerate;
+        size_t name_size;
+        char *name;
     } screenSize;
     struct {
         uint8_t t;

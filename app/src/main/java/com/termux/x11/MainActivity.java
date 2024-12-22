@@ -187,22 +187,22 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         lorieView.setOnKeyListener(mLorieKeyListener);
 
         lorieView.setCallback((sfc, surfaceWidth, surfaceHeight, screenWidth, screenHeight) -> {
+            String name;
             int framerate = (int) ((lorieView.getDisplay() != null) ? lorieView.getDisplay().getRefreshRate() : 30);
 
             mInputHandler.handleHostSizeChanged(surfaceWidth, surfaceHeight);
             mInputHandler.handleClientSizeChanged(screenWidth, screenHeight);
-            LorieView.sendWindowChange(screenWidth, screenHeight, framerate);
+            if (lorieView.getDisplay() == null || lorieView.getDisplay().getDisplayId() == Display.DEFAULT_DISPLAY)
+                name = "Builtin Display";
+            else if (SamsungDexUtils.checkDeXEnabled(this))
+                name = "Dex Display";
+            else
+                name = "External Display";
+            LorieView.sendWindowChange(screenWidth, screenHeight, framerate, name);
 
             if (service != null) {
                 try {
-                    String name;
-                    if (lorieView.getDisplay() == null || lorieView.getDisplay().getDisplayId() == Display.DEFAULT_DISPLAY)
-                        name = "Builtin Display";
-                    else if (SamsungDexUtils.checkDeXEnabled(this))
-                        name = "Dex Display";
-                    else
-                        name = "External Display";
-                    service.windowChanged(sfc, name);
+                    service.windowChanged(sfc);
                 } catch (RemoteException e) {
                     Log.e("MainActivity", "failed to send windowChanged request", e);
                 }

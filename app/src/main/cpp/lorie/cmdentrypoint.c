@@ -175,12 +175,7 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, __unused jobject cls, jobject surface, jstring jname) {
-    const char *name = !jname ? NULL : (*env)->GetStringUTFChars(env, jname, JNI_FALSE);
-    QueueWorkProc(lorieChangeScreenName, NULL, name ? strndup(name, 1024) : strdup("screen"));
-    if (name)
-        (*env)->ReleaseStringUTFChars(env, jname, name);
-
+Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, __unused jobject cls, jobject surface) {
     QueueWorkProc(lorieChangeWindow, NULL, surface ? (*env)->NewGlobalRef(env, surface) : NULL);
     lorieTriggerWorkingQueue();
 }
@@ -188,8 +183,8 @@ Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, __unused jobject cl
 static Bool sendConfigureNotify(__unused ClientPtr pClient, void *closure) {
     // This must be done only on X server thread.
     lorieEvent* e = closure;
-    __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "window changed: %d %d", e->screenSize.width, e->screenSize.height);
-    lorieConfigureNotify(e->screenSize.width, e->screenSize.height, e->screenSize.framerate);
+    __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "window changed: %d %d %s", e->screenSize.width, e->screenSize.height, e->screenSize.name);
+    lorieConfigureNotify(e->screenSize.width, e->screenSize.height, e->screenSize.framerate, e->screenSize.name_size, e->screenSize.name);
     free(e);
     return TRUE;
 }
@@ -224,8 +219,11 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
     if (read(fd, &e, sizeof(e)) == sizeof(e)) {
         switch(e.type) {
             case EVENT_SCREEN_SIZE: {
-                lorieEvent *copy = calloc(1, sizeof(lorieEvent));
-                *copy = e;
+                lorieEvent *copy = calloc(1, sizeof(lorieEvent) + e.screenSize.name_size + 1);
+                memcpy(copy, &e, sizeof(e));
+                copy->screenSize.name = copy->screenSize.name_size ? (char*) (copy + 1) : NULL;
+                if (copy->screenSize.name_size)
+                    read(fd, copy->screenSize.name, copy->screenSize.name_size);
                 QueueWorkProc(sendConfigureNotify, NULL, copy);
                 lorieTriggerWorkingQueue();
                 break;

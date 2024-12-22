@@ -156,12 +156,12 @@ public class XrActivity extends MainActivity implements GLSurfaceView.Renderer {
         surface = new SurfaceTexture(texture);
 
         runOnUiThread(() -> getLorieView().setCallback((sfc, surfaceWidth, surfaceHeight, screenWidth, screenHeight) -> {
-            LorieView.sendWindowChange(screenWidth, screenHeight, 60);
+            LorieView.sendWindowChange(screenWidth, screenHeight, 60, "OpenXR");
             surface.setDefaultBufferSize(screenWidth, screenHeight);
 
             if (service != null) {
                 try {
-                    service.windowChanged(new Surface(surface), "OpenXR");
+                    service.windowChanged(new Surface(surface));
                 } catch (RemoteException e) {
                     Log.e("XrActivity", "failed to send windowChanged request", e);
                 }

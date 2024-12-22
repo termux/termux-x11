@@ -713,16 +713,6 @@ CursorForDevice(DeviceIntPtr pDev) {
     return NULL;
 }
 
-Bool lorieChangeScreenName(unused ClientPtr pClient, void *closure) {
-    RROutputPtr output = RRFirstOutput(pScreenPtr);
-    memset(output->name, 0, 1024);
-    strncpy(output->name, closure, 1024);
-    output->name[1023] = '\0';
-    output->nameLength = strlen(output->name);
-    free(closure);
-    return TRUE;
-}
-
 Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
     jobject surface = (jobject) closure;
     renderer_set_window(pvfb->env, surface, pvfb->root.buffer);
@@ -736,9 +726,16 @@ Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
     return TRUE;
 }
 
-void lorieConfigureNotify(int width, int height, int framerate) {
+void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name) {
     ScreenPtr pScreen = pScreenPtr;
     RROutputPtr output = RRFirstOutput(pScreen);
+
+    if (output && name) {
+        memset(output->name, 0, 1024);
+        strncpy(output->name, name, name_size < 1024 ? name_size : 1024);
+        output->name[1023] = '\0';
+        output->nameLength = strlen(output->name);
+    }
 
     if (output && width && height && (pScreen->width != width || pScreen->height != height)) {
         CARD32 mmWidth, mmHeight;

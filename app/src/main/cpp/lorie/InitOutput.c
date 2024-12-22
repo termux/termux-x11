@@ -117,6 +117,8 @@ typedef struct {
         Bool legacyDrawing;
         uint8_t flip;
         uint32_t width, height;
+        char name[1024];
+        uint32_t framerate;
     } root;
 
     JavaVM* vm;
@@ -125,7 +127,13 @@ typedef struct {
 } lorieScreenInfo;
 
 ScreenPtr pScreenPtr;
-static lorieScreenInfo lorieScreen = { .root.width = 1280, .root.height = 1024, .dri3 = TRUE }, *pvfb = &lorieScreen;
+static lorieScreenInfo lorieScreen = {
+        .root.width = 1280,
+        .root.height = 1024,
+        .root.framerate = 30,
+        .root.name = "screen",
+        .dri3 = TRUE,
+}, *pvfb = &lorieScreen;
 static char *xstartup = NULL;
 
 #pragma clang diagnostic push
@@ -615,8 +623,6 @@ lorieRandRInit(ScreenPtr pScreen) {
     RRCrtcPtr crtc;
     RRModePtr mode;
 
-    char screenName[1024] = "screen";
-
     if (!RRScreenInit(pScreen))
        return FALSE;
 
@@ -628,10 +634,10 @@ lorieRandRInit(ScreenPtr pScreen) {
     RRScreenSetSizeRange(pScreen, 1, 1, 32767, 32767);
 
     if (FALSE
-        || !(mode = lorieCvt(pScreen->width, pScreen->height, 30))
+        || !(mode = lorieCvt(pScreen->width, pScreen->height, pvfb->root.framerate))
         || !(crtc = RRCrtcCreate(pScreen, NULL))
         || !RRCrtcGammaSetSize(crtc, 256)
-        || !(output = RROutputCreate(pScreen, screenName, sizeof(screenName), NULL))
+        || !(output = RROutputCreate(pScreen, pvfb->root.name, sizeof(pvfb->root.name), NULL))
         || (output->nameLength = strlen(output->name), FalseNoop())
         || !RROutputSetClones(output, NULL, 0)
         || !RROutputSetModes(output, &mode, 1, 0)
@@ -729,9 +735,13 @@ Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
 void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name) {
     ScreenPtr pScreen = pScreenPtr;
     RROutputPtr output = RRFirstOutput(pScreen);
+    framerate = framerate ? framerate : 0;
 
     if (output && name) {
+        // We should save this name in pvfb to make sure the name will be restored in the case if the server is being reset.
+        memset(pvfb->root.name, 0, 1024);
         memset(output->name, 0, 1024);
+        strncpy(pvfb->root.name, name, name_size < 1024 ? name_size : 1024);
         strncpy(output->name, name, name_size < 1024 ? name_size : 1024);
         output->name[1023] = '\0';
         output->nameLength = strlen(output->name);
@@ -740,6 +750,7 @@ void lorieConfigureNotify(int width, int height, int framerate, size_t name_size
     if (output && width && height && (pScreen->width != width || pScreen->height != height)) {
         CARD32 mmWidth, mmHeight;
         RRModePtr mode = lorieCvt(width, height, framerate);
+        pvfb->root.framerate = framerate;
         mmWidth = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
         mmHeight = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
         RROutputSetModes(output, &mode, 1, 0);

@@ -241,7 +241,20 @@ index f9b7b06d9..f4b2aeddc 100644
      p = &workQueue;
      /*
       * Scan the work queue once, calling each function.  Those
-@@ -543,6 +551,7 @@
+@@ -533,16 +541,20 @@
+      * QueueWorkProc.
+      */
+     while ((q = *p)) {
++        pthread_mutex_unlock(&workQueueLock);
+         if ((*q->function) (q->client, q->closure)) {
++            pthread_mutex_lock(&workQueueLock);
+             /* remove q from the list */
+             *p = q->next;       /* don't fetch until after func called */
+             free(q);
+         }
+         else {
++            pthread_mutex_lock(&workQueueLock);
+             p = &q->next;       /* don't fetch until after func called */
          }
      }
      workQueueLast = p;
@@ -249,7 +262,7 @@ index f9b7b06d9..f4b2aeddc 100644
  }
  
  void
-@@ -550,6 +559,7 @@
+@@ -550,6 +562,7 @@
  {
      WorkQueuePtr q, *p;
  
@@ -257,7 +270,7 @@ index f9b7b06d9..f4b2aeddc 100644
      p = &workQueue;
      while ((q = *p)) {
          if (q->client && q->client->clientGone) {
-@@ -563,6 +573,7 @@
+@@ -563,6 +576,7 @@
          }
      }
      workQueueLast = p;
@@ -265,7 +278,7 @@ index f9b7b06d9..f4b2aeddc 100644
  }
  
  Bool
-@@ -578,8 +589,10 @@
+@@ -578,8 +592,10 @@
      q->client = client;
      q->closure = closure;
      q->next = NULL;

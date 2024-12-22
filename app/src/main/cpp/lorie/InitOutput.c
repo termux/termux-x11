@@ -57,6 +57,7 @@ from The Open Group.
 #include <dri3.h>
 #include <sys/mman.h>
 #include <busfault.h>
+#include <linux/ashmem.h>
 #include "scrnintstr.h"
 #include "servermd.h"
 #include "fb.h"
@@ -98,8 +99,9 @@ typedef struct {
     OsTimerPtr fpsTimer;
 
     Bool cursorMoved;
-    int eventFd;
+    int eventFd, stateFd;
 
+    struct lorie_shared_server_state* state;
     struct {
         AHardwareBuffer* buffer;
         Bool locked;
@@ -111,12 +113,59 @@ typedef struct {
     JavaVM* vm;
     JNIEnv* env;
     Bool dri3;
-} lorieScreenInfo, *lorieScreenInfoPtr;
+} lorieScreenInfo;
 
 ScreenPtr pScreenPtr;
-static lorieScreenInfo lorieScreen = { .root.width = 1280, .root.height = 1024, .dri3 = TRUE };
-static lorieScreenInfoPtr pvfb = &lorieScreen;
+static lorieScreenInfo lorieScreen = { .root.width = 1280, .root.height = 1024, .dri3 = TRUE }, *pvfb = &lorieScreen;
 static char *xstartup = NULL;
+
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnreachableCallsOfFunction"
+static int create_shmem_region(char const* name, size_t size)
+{
+    int fd = memfd_create("Xlorie", MFD_CLOEXEC|MFD_ALLOW_SEALING);
+    if (fd) {
+        ftruncate (fd, size);
+        return fd;
+    }
+
+    fd = open("/dev/ashmem", O_RDWR);
+    if (fd < 0)
+        return fd;
+
+    char name_buffer[ASHMEM_NAME_LEN] = {0};
+    strncpy(name_buffer, name, sizeof(name_buffer));
+    name_buffer[sizeof(name_buffer)-1] = 0;
+
+    int ret = ioctl(fd, ASHMEM_SET_NAME, name_buffer);
+    if (ret < 0) goto error;
+
+    ret = ioctl(fd, ASHMEM_SET_SIZE, size);
+    if (ret < 0) goto error;
+
+    return fd;
+    error:
+    close(fd);
+    return ret;
+}
+#pragma clang diagnostic pop
+
+__attribute((constructor())) static void initSharedServerState() {
+    pthread_mutexattr_t mutex_attr;
+    if (-1 == (lorieScreen.stateFd = create_shmem_region("xserver", sizeof(*lorieScreen.state)))) {
+        dprintf(2, "FATAL: Failed to allocate server state.\n");
+        _exit(1);
+    }
+
+    if (!(lorieScreen.state = mmap(NULL, sizeof(*lorieScreen.state), PROT_READ|PROT_WRITE, MAP_SHARED, lorieScreen.stateFd, 0))) {
+        dprintf(2, "FATAL: Failed to map server state.\n");
+        _exit(1);
+    }
+
+    pthread_mutexattr_init(&mutex_attr);
+    pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
+    pthread_mutex_init(&lorieScreen.state->lock, &mutex_attr);
+}
 
 static Bool TrueNoop() { return TRUE; }
 static Bool FalseNoop() { return FALSE; }
@@ -261,12 +310,23 @@ static RRModePtr lorieCvt(int width, int height, int framerate) {
     return mode;
 }
 
-static void lorieMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
-    renderer_set_cursor_coordinates(x, y);
-    pvfb->cursorMoved = TRUE;
+static Bool resetRootCursor(unused ClientPtr pClient, unused void *closure) {
+    CursorVisible = TRUE;
+    pScreenPtr->DisplayCursor(lorieMouse, pScreenPtr, NullCursor);
+    pScreenPtr->DisplayCursor(lorieMouse, pScreenPtr, rootCursor);
+    return TRUE;
 }
 
-static void lorieConvertCursor(CursorPtr pCurs, CARD32 *data) {
+static void lorieMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
+    pthread_mutex_lock(&pvfb->state->lock);
+    pvfb->state->cursor.x = x;
+    pvfb->state->cursor.y = y;
+    renderer_set_cursor_coordinates(x, y);
+    pvfb->cursorMoved = TRUE;
+    pthread_mutex_unlock(&pvfb->state->lock);
+}
+
+static void lorieConvertCursor(CursorPtr pCurs, uint32_t *data) {
     CursorBitsPtr bits = pCurs->bits;
     if (bits->argb) {
         for (int i = 0; i < bits->width * bits->height; i++) {
@@ -275,7 +335,7 @@ static void lorieConvertCursor(CursorPtr pCurs, CARD32 *data) {
             data[i] = (p & 0xFF000000) | ((p & 0x00FF0000) >> 16) | (p & 0x0000FF00) | ((p & 0x000000FF) << 16);
         }
     } else {
-        CARD32 d, fg, bg, *p;
+        uint32_t d, fg, bg, *p;
         int x, y, stride, i, bit;
 
         p = data;
@@ -295,13 +355,27 @@ static void lorieConvertCursor(CursorPtr pCurs, CARD32 *data) {
 
 static void lorieSetCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, CursorPtr pCurs, int x0, int y0) {
     CursorBitsPtr bits = pCurs ? pCurs->bits : NULL;
-    if (pCurs && bits) {
-        CARD32 data[bits->width * bits->height * 4];
+    if (pCurs && (pCurs->bits->width >= 512 || pCurs->bits->height >= 512)) {
+        // We do not have enough memory allocated for such a big cursor, let's display default "X" cursor
+        QueueWorkProc(resetRootCursor, NULL, NULL);
+        return;
+    }
 
-        lorieConvertCursor(pCurs, data);
-        renderer_update_cursor(bits->width, bits->height, bits->xhot, bits->yhot, data);
-    } else
+    pthread_mutex_lock(&pvfb->state->lock);
+    if (pCurs && bits) {
+        pvfb->state->cursor.xhot = bits->xhot;
+        pvfb->state->cursor.yhot = bits->yhot;
+        pvfb->state->cursor.width = bits->width;
+        pvfb->state->cursor.height = bits->height;
+        lorieConvertCursor(pCurs, pvfb->state->cursor.bits);
+        renderer_update_cursor(bits->width, bits->height, bits->xhot, bits->yhot, pvfb->state->cursor.bits);
+    } else {
+        pvfb->state->cursor.xhot = pvfb->state->cursor.yhot = 0;
+        pvfb->state->cursor.width = pvfb->state->cursor.height = 0;
         renderer_update_cursor(0, 0, 0, 0, NULL);
+    }
+    pvfb->state->cursor.updated = true;
+    pthread_mutex_unlock(&pvfb->state->lock);
 
     if (x0 >= 0 && y0 >= 0)
         lorieMoveCursor(NULL, NULL, x0, y0);
@@ -437,7 +511,7 @@ static inline Bool loriePixmapLock(PixmapPtr pixmap) {
 
 static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     if (renderer_should_redraw() && RegionNotEmpty(DamageRegion(pvfb->damage))) {
-        int redrawn = FALSE;;
+        int redrawn = FALSE;
 
         loriePixmapUnlock(pScreenPtr->devPrivate);
         redrawn = renderer_redraw(pvfb->env, pvfb->root.flip);
@@ -471,7 +545,11 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
 
     DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->damage);
     pvfb->fpsTimer = TimerSet(NULL, 0, 5000, lorieFramecounter, pScreen);
+
+    pthread_mutex_lock(&pvfb->state->lock);
     lorieUpdateBuffer();
+    pthread_mutex_unlock(&pvfb->state->lock);
+
     pvfb->ready = true;
 
     return TRUE;
@@ -493,7 +571,10 @@ lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD
     pvfb->root.height = pScreen->height = height;
     pScreen->mmWidth = ((double) (width)) * 25.4 / monitorResolution;
     pScreen->mmHeight = ((double) (height)) * 25.4 / monitorResolution;
+
+    pthread_mutex_lock(&pvfb->state->lock);
     lorieUpdateBuffer();
+    pthread_mutex_unlock(&pvfb->state->lock);
 
     pScreen->ResizeWindow(pScreen->root, 0, 0, width, height, NULL);
     DamageEmpty(pvfb->damage);
@@ -509,7 +590,7 @@ lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD
 static Bool
 lorieRRCrtcSet(unused ScreenPtr pScreen, RRCrtcPtr crtc, RRModePtr mode, int x, int y,
                Rotation rotation, int numOutput, RROutputPtr *outputs) {
-  return (crtc && mode) ? RRCrtcNotify(crtc, mode, x, y, rotation, NULL, numOutput, outputs) : FALSE;
+    return (crtc && mode) ? RRCrtcNotify(crtc, mode, x, y, rotation, NULL, numOutput, outputs) : FALSE;
 }
 
 static Bool
@@ -549,13 +630,6 @@ lorieRandRInit(ScreenPtr pScreen) {
         || !RROutputSetConnection(output, RR_Connected)
         || !RRCrtcNotify(crtc, mode, 0, 0, RR_Rotate_0, NULL, 1, &output))
         return FALSE;
-    return TRUE;
-}
-
-static Bool resetRootCursor(unused ClientPtr pClient, unused void *closure) {
-    CursorVisible = TRUE;
-    pScreenPtr->DisplayCursor(lorieMouse, pScreenPtr, NullCursor);
-    pScreenPtr->DisplayCursor(lorieMouse, pScreenPtr, rootCursor);
     return TRUE;
 }
 

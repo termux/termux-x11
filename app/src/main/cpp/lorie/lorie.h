@@ -7,6 +7,7 @@
 #include <X11/keysymdef.h>
 #include <jni.h>
 #include <screenint.h>
+#include <sys/socket.h>
 #include "linux/input-event-codes.h"
 
 void lorieSetVM(JavaVM* vm);
@@ -82,6 +83,15 @@ typedef union {
         uint32_t count;
     } clipboardSend;
 } lorieEvent;
+
+struct lorie_shared_server_state {
+    pthread_mutex_t lock; // initialized at X server side.
+    struct {
+        uint32_t x, y, xhot, yhot, width, height;
+        uint32_t bits[512*512]; // 1 megabyte should be enough for any cursor up to 512x512
+        uint8_t updated;
+    } cursor;
+};
 
 static int android_to_linux_keycode[304] = {
         [ 4   /* ANDROID_KEYCODE_BACK */] = KEY_ESC,
@@ -227,3 +237,63 @@ static int android_to_linux_keycode[304] = {
         [ 208  /* ANDROID_KEYCODE_CALENDAR */] = KEY_CALENDAR,
         [ 210  /* ANDROID_KEYCODE_CALCULATOR */] = KEY_CALC,
 };
+
+__always_inline static inline int ancil_send_fd(int sock, int fd)
+{
+    char nothing = '!';
+    struct iovec nothing_ptr = { .iov_base = &nothing, .iov_len = 1 };
+
+    struct {
+        struct cmsghdr align;
+        int fd[1];
+    } ancillary_data_buffer;
+
+    struct msghdr message_header = {
+            .msg_name = NULL,
+            .msg_namelen = 0,
+            .msg_iov = &nothing_ptr,
+            .msg_iovlen = 1,
+            .msg_flags = 0,
+            .msg_control = &ancillary_data_buffer,
+            .msg_controllen = sizeof(struct cmsghdr) + sizeof(int)
+    };
+
+    struct cmsghdr* cmsg = CMSG_FIRSTHDR(&message_header);
+    cmsg->cmsg_len = message_header.msg_controllen; // sizeof(int);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    ((int*) CMSG_DATA(cmsg))[0] = fd;
+
+    return sendmsg(sock, &message_header, 0) >= 0 ? 0 : -1;
+}
+
+__always_inline static inline int ancil_recv_fd(int sock)
+{
+    char nothing = '!';
+    struct iovec nothing_ptr = { .iov_base = &nothing, .iov_len = 1 };
+
+    struct {
+        struct cmsghdr align;
+        int fd[1];
+    } ancillary_data_buffer;
+
+    struct msghdr message_header = {
+            .msg_name = NULL,
+            .msg_namelen = 0,
+            .msg_iov = &nothing_ptr,
+            .msg_iovlen = 1,
+            .msg_flags = 0,
+            .msg_control = &ancillary_data_buffer,
+            .msg_controllen = sizeof(struct cmsghdr) + sizeof(int)
+    };
+
+    struct cmsghdr* cmsg = CMSG_FIRSTHDR(&message_header);
+    cmsg->cmsg_len = message_header.msg_controllen;
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    ((int*) CMSG_DATA(cmsg))[0] = -1;
+
+    if (recvmsg(sock, &message_header, 0) < 0) return -1;
+
+    return ((int*) CMSG_DATA(cmsg))[0];
+}

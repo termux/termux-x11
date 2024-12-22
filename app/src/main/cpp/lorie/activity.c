@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <unistd.h>
 #include <string.h>
 #include <pthread.h>
 #include <sys/ioctl.h>
@@ -303,7 +304,6 @@ static void* stderrToLogcatThread(__unused void* cookie) {
 
 __attribute__((constructor)) static void init(void) {
     pthread_t t;
-    if (!strcmp("com.termux.x11", __progname))
-        pthread_create(&t, NULL, stderrToLogcatThread, NULL);
+    pthread_create(&t, NULL, stderrToLogcatThread, NULL);
 }
 #endif

@@ -206,3 +206,73 @@ index f9b7b06d9..f4b2aeddc 100644
      free(xkbbasedirflag);
  
      if (!buf) {
++++ ./dix/dixutils.c	2024-12-22 07:34:35.252860515 +0200
+@@ -506,18 +506,25 @@
+ 
+ WorkQueuePtr workQueue;
+ static WorkQueuePtr *workQueueLast = &workQueue;
++pthread_mutex_t workQueueLock = PTHREAD_MUTEX_INITIALIZER;
++
++__attribute__((constructor)) static void workQueueLockInit (void) {
++    pthread_mutex_init(&workQueueLock, NULL);
++}
+ 
+ void
+ ClearWorkQueue(void)
+ {
+     WorkQueuePtr q, *p;
+ 
++    pthread_mutex_lock(&workQueueLock);
+     p = &workQueue;
+     while ((q = *p)) {
+         *p = q->next;
+         free(q);
+     }
+     workQueueLast = p;
++    pthread_mutex_unlock(&workQueueLock);
+ }
+ 
+ void
+@@ -525,6 +532,7 @@
+ {
+     WorkQueuePtr q, *p;
+ 
++    pthread_mutex_lock(&workQueueLock);
+     p = &workQueue;
+     /*
+      * Scan the work queue once, calling each function.  Those
+@@ -543,6 +551,7 @@
+         }
+     }
+     workQueueLast = p;
++    pthread_mutex_unlock(&workQueueLock);
+ }
+ 
+ void
+@@ -550,6 +559,7 @@
+ {
+     WorkQueuePtr q, *p;
+ 
++    pthread_mutex_lock(&workQueueLock);
+     p = &workQueue;
+     while ((q = *p)) {
+         if (q->client && q->client->clientGone) {
+@@ -563,6 +573,7 @@
+         }
+     }
+     workQueueLast = p;
++    pthread_mutex_unlock(&workQueueLock);
+ }
+ 
+ Bool
+@@ -578,8 +589,10 @@
+     q->client = client;
+     q->closure = closure;
+     q->next = NULL;
++    pthread_mutex_lock(&workQueueLock);
+     *workQueueLast = q;
+     workQueueLast = &q->next;
++    pthread_mutex_unlock(&workQueueLock);
+     return TRUE;
+ }
+ 

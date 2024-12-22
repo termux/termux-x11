@@ -145,7 +145,7 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
         // proot case
         if (access("/usr/share/X11/xkb", F_OK) == 0)
             setenv("XKB_CONFIG_ROOT", "/usr/share/X11/xkb", 1);
-            // Termux case
+        // Termux case
         else if (access("/data/data/com.termux/files/usr/share/X11/xkb", F_OK) == 0)
             setenv("XKB_CONFIG_ROOT", "/data/data/com.termux/files/usr/share/X11/xkb", 1);
     }

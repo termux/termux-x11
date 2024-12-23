@@ -218,9 +218,12 @@ static void* ddxReadyThread(unused void* cookie) {
 
         if (!pid) {
             char DISPLAY[16] = "";
-            sprintf(DISPLAY, ":%s", display);
-            setenv("DISPLAY", DISPLAY, 1);
-            unsetenv("CLASSPATH");
+#define INHERIT_VAR(v) char *v = getenv("XSTARTUP_" #v); if (v && strlen(v)) setenv(#v, v, 1);
+            INHERIT_VAR(CLASSPATH)
+            INHERIT_VAR(LD_LIBRARY_PATH)
+            INHERIT_VAR(LD_PRELOAD)
+#undef INHERIT_VAR
+
             execlp(xstartup, xstartup, NULL);
             execlp("sh", "sh", "-c", xstartup, NULL);
             dprintf(2, "Failed to start command `sh -c \"%s\"`: %s\n", xstartup, strerror(errno));

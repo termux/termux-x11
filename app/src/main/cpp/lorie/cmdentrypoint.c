@@ -108,7 +108,8 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
     // No matter what tracer is attached.
     // In the case of gdb or lldb LD_PRELOAD is already set.
     // In the case of proot or proot-distro libtermux-exec in LD_PRELOAD will break linking.
-    if (access("/data/data/com.termux/files/usr/lib/libtermux-exec.so", F_OK) == 0 && !detectTracer())
+    if (access("/data/data/com.termux/files/usr/lib/libtermux-exec.so", F_OK) == 0 && !detectTracer()
+            && !getenv("XSTARTUP_LD_PRELOAD"))
         setenv("LD_PRELOAD", "/data/data/com.termux/files/usr/lib/libtermux-exec.so", 1);
 
     // adb sets TMPDIR to /data/local/tmp which is pretty useless.

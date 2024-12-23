@@ -184,6 +184,11 @@ __attribute((constructor())) static void initSharedServerState() {
     pthread_mutex_init(&lorieScreen.state->lock, &mutex_attr);
 }
 
+void lorieActivityConnected(void) {
+    lorieSendSharedServerState(pvfb->stateFd);
+    lorieSendRootWindowBuffer(pvfb->root.buffer);
+}
+
 static Bool TrueNoop() { return TRUE; }
 static Bool FalseNoop() { return FALSE; }
 static void VoidNoop() {}
@@ -459,6 +464,7 @@ static void lorieUpdateBuffer(void) {
         pScreenPtr->ModifyPixmapHeader(pScreenPtr->devPrivate, d0.width, d0.height, 32, 32, d0.stride * 4, data0);
 
         renderer_set_buffer(pvfb->env, new);
+        lorieSendRootWindowBuffer(pvfb->root.buffer);
     }
 
     if (old) {
@@ -534,8 +540,12 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
         redrawn = renderer_redraw(pvfb->env, pvfb->root.flip);
         if (loriePixmapLock(pScreenPtr->devPrivate) && redrawn)
             DamageEmpty(pvfb->damage);
-    } else if (pvfb->cursorMoved)
+        if (redrawn)
+            lorieRequestRender();
+    } else if (pvfb->cursorMoved) {
         renderer_redraw(pvfb->env, pvfb->root.flip);
+        lorieRequestRender();
+    }
 
     pvfb->cursorMoved = FALSE;
     return TRUE;

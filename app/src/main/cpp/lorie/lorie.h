@@ -1,5 +1,6 @@
 #pragma once
 
+#include <android/hardware_buffer.h>
 #include <android/choreographer.h>
 #include <android/log.h>
 
@@ -23,8 +24,16 @@ Bool lorieInitDri3(ScreenPtr pScreen);
 void lorieSetStylusEnabled(Bool enabled);
 void lorieTriggerWorkingQueue(void);
 void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d);
+void lorieActivityConnected(void);
+void lorieSendSharedServerState(int memfd);
+void lorieSendRootWindowBuffer(AHardwareBuffer* buffer);
+void lorieRequestRender(void);
 
 typedef enum {
+    EVENT_UNKNOWN,
+    EVENT_SHARED_SERVER_STATE,
+    EVENT_SHARED_ROOT_WINDOW_BUFFER,
+    EVENT_REQUEST_RENDER,
     EVENT_SCREEN_SIZE,
     EVENT_TOUCH,
     EVENT_MOUSE,

@@ -7,6 +7,7 @@
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <sys/socket.h>
+#include <sys/mman.h>
 #include <errno.h>
 #include <jni.h>
 #include <wchar.h>
@@ -29,6 +30,9 @@ static struct {
     jclass self;
     jmethodID toString;
 } CharBuffer = {0};
+
+static struct lorie_shared_server_state* state = NULL;
+static AHardwareBuffer* sharedBuffer = NULL;
 
 static jclass FindClassOrDie(JNIEnv *env, const char* name) {
     jclass clazz = (*env)->FindClass(env, name);
@@ -123,6 +127,27 @@ Java_com_termux_x11_LorieView_handleXEvents(JNIEnv *env, jobject thiz) {
                 case EVENT_CLIPBOARD_REQUEST: {
                     (*env)->CallVoidMethod(env, thiz, (*env)->GetMethodID(env, (*env)->GetObjectClass(env, thiz), "requestClipboard", "()V"));
                     break;
+                }
+                case EVENT_SHARED_SERVER_STATE: {
+                    int fd = ancil_recv_fd(conn_fd);
+
+                    if (!(state = mmap(NULL, sizeof(*state), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0)))
+                        log(ERROR, "Failed to map server state.");
+
+                    close(fd); // Closing file descriptor does not unmmap shared memory fragment.
+                    break;
+                }
+                case EVENT_SHARED_ROOT_WINDOW_BUFFER: {
+                    if (sharedBuffer)
+                        AHardwareBuffer_release(sharedBuffer);
+                    int error = AHardwareBuffer_recvHandleFromUnixSocket(conn_fd, &sharedBuffer);
+                    AHardwareBuffer_Desc desc = {0};
+                    if (sharedBuffer)
+                        AHardwareBuffer_describe(sharedBuffer, &desc);
+                    log(INFO, "Received shared buffer width %d height %d format %d", desc.width, desc.height, desc.format);
+                }
+                case EVENT_REQUEST_RENDER: {
+                    // Currently not implemented, renderer is still running in X server process.
                 }
             }
         }

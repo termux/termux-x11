@@ -384,7 +384,31 @@ void lorieRequestClipboard(void) {
 static Bool addFd(__unused ClientPtr pClient, void *closure) {
     InputThreadRegisterDev((int) (int64_t) closure, handleLorieEvents, NULL);
     conn_fd = (int) (int64_t) closure;
+    lorieActivityConnected();
     return TRUE;
+}
+
+void lorieSendSharedServerState(int memfd) {
+    if (conn_fd != -1) {
+        lorieEvent e = { .type = EVENT_SHARED_SERVER_STATE };
+        write(conn_fd, &e, sizeof(e));
+        ancil_send_fd(conn_fd, memfd);
+    }
+}
+
+void lorieSendRootWindowBuffer(AHardwareBuffer* buffer) {
+    if (conn_fd != -1 && buffer) {
+        lorieEvent e = { .type = EVENT_SHARED_ROOT_WINDOW_BUFFER };
+        write(conn_fd, &e, sizeof(e));
+        AHardwareBuffer_sendHandleToUnixSocket(buffer, conn_fd);
+    }
+}
+
+void lorieRequestRender(void) {
+    if (conn_fd != -1) {
+        lorieEvent e = { .type = EVENT_REQUEST_RENDER };
+        write(conn_fd, &e, sizeof(e));
+    }
 }
 
 JNIEXPORT jobject JNICALL

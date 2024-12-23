@@ -44,6 +44,31 @@ static void* startServer(__unused void* cookie) {
     exit(dix_main(argc, (char**) argv, envp));
 }
 
+static Bool detectTracer(void)
+{
+    FILE *fp;
+    char  line[256];
+    int pid = 0;
+    Bool detected = FALSE;
+
+    fp = fopen("/proc/self/status", "r");
+    if (!fp)
+        return TRUE;
+
+    while (fgets(line, sizeof(line), fp)) {
+        if (strncmp(line, "TracerPid:", 10) == 0) {
+            sscanf(line+10, "%d", &pid);
+            break;
+        }
+    }
+
+    if (pid != 0)
+        log(INFO, "Tracer detected");
+
+    fclose(fp);
+    return pid != 0;
+}
+
 JNIEXPORT jboolean JNICALL
 Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjectArray args) {
     pthread_t t;
@@ -80,7 +105,10 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
         execlp("logcat", "logcat", "--pid", pid, NULL);
     }
 
-    if (access("/data/data/com.termux/files/usr/lib/libtermux-exec.so", F_OK) == 0)
+    // No matter what tracer is attached.
+    // In the case of gdb or lldb LD_PRELOAD is already set.
+    // In the case of proot or proot-distro libtermux-exec in LD_PRELOAD will break linking.
+    if (access("/data/data/com.termux/files/usr/lib/libtermux-exec.so", F_OK) == 0 && !detectTracer())
         setenv("LD_PRELOAD", "/data/data/com.termux/files/usr/lib/libtermux-exec.so", 1);
 
     // adb sets TMPDIR to /data/local/tmp which is pretty useless.

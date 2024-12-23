@@ -97,6 +97,13 @@ typedef struct {
 } LorieGCPrivRec, *LorieGCPrivPtr;
 static Bool lorieCreateGC(GCPtr pGC);
 
+struct vblank {
+    struct xorg_list list;
+    uint64_t id, msc;
+};
+
+static struct present_screen_info loriePresentInfo;
+
 typedef struct {
     bool ready;
     CreateGCProcPtr CreateGC;
@@ -124,6 +131,9 @@ typedef struct {
     JavaVM* vm;
     JNIEnv* env;
     Bool dri3;
+
+    uint64_t vblank_interval;
+    struct xorg_list vblank_queue;
 } lorieScreenInfo;
 
 ScreenPtr pScreenPtr;
@@ -133,6 +143,7 @@ static lorieScreenInfo lorieScreen = {
         .root.framerate = 30,
         .root.name = "screen",
         .dri3 = TRUE,
+        .vblank_queue = { &lorieScreen.vblank_queue, &lorieScreen.vblank_queue },
 }, *pvfb = &lorieScreen;
 static char *xstartup = NULL;
 
@@ -532,7 +543,11 @@ static inline Bool loriePixmapLock(PixmapPtr pixmap) {
     return pvfb->root.locked;
 }
 
+static void loriePerformVblanks(void);
+
 static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
+    loriePerformVblanks();
+
     if (renderer_should_redraw() && RegionNotEmpty(DamageRegion(pvfb->damage))) {
         int redrawn = FALSE;
 
@@ -691,6 +706,8 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     pScreen->blackPixel = 0;
     pScreen->whitePixel = 1;
 
+    pvfb->vblank_interval = 10000000 / pvfb->root.framerate;
+
     if (FALSE
           || !dixRegisterPrivateKey(&lorieGCPrivateKey, PRIVATE_GC, sizeof(LorieGCPrivRec))
           || !miSetVisualTypesAndMasks(24, ((1 << TrueColor) | (1 << DirectColor)), 8, TrueColor, 0xFF0000, 0x00FF00, 0x0000FF)
@@ -700,7 +717,8 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
           || !fbPictureInit(pScreen, 0, 0)
           || !lorieRandRInit(pScreen)
           || !miPointerInitialize(pScreen, &loriePointerSpriteFuncs, &loriePointerCursorFuncs, TRUE)
-          || !fbCreateDefColormap(pScreen))
+          || !fbCreateDefColormap(pScreen)
+          || !present_screen_init(pScreen, &loriePresentInfo))
         return FALSE;
 
     wrap(pvfb, pScreen, CreateScreenResources, lorieCreateScreenResources)
@@ -745,7 +763,7 @@ Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
 void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name) {
     ScreenPtr pScreen = pScreenPtr;
     RROutputPtr output = RRFirstOutput(pScreen);
-    framerate = framerate ? framerate : 0;
+    framerate = framerate ? framerate : 30;
 
     if (output && name) {
         // We should save this name in pvfb to make sure the name will be restored in the case if the server is being reset.
@@ -760,18 +778,15 @@ void lorieConfigureNotify(int width, int height, int framerate, size_t name_size
     if (output && width && height && (pScreen->width != width || pScreen->height != height)) {
         CARD32 mmWidth, mmHeight;
         RRModePtr mode = lorieCvt(width, height, framerate);
-        pvfb->root.framerate = framerate;
         mmWidth = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
         mmHeight = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
         RROutputSetModes(output, &mode, 1, 0);
         RRCrtcNotify(RRFirstEnabledCrtc(pScreen), mode,0, 0,RR_Rotate_0, NULL, 1, &output);
         RRScreenSizeSet(pScreen, mode->mode.width, mode->mode.height, mmWidth, mmHeight);
-    }
 
-    if (framerate > 0) {
         log(VERBOSE, "New reported framerate is %d", framerate);
-        FakeScreenFps = framerate;
-        present_fake_screen_init(pScreen);
+        pvfb->root.framerate = framerate;
+        pvfb->vblank_interval = 10000000 / pvfb->root.framerate;
     }
 }
 
@@ -804,6 +819,74 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
         FatalError("Couldn't add screen %d\n", i);
     }
 }
+
+// This Present implementation mostly copies the one from `present/present_fake.c`
+// The only difference is performing vblanks right before redrawing root window (in lorieRedraw) instead of using timers.
+static RRCrtcPtr loriePresentGetCrtc(WindowPtr w) {
+    return RRFirstEnabledCrtc(w->drawable.pScreen);
+}
+
+static int loriePresentGetUstMsc(RRCrtcPtr crtc, uint64_t *ust, uint64_t *msc) {
+    *ust = GetTimeInMicros();
+    *msc = (*ust + pvfb->vblank_interval / 2) / pvfb->vblank_interval;
+    return Success;
+}
+
+static Bool loriePresentQueueVblank(RRCrtcPtr crtc, uint64_t event_id, uint64_t msc) {
+    uint64_t now = GetTimeInMicros(), ust = msc * pvfb->vblank_interval;
+    struct vblank* vblank;
+
+    if (((int64_t) (ust - now)) <= 0) {
+        loriePresentGetUstMsc(crtc, &ust, &msc);
+        present_event_notify(event_id, ust, msc);
+        return Success;
+    }
+
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "MemoryLeak" // it is not leaked, it is destroyed in lorieRedraw
+    vblank = calloc (1, sizeof (*vblank));
+    if (!vblank)
+        return BadAlloc;
+
+    *vblank = (struct vblank) { .id = event_id, .msc = msc };
+    xorg_list_add(&vblank->list, &pvfb->vblank_queue);
+
+    return TRUE;
+#pragma clang diagnostic pop
+}
+
+static void loriePresentAbortVblank(RRCrtcPtr crtc, uint64_t id, uint64_t msc) {
+    struct vblank *vblank, *tmp;
+
+    xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, list) {
+        if (vblank->id == id) {
+            xorg_list_del(&vblank->list);
+            free (vblank);
+            break;
+        }
+    }
+}
+
+static void loriePerformVblanks(void) {
+    struct vblank *vblank, *tmp;
+    uint64_t now = GetTimeInMicros(), ust, msc;
+
+    xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, list) {
+        if (((int64_t) (vblank->msc * pvfb->vblank_interval  - now)) <= 0) {
+            loriePresentGetUstMsc(NULL, &ust, &msc);
+            present_event_notify(vblank->id, ust, msc);
+            xorg_list_del(&vblank->list);
+            free (vblank);
+        }
+    }
+}
+
+static struct present_screen_info loriePresentInfo = {
+        .get_crtc = loriePresentGetCrtc,
+        .get_ust_msc = loriePresentGetUstMsc,
+        .queue_vblank = loriePresentQueueVblank,
+        .abort_vblank = loriePresentAbortVblank,
+};
 
 void lorieSetVM(JavaVM* vm) {
     pvfb->vm = vm;

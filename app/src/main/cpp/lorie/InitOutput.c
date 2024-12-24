@@ -218,7 +218,10 @@ static void* ddxReadyThread(unused void* cookie) {
 
         if (!pid) {
             char DISPLAY[16] = "";
-#define INHERIT_VAR(v) char *v = getenv("XSTARTUP_" #v); if (v && strlen(v)) setenv(#v, v, 1);
+            sprintf(DISPLAY, ":%s", display);
+            setenv("DISPLAY", DISPLAY, 1);
+
+#define INHERIT_VAR(v) char *v = getenv("XSTARTUP_" #v); if (v && strlen(v)) setenv(#v, v, 1); unsetenv("XSTARTUP_" #v);
             INHERIT_VAR(CLASSPATH)
             INHERIT_VAR(LD_LIBRARY_PATH)
             INHERIT_VAR(LD_PRELOAD)

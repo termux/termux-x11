@@ -586,8 +586,6 @@ void renderer_set_cursor_coordinates(int x, int y) {
 static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip);
 static void draw_cursor(void);
 
-float ia = 0;
-
 int renderer_should_redraw(void) {
     return sfc != EGL_NO_SURFACE && eglGetCurrentContext() != EGL_NO_CONTEXT;
 }

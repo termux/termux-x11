@@ -24,7 +24,8 @@
 
 static GLuint create_program(const char* p_vertex_source, const char* p_fragment_source);
 
-static int eglCheckError(int line) {
+static int printEglError(char* msg, int ret, int line) {
+    char descBuf[32] = {0};
     char* desc;
     int err = eglGetError();
     switch(err) {
@@ -45,13 +46,19 @@ static int eglCheckError(int line) {
         E(EGL_BAD_NATIVE_WINDOW, "Invalid native window");
         E(EGL_CONTEXT_LOST, "Context lost");
 #undef E
-        default: desc = (char*) "Unknown error";
+        default:
+            snprintf(descBuf, sizeof(descBuf) - 1, "Unknown error (%d)", err);
+            desc = descBuf;
     }
 
     if (desc)
-        log("Xlorie: egl error on line %d: %s\n", line, desc);
+        log("renderer: %s: %s (%s:%d)\n", msg, desc, __FILE__, line);
 
-    return err;
+    return ret;
+}
+
+static inline __always_inline void vprintEglError(char* msg, int line) {
+    printEglError(msg, 0, line);
 }
 
 static const char* eglErrorLabel(int code) {
@@ -149,10 +156,18 @@ static struct {
 GLuint g_texture_program = 0, gv_pos = 0, gv_coords = 0;
 GLuint g_texture_program_bgra = 0, gv_pos_bgra = 0, gv_coords_bgra = 0;
 
+static inline __always_inline void bindLinearTexture(GLuint id) {
+    glBindTexture(GL_TEXTURE_2D, id);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+}
+
 int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
     EGLint major, minor;
     EGLint numConfigs;
-    const EGLint configAttribs[] = {
+    EGLint configAttribs[] = {
             EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
             EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
             EGL_RED_SIZE, 8,
@@ -161,18 +176,10 @@ int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
             EGL_ALPHA_SIZE, 0,
             EGL_NONE
     };
-    const EGLint configAttribs2[] = {
-            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-            EGL_RED_SIZE, 8,
-            EGL_GREEN_SIZE, 8,
-            EGL_BLUE_SIZE, 8,
-            EGL_ALPHA_SIZE, 8,
-            EGL_NONE
-    };
     const EGLint ctxattribs[] = {
             EGL_CONTEXT_CLIENT_VERSION,2, EGL_NONE
     };
+    EGLint * const alphaAttrib = &configAttribs[11];
 
     if (ctx)
         return 1;
@@ -190,39 +197,26 @@ int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
     }
 
     egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    if (egl_display == EGL_NO_DISPLAY) {
-        log("Xlorie: Got no EGL display.\n");
-        eglCheckError(__LINE__);
-        return 0;
-    }
+    if (egl_display == EGL_NO_DISPLAY)
+        return printEglError("Got no EGL display", 0, __LINE__);
 
-    if (eglInitialize(egl_display, &major, &minor) != EGL_TRUE) {
-        log("Xlorie: Unable to initialize EGL\n");
-        eglCheckError(__LINE__);
-        return 0;
-    }
+    if (eglInitialize(egl_display, &major, &minor) != EGL_TRUE)
+        return printEglError("Unable to initialize EGL", 0, __LINE__);
+
     log("Xlorie: Initialized EGL version %d.%d\n", major, minor);
     eglBindAPI(EGL_OPENGL_ES_API);
 
     if (eglChooseConfig(egl_display, configAttribs, &cfg, 1, &numConfigs) != EGL_TRUE &&
-            eglChooseConfig(egl_display, configAttribs2, &cfg, 1, &numConfigs) != EGL_TRUE) {
-        log("Xlorie: eglChooseConfig failed.\n");
-        eglCheckError(__LINE__);
-        return 0;
-    }
+            (*alphaAttrib = 8) &&
+            eglChooseConfig(egl_display, configAttribs, &cfg, 1, &numConfigs) != EGL_TRUE)
+        return printEglError("eglChooseConfig failed", 0, __LINE__);
 
     ctx = eglCreateContext(egl_display, cfg, NULL, ctxattribs);
-    if (ctx == EGL_NO_CONTEXT) {
-        log("Xlorie: eglCreateContext failed.\n");
-        eglCheckError(__LINE__);
-        return 0;
-    }
+    if (ctx == EGL_NO_CONTEXT)
+        return printEglError("eglCreateContext failed", 0, __LINE__);
 
-    if (eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE) {
-        log("Xlorie: eglMakeCurrent failed.\n");
-        eglCheckError(__LINE__);
-        return 0;
-    }
+    if (eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE)
+        return printEglError("eglMakeCurrent failed", 0, __LINE__);
 
     {
         // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
@@ -261,11 +255,9 @@ int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
 
         clientBuffer = eglGetNativeClientBufferANDROID(new);
         if (!clientBuffer) {
-            eglCheckError(__LINE__);
-            loge("Failed to obtain EGLClientBuffer from AHardwareBuffer");
-            loge("Forcing legacy drawing");
             *legacy_drawing = 1;
-            return 1;
+            AHardwareBuffer_release(new);
+            return printEglError("Failed to obtain EGLClientBuffer from AHardwareBuffer, forcing legacy drawing", 1, __LINE__);
         }
 
         if (!(img = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes))) {
@@ -285,29 +277,15 @@ int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
             // We handle two cases.
             // If resulting texture has BGRA format but still drawing RGBA we should flip format to RGBA and flip pixels manually in shader.
             // In the case if for some reason we can not use HAL_PIXEL_FORMAT_BGRA_8888 we should fallback to legacy drawing method (uploading pixels via glTexImage2D).
-            const EGLint configAttributes[] = {
-                    EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
-                    EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-                    EGL_RED_SIZE, 8,
-                    EGL_GREEN_SIZE, 8,
-                    EGL_BLUE_SIZE, 8,
-                    EGL_ALPHA_SIZE, 8,
-                    EGL_NONE
-            };
+            configAttribs[1] = EGL_PBUFFER_BIT;
             EGLConfig checkcfg = 0;
             GLuint fbo = 0, texture = 0;
-            if (eglChooseConfig(egl_display, configAttributes, &checkcfg, 1, &numConfigs) != EGL_TRUE) {
-                log("Xlorie: check eglChooseConfig failed.\n");
-                eglCheckError(__LINE__);
-                return 0;
-            }
+            if (eglChooseConfig(egl_display, configAttribs, &checkcfg, 1, &numConfigs) != EGL_TRUE)
+                return printEglError("check eglChooseConfig failed", 0, __LINE__);
 
             EGLContext testctx = eglCreateContext(egl_display, checkcfg, NULL, ctxattribs);
-            if (testctx == EGL_NO_CONTEXT) {
-                log("Xlorie: check eglCreateContext failed.\n");
-                eglCheckError(__LINE__);
-                return 0;
-            }
+            if (testctx == EGL_NO_CONTEXT)
+                return printEglError("check eglCreateContext failed", 0, __LINE__);
 
             const EGLint pbufferAttributes[] = {
                     EGL_WIDTH, 64,
@@ -316,19 +294,12 @@ int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
             };
             EGLSurface checksfc = eglCreatePbufferSurface(egl_display, checkcfg, pbufferAttributes);
 
-            if (eglMakeCurrent(egl_display, checksfc, checksfc, testctx) != EGL_TRUE) {
-                log("Xlorie: check eglMakeCurrent failed.\n");
-                eglCheckError(__LINE__);
-                return 0;
-            }
+            if (eglMakeCurrent(egl_display, checksfc, checksfc, testctx) != EGL_TRUE)
+                return printEglError("check eglMakeCurrent failed", 0, __LINE__);
 
             glActiveTexture(GL_TEXTURE0); checkGlError();
             glGenTextures(1, &texture); checkGlError();
-            glBindTexture(GL_TEXTURE_2D, texture); checkGlError();
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); checkGlError();
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); checkGlError();
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
+            bindLinearTexture(texture);
             glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, img); checkGlError();
             glGenFramebuffers(1, &fbo); checkGlError();
             glBindFramebuffer(GL_FRAMEBUFFER, fbo); checkGlError();
@@ -370,7 +341,6 @@ static void renderer_unset_buffer(void) {
 
 void renderer_set_buffer(JNIEnv* env, AHardwareBuffer* buf) {
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
-    EGLClientBuffer clientBuffer;
     AHardwareBuffer_Desc desc = {0};
     uint8_t flip = 0;
 
@@ -383,11 +353,7 @@ void renderer_set_buffer(JNIEnv* env, AHardwareBuffer* buf) {
 
     buffer = buf;
 
-    glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
+    bindLinearTexture(display.id);
     if (buffer) {
         AHardwareBuffer_acquire(buffer);
         AHardwareBuffer_describe(buffer, &desc);
@@ -395,34 +361,22 @@ void renderer_set_buffer(JNIEnv* env, AHardwareBuffer* buf) {
         display.width = (float) desc.width;
         display.height = (float) desc.height;
 
-        clientBuffer = eglGetNativeClientBufferANDROID(buffer);
-        if (!clientBuffer) {
-            eglCheckError(__LINE__);
-            loge("Failed to obtain EGLClientBuffer from AHardwareBuffer");
-        }
-        image = clientBuffer ? eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes) : NULL;
+        image = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, eglGetNativeClientBufferANDROID(buffer), imageAttributes);
         if (image != NULL) {
             glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
             flip = desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
         } else {
-            if (clientBuffer) {
-                eglCheckError(__LINE__);
-                loge("Binding AHardwareBuffer to an EGLImage failed.");
-            }
-
             display.width = 1;
             display.height = 1;
             uint32_t data = {0};
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data);
-            checkGlError();
         }
-        checkGlError();
     } else {
         display.width = 1;
         display.height = 1;
         uint32_t data = {0};
         loge("There is no AHardwareBuffer, nothing to be bound.");
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data); checkGlError();
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data);
     }
 
     renderer_redraw(env, flip);
@@ -430,8 +384,30 @@ void renderer_set_buffer(JNIEnv* env, AHardwareBuffer* buf) {
     log("renderer_set_buffer %p %d %d", buffer, desc.width, desc.height);
 }
 
+static inline __always_inline void release_win_and_surface(JNIEnv *env, jobject* jsfc, ANativeWindow** anw, EGLSurface *esfc) {
+    if (esfc && *esfc) {
+        if (eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE)
+            return vprintEglError("eglMakeCurrent failed (EGL_NO_SURFACE)", __LINE__);
+        if (eglDestroySurface(egl_display, *esfc) != EGL_TRUE)
+            return vprintEglError("eglDestoySurface failed", __LINE__);
+        *esfc = EGL_NO_SURFACE;
+    }
+
+    if (anw && *anw) {
+        ANativeWindow_release(*anw);
+        *anw = NULL;
+    }
+
+    if (jsfc && *jsfc) {
+        (*env)->CallVoidMethod(env, *jsfc, Surface_release);
+        (*env)->CallVoidMethod(env, *jsfc, Surface_destroy);
+        (*env)->DeleteGlobalRef(env, *jsfc);
+        *jsfc = NULL;
+    }
+}
+
 void renderer_set_window(JNIEnv* env, jobject new_surface, AHardwareBuffer* new_buffer) {
-    EGLNativeWindowType window;
+    ANativeWindow* window;
     if (new_surface && surface && new_surface != surface && (*env)->IsSameObject(env, new_surface, surface)) {
         (*env)->DeleteGlobalRef(env, new_surface);
         new_surface = NULL;
@@ -445,38 +421,14 @@ void renderer_set_window(JNIEnv* env, jobject new_surface, AHardwareBuffer* new_
     if (window && win == window)
         return;
 
-    if (sfc != EGL_NO_SURFACE) {
-        if (eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE) {
-            log("Xlorie: eglMakeCurrent (EGL_NO_SURFACE) failed.\n");
-            eglCheckError(__LINE__);
-            return;
-        }
-        if (eglDestroySurface(egl_display, sfc) != EGL_TRUE) {
-            log("Xlorie: eglDestoySurface failed.\n");
-            eglCheckError(__LINE__);
-            return;
-        }
-    }
-    sfc = EGL_NO_SURFACE;
-    if (win)
-        ANativeWindow_release(win);
+    if (window)
+        ANativeWindow_acquire(window);
 
-    if (surface) {
-        (*env)->CallVoidMethod(env, surface, Surface_release);
-        (*env)->CallVoidMethod(env, surface, Surface_destroy);
-        (*env)->DeleteGlobalRef(env, surface);
-    }
+    release_win_and_surface(env, &surface, &win, &sfc);
 
     if (window && (width <= 0 || height <= 0)) {
         log("Xlorie: We've got invalid surface. Probably it became invalid before we started working with it.\n");
-        ANativeWindow_release(window);
-        window = NULL;
-        if (new_surface) {
-            (*env)->CallVoidMethod(env, new_surface, Surface_release);
-            (*env)->CallVoidMethod(env, new_surface, Surface_destroy);
-            (*env)->DeleteGlobalRef(env, new_surface);
-            new_surface = NULL;
-        }
+        release_win_and_surface(env, &new_surface, &window, NULL);
     }
 
     win = window;
@@ -486,54 +438,46 @@ void renderer_set_window(JNIEnv* env, jobject new_surface, AHardwareBuffer* new_
         return;
 
     sfc = eglCreateWindowSurface(egl_display, cfg, win, NULL);
-    if (sfc == EGL_NO_SURFACE) {
-        log("Xlorie: eglCreateWindowSurface failed.\n");
-        eglCheckError(__LINE__);
-        return;
-    }
+    if (sfc == EGL_NO_SURFACE)
+        return vprintEglError("eglCreateWindowSurface failed", __LINE__);
 
-    if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE) {
-        log("Xlorie: eglMakeCurrent failed.\n");
-        eglCheckError(__LINE__);
-        return;
-    }
+    if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE)
+        return vprintEglError("eglMakeCurrent failed", __LINE__);
 
     if (!g_texture_program) {
         g_texture_program = create_program(vertex_shader, fragment_shader);
         if (!g_texture_program) {
             log("Xlorie: GLESv2: Unable to create shader program.\n");
-            eglCheckError(__LINE__);
             return;
         }
 
         g_texture_program_bgra = create_program(vertex_shader, fragment_shader_bgra);
         if (!g_texture_program_bgra) {
             log("Xlorie: GLESv2: Unable to create bgra shader program.\n");
-            eglCheckError(__LINE__);
             return;
         }
 
-        gv_pos = (GLuint) glGetAttribLocation(g_texture_program, "position"); checkGlError();
-        gv_coords = (GLuint) glGetAttribLocation(g_texture_program, "texCoords"); checkGlError();
+        gv_pos = (GLuint) glGetAttribLocation(g_texture_program, "position");
+        gv_coords = (GLuint) glGetAttribLocation(g_texture_program, "texCoords");
 
-        gv_pos_bgra = (GLuint) glGetAttribLocation(g_texture_program_bgra, "position"); checkGlError();
-        gv_coords_bgra = (GLuint) glGetAttribLocation(g_texture_program_bgra, "texCoords"); checkGlError();
+        gv_pos_bgra = (GLuint) glGetAttribLocation(g_texture_program_bgra, "position");
+        gv_coords_bgra = (GLuint) glGetAttribLocation(g_texture_program_bgra, "texCoords");
 
-        glActiveTexture(GL_TEXTURE0); checkGlError();
-        glGenTextures(1, &display.id); checkGlError();
-        glGenTextures(1, &cursor.id); checkGlError();
+        glActiveTexture(GL_TEXTURE0);
+        glGenTextures(1, &display.id);
+        glGenTextures(1, &cursor.id);
     }
 
     eglSwapInterval(egl_display, 0);
 
     if (win && ctx && ANativeWindow_getWidth(win) > 0 && ANativeWindow_getHeight(win) > 0)
-        glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win)); checkGlError();
+        glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win));
 
     log("Xlorie: new surface applied: %p\n", sfc);
 
     if (!new_buffer) {
-        glClearColor(0.f, 0.f, 0.f, 0.0f); checkGlError();
-        glClear(GL_COLOR_BUFFER_BIT); checkGlError();
+        glClearColor(0.f, 0.f, 0.f, 0.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
     } else renderer_set_buffer(env, new_buffer);
 }
 
@@ -541,22 +485,14 @@ void renderer_update_root(int w, int h, void* data, uint8_t flip) {
     if (eglGetCurrentContext() == EGL_NO_CONTEXT || !w || !h)
         return;
 
-    if (display.width != (float) w || display.height != (float) h) {
-        display.width = (float) w;
-        display.height = (float) h;
-
-        glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); checkGlError();
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); checkGlError();
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
-        glTexImage2D(GL_TEXTURE_2D, 0, flip ? GL_RGBA : GL_BGRA_EXT, w, h, 0, flip ? GL_RGBA : GL_BGRA_EXT, GL_UNSIGNED_BYTE, data); checkGlError();
-    } else {
-        glBindTexture(GL_TEXTURE_2D, display.id); checkGlError();
-
+    bindLinearTexture(display.id);
+    if (display.width != (float) w || display.height != (float) h)
+        glTexImage2D(GL_TEXTURE_2D, 0, flip ? GL_RGBA : GL_BGRA_EXT, w, h, 0, flip ? GL_RGBA : GL_BGRA_EXT, GL_UNSIGNED_BYTE, data);
+    else
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, flip ? GL_RGBA : GL_BGRA_EXT, GL_UNSIGNED_BYTE, data);
-        checkGlError();
-    }
+
+    display.width = (float) w;
+    display.height = (float) h;
 }
 
 void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data) {
@@ -569,13 +505,8 @@ void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data) {
     if (eglGetCurrentContext() == EGL_NO_CONTEXT || !cursor.width || !cursor.height)
         return;
 
-    glBindTexture(GL_TEXTURE_2D, cursor.id); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); checkGlError();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); checkGlError();
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data); checkGlError();
+    bindLinearTexture(cursor.id);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 }
 
 void renderer_set_cursor_coordinates(int x, int y) {
@@ -599,8 +530,8 @@ int renderer_redraw(JNIEnv* env, uint8_t flip) {
     draw(display.id,  -1.f, -1.f, 1.f, 1.f, flip);
     draw_cursor();
     if (eglSwapBuffers(egl_display, sfc) != EGL_TRUE) {
+        printEglError("Failed to swap buffers", 0, __LINE__);
         err = eglGetError();
-        eglCheckError(__LINE__);
         if (err == EGL_BAD_NATIVE_WINDOW || err == EGL_BAD_SURFACE) {
             log("We've got %s so window is to be destroyed. "
                 "Native window disconnected/abandoned, probably activity is destroyed or in background",
@@ -622,81 +553,77 @@ void renderer_print_fps(float millis) {
 }
 
 static GLuint load_shader(GLenum shaderType, const char* pSource) {
-    GLint compiled = 0;
-    GLuint shader = glCreateShader(shaderType); checkGlError();
-    if (shader) {
-        glShaderSource(shader, 1, &pSource, NULL); checkGlError();
-        glCompileShader(shader); checkGlError();
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled); checkGlError();
-        if (!compiled) {
-            GLint infoLen = 0;
-            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen); checkGlError();
-            if (infoLen) {
-                char* buf = (char*) malloc(infoLen);
-                if (buf) {
-                    glGetShaderInfoLog(shader, infoLen, NULL, buf); checkGlError();
-                    log("Xlorie: Could not compile shader %d:\n%s\n", shaderType, buf);
-                    free(buf);
-                }
-                glDeleteShader(shader); checkGlError();
-                shader = 0;
-            }
-        }
+    GLint compiled = 0, infoLen = 0;
+    GLuint shader = glCreateShader(shaderType);
+    if (!shader)
+        return 0;
+
+    glShaderSource(shader, 1, &pSource, NULL);
+    glCompileShader(shader);
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
+    if (compiled)
+        return shader;
+
+    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen);
+    if (infoLen) {
+        char buf[infoLen];
+        glGetShaderInfoLog(shader, infoLen, NULL, buf);
+        log("renderer: Could not compile shader %d:\n%s\n", shaderType, buf);
     }
-    return shader;
+    glDeleteShader(shader);
+
+    return 0;
 }
 
 static GLuint create_program(const char* p_vertex_source, const char* p_fragment_source) {
     GLuint program, vertexShader, pixelShader;
-    GLint linkStatus = GL_FALSE;
+    GLint linkStatus = GL_FALSE, bufLength = 0;
     vertexShader = load_shader(GL_VERTEX_SHADER, p_vertex_source);
     pixelShader = load_shader(GL_FRAGMENT_SHADER, p_fragment_source);
     if (!pixelShader || !vertexShader) {
         return 0;
     }
 
-    program = glCreateProgram(); checkGlError();
-    if (program) {
-        glAttachShader(program, vertexShader); checkGlError();
-        glAttachShader(program, pixelShader); checkGlError();
-        glLinkProgram(program); checkGlError();
-        glGetProgramiv(program, GL_LINK_STATUS, &linkStatus); checkGlError();
-        if (linkStatus != GL_TRUE) {
-            GLint bufLength = 0;
-            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &bufLength); checkGlError();
-            if (bufLength) {
-                char* buf = (char*) malloc(bufLength);
-                if (buf) {
-                    glGetProgramInfoLog(program, bufLength, NULL, buf); checkGlError();
-                    log("Xlorie: Could not link program:\n%s\n", buf);
-                    free(buf);
-                }
-            }
-            glDeleteProgram(program); checkGlError();
-            program = 0;
-        }
+    program = glCreateProgram();
+    if (!program)
+        return 0;
+
+    glAttachShader(program, vertexShader);
+    glAttachShader(program, pixelShader);
+    glLinkProgram(program);
+    glGetProgramiv(program, GL_LINK_STATUS, &linkStatus);
+    if (linkStatus == GL_TRUE)
+        return program;
+
+    glGetProgramiv(program, GL_INFO_LOG_LENGTH, &bufLength);
+    if (bufLength) {
+        char buf[bufLength];
+        glGetProgramInfoLog(program, bufLength, NULL, buf);
+        log("renderer: Could not link program:\n%s\n", buf);
     }
-    return program;
+    glDeleteProgram(program);
+
+    return 0;
 }
 
 static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip) {
     float coords[20] = {
-        x0, -y0, 0.f, 0.f, 0.f,
-        x1, -y0, 0.f, 1.f, 0.f,
-        x0, -y1, 0.f, 0.f, 1.f,
-        x1, -y1, 0.f, 1.f, 1.f,
+        x0, -y0, 0.f, 0.f,
+        x1, -y0, 1.f, 0.f,
+        x0, -y1, 0.f, 1.f,
+        x1, -y1, 1.f, 1.f,
     };
 
     GLuint p = flip ? gv_pos_bgra : gv_pos, c = flip ? gv_coords_bgra : gv_coords;
 
-    glActiveTexture(GL_TEXTURE0); checkGlError();
-    glUseProgram(flip ? g_texture_program_bgra : g_texture_program); checkGlError();
-    glBindTexture(GL_TEXTURE_2D, id); checkGlError();
+    glActiveTexture(GL_TEXTURE0);
+    glUseProgram(flip ? g_texture_program_bgra : g_texture_program);
+    glBindTexture(GL_TEXTURE_2D, id);
 
-    glVertexAttribPointer(p, 3, GL_FLOAT, GL_FALSE, 20, coords); checkGlError();
-    glVertexAttribPointer(c, 2, GL_FLOAT, GL_FALSE, 20, &coords[3]); checkGlError();
-    glEnableVertexAttribArray(p); checkGlError();
-    glEnableVertexAttribArray(c); checkGlError();
+    glVertexAttribPointer(p, 2, GL_FLOAT, GL_FALSE, 16, coords);
+    glVertexAttribPointer(c, 2, GL_FLOAT, GL_FALSE, 16, &coords[2]);
+    glEnableVertexAttribArray(p);
+    glEnableVertexAttribArray(c);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); checkGlError();
 }
 
@@ -710,9 +637,8 @@ __unused static void draw_cursor(void) {
     y = 2.f * (cursor.y - cursor.yhot) / display.height - 1.f;
     w = 2.f * cursor.width / display.width;
     h = 2.f * cursor.height / display.height;
-    glEnable(GL_BLEND); checkGlError();
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); checkGlError();
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     draw(cursor.id, x, y, x + w, y + h, false);
-    glDisable(GL_BLEND); checkGlError();
+    glDisable(GL_BLEND);
 }
-

@@ -30,6 +30,7 @@ import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.os.SystemClock;
@@ -227,7 +228,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         onPreferencesChanged("");
 
         toggleExtraKeys(false, false);
-        checkXEvents();
+        checkRestartInput();
 
         initStylusAuxButtons();
         initMouseAuxButtons();
@@ -890,14 +891,13 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         return getInstance().mClientConnected;
     }
 
-    private void checkXEvents() {
-        getLorieView().handleXEvents();
+    private void checkRestartInput() {
         // an imperfect workaround for Gboard CJK keyboard in DeX soft keyboard mode
         // in that particular mode during language switching, InputConnection#requestCursorUpdates() is not called and no signal can be picked up. 
         // therefore, check to activate CJK keyboard is done upon a keypress.  
         if (getLorieView().enableGboardCJK && SamsungDexUtils.checkDeXEnabled(this))
             getLorieView().checkRestartInput(false);
-        handler.postDelayed(this::checkXEvents, 300);
+        handler.postDelayed(this::checkRestartInput, 300);
     }
 
     public static void getRealMetrics(DisplayMetrics m) {

@@ -88,6 +88,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private void init() {
         getHolder().addCallback(mSurfaceCallback);
         clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+        nativeInit();
     }
 
     public void setCallback(Callback callback) {
@@ -361,8 +362,8 @@ public class LorieView extends SurfaceView implements InputStub {
         }
     }
 
+    private native void nativeInit();
     static native void connect(int fd);
-    native void handleXEvents();
     static native void startLogcat(int fd);
     static native void setClipboardSyncEnabled(boolean enabled, boolean ignored);
     public native void sendClipboardAnnounce();

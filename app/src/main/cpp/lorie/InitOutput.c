@@ -134,6 +134,7 @@ typedef struct {
 
     uint64_t vblank_interval;
     struct xorg_list vblank_queue;
+    long frameTime;
 } lorieScreenInfo;
 
 ScreenPtr pScreenPtr;
@@ -689,7 +690,8 @@ static void lorieWorkingQueueCallback(int fd, int __unused ready, void __unused 
     eventfd_read(fd, &dummy);
 }
 
-void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d) {
+void lorieChoreographerFrameCallback(long t, AChoreographer* d) {
+    pvfb->frameTime = t;
     AChoreographer_postFrameCallback(d, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, d);
     if (pvfb->ready) {
         QueueWorkProc(lorieRedraw, NULL, NULL);
@@ -839,10 +841,10 @@ static int loriePresentGetUstMsc(RRCrtcPtr crtc, uint64_t *ust, uint64_t *msc) {
 }
 
 static Bool loriePresentQueueVblank(RRCrtcPtr crtc, uint64_t event_id, uint64_t msc) {
-    uint64_t now = GetTimeInMicros(), ust = msc * pvfb->vblank_interval;
+    uint64_t frameTime = pvfb->frameTime / 1000UL, ust = msc * pvfb->vblank_interval;
     struct vblank* vblank;
 
-    if (((int64_t) (ust - now)) <= 0) {
+    if (((int64_t) (ust - frameTime)) <= 0) {
         loriePresentGetUstMsc(crtc, &ust, &msc);
         present_event_notify(event_id, ust, msc);
         return Success;
@@ -875,10 +877,10 @@ static void loriePresentAbortVblank(RRCrtcPtr crtc, uint64_t id, uint64_t msc) {
 
 static void loriePerformVblanks(void) {
     struct vblank *vblank, *tmp;
-    uint64_t now = GetTimeInMicros(), ust, msc;
+    uint64_t frameTime = pvfb->frameTime / 1000UL, ust, msc;
 
     xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, list) {
-        if (((int64_t) (vblank->msc * pvfb->vblank_interval  - now)) <= 0) {
+        if (((int64_t) (vblank->msc * pvfb->vblank_interval - frameTime)) <= 0) {
             loriePresentGetUstMsc(NULL, &ust, &msc);
             present_event_notify(vblank->id, ust, msc);
             xorg_list_del(&vblank->list);

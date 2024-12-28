@@ -114,7 +114,6 @@ typedef struct {
     OsTimerPtr redrawTimer;
     OsTimerPtr fpsTimer;
 
-    Bool cursorMoved;
     int eventFd, stateFd;
 
     struct lorie_shared_server_state* state;
@@ -181,6 +180,7 @@ static int create_shmem_region(char const* name, size_t size)
 
 __attribute((constructor())) static void initSharedServerState() {
     pthread_mutexattr_t mutex_attr;
+    pthread_condattr_t cond_attr;
     if (-1 == (lorieScreen.stateFd = create_shmem_region("xserver", sizeof(*lorieScreen.state)))) {
         dprintf(2, "FATAL: Failed to allocate server state.\n");
         _exit(1);
@@ -194,6 +194,12 @@ __attribute((constructor())) static void initSharedServerState() {
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
     pthread_mutex_init(&lorieScreen.state->lock, &mutex_attr);
+    pthread_mutex_init(&lorieScreen.state->cursor.lock, &mutex_attr);
+
+    pthread_condattr_init(&cond_attr);
+    pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
+    pthread_cond_init(&lorieScreen.state->cond, &cond_attr);
+    renderer_set_shared_state(lorieScreen.state);
 }
 
 void lorieActivityConnected(void) {
@@ -361,8 +367,8 @@ static void lorieMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int
     pthread_mutex_lock(&pvfb->state->lock);
     pvfb->state->cursor.x = x;
     pvfb->state->cursor.y = y;
-    renderer_set_cursor_coordinates(x, y);
-    pvfb->cursorMoved = TRUE;
+    pvfb->state->cursor.moved = TRUE;
+    pthread_cond_signal(&pvfb->state->cond);
     pthread_mutex_unlock(&pvfb->state->lock);
 }
 
@@ -401,21 +407,20 @@ static void lorieSetCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, Curs
         return;
     }
 
-    pthread_mutex_lock(&pvfb->state->lock);
+    pthread_mutex_lock(&pvfb->state->cursor.lock);
     if (pCurs && bits) {
         pvfb->state->cursor.xhot = bits->xhot;
         pvfb->state->cursor.yhot = bits->yhot;
         pvfb->state->cursor.width = bits->width;
         pvfb->state->cursor.height = bits->height;
         lorieConvertCursor(pCurs, pvfb->state->cursor.bits);
-        renderer_update_cursor(bits->width, bits->height, bits->xhot, bits->yhot, pvfb->state->cursor.bits);
     } else {
         pvfb->state->cursor.xhot = pvfb->state->cursor.yhot = 0;
         pvfb->state->cursor.width = pvfb->state->cursor.height = 0;
-        renderer_update_cursor(0, 0, 0, 0, NULL);
     }
     pvfb->state->cursor.updated = true;
-    pthread_mutex_unlock(&pvfb->state->lock);
+    pthread_cond_signal(&pvfb->state->cond);
+    pthread_mutex_unlock(&pvfb->state->cursor.lock);
 
     if (x0 >= 0 && y0 >= 0)
         lorieMoveCursor(NULL, NULL, x0, y0);
@@ -564,12 +569,12 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
             DamageEmpty(pvfb->damage);
         if (redrawn)
             lorieRequestRender();
-    } else if (pvfb->cursorMoved) {
+    } else if (pvfb->state->cursor.moved) {
         renderer_redraw(pvfb->env, pvfb->root.flip);
         lorieRequestRender();
     }
 
-    pvfb->cursorMoved = FALSE;
+    pvfb->state->cursor.moved = FALSE;
     return TRUE;
 }
 
@@ -631,7 +636,7 @@ lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD
 
     RRScreenSizeNotify(pScreen);
     update_desktop_dimensions();
-    pvfb->cursorMoved = TRUE;
+    pvfb->state->cursor.moved = TRUE;
 
     return TRUE;
 }

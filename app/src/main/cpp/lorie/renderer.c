@@ -148,9 +148,10 @@ static struct {
     GLuint id;
     float width, height;
 } display;
+struct lorie_shared_server_state* state = NULL;
 static struct {
     GLuint id;
-    float x, y, width, height, xhot, yhot;
+    bool cursorChanged;
 } cursor;
 
 GLuint g_texture_program = 0, gv_pos = 0, gv_coords = 0;
@@ -324,6 +325,10 @@ int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
     return 1;
 }
 
+__unused void renderer_set_shared_state(struct lorie_shared_server_state* new_state) {
+    state = new_state;
+}
+
 static void renderer_unset_buffer(void) {
     if (eglGetCurrentContext() == EGL_NO_CONTEXT) {
         loge("There is no current context, `renderer_set_buffer` call is cancelled");
@@ -365,17 +370,14 @@ void renderer_set_buffer(JNIEnv* env, AHardwareBuffer* buf) {
         if (image != NULL) {
             glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
             flip = desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
-        } else {
-            display.width = 1;
-            display.height = 1;
-            uint32_t data = {0};
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data);
         }
-    } else {
+    }
+
+    if (!buffer || !image ){
         display.width = 1;
         display.height = 1;
         uint32_t data = {0};
-        loge("There is no AHardwareBuffer, nothing to be bound.");
+        loge("There is no %s, nothing to be bound.", !buffer ? "AHardwareBuffer" : "EGLImage");
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data);
     }
 
@@ -495,25 +497,6 @@ void renderer_update_root(int w, int h, void* data, uint8_t flip) {
     display.height = (float) h;
 }
 
-void renderer_update_cursor(int w, int h, int xhot, int yhot, void* data) {
-    log("Xlorie: updating cursor\n");
-    cursor.width = (float) w;
-    cursor.height = (float) h;
-    cursor.xhot = (float) xhot;
-    cursor.yhot = (float) yhot;
-
-    if (eglGetCurrentContext() == EGL_NO_CONTEXT || !cursor.width || !cursor.height)
-        return;
-
-    bindLinearTexture(cursor.id);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-}
-
-void renderer_set_cursor_coordinates(int x, int y) {
-    cursor.x = (float) x;
-    cursor.y = (float) y;
-}
-
 static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip);
 static void draw_cursor(void);
 
@@ -526,6 +509,16 @@ int renderer_redraw(JNIEnv* env, uint8_t flip) {
 
     if (!sfc || eglGetCurrentContext() == EGL_NO_CONTEXT)
         return FALSE;
+
+    if (state && state->cursor.updated) {
+        uint32_t data = 0;
+        log("Xlorie: updating cursor\n");
+        pthread_mutex_lock(&state->cursor.lock);
+        state->cursor.updated = false;
+        bindLinearTexture(cursor.id);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
+        pthread_mutex_unlock(&state->cursor.lock);
+    }
 
     draw(display.id,  -1.f, -1.f, 1.f, 1.f, flip);
     draw_cursor();
@@ -630,13 +623,20 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip
 __unused static void draw_cursor(void) {
     float x, y, w, h;
 
-    if (!cursor.width || !cursor.height)
+    if (!state || !state->cursor.width || !state->cursor.height)
         return;
 
-    x = 2.f * (cursor.x - cursor.xhot) / display.width - 1.f;
-    y = 2.f * (cursor.y - cursor.yhot) / display.height - 1.f;
-    w = 2.f * cursor.width / display.width;
-    h = 2.f * cursor.height / display.height;
+    if (state->cursor.updated) {
+        state->cursor.updated = false;
+        log("Xlorie: updating cursor\n");
+        bindLinearTexture(cursor.id);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
+    }
+
+    x = 2.f * ((float) state->cursor.x - (float) state->cursor.xhot) / display.width - 1.f;
+    y = 2.f * ((float) state->cursor.y - (float) state->cursor.yhot) / display.height - 1.f;
+    w = 2.f * (float) state->cursor.width / display.width;
+    h = 2.f * (float) state->cursor.height / display.height;
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     draw(cursor.id, x, y, x + w, y + h, false);

@@ -35,6 +35,8 @@ import com.termux.x11.input.TouchInputHandler;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.PatternSyntaxException;
 
+import dalvik.annotation.optimization.FastNative;
+
 @Keep @SuppressLint("WrongConstant")
 @SuppressWarnings("deprecation")
 public class LorieView extends SurfaceView implements InputStub {
@@ -362,19 +364,19 @@ public class LorieView extends SurfaceView implements InputStub {
         }
     }
 
-    private native void nativeInit();
-    static native void connect(int fd);
-    static native void startLogcat(int fd);
-    static native void setClipboardSyncEnabled(boolean enabled, boolean ignored);
-    public native void sendClipboardAnnounce();
-    public native void sendClipboardEvent(byte[] text);
-    static native void sendWindowChange(int width, int height, int framerate, String name);
-    public native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
-    public native void sendTouchEvent(int action, int id, int x, int y);
-    public native void sendStylusEvent(float x, float y, int pressure, int tiltX, int tiltY, int orientation, int buttons, boolean eraser, boolean mouseMode);
-    static public native void requestStylusEnabled(boolean enabled);
-    public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
-    public native void sendTextEvent(byte[] text);
+    @FastNative private native void nativeInit();
+    @FastNative static native void connect(int fd);
+    @FastNative static native void startLogcat(int fd);
+    @FastNative static native void setClipboardSyncEnabled(boolean enabled, boolean ignored);
+    @FastNative public native void sendClipboardAnnounce();
+    @FastNative public native void sendClipboardEvent(byte[] text);
+    @FastNative static native void sendWindowChange(int width, int height, int framerate, String name);
+    @FastNative public native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
+    @FastNative public native void sendTouchEvent(int action, int id, int x, int y);
+    @FastNative public native void sendStylusEvent(float x, float y, int pressure, int tiltX, int tiltY, int orientation, int buttons, boolean eraser, boolean mouseMode);
+    @FastNative static public native void requestStylusEnabled(boolean enabled);
+    @FastNative public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
+    @FastNative public native void sendTextEvent(byte[] text);
 
     static {
         System.loadLibrary("lorie");

@@ -70,8 +70,7 @@ static jclass FindMethodOrDie(JNIEnv *env, jclass clazz, const char* name, const
     return method;
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_nativeInit(JNIEnv *env, jobject thiz) {
+static void nativeInit(JNIEnv *env, jobject thiz) {
     JavaVM* vm;
     if (!Charset.self) {
         // Init clipboard-related JNI stuff
@@ -167,16 +166,14 @@ static int xcallback(int fd, int events, __unused void* data) {
     return 1;
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_connect(__unused JNIEnv* env, __unused jobject cls, jint fd) {
+static void connect_(__unused JNIEnv* env, __unused jobject cls, jint fd) {
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
     conn_fd = fd;
     ALooper_addFd(ALooper_forThread(), fd, 0, ALOOPER_EVENT_INPUT | ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP, xcallback, NULL);
     log(DEBUG, "XCB connection is successfull");
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_startLogcat(JNIEnv *env, __unused jobject cls, jint fd) {
+static void startLogcat(JNIEnv *env, __unused jobject cls, jint fd) {
     log(DEBUG, "Starting logcat with output to given fd");
 
     switch(fork()) {
@@ -195,24 +192,21 @@ Java_com_termux_x11_LorieView_startLogcat(JNIEnv *env, __unused jobject cls, jin
     }
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_setClipboardSyncEnabled(__unused JNIEnv* env, __unused jobject cls, jboolean enable, __unused jboolean ignored) {
+static void setClipboardSyncEnabled(__unused JNIEnv* env, __unused jobject cls, jboolean enable, __unused jboolean ignored) {
     if (conn_fd != -1) {
         lorieEvent e = { .clipboardEnable = { .t = EVENT_CLIPBOARD_ENABLE, .enable = enable } };
         write(conn_fd, &e, sizeof(e));
     }
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendClipboardAnnounce(__unused JNIEnv *env, __unused jobject thiz) {
+static void sendClipboardAnnounce(__unused JNIEnv *env, __unused jobject thiz) {
     if (conn_fd != -1) {
         lorieEvent e = { .type = EVENT_CLIPBOARD_ANNOUNCE };
         write(conn_fd, &e, sizeof(e));
     }
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendClipboardEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
+static void sendClipboardEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
     if (conn_fd != -1 && text) {
         jsize length = (*env)->GetArrayLength(env, text);
         jbyte* str = (*env)->GetByteArrayElements(env, text, NULL);
@@ -223,8 +217,7 @@ Java_com_termux_x11_LorieView_sendClipboardEvent(JNIEnv *env, __unused jobject t
     }
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendWindowChange(__unused JNIEnv* env, __unused jobject cls, jint width, jint height, jint framerate, jstring jname) {
+static void sendWindowChange(__unused JNIEnv* env, __unused jobject cls, jint width, jint height, jint framerate, jstring jname) {
     if (conn_fd != -1) {
         const char *name = (!jname || width <= 0 || height <= 0) ? NULL : (*env)->GetStringUTFChars(env, jname, JNI_FALSE);
         lorieEvent e = { .screenSize = { .t = EVENT_SCREEN_SIZE, .width = width, .height = height, .framerate = framerate, .name_size = (name ? strlen(name) : 0) } };
@@ -236,42 +229,37 @@ Java_com_termux_x11_LorieView_sendWindowChange(__unused JNIEnv* env, __unused jo
     }
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendMouseEvent(__unused JNIEnv* env, __unused jobject cls, jfloat x, jfloat y, jint which_button, jboolean button_down, jboolean relative) {
+static void sendMouseEvent(__unused JNIEnv* env, __unused jobject cls, jfloat x, jfloat y, jint which_button, jboolean button_down, jboolean relative) {
     if (conn_fd != -1) {
         lorieEvent e = { .mouse = { .t = EVENT_MOUSE, .x = x, .y = y, .detail = which_button, .down = button_down, .relative = relative } };
         write(conn_fd, &e, sizeof(e));
     }
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendTouchEvent(__unused JNIEnv* env, __unused jobject cls, jint action, jint id, jint x, jint y) {
+static void sendTouchEvent(__unused JNIEnv* env, __unused jobject cls, jint action, jint id, jint x, jint y) {
     if (conn_fd != -1 && action != -1) {
         lorieEvent e = { .touch = { .t = EVENT_TOUCH, .type = action, .id = id, .x = x, .y = y } };
         write(conn_fd, &e, sizeof(e));
     }
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendStylusEvent(__unused JNIEnv *env, __unused jobject thiz, jfloat x, jfloat y,
-                                              jint pressure, jint tilt_x, jint tilt_y,
-                                              jint orientation, jint buttons, jboolean eraser, jboolean mouse) {
+static void sendStylusEvent(__unused JNIEnv *env, __unused jobject thiz, jfloat x, jfloat y,
+                            jint pressure, jint tilt_x, jint tilt_y,
+                            jint orientation, jint buttons, jboolean eraser, jboolean mouse) {
     if (conn_fd != -1) {
         lorieEvent e = { .stylus = { .t = EVENT_STYLUS, .x = x, .y = y, .pressure = pressure, .tilt_x = tilt_x, .tilt_y = tilt_y, .orientation = orientation, .buttons = buttons, .eraser = eraser, .mouse = mouse } };
         write(conn_fd, &e, sizeof(e));
     }
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_requestStylusEnabled(__unused JNIEnv *env, __unused jclass clazz, jboolean enabled) {
+static void requestStylusEnabled(__unused JNIEnv *env, __unused jclass clazz, jboolean enabled) {
     if (conn_fd != -1) {
         lorieEvent e = { .stylusEnable = { .t = EVENT_STYLUS_ENABLE, .enable = enabled } };
         write(conn_fd, &e, sizeof(e));
     }
 }
 
-JNIEXPORT jboolean JNICALL
-Java_com_termux_x11_LorieView_sendKeyEvent(__unused JNIEnv* env, __unused jobject cls, jint scan_code, jint key_code, jboolean key_down) {
+static jboolean sendKeyEvent(__unused JNIEnv* env, __unused jobject cls, jint scan_code, jint key_code, jboolean key_down) {
     if (conn_fd != -1) {
         int code = (scan_code) ?: android_to_linux_keycode[key_code];
         log(DEBUG, "Sending key: %d (%d %d %d)", code + 8, scan_code, key_code, key_down);
@@ -282,8 +270,7 @@ Java_com_termux_x11_LorieView_sendKeyEvent(__unused JNIEnv* env, __unused jobjec
     return true;
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
+static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
     if (conn_fd != -1 && text) {
         jsize length = (*env)->GetArrayLength(env, text);
         jbyte *str = (*env)->GetByteArrayElements(env, text, NULL);
@@ -318,6 +305,30 @@ Java_com_termux_x11_LorieView_sendTextEvent(JNIEnv *env, __unused jobject thiz, 
         (*env)->ReleaseByteArrayElements(env, text, str, JNI_ABORT);
     }
 }
+
+JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
+    JNIEnv* env;
+    static JNINativeMethod methods[] = {
+            {"nativeInit", "()V", (void *)&nativeInit},
+            {"connect", "(I)V", (void *)&connect_},
+            {"startLogcat", "(I)V", (void *)&startLogcat},
+            {"setClipboardSyncEnabled", "(ZZ)V", (void *)&setClipboardSyncEnabled},
+            {"sendClipboardAnnounce", "()V", (void *)&sendClipboardAnnounce},
+            {"sendClipboardEvent", "([B)V", (void *)&sendClipboardEvent},
+            {"sendWindowChange", "(IIILjava/lang/String;)V", (void *)&sendWindowChange},
+            {"sendMouseEvent", "(FFIZZ)V", (void *)&sendMouseEvent},
+            {"sendTouchEvent", "(IIII)V", (void *)&sendTouchEvent},
+            {"sendStylusEvent", "(FFIIIIIZZ)V", (void *)&sendStylusEvent},
+            {"requestStylusEnabled", "(Z)V", (void *)&requestStylusEnabled},
+            {"sendKeyEvent", "(IIZ)Z", (void *)&sendKeyEvent},
+            {"sendTextEvent", "([B)V", (void *)&sendTextEvent},
+    };
+    (*vm)->AttachCurrentThread(vm, &env, NULL);
+    jclass cls = (*env)->FindClass(env, "com/termux/x11/LorieView");
+    (*env)->RegisterNatives(env, cls, methods, sizeof(methods)/sizeof(methods[0]));
+    return JNI_VERSION_1_6;
+}
+
 
 // It is needed to redirect stderr to logcat
 static void* stderrToLogcatThread(__unused void* cookie) {

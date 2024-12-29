@@ -838,18 +838,16 @@ static RRCrtcPtr loriePresentGetCrtc(WindowPtr w) {
     return RRFirstEnabledCrtc(w->drawable.pScreen);
 }
 
-static int loriePresentGetUstMsc(RRCrtcPtr crtc, uint64_t *ust, uint64_t *msc) {
+static int loriePresentGetUstMsc(__unused RRCrtcPtr crtc, uint64_t *ust, uint64_t *msc) {
     *ust = GetTimeInMicros();
     *msc = pvfb->current_msc;
     return Success;
 }
 
-static Bool loriePresentQueueVblank(RRCrtcPtr crtc, uint64_t event_id, uint64_t msc) {
-    struct vblank* vblank;
-
+static Bool loriePresentQueueVblank(__unused RRCrtcPtr crtc, uint64_t event_id, uint64_t msc) {
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "MemoryLeak" // it is not leaked, it is destroyed in lorieRedraw
-    vblank = calloc (1, sizeof (*vblank));
+    struct vblank* vblank = calloc (1, sizeof (*vblank));
     if (!vblank)
         return BadAlloc;
 
@@ -860,7 +858,7 @@ static Bool loriePresentQueueVblank(RRCrtcPtr crtc, uint64_t event_id, uint64_t 
 #pragma clang diagnostic pop
 }
 
-static void loriePresentAbortVblank(RRCrtcPtr crtc, uint64_t id, uint64_t msc) {
+static void loriePresentAbortVblank(__unused RRCrtcPtr crtc, uint64_t id, __unused uint64_t msc) {
     struct vblank *vblank, *tmp;
 
     xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, list) {

@@ -142,6 +142,10 @@ static int renderedFrames = 0;
 static jmethodID Surface_release = NULL;
 static jmethodID Surface_destroy = NULL;
 
+static volatile bool contextAvailable = false;
+static volatile bool bufferChanged = false;
+static volatile AHardwareBuffer* pendingBuffer = NULL;
+
 static struct {
     GLuint id;
     float width, height;
@@ -327,61 +331,18 @@ __unused void renderer_set_shared_state(struct lorie_shared_server_state* new_st
     state = new_state;
 }
 
-static void renderer_unset_buffer(void) {
-    if (eglGetCurrentContext() == EGL_NO_CONTEXT) {
-        loge("There is no current context, `renderer_set_buffer` call is cancelled");
-        return;
-    }
-
-    log("renderer_set_buffer0");
-    if (image)
-        eglDestroyImageKHR(egl_display, image);
-    if (buffer)
-        AHardwareBuffer_release(buffer);
-
-    buffer = NULL;
-}
-
 void renderer_set_buffer(JNIEnv* env, AHardwareBuffer* buf) {
-    const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
-    AHardwareBuffer_Desc desc = {0};
-    uint8_t flip = 0;
-
-    if (eglGetCurrentContext() == EGL_NO_CONTEXT) {
-        loge("There is no current context, `renderer_set_buffer` call is cancelled");
+    if (buf == pendingBuffer)
         return;
-    }
 
-    renderer_unset_buffer();
+    if (pendingBuffer)
+        AHardwareBuffer_release(pendingBuffer);
 
-    buffer = buf;
+    pendingBuffer = buf;
+    bufferChanged = true;
 
-    bindLinearTexture(display.id);
-    if (buffer) {
-        AHardwareBuffer_acquire(buffer);
-        AHardwareBuffer_describe(buffer, &desc);
-
-        display.width = (float) desc.width;
-        display.height = (float) desc.height;
-
-        image = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, eglGetNativeClientBufferANDROID(buffer), imageAttributes);
-        if (image != NULL) {
-            glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
-            flip = desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
-        }
-    }
-
-    if (!buffer || !image ) {
-        display.width = 1;
-        display.height = 1;
-        uint32_t data = {0};
-        loge("There is no %s, nothing to be bound.", !buffer ? "AHardwareBuffer" : "EGLImage");
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &data);
-    }
-
-    renderer_redraw(env, flip);
-
-    log("renderer_set_buffer %p %d %d", buffer, desc.width, desc.height);
+    if (pendingBuffer)
+        AHardwareBuffer_acquire(pendingBuffer);
 }
 
 static inline __always_inline void release_win_and_surface(JNIEnv *env, jobject* jsfc, ANativeWindow** anw, EGLSurface *esfc) {
@@ -406,7 +367,8 @@ static inline __always_inline void release_win_and_surface(JNIEnv *env, jobject*
     }
 }
 
-void renderer_set_window(JNIEnv* env, jobject new_surface, AHardwareBuffer* new_buffer) {
+void renderer_set_window(JNIEnv* env, jobject new_surface) {
+    uint32_t emptyData = {0};
     ANativeWindow* window;
     if (new_surface && surface && new_surface != surface && (*env)->IsSameObject(env, new_surface, surface)) {
         (*env)->DeleteGlobalRef(env, new_surface);
@@ -434,15 +396,22 @@ void renderer_set_window(JNIEnv* env, jobject new_surface, AHardwareBuffer* new_
     win = window;
     surface = new_surface;
 
-    if (!win)
+    if (!win) {
+        eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        contextAvailable = false;
         return;
+    }
 
     sfc = eglCreateWindowSurface(egl_display, cfg, win, NULL);
     if (sfc == EGL_NO_SURFACE)
         return vprintEglError("eglCreateWindowSurface failed", __LINE__);
 
-    if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE)
+    if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE) {
+        contextAvailable = false;
         return vprintEglError("eglMakeCurrent failed", __LINE__);
+    }
+
+    contextAvailable = true;
 
     if (!g_texture_program) {
         g_texture_program = create_program(vertex_shader, fragment_shader);
@@ -470,15 +439,16 @@ void renderer_set_window(JNIEnv* env, jobject new_surface, AHardwareBuffer* new_
 
     eglSwapInterval(egl_display, 0);
 
-    if (win && ctx && ANativeWindow_getWidth(win) > 0 && ANativeWindow_getHeight(win) > 0)
-        glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win));
-
+    glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win));
     log("Xlorie: new surface applied: %p\n", sfc);
 
-    if (!new_buffer) {
-        glClearColor(0.f, 0.f, 0.f, 0.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-    } else renderer_set_buffer(env, new_buffer);
+    bindLinearTexture(display.id);
+    if (image)
+        glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
+    else {
+        display.width = display.height = 1;
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &emptyData);
+    }
 }
 
 void renderer_update_root(int w, int h, void* data, uint8_t flip) {
@@ -499,13 +469,53 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip
 static void draw_cursor(void);
 
 int renderer_should_redraw(void) {
-    return sfc != EGL_NO_SURFACE && eglGetCurrentContext() != EGL_NO_CONTEXT;
+    return contextAvailable || bufferChanged || (state && state->cursor.updated);
+}
+
+static void renderer_renew_image(void) {
+    const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
+    AHardwareBuffer_Desc desc = {0};
+    uint32_t emptyData = {0};
+
+    if (image)
+        eglDestroyImageKHR(egl_display, image);
+    if (buffer)
+        AHardwareBuffer_release(buffer);
+
+    buffer = pendingBuffer;
+    pendingBuffer = NULL;
+    bufferChanged = false;
+    image = NULL;
+
+    if (buffer) {
+        AHardwareBuffer_describe(buffer, &desc);
+        display.width = (float) desc.width;
+        display.height = (float) desc.height;
+
+        image = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, eglGetNativeClientBufferANDROID(buffer), imageAttributes);
+    }
+
+    if (contextAvailable) {
+        bindLinearTexture(display.id);
+        if (image)
+            glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
+        else {
+            loge("There is no %s, nothing to be bound.", !buffer ? "AHardwareBuffer" : "EGLImage");
+            display.width = display.height = 1;
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &emptyData);
+        }
+    }
+
+    log("renderer: buffer changed %p %d %d", buffer, desc.width, desc.height);
 }
 
 int renderer_redraw(JNIEnv* env, uint8_t flip) {
     int err = EGL_SUCCESS;
 
-    if (!sfc || eglGetCurrentContext() == EGL_NO_CONTEXT)
+    if (bufferChanged)
+        renderer_renew_image();
+
+    if (!contextAvailable)
         return FALSE;
 
     if (state && state->cursor.updated) {
@@ -527,7 +537,7 @@ int renderer_redraw(JNIEnv* env, uint8_t flip) {
             log("We've got %s so window is to be destroyed. "
                 "Native window disconnected/abandoned, probably activity is destroyed or in background",
                 eglErrorLabel(err));
-            renderer_set_window(env, NULL, NULL);
+            renderer_set_window(env, NULL);
             return FALSE;
         }
     }

@@ -762,7 +762,7 @@ CursorForDevice(DeviceIntPtr pDev) {
 
 Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
     jobject surface = (jobject) closure;
-    renderer_set_window(pvfb->env, surface, pvfb->root.buffer);
+    renderer_set_window(pvfb->env, surface);
     lorieSetCursor(NULL, NULL, CursorForDevice(GetMaster(lorieMouse, MASTER_POINTER)), -1, -1);
 
     if (pvfb->root.legacyDrawing) {

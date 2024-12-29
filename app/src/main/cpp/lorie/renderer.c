@@ -82,7 +82,6 @@ static const char* eglErrorLabel(int code) {
 #undef E
         default: return "EGL_UNKNOWN_ERROR";
     }
-
 }
 
 static void checkGlError(int line) {
@@ -109,7 +108,6 @@ static void checkGlError(int line) {
 }
 
 #define checkGlError() checkGlError(__LINE__)
-
 
 static const char vertex_shader[] =
     "attribute vec4 position;\n"
@@ -373,7 +371,7 @@ void renderer_set_buffer(JNIEnv* env, AHardwareBuffer* buf) {
         }
     }
 
-    if (!buffer || !image ){
+    if (!buffer || !image ) {
         display.width = 1;
         display.height = 1;
         uint32_t data = {0};
@@ -600,7 +598,7 @@ static GLuint create_program(const char* p_vertex_source, const char* p_fragment
 }
 
 static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip) {
-    float coords[20] = {
+    float coords[16] = {
         x0, -y0, 0.f, 0.f,
         x1, -y0, 1.f, 0.f,
         x0, -y1, 0.f, 1.f,

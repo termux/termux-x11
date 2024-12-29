@@ -719,7 +719,7 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     pScreen->blackPixel = 0;
     pScreen->whitePixel = 1;
 
-    pvfb->vblank_interval = 10000000 / pvfb->root.framerate;
+    pvfb->vblank_interval = 1000000 / pvfb->root.framerate;
 
     if (FALSE
           || !dixRegisterPrivateKey(&lorieGCPrivateKey, PRIVATE_GC, sizeof(LorieGCPrivRec))
@@ -799,7 +799,7 @@ void lorieConfigureNotify(int width, int height, int framerate, size_t name_size
 
         log(VERBOSE, "New reported framerate is %d", framerate);
         pvfb->root.framerate = framerate;
-        pvfb->vblank_interval = 10000000 / pvfb->root.framerate;
+        pvfb->vblank_interval = 1000000 / pvfb->root.framerate;
     }
 }
 
@@ -846,14 +846,7 @@ static int loriePresentGetUstMsc(RRCrtcPtr crtc, uint64_t *ust, uint64_t *msc) {
 }
 
 static Bool loriePresentQueueVblank(RRCrtcPtr crtc, uint64_t event_id, uint64_t msc) {
-    uint64_t frameTime = pvfb->frameTime / 1000UL, ust = msc * pvfb->vblank_interval;
     struct vblank* vblank;
-
-    if (((int64_t) (ust - frameTime)) <= 0) {
-        loriePresentGetUstMsc(crtc, &ust, &msc);
-        present_event_notify(event_id, ust, msc);
-        return Success;
-    }
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "MemoryLeak" // it is not leaked, it is destroyed in lorieRedraw
@@ -864,7 +857,7 @@ static Bool loriePresentQueueVblank(RRCrtcPtr crtc, uint64_t event_id, uint64_t 
     *vblank = (struct vblank) { .id = event_id, .msc = msc };
     xorg_list_add(&vblank->list, &pvfb->vblank_queue);
 
-    return TRUE;
+    return Success;
 #pragma clang diagnostic pop
 }
 

@@ -238,9 +238,9 @@ static void* ddxReadyThread(unused void* cookie) {
 
 void
 ddxReady(void) {
-    if (!xstartup)
+    if (!xstartup || !strlen(xstartup))
         xstartup = getenv("TERMUX_X11_XSTARTUP");
-    if (!xstartup)
+    if (!xstartup || !strlen(xstartup))
         return;
 
     pthread_t t;

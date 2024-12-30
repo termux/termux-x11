@@ -374,15 +374,12 @@ public class TouchInputHandler {
         if (mTouchpadHandler != null)
             mTouchpadHandler.handleClientSizeChanged(w, h);
 
-        moveCursorToScreenPoint((float) w / 2, (float) h / 2);
-
         resetTransformation();
     }
 
     public void handleHostSizeChanged(int w, int h) {
         mRenderData.imageWidth = w;
         mRenderData.imageHeight = h;
-        moveCursorToScreenPoint((float) w/2, (float) h/2);
 
         if (mTouchpadHandler != null)
             mTouchpadHandler.handleHostSizeChanged(w, h);

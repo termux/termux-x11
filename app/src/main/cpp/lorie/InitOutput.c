@@ -81,6 +81,8 @@ from The Open Group.
 #include "inpututils.h"
 #include "lorie.h"
 
+extern void android_shmem_sysv_shm_force(uint8_t enable);
+
 #define unused __attribute__((unused))
 #define wrap(priv, real, mem, func) { priv->mem = real->mem; real->mem = func; }
 #define unwrap(priv, real, mem) { real->mem = priv->mem; }
@@ -270,6 +272,7 @@ void ddxUseMsg(void) {
     ErrorF("-legacy-drawing        use legacy drawing, without using AHardwareBuffers\n");
     ErrorF("-force-bgra            force flipping colours (RGBA->BGRA)\n");
     ErrorF("-disable-dri3          disabling DRI3 support (to let lavapipe work)\n");
+    ErrorF("-force-sysvshm         force using SysV shm syscalls\n");
 }
 
 int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
@@ -291,6 +294,11 @@ int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
 
     if (strcmp(argv[i], "-disable-dri3") == 0) {
         pvfb->dri3 = FALSE;
+        return 1;
+    }
+
+    if (strcmp(argv[i], "-force-sysvshm") == 0) {
+        android_shmem_sysv_shm_force(1);
         return 1;
     }
 

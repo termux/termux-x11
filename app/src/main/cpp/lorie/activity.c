@@ -349,7 +349,9 @@ static void* stderrToLogcatThread(__unused void* cookie) {
     return NULL;
 }
 
+extern char* __progname;
 __attribute__((constructor)) static void init(void) {
     pthread_t t;
-    pthread_create(&t, NULL, stderrToLogcatThread, NULL);
+    if (!strcmp(__progname, "com.termux.x11"))
+        pthread_create(&t, NULL, stderrToLogcatThread, NULL);
 }

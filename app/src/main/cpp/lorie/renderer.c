@@ -135,7 +135,7 @@ static EGLSurface sfc = EGL_NO_SURFACE;
 static EGLConfig cfg = 0;
 static EGLNativeWindowType win = 0;
 static jobject surface = NULL;
-static AHardwareBuffer *buffer = NULL;
+static LorieBuffer *buffer = NULL;
 static EGLImageKHR image = NULL;
 static int renderedFrames = 0;
 
@@ -144,13 +144,13 @@ static jmethodID Surface_destroy = NULL;
 
 static volatile bool contextAvailable = false;
 static volatile bool bufferChanged = false;
-static volatile AHardwareBuffer* pendingBuffer = NULL;
+static volatile LorieBuffer* pendingBuffer = NULL;
 
+struct lorie_shared_server_state* state = NULL;
 static struct {
     GLuint id;
-    float width, height;
+    LorieBuffer_Desc desc;
 } display;
-struct lorie_shared_server_state* state = NULL;
 static struct {
     GLuint id;
     bool cursorChanged;
@@ -331,18 +331,18 @@ __unused void renderer_set_shared_state(struct lorie_shared_server_state* new_st
     state = new_state;
 }
 
-void renderer_set_buffer(JNIEnv* env, AHardwareBuffer* buf) {
+void renderer_set_buffer(JNIEnv* env, LorieBuffer* buf) {
     if (buf == pendingBuffer)
         return;
 
     if (pendingBuffer)
-        AHardwareBuffer_release(pendingBuffer);
+        LorieBuffer_release(pendingBuffer);
 
     pendingBuffer = buf;
     bufferChanged = true;
 
     if (pendingBuffer)
-        AHardwareBuffer_acquire(pendingBuffer);
+        LorieBuffer_acquire(pendingBuffer);
 }
 
 static inline __always_inline void release_win_and_surface(JNIEnv *env, jobject* jsfc, ANativeWindow** anw, EGLSurface *esfc) {
@@ -446,23 +446,13 @@ void renderer_set_window(JNIEnv* env, jobject new_surface) {
     if (image)
         glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
     else {
-        display.width = display.height = 1;
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &emptyData);
+        LorieBuffer_describe(buffer, &display.desc);
+
+        if (display.desc.data && display.desc.width > 0 && display.desc.height > 0)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, display.desc.width, display.desc.height, 0, display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, display.desc.data);
+        else
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &emptyData);
     }
-}
-
-void renderer_update_root(int w, int h, void* data, uint8_t flip) {
-    if (eglGetCurrentContext() == EGL_NO_CONTEXT || !w || !h)
-        return;
-
-    bindLinearTexture(display.id);
-    if (display.width != (float) w || display.height != (float) h)
-        glTexImage2D(GL_TEXTURE_2D, 0, flip ? GL_RGBA : GL_BGRA_EXT, w, h, 0, flip ? GL_RGBA : GL_BGRA_EXT, GL_UNSIGNED_BYTE, data);
-    else
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, flip ? GL_RGBA : GL_BGRA_EXT, GL_UNSIGNED_BYTE, data);
-
-    display.width = (float) w;
-    display.height = (float) h;
 }
 
 static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip);
@@ -480,28 +470,27 @@ static void renderer_renew_image(void) {
     if (image)
         eglDestroyImageKHR(egl_display, image);
     if (buffer)
-        AHardwareBuffer_release(buffer);
+        LorieBuffer_release(buffer);
 
     buffer = pendingBuffer;
     pendingBuffer = NULL;
     bufferChanged = false;
     image = NULL;
 
-    if (buffer) {
-        AHardwareBuffer_describe(buffer, &desc);
-        display.width = (float) desc.width;
-        display.height = (float) desc.height;
+    LorieBuffer_describe(buffer, &display.desc);
 
-        image = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, eglGetNativeClientBufferANDROID(buffer), imageAttributes);
-    }
+    if (display.desc.buffer)
+        image = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, eglGetNativeClientBufferANDROID(display.desc.buffer), imageAttributes);
 
     if (contextAvailable) {
         bindLinearTexture(display.id);
         if (image)
             glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
-        else {
+        else if (display.desc.data) {
+            int format = display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA;
+            glTexImage2D(GL_TEXTURE_2D, 0, format, display.desc.width, display.desc.height, 0, format, GL_UNSIGNED_BYTE, display.desc.data);
+        } else {
             loge("There is no %s, nothing to be bound.", !buffer ? "AHardwareBuffer" : "EGLImage");
-            display.width = display.height = 1;
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &emptyData);
         }
     }
@@ -528,7 +517,12 @@ int renderer_redraw(JNIEnv* env, uint8_t flip) {
         pthread_mutex_unlock(&state->cursor.lock);
     }
 
-    draw(display.id,  -1.f, -1.f, 1.f, 1.f, flip);
+    if (display.desc.data) {
+        bindLinearTexture(display.id);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, display.desc.width, display.desc.height, display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, display.desc.data);
+    }
+
+    draw(display.id,  -1.f, -1.f, 1.f, 1.f, display.desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM);
     draw_cursor();
     if (eglSwapBuffers(egl_display, sfc) != EGL_TRUE) {
         printEglError("Failed to swap buffers", 0, __LINE__);
@@ -641,10 +635,10 @@ __unused static void draw_cursor(void) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
     }
 
-    x = 2.f * ((float) state->cursor.x - (float) state->cursor.xhot) / display.width - 1.f;
-    y = 2.f * ((float) state->cursor.y - (float) state->cursor.yhot) / display.height - 1.f;
-    w = 2.f * (float) state->cursor.width / display.width;
-    h = 2.f * (float) state->cursor.height / display.height;
+    x = 2.f * ((float) state->cursor.x - (float) state->cursor.xhot) / (float) display.desc.width - 1.f;
+    y = 2.f * ((float) state->cursor.y - (float) state->cursor.yhot) / (float) display.desc.height - 1.f;
+    w = 2.f * (float) state->cursor.width / (float) display.desc.width;
+    h = 2.f * (float) state->cursor.height / (float) display.desc.height;
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     draw(cursor.id, x, y, x + w, y + h, false);

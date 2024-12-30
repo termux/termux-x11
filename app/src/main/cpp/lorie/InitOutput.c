@@ -84,7 +84,6 @@ from The Open Group.
 #define unused __attribute__((unused))
 #define wrap(priv, real, mem, func) { priv->mem = real->mem; real->mem = func; }
 #define unwrap(priv, real, mem) { real->mem = priv->mem; }
-#define USAGE (AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN)
 #define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
 
 extern DeviceIntPtr lorieMouse, lorieKeyboard;
@@ -118,8 +117,7 @@ typedef struct {
 
     struct lorie_shared_server_state* state;
     struct {
-        AHardwareBuffer* buffer;
-        Bool locked;
+        LorieBuffer* buffer;
         Bool legacyDrawing;
         uint8_t flip;
         uint32_t width, height;
@@ -138,6 +136,7 @@ typedef struct {
 
 ScreenPtr pScreenPtr;
 static lorieScreenInfo lorieScreen = {
+        .stateFd = -1,
         .root.width = 1280,
         .root.height = 1024,
         .root.framerate = 30,
@@ -147,41 +146,14 @@ static lorieScreenInfo lorieScreen = {
 }, *pvfb = &lorieScreen;
 static char *xstartup = NULL;
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "UnreachableCallsOfFunction"
-static int create_shmem_region(char const* name, size_t size)
-{
-    int fd = memfd_create("Xlorie", MFD_CLOEXEC|MFD_ALLOW_SEALING);
-    if (fd) {
-        ftruncate (fd, size);
-        return fd;
-    }
-
-    fd = open("/dev/ashmem", O_RDWR);
-    if (fd < 0)
-        return fd;
-
-    char name_buffer[ASHMEM_NAME_LEN] = {0};
-    strncpy(name_buffer, name, sizeof(name_buffer));
-    name_buffer[sizeof(name_buffer)-1] = 0;
-
-    int ret = ioctl(fd, ASHMEM_SET_NAME, name_buffer);
-    if (ret < 0) goto error;
-
-    ret = ioctl(fd, ASHMEM_SET_SIZE, size);
-    if (ret < 0) goto error;
-
-    return fd;
-    error:
-    close(fd);
-    return ret;
-}
-#pragma clang diagnostic pop
-
-__attribute((constructor())) static void initSharedServerState() {
+void OsVendorInit(void) {
     pthread_mutexattr_t mutex_attr;
     pthread_condattr_t cond_attr;
-    if (-1 == (lorieScreen.stateFd = create_shmem_region("xserver", sizeof(*lorieScreen.state)))) {
+
+    if (lorieScreen.stateFd != -1) // already initialized
+        return;
+
+    if (-1 == (lorieScreen.stateFd = LorieBuffer_createRegion("xserver", sizeof(*lorieScreen.state)))) {
         dprintf(2, "FATAL: Failed to allocate server state.\n");
         _exit(1);
     }
@@ -193,6 +165,7 @@ __attribute((constructor())) static void initSharedServerState() {
 
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
+    pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&lorieScreen.state->lock, &mutex_attr);
     pthread_mutex_init(&lorieScreen.state->cursor.lock, &mutex_attr);
 
@@ -204,7 +177,6 @@ __attribute((constructor())) static void initSharedServerState() {
 
 void lorieActivityConnected(void) {
     lorieSendSharedServerState(pvfb->stateFd);
-    lorieSendRootWindowBuffer(pvfb->root.buffer);
 }
 
 static Bool TrueNoop() { return TRUE; }
@@ -273,10 +245,6 @@ ddxReady(void) {
 
     pthread_t t;
     pthread_create(&t, NULL, ddxReadyThread, NULL);
-}
-
-void
-OsVendorInit(void) {
 }
 
 void
@@ -442,133 +410,64 @@ static miPointerScreenFuncRec loriePointerCursorFuncs = {
 };
 
 static void lorieUpdateBuffer(void) {
-    AHardwareBuffer_Desc d0 = {}, d1 = {};
-    AHardwareBuffer *new = NULL, *old = pvfb->root.buffer;
-    int status, wasLocked = pvfb->root.locked;
-    void *data0 = NULL, *data1 = NULL;
+    pthread_mutex_lock(&pvfb->state->lock);
+    AHardwareBuffer_Desc desc;
+    LorieBuffer *new = NULL, *old = pvfb->root.buffer;
+    int status = 0;
+    void *data = NULL;
 
-    if (pvfb->root.legacyDrawing) {
-        PixmapPtr pixmap = (PixmapPtr) pScreenPtr->devPrivate;
-        DrawablePtr draw = &pixmap->drawable;
-        data0 = malloc(pScreenPtr->width * pScreenPtr->height * 4);
-        data1 = (draw->width && draw->height) ? pixmap->devPrivate.ptr : NULL;
-        if (data1)
-            pixman_blt(data1, data0, draw->width, pScreenPtr->width, 32, 32, 0, 0, 0, 0,
-                       min(draw->width, pScreenPtr->width), min(draw->height, pScreenPtr->height));
-        pScreenPtr->ModifyPixmapHeader(pScreenPtr->devPrivate, pScreenPtr->width, pScreenPtr->height, 32, 32, pScreenPtr->width * 4, data0);
-        free(data1);
-        return;
-    }
+    uint8_t type = pvfb->root.legacyDrawing ? LORIEBUFFER_REGULAR : LORIEBUFFER_AHARDWAREBUFFER;
+    uint8_t format = pvfb->root.flip ? AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM : AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
 
-    if (pScreenPtr->devPrivate) {
-        d0.width = pScreenPtr->width;
-        d0.height = pScreenPtr->height;
-        d0.layers = 1;
-        d0.usage = USAGE | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
-        d0.format = pvfb->root.flip
-                ? AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM
-                : AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
+    new = LorieBuffer_allocate(pScreenPtr->width, pScreenPtr->height, format, type);
+    if (!new)
+        FatalError("Failed to allocate root window pixmap (error %d)", status);
 
-        /* I could use this, but in this case I must swap colours in the shader. */
-        // desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
+    status = LorieBuffer_lock(new, &desc, &data);
+    if (status != 0)
+        FatalError("Failed to lock root window pixmap (error %d)", status);
 
-        status = AHardwareBuffer_allocate(&d0, &new);
-        if (status != 0)
-            FatalError("Failed to allocate root window pixmap (error %d)", status);
+    pvfb->root.buffer = new;
 
-        AHardwareBuffer_describe(new, &d0);
-        status = AHardwareBuffer_lock(new, USAGE, -1, NULL, &data0);
-        if (status != 0)
-            FatalError("Failed to lock root window pixmap (error %d)", status);
+    pScreenPtr->ModifyPixmapHeader(pScreenPtr->devPrivate, desc.width, desc.height, 32, 32, desc.stride * 4, data);
 
-        pvfb->root.buffer = new;
-        pvfb->root.locked = TRUE;
-
-        pScreenPtr->ModifyPixmapHeader(pScreenPtr->devPrivate, d0.width, d0.height, 32, 32, d0.stride * 4, data0);
-
-        renderer_set_buffer(pvfb->env, new);
-        lorieSendRootWindowBuffer(pvfb->root.buffer);
-    }
+    renderer_set_buffer(pvfb->env, new);
 
     if (old) {
-        if (wasLocked)
-            AHardwareBuffer_unlock(old, NULL);
+        LorieBuffer_unlock(old);
 
-        if (new && pvfb->root.locked) {
-            /*
-             * It is pretty easy. If there is old pixmap we should copy it's contents to new pixmap.
-             * If it is impossible we should simply request root window exposure.
-             */
-            AHardwareBuffer_describe(old, &d1);
-            status = AHardwareBuffer_lock(old, USAGE, -1, NULL, &data1);
-            if (status == 0) {
-                pixman_blt(data1, data0, d1.stride, d0.stride,
-                           32, 32, 0, 0, 0, 0,
-                           min(d1.width, d0.width), min(d1.height, d0.height));
-                AHardwareBuffer_unlock(old, NULL);
-            } else {
-                RegionRec reg;
-                BoxRec box = {.x1 = 0, .y1 = 0, .x2 = d0.width, .y2 = d0.height};
-                RegionInit(&reg, &box, 1);
-                pScreenPtr->WindowExposures(pScreenPtr->root, &reg);
-                RegionUninit(&reg);
-                AHardwareBuffer_release(old);
-                return;
-            }
+        if (0 != LorieBuffer_copy(old, new)) {
+            RegionRec reg;
+            BoxRec box = {.x1 = 0, .y1 = 0, .x2 = desc.width, .y2 = desc.height};
+            RegionInit(&reg, &box, 1);
+            pScreenPtr->WindowExposures(pScreenPtr->root, &reg);
+            RegionUninit(&reg);
         }
-        AHardwareBuffer_release(old);
+        LorieBuffer_release(old);
     }
-}
-
-static inline void loriePixmapUnlock(PixmapPtr pixmap) {
-    if (pvfb->root.legacyDrawing)
-        return renderer_update_root(pixmap->drawable.width, pixmap->drawable.height, pixmap->devPrivate.ptr, pvfb->root.flip);
-
-    if (pvfb->root.locked)
-        AHardwareBuffer_unlock(pvfb->root.buffer, NULL);
-
-    pvfb->root.locked = FALSE;
-    pixmap->drawable.pScreen->ModifyPixmapHeader(pixmap, -1, -1, -1, -1, -1, NULL);
-}
-
-static inline Bool loriePixmapLock(PixmapPtr pixmap) {
-    AHardwareBuffer_Desc desc = {};
-    void *data;
-    int status;
-
-    if (pvfb->root.legacyDrawing)
-        return TRUE;
-
-    if (!pvfb->root.buffer) {
-        pvfb->root.locked = FALSE;
-        return FALSE;
-    }
-
-    AHardwareBuffer_describe(pvfb->root.buffer, &desc);
-    status = AHardwareBuffer_lock(pvfb->root.buffer, USAGE, -1, NULL, &data);
-    pvfb->root.locked = status == 0;
-    if (pvfb->root.locked)
-        pixmap->drawable.pScreen->ModifyPixmapHeader(pixmap, desc.width, desc.height, -1, -1, desc.stride * 4, data);
-    else
-        FatalError("Failed to lock surface: %d\n", status);
-
-    return pvfb->root.locked;
+    pthread_mutex_unlock(&pvfb->state->lock);
 }
 
 static void loriePerformVblanks(void);
 
 static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
+    int status;
+
     loriePerformVblanks();
 
     if (renderer_should_redraw() && RegionNotEmpty(DamageRegion(pvfb->damage))) {
         int redrawn = FALSE;
 
-        loriePixmapUnlock(pScreenPtr->devPrivate);
+        LorieBuffer_unlock(pvfb->root.buffer);
         redrawn = renderer_redraw(pvfb->env, pvfb->root.flip);
-        if (loriePixmapLock(pScreenPtr->devPrivate) && redrawn)
+        status = LorieBuffer_lock(pvfb->root.buffer, NULL, &((PixmapPtr) pScreenPtr->devPrivate)->devPrivate.ptr);
+        if (status)
+            FatalError("Failed to lock surface: %d\n", status);
+
+        if (redrawn) {
             DamageEmpty(pvfb->damage);
-        if (redrawn)
             lorieRequestRender();
+        }
     } else if (pvfb->state->cursor.moved) {
         renderer_redraw(pvfb->env, pvfb->root.flip);
         lorieRequestRender();
@@ -600,9 +499,7 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->damage);
     pvfb->fpsTimer = TimerSet(NULL, 0, 5000, lorieFramecounter, pScreen);
 
-    pthread_mutex_lock(&pvfb->state->lock);
     lorieUpdateBuffer();
-    pthread_mutex_unlock(&pvfb->state->lock);
 
     pvfb->ready = true;
 
@@ -626,9 +523,7 @@ lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD
     pScreen->mmWidth = ((double) (width)) * 25.4 / monitorResolution;
     pScreen->mmHeight = ((double) (height)) * 25.4 / monitorResolution;
 
-    pthread_mutex_lock(&pvfb->state->lock);
     lorieUpdateBuffer();
-    pthread_mutex_unlock(&pvfb->state->lock);
 
     pScreen->ResizeWindow(pScreen->root, 0, 0, width, height, NULL);
     DamageEmpty(pvfb->damage);
@@ -763,11 +658,6 @@ Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
     jobject surface = (jobject) closure;
     renderer_set_window(pvfb->env, surface);
     lorieSetCursor(NULL, NULL, CursorForDevice(GetMaster(lorieMouse, MASTER_POINTER)), -1, -1);
-
-    if (pvfb->root.legacyDrawing) {
-        renderer_update_root(pScreenPtr->width, pScreenPtr->height, ((PixmapPtr) pScreenPtr->devPrivate)->devPrivate.ptr, pvfb->root.flip);
-        renderer_redraw(pvfb->env, pvfb->root.flip);
-    }
 
     return TRUE;
 }

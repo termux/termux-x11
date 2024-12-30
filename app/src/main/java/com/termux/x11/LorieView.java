@@ -379,6 +379,6 @@ public class LorieView extends SurfaceView implements InputStub {
     @FastNative public native void sendTextEvent(byte[] text);
 
     static {
-        System.loadLibrary("lorie");
+        System.loadLibrary("Xlorie");
     }
 }

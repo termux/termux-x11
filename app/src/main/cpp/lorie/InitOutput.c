@@ -110,7 +110,6 @@ typedef struct {
     CreateScreenResourcesProcPtr CreateScreenResources;
 
     DamagePtr damage;
-    OsTimerPtr redrawTimer;
     OsTimerPtr fpsTimer;
 
     int eventFd, stateFd;

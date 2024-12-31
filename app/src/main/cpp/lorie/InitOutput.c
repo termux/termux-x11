@@ -339,12 +339,12 @@ static Bool resetRootCursor(unused ClientPtr pClient, unused void *closure) {
 }
 
 static void lorieMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
-    pthread_mutex_lock(&pvfb->state->lock);
+    // No need to lock for such an easy operation
+    // just change it and signal for the case if the rendering thread is waiting
     pvfb->state->cursor.x = x;
     pvfb->state->cursor.y = y;
     pvfb->state->cursor.moved = TRUE;
     pthread_cond_signal(&pvfb->state->cond);
-    pthread_mutex_unlock(&pvfb->state->lock);
 }
 
 static void lorieConvertCursor(CursorPtr pCurs, uint32_t *data) {
@@ -438,8 +438,6 @@ static void lorieUpdateBuffer(void) {
 
     pScreenPtr->ModifyPixmapHeader(pScreenPtr->devPrivate, desc.width, desc.height, 32, 32, desc.stride * 4, data);
 
-    renderer_set_buffer(pvfb->env, new);
-
     if (old) {
         LorieBuffer_unlock(old);
 
@@ -453,6 +451,8 @@ static void lorieUpdateBuffer(void) {
         LorieBuffer_release(old);
     }
     pthread_mutex_unlock(&pvfb->state->lock);
+
+    renderer_set_buffer(pvfb->env, new);
 }
 
 static void loriePerformVblanks(void);
@@ -475,12 +475,8 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
             DamageEmpty(pvfb->damage);
             lorieRequestRender();
         }
-    } else if (pvfb->state->cursor.moved) {
-        renderer_redraw();
-        lorieRequestRender();
     }
 
-    pvfb->state->cursor.moved = FALSE;
     return TRUE;
 }
 

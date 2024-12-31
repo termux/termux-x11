@@ -143,8 +143,6 @@ static int renderedFrames = 0;
 static jmethodID Surface_release = NULL;
 static jmethodID Surface_destroy = NULL;
 
-static pthread_mutex_t resLock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 static JNIEnv* renderEnv = NULL;
 static volatile bool contextAvailable = false;
 static volatile bool drawRequested = false;
@@ -198,8 +196,6 @@ int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
     if (ctx)
         return 1;
 
-    pthread_mutex_init(&resLock, NULL);
-    pthread_cond_init(&cond, NULL);
     (*env)->GetJavaVM(env, &vm);
 
     jclass Surface = (*env)->FindClass(env, "android/view/Surface");
@@ -349,7 +345,7 @@ __unused void renderer_set_shared_state(struct lorie_shared_server_state* new_st
 }
 
 void renderer_set_buffer(JNIEnv* env, LorieBuffer* buf) {
-    pthread_mutex_lock(&resLock);
+    pthread_mutex_lock(&state->lock);
     if (buf == pendingBuffer)
         goto end;
 
@@ -362,20 +358,20 @@ void renderer_set_buffer(JNIEnv* env, LorieBuffer* buf) {
     if (pendingBuffer)
         LorieBuffer_acquire(pendingBuffer);
 
-    pthread_cond_signal(&cond);
-    end: pthread_mutex_unlock(&resLock);
+    pthread_cond_signal(&state->cond);
+    end: pthread_mutex_unlock(&state->lock);
 }
 
 void renderer_set_window(JNIEnv* env, jobject new_surface) {
-    pthread_mutex_lock(&resLock);
+    pthread_mutex_lock(&state->lock);
     if (pendingSurface && new_surface && pendingSurface != new_surface && (*env)->IsSameObject(env, pendingSurface, new_surface)) {
         (*env)->DeleteGlobalRef(env, new_surface);
-        pthread_mutex_unlock(&resLock);
+        pthread_mutex_unlock(&state->lock);
         return;
     }
 
     if (pendingSurface && pendingSurface == new_surface) {
-        pthread_mutex_unlock(&resLock);
+        pthread_mutex_unlock(&state->lock);
         return;
     }
 
@@ -384,8 +380,8 @@ void renderer_set_window(JNIEnv* env, jobject new_surface) {
 
     pendingSurface = new_surface;
     surfaceChanged = TRUE;
-    pthread_cond_signal(&cond);
-    pthread_mutex_unlock(&resLock);
+    pthread_cond_signal(&state->cond);
+    pthread_mutex_unlock(&state->lock);
 }
 
 static inline __always_inline void release_win_and_surface(JNIEnv *env, jobject* jsfc, ANativeWindow** anw, EGLSurface *esfc) {
@@ -489,9 +485,10 @@ void renderer_refresh_context(JNIEnv* env) {
     else {
         LorieBuffer_describe(buffer, &display.desc);
 
-        if (display.desc.data && display.desc.width > 0 && display.desc.height > 0)
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, display.desc.width, display.desc.height, 0, display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, display.desc.data);
-        else
+        if (display.desc.data && display.desc.width > 0 && display.desc.height > 0) {
+            int format = display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA;
+            glTexImage2D(GL_TEXTURE_2D, 0, format, display.desc.width, display.desc.height, 0, format, GL_UNSIGNED_BYTE, display.desc.data);
+        } else
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &emptyData);
     }
 }
@@ -527,7 +524,7 @@ static void renderer_renew_image(void) {
         bindLinearTexture(display.id);
         if (image)
             glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
-        else if (display.desc.data) {
+        else if (display.desc.data && display.desc.width > 0 && display.desc.height > 0) {
             int format = display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA;
             glTexImage2D(GL_TEXTURE_2D, 0, format, display.desc.width, display.desc.height, 0, format, GL_UNSIGNED_BYTE, display.desc.data);
         } else {
@@ -540,23 +537,23 @@ static void renderer_renew_image(void) {
 }
 
 int renderer_redraw(void) {
-    pthread_mutex_lock(&resLock);
+    pthread_mutex_lock(&state->lock);
     drawRequested = TRUE;
-    pthread_cond_signal(&cond);
-    pthread_mutex_unlock(&resLock);
+    pthread_cond_signal(&state->cond);
+    pthread_mutex_unlock(&state->lock);
     return contextAvailable;
 }
 
 int renderer_redraw_locked(JNIEnv* env) {
     int err = EGL_SUCCESS;
 
-    pthread_mutex_lock(&resLock);
+    pthread_mutex_lock(&state->lock);
     if (surfaceChanged)
         renderer_refresh_context(env);
 
     if (bufferChanged)
         renderer_renew_image();
-    pthread_mutex_unlock(&resLock);
+    pthread_mutex_unlock(&state->lock);
 
     if (!contextAvailable)
         return FALSE;
@@ -572,6 +569,7 @@ int renderer_redraw_locked(JNIEnv* env) {
 
     // We should not read root window content while server is writing it.
     pthread_mutex_lock(&state->lock);
+    drawRequested = FALSE;
     if (display.desc.data) {
         bindLinearTexture(display.id);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, display.desc.width, display.desc.height, display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, display.desc.data);
@@ -580,6 +578,7 @@ int renderer_redraw_locked(JNIEnv* env) {
     draw(display.id,  -1.f, -1.f, 1.f, 1.f, display.desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM);
     pthread_mutex_unlock(&state->lock);
 
+    state->cursor.moved = FALSE;
     draw_cursor();
     if (eglSwapBuffers(egl_display, sfc) != EGL_TRUE) {
         printEglError("Failed to swap buffers", 0, __LINE__);
@@ -606,10 +605,9 @@ __noreturn static void* renderer_thread(void* closure) {
 
     pthread_mutex_lock(&m); // We do not need this mutex, we only wait for the signal.
     while (true) {
-        while (!drawRequested && !surfaceChanged && !bufferChanged && (!state || !state->cursor.updated))
-            pthread_cond_wait(&cond, &m);
+        while (!drawRequested && !surfaceChanged && !bufferChanged && (!state || (!state->cursor.moved && !state->cursor.updated)))
+            pthread_cond_wait(&state->cond, &m);
 
-        drawRequested = FALSE;
         renderer_redraw_locked(env);
     }
     pthread_mutex_unlock(&m);

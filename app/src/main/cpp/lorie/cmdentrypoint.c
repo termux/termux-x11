@@ -205,8 +205,7 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
 
 JNIEXPORT void JNICALL
 Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, __unused jobject cls, jobject surface) {
-    QueueWorkProc(lorieChangeWindow, NULL, surface ? (*env)->NewGlobalRef(env, surface) : NULL);
-    lorieTriggerWorkingQueue();
+    renderer_set_window(env, surface ? (*env)->NewGlobalRef(env, surface) : NULL);
 }
 
 static Bool sendConfigureNotify(__unused ClientPtr pClient, void *closure) {

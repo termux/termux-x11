@@ -6,6 +6,7 @@
 #pragma ide diagnostic ignored "UnreachableCode"
 #pragma ide diagnostic ignored "OCUnusedMacroInspection"
 #pragma ide diagnostic ignored "misc-no-recursion"
+#pragma clang diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
 #define EGL_EGLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES
 
@@ -142,9 +143,12 @@ static int renderedFrames = 0;
 static jmethodID Surface_release = NULL;
 static jmethodID Surface_destroy = NULL;
 
+static pthread_mutex_t resLock = PTHREAD_MUTEX_INITIALIZER;
 static volatile bool contextAvailable = false;
 static volatile bool bufferChanged = false;
+static volatile bool surfaceChanged = false;
 static volatile LorieBuffer* pendingBuffer = NULL;
+static volatile jobject pendingSurface = NULL;
 
 struct lorie_shared_server_state* state = NULL;
 static struct {
@@ -186,6 +190,8 @@ int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
 
     if (ctx)
         return 1;
+
+    pthread_mutex_init(&resLock, NULL);
 
     jclass Surface = (*env)->FindClass(env, "android/view/Surface");
     Surface_release = (*env)->GetMethodID(env, Surface, "release", "()V");
@@ -345,6 +351,24 @@ void renderer_set_buffer(JNIEnv* env, LorieBuffer* buf) {
         LorieBuffer_acquire(pendingBuffer);
 }
 
+void renderer_set_window(JNIEnv* env, jobject new_surface) {
+    pthread_mutex_lock(&resLock);
+    if (pendingSurface && new_surface && pendingSurface != new_surface && (*env)->IsSameObject(env, pendingSurface, new_surface)) {
+        (*env)->DeleteGlobalRef(env, new_surface);
+        return;
+    }
+
+    if (pendingSurface && pendingSurface == new_surface)
+        return;
+
+    if (pendingSurface)
+        (*env)->DeleteGlobalRef(env, pendingSurface);
+
+    pendingSurface = new_surface;
+    surfaceChanged = TRUE;
+    pthread_mutex_unlock(&resLock);
+}
+
 static inline __always_inline void release_win_and_surface(JNIEnv *env, jobject* jsfc, ANativeWindow** anw, EGLSurface *esfc) {
     if (esfc && *esfc) {
         if (eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE)
@@ -367,21 +391,20 @@ static inline __always_inline void release_win_and_surface(JNIEnv *env, jobject*
     }
 }
 
-void renderer_set_window(JNIEnv* env, jobject new_surface) {
+void renderer_refresh_context(JNIEnv* env) {
+    pthread_mutex_lock(&resLock);
     uint32_t emptyData = {0};
-    ANativeWindow* window;
-    if (new_surface && surface && new_surface != surface && (*env)->IsSameObject(env, new_surface, surface)) {
-        (*env)->DeleteGlobalRef(env, new_surface);
-        new_surface = NULL;
+    ANativeWindow* window = pendingSurface ? ANativeWindow_fromSurface(env, pendingSurface) : NULL;
+    if ((pendingSurface && surface && pendingSurface != surface && (*env)->IsSameObject(env, pendingSurface, surface)) || (window && win == window)) {
+        (*env)->DeleteGlobalRef(env, pendingSurface);
+        pendingSurface = NULL;
+        surfaceChanged = FALSE;
         return;
     }
 
-    window = new_surface ? ANativeWindow_fromSurface(env, new_surface) : NULL;
     int width = window ? ANativeWindow_getWidth(window) : 0;
     int height = window ? ANativeWindow_getHeight(window) : 0;
     log("renderer_set_window %p %d %d", window, width, height);
-    if (window && win == window)
-        return;
 
     if (window)
         ANativeWindow_acquire(window);
@@ -390,11 +413,15 @@ void renderer_set_window(JNIEnv* env, jobject new_surface) {
 
     if (window && (width <= 0 || height <= 0)) {
         log("Xlorie: We've got invalid surface. Probably it became invalid before we started working with it.\n");
-        release_win_and_surface(env, &new_surface, &window, NULL);
+        release_win_and_surface(env, &pendingSurface, &window, NULL);
     }
 
     win = window;
-    surface = new_surface;
+    surface = pendingSurface;
+    pendingSurface = NULL;
+    surfaceChanged = FALSE;
+
+    pthread_mutex_unlock(&resLock);
 
     if (!win) {
         eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
@@ -459,7 +486,7 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip
 static void draw_cursor(void);
 
 int renderer_should_redraw(void) {
-    return contextAvailable || bufferChanged || (state && state->cursor.updated);
+    return contextAvailable || surfaceChanged || bufferChanged || (state && state->cursor.updated);
 }
 
 static void renderer_renew_image(void) {
@@ -501,6 +528,9 @@ static void renderer_renew_image(void) {
 int renderer_redraw(JNIEnv* env, uint8_t flip) {
     int err = EGL_SUCCESS;
 
+    if (surfaceChanged)
+        renderer_refresh_context(env);
+
     if (bufferChanged)
         renderer_renew_image();
 
@@ -508,7 +538,6 @@ int renderer_redraw(JNIEnv* env, uint8_t flip) {
         return FALSE;
 
     if (state && state->cursor.updated) {
-        uint32_t data = 0;
         log("Xlorie: updating cursor\n");
         pthread_mutex_lock(&state->cursor.lock);
         state->cursor.updated = false;

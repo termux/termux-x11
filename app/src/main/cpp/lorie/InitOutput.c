@@ -466,7 +466,7 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
         int redrawn = FALSE;
 
         LorieBuffer_unlock(pvfb->root.buffer);
-        redrawn = renderer_redraw(pvfb->env, pvfb->root.flip);
+        redrawn = renderer_redraw();
         status = LorieBuffer_lock(pvfb->root.buffer, NULL, &((PixmapPtr) pScreenPtr->devPrivate)->devPrivate.ptr);
         if (status)
             FatalError("Failed to lock surface: %d\n", status);
@@ -476,7 +476,7 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
             lorieRequestRender();
         }
     } else if (pvfb->state->cursor.moved) {
-        renderer_redraw(pvfb->env, pvfb->root.flip);
+        renderer_redraw();
         lorieRequestRender();
     }
 

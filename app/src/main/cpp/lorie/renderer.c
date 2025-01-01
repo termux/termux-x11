@@ -25,7 +25,7 @@
 
 static GLuint create_program(const char* p_vertex_source, const char* p_fragment_source);
 
-static int printEglError(char* msg, int ret, int line) {
+static int printEglError(char* msg, int line) {
     char descBuf[32] = {0};
     char* desc;
     int err = eglGetError();
@@ -55,34 +55,11 @@ static int printEglError(char* msg, int ret, int line) {
     if (desc)
         log("renderer: %s: %s (%s:%d)\n", msg, desc, __FILE__, line);
 
-    return ret;
+    return 0;
 }
 
 static inline __always_inline void vprintEglError(char* msg, int line) {
-    printEglError(msg, 0, line);
-}
-
-static const char* eglErrorLabel(int code) {
-    switch(code) {
-        case EGL_SUCCESS: return NULL; // "No error"
-#define E(code) case code: return #code; break
-        E(EGL_NOT_INITIALIZED);
-        E(EGL_BAD_ACCESS);
-        E(EGL_BAD_ALLOC);
-        E(EGL_BAD_ATTRIBUTE);
-        E(EGL_BAD_CONTEXT);
-        E(EGL_BAD_CONFIG);
-        E(EGL_BAD_CURRENT_SURFACE);
-        E(EGL_BAD_DISPLAY);
-        E(EGL_BAD_SURFACE);
-        E(EGL_BAD_MATCH);
-        E(EGL_BAD_PARAMETER);
-        E(EGL_BAD_NATIVE_PIXMAP);
-        E(EGL_BAD_NATIVE_WINDOW);
-        E(EGL_CONTEXT_LOST);
-#undef E
-        default: return "EGL_UNKNOWN_ERROR";
-    }
+    printEglError(msg, line);
 }
 
 static void checkGlError(int line) {
@@ -174,24 +151,26 @@ static inline __always_inline void bindLinearTexture(GLuint id) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
 
-int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
-    JavaVM* vm;
+static EGLint configAttribs[] = {
+        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+        EGL_RED_SIZE, 8,
+        EGL_GREEN_SIZE, 8,
+        EGL_BLUE_SIZE, 8,
+        EGL_ALPHA_SIZE, 0,
+        EGL_NONE
+};
+
+const EGLint ctxattribs[] = {
+        EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE
+};
+
+int renderer_init(JNIEnv* env) {
+    JavaVM *vm;
     pthread_t t;
     EGLint major, minor;
     EGLint numConfigs;
-    EGLint configAttribs[] = {
-            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-            EGL_RED_SIZE, 8,
-            EGL_GREEN_SIZE, 8,
-            EGL_BLUE_SIZE, 8,
-            EGL_ALPHA_SIZE, 0,
-            EGL_NONE
-    };
-    const EGLint ctxattribs[] = {
-            EGL_CONTEXT_CLIENT_VERSION,2, EGL_NONE
-    };
-    EGLint * const alphaAttrib = &configAttribs[11];
+    EGLint *const alphaAttrib = &configAttribs[11];
 
     if (ctx)
         return 1;
@@ -212,132 +191,132 @@ int renderer_init(JNIEnv* env, int* legacy_drawing, uint8_t* flip) {
 
     egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (egl_display == EGL_NO_DISPLAY)
-        return printEglError("Got no EGL display", 0, __LINE__);
+        return printEglError("Got no EGL display", __LINE__);
 
     if (eglInitialize(egl_display, &major, &minor) != EGL_TRUE)
-        return printEglError("Unable to initialize EGL", 0, __LINE__);
+        return printEglError("Unable to initialize EGL", __LINE__);
 
     log("Xlorie: Initialized EGL version %d.%d\n", major, minor);
     eglBindAPI(EGL_OPENGL_ES_API);
 
     if (eglChooseConfig(egl_display, configAttribs, &cfg, 1, &numConfigs) != EGL_TRUE &&
-            (*alphaAttrib = 8) &&
-            eglChooseConfig(egl_display, configAttribs, &cfg, 1, &numConfigs) != EGL_TRUE)
-        return printEglError("eglChooseConfig failed", 0, __LINE__);
+        (*alphaAttrib = 8) &&
+        eglChooseConfig(egl_display, configAttribs, &cfg, 1, &numConfigs) != EGL_TRUE)
+        return printEglError("eglChooseConfig failed", __LINE__);
 
     ctx = eglCreateContext(egl_display, cfg, NULL, ctxattribs);
     if (ctx == EGL_NO_CONTEXT)
-        return printEglError("eglCreateContext failed", 0, __LINE__);
+        return printEglError("eglCreateContext failed", __LINE__);
 
     if (eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE)
-        return printEglError("eglMakeCurrent failed", 0, __LINE__);
+        return printEglError("eglMakeCurrent failed", __LINE__);
 
     pthread_create(&t, NULL, renderer_thread, vm);
+    return 1;
+}
 
-    {
-        // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
-        const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
-        EGLClientBuffer clientBuffer;
-        EGLImageKHR img;
-        AHardwareBuffer *new = NULL;
-        int status;
-        AHardwareBuffer_Desc d0 = {
-                .width = 64,
-                .height = 64,
-                .layers = 1,
-                .usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
-                .format = AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM
-        };
+void renderer_test_capabilities(int* legacy_drawing, uint8_t* flip) {
+    // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
+    const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
+    EGLint numConfigs;
+    EGLClientBuffer clientBuffer;
+    EGLImageKHR img;
+    AHardwareBuffer *new = NULL;
+    int status;
+    AHardwareBuffer_Desc d0 = {
+            .width = 64,
+            .height = 64,
+            .layers = 1,
+            .usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
+            .format = AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM
+    };
 
-        status = AHardwareBuffer_allocate(&d0, &new);
-        if (status != 0 || new == NULL) {
-            loge("Failed to allocate native buffer (%p, error %d)", new, status);
-            loge("Forcing legacy drawing");
-            *legacy_drawing = 1;
-            return 1;
-        }
-
-        uint32_t *pixels;
-        if (AHardwareBuffer_lock(new, AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, (void **) &pixels) == 0) {
-            pixels[0] = 0xAABBCCDD;
-            AHardwareBuffer_unlock(new, NULL);
-        } else {
-            loge("Failed to lock native buffer (%p, error %d)", new, status);
-            loge("Forcing legacy drawing");
-            *legacy_drawing = 1;
-            AHardwareBuffer_release(new);
-            return 1;
-        }
-
-        clientBuffer = eglGetNativeClientBufferANDROID(new);
-        if (!clientBuffer) {
-            *legacy_drawing = 1;
-            AHardwareBuffer_release(new);
-            return printEglError("Failed to obtain EGLClientBuffer from AHardwareBuffer, forcing legacy drawing", 1, __LINE__);
-        }
-
-        if (!(img = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes))) {
-            if (eglGetError() == EGL_BAD_PARAMETER) {
-                loge("Sampling from HAL_PIXEL_FORMAT_BGRA_8888 is not supported, forcing AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM");
-                *flip = 1;
-            } else {
-                loge("Failed to obtain EGLImageKHR from EGLClientBuffer");
-                loge("Forcing legacy drawing");
-                *legacy_drawing = 1;
-            }
-            AHardwareBuffer_release(new);
-        } else {
-            // For some reason all devices I checked had no GL_EXT_texture_format_BGRA8888 support, but some of them still provided BGRA extension.
-            // EGL does not provide functions to query texture format in runtime.
-            // Workarounds are less performant but at least they let us use Termux:X11 on devices with missing BGRA support.
-            // We handle two cases.
-            // If resulting texture has BGRA format but still drawing RGBA we should flip format to RGBA and flip pixels manually in shader.
-            // In the case if for some reason we can not use HAL_PIXEL_FORMAT_BGRA_8888 we should fallback to legacy drawing method (uploading pixels via glTexImage2D).
-            configAttribs[1] = EGL_PBUFFER_BIT;
-            EGLConfig checkcfg = 0;
-            GLuint fbo = 0, texture = 0;
-            if (eglChooseConfig(egl_display, configAttribs, &checkcfg, 1, &numConfigs) != EGL_TRUE)
-                return printEglError("check eglChooseConfig failed", 0, __LINE__);
-
-            EGLContext testctx = eglCreateContext(egl_display, checkcfg, NULL, ctxattribs);
-            if (testctx == EGL_NO_CONTEXT)
-                return printEglError("check eglCreateContext failed", 0, __LINE__);
-
-            const EGLint pbufferAttributes[] = {
-                    EGL_WIDTH, 64,
-                    EGL_HEIGHT, 64,
-                    EGL_NONE,
-            };
-            EGLSurface checksfc = eglCreatePbufferSurface(egl_display, checkcfg, pbufferAttributes);
-
-            if (eglMakeCurrent(egl_display, checksfc, checksfc, testctx) != EGL_TRUE)
-                return printEglError("check eglMakeCurrent failed", 0, __LINE__);
-
-            glActiveTexture(GL_TEXTURE0); checkGlError();
-            glGenTextures(1, &texture); checkGlError();
-            bindLinearTexture(texture);
-            glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, img); checkGlError();
-            glGenFramebuffers(1, &fbo); checkGlError();
-            glBindFramebuffer(GL_FRAMEBUFFER, fbo); checkGlError();
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0); checkGlError();
-            uint32_t pixel[64*64];
-            glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel); checkGlError();
-            if (pixel[0] == 0xAABBCCDD) {
-                log("Xlorie: GLES draws pixels unchanged, probably system does not support AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM. Forcing bgra.\n");
-                *flip = 1;
-            } else if (pixel[0] != 0xAADDCCBB) {
-                log("Xlorie: GLES receives broken pixels. Forcing legacy drawing. 0x%X\n", pixel[0]);
-                *legacy_drawing = 1;
-            }
-            eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-            eglDestroyContext(egl_display, testctx);
-            eglDestroyImageKHR(egl_display, img);
-            eglDestroySurface(egl_display, checksfc);
-            AHardwareBuffer_release(new);
-        }
+    status = AHardwareBuffer_allocate(&d0, &new);
+    if (status != 0 || new == NULL) {
+        loge("Failed to allocate native buffer (%p, error %d)", new, status);
+        loge("Forcing legacy drawing");
+        *legacy_drawing = 1;
+        return;
     }
 
-    return 1;
+    uint32_t *pixels;
+    if (AHardwareBuffer_lock(new, AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, (void **) &pixels) == 0) {
+        pixels[0] = 0xAABBCCDD;
+        AHardwareBuffer_unlock(new, NULL);
+    } else {
+        loge("Failed to lock native buffer (%p, error %d)", new, status);
+        loge("Forcing legacy drawing");
+        *legacy_drawing = 1;
+        AHardwareBuffer_release(new);
+        return;
+    }
+
+    clientBuffer = eglGetNativeClientBufferANDROID(new);
+    if (!clientBuffer) {
+        *legacy_drawing = 1;
+        AHardwareBuffer_release(new);
+        return vprintEglError("Failed to obtain EGLClientBuffer from AHardwareBuffer, forcing legacy drawing", __LINE__);
+    }
+
+    if (!(img = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes))) {
+        if (eglGetError() == EGL_BAD_PARAMETER) {
+            loge("Sampling from HAL_PIXEL_FORMAT_BGRA_8888 is not supported, forcing AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM");
+            *flip = 1;
+        } else {
+            loge("Failed to obtain EGLImageKHR from EGLClientBuffer");
+            loge("Forcing legacy drawing");
+            *legacy_drawing = 1;
+        }
+        AHardwareBuffer_release(new);
+    } else {
+        // For some reason all devices I checked had no GL_EXT_texture_format_BGRA8888 support, but some of them still provided BGRA extension.
+        // EGL does not provide functions to query texture format in runtime.
+        // Workarounds are less performant but at least they let us use Termux:X11 on devices with missing BGRA support.
+        // We handle two cases.
+        // If resulting texture has BGRA format but still drawing RGBA we should flip format to RGBA and flip pixels manually in shader.
+        // In the case if for some reason we can not use HAL_PIXEL_FORMAT_BGRA_8888 we should fallback to legacy drawing method (uploading pixels via glTexImage2D).
+        configAttribs[1] = EGL_PBUFFER_BIT;
+        EGLConfig checkcfg = 0;
+        GLuint fbo = 0, texture = 0;
+        if (eglChooseConfig(egl_display, configAttribs, &checkcfg, 1, &numConfigs) != EGL_TRUE)
+            return vprintEglError("check eglChooseConfig failed", __LINE__);
+
+        EGLContext testctx = eglCreateContext(egl_display, checkcfg, NULL, ctxattribs);
+        if (testctx == EGL_NO_CONTEXT)
+            return vprintEglError("check eglCreateContext failed", __LINE__);
+
+        const EGLint pbufferAttributes[] = {
+                EGL_WIDTH, 64,
+                EGL_HEIGHT, 64,
+                EGL_NONE,
+        };
+        EGLSurface checksfc = eglCreatePbufferSurface(egl_display, checkcfg, pbufferAttributes);
+
+        if (eglMakeCurrent(egl_display, checksfc, checksfc, testctx) != EGL_TRUE)
+            return vprintEglError("check eglMakeCurrent failed", __LINE__);
+
+        glActiveTexture(GL_TEXTURE0); checkGlError();
+        glGenTextures(1, &texture); checkGlError();
+        bindLinearTexture(texture);
+        glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, img); checkGlError();
+        glGenFramebuffers(1, &fbo); checkGlError();
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo); checkGlError();
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0); checkGlError();
+        uint32_t pixel[64*64];
+        glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel); checkGlError();
+        if (pixel[0] == 0xAABBCCDD) {
+            log("Xlorie: GLES draws pixels unchanged, probably system does not support AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM. Forcing bgra.\n");
+            *flip = 1;
+        } else if (pixel[0] != 0xAADDCCBB) {
+            log("Xlorie: GLES receives broken pixels. Forcing legacy drawing. 0x%X\n", pixel[0]);
+            *legacy_drawing = 1;
+        }
+        eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroyContext(egl_display, testctx);
+        eglDestroyImageKHR(egl_display, img);
+        eglDestroySurface(egl_display, checksfc);
+        AHardwareBuffer_release(new);
+    }
 }
 
 __unused void renderer_set_shared_state(struct lorie_shared_server_state* new_state) {
@@ -581,12 +560,10 @@ int renderer_redraw_locked(JNIEnv* env) {
     state->cursor.moved = FALSE;
     draw_cursor();
     if (eglSwapBuffers(egl_display, sfc) != EGL_TRUE) {
-        printEglError("Failed to swap buffers", 0, __LINE__);
+        printEglError("Failed to swap buffers", __LINE__);
         err = eglGetError();
         if (err == EGL_BAD_NATIVE_WINDOW || err == EGL_BAD_SURFACE) {
-            log("We've got %s so window is to be destroyed. "
-                "Native window disconnected/abandoned, probably activity is destroyed or in background",
-                eglErrorLabel(err));
+            log("The window is to be destroyed. Native window disconnected/abandoned, probably activity is destroyed or in background");
             renderer_set_window(env, NULL);
             return FALSE;
         }

@@ -716,7 +716,8 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     screen_info->bitmapBitOrder = BITMAP_BIT_ORDER;
     screen_info->numPixmapFormats = ARRAY_SIZE(depths);
 
-    renderer_init(pvfb->env, &pvfb->root.legacyDrawing, &pvfb->root.flip);
+    renderer_init(pvfb->env);
+    renderer_test_capabilities(&pvfb->root.legacyDrawing, &pvfb->root.flip);
     xorgGlxCreateVendor();
     lorieInitClipboard();
 

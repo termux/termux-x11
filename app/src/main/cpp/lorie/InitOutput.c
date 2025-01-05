@@ -647,21 +647,6 @@ lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     return TRUE;
 }                               /* end lorieScreenInit */
 
-// From xfixes/cursor.c
-static CursorPtr
-CursorForDevice(DeviceIntPtr pDev) {
-    if (!CursorVisible || !EnableCursor)
-        return NULL;
-
-    if (pDev && pDev->spriteInfo) {
-        if (pDev->spriteInfo->anim.pCursor)
-            return pDev->spriteInfo->anim.pCursor;
-        return pDev->spriteInfo->sprite ? pDev->spriteInfo->sprite->current : NULL;
-    }
-
-    return NULL;
-}
-
 void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name) {
     ScreenPtr pScreen = pScreenPtr;
     RROutputPtr output = RRFirstOutput(pScreen);

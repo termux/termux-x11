@@ -30,7 +30,6 @@ import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.os.SystemClock;
@@ -555,7 +554,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         handler.postDelayed(this::onPreferencesChangedCallback, 100);
     }
 
-    /** @noinspection CommentedOutCode*/
     @SuppressLint("UnsafeIntentLaunch")
     void onPreferencesChangedCallback() {
         prefs.recheckStoringSecondaryDisplayPreferences();

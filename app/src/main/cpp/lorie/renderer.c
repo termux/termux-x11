@@ -125,7 +125,7 @@ static volatile bool surfaceChanged = false;
 static volatile LorieBuffer* pendingBuffer = NULL;
 static volatile jobject pendingSurface = NULL;
 
-static pthread_spinlock_t stateLock;
+static pthread_mutex_t stateLock;
 static volatile struct lorie_shared_server_state* state = NULL;
 static struct {
     GLuint id;
@@ -175,7 +175,7 @@ int renderer_init(JNIEnv* env) {
 
     (*env)->GetJavaVM(env, &vm);
 
-    pthread_spin_init(&stateLock, false);
+    pthread_mutex_init(&stateLock, NULL);
 
     jclass Surface = (*env)->FindClass(env, "android/view/Surface");
     Surface_release = (*env)->GetMethodID(env, Surface, "release", "()V");
@@ -326,9 +326,10 @@ void renderer_test_capabilities(int* legacy_drawing, uint8_t* flip) {
 }
 
 __unused void renderer_set_shared_state(struct lorie_shared_server_state* new_state) {
-    pthread_spin_lock(&stateLock);
+    pthread_mutex_lock(&stateLock);
     state = new_state;
-    pthread_spin_unlock(&stateLock);
+    pthread_cond_signal(&state->cond);
+    pthread_mutex_unlock(&stateLock);
 }
 
 void renderer_set_buffer(JNIEnv* env, LorieBuffer* buf) {
@@ -582,15 +583,12 @@ __noreturn static void* renderer_thread(void* closure) {
     JavaVM* vm = closure;
     JNIEnv* env;
     (*vm)->AttachCurrentThread(vm, &env, NULL);
-    pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_init(&m, NULL);
 
-    pthread_mutex_lock(&m); // We do not need this mutex, we only wait for the signal.
+    pthread_mutex_lock(&stateLock);
     while (true) {
         while (renderer_should_wait())
-            pthread_cond_wait(&state->cond, &m);
+            pthread_cond_wait(&state->cond, &stateLock);
 
-        pthread_spin_lock(&stateLock);
         // we should signal X server to not use root window or change cursor while we actively use them
         pthread_mutex_lock(&state->lock);
         if (surfaceChanged)
@@ -603,9 +601,8 @@ __noreturn static void* renderer_thread(void* closure) {
         if (state->contextAvailable)
             renderer_redraw_locked(env);
 
-        pthread_spin_unlock(&stateLock);
     }
-    pthread_mutex_unlock(&m);
+    pthread_mutex_unlock(&stateLock);
 }
 
 static GLuint load_shader(GLenum shaderType, const char* pSource) {

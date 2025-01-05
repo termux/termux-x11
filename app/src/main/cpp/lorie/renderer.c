@@ -125,7 +125,8 @@ static volatile bool surfaceChanged = false;
 static volatile LorieBuffer* pendingBuffer = NULL;
 static volatile jobject pendingSurface = NULL;
 
-volatile struct lorie_shared_server_state* state = NULL;
+static pthread_spinlock_t stateLock;
+static volatile struct lorie_shared_server_state* state = NULL;
 static struct {
     GLuint id;
     LorieBuffer_Desc desc;
@@ -173,6 +174,8 @@ int renderer_init(JNIEnv* env) {
         return 1;
 
     (*env)->GetJavaVM(env, &vm);
+
+    pthread_spin_init(&stateLock, false);
 
     jclass Surface = (*env)->FindClass(env, "android/view/Surface");
     Surface_release = (*env)->GetMethodID(env, Surface, "release", "()V");
@@ -317,7 +320,9 @@ void renderer_test_capabilities(int* legacy_drawing, uint8_t* flip) {
 }
 
 __unused void renderer_set_shared_state(struct lorie_shared_server_state* new_state) {
+    pthread_spin_lock(&stateLock);
     state = new_state;
+    pthread_spin_unlock(&stateLock);
 }
 
 void renderer_set_buffer(JNIEnv* env, LorieBuffer* buf) {
@@ -582,7 +587,9 @@ __noreturn static void* renderer_thread(void* closure) {
         while (!state || (!state->drawRequested && !surfaceChanged && !bufferChanged && (!state || (!state->cursor.moved && !state->cursor.updated))))
             pthread_cond_wait(&state->cond, &m);
 
+        pthread_spin_lock(&stateLock);
         renderer_redraw_locked(env);
+        pthread_spin_unlock(&stateLock);
     }
     pthread_mutex_unlock(&m);
 }

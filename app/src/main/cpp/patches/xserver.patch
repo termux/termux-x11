@@ -211,10 +211,10 @@ index f9b7b06d9..f4b2aeddc 100644
  
  WorkQueuePtr workQueue;
  static WorkQueuePtr *workQueueLast = &workQueue;
-+pthread_mutex_t workQueueLock = PTHREAD_MUTEX_INITIALIZER;
++static pthread_spinlock_t workQueueLock;
 +
 +__attribute__((constructor)) static void workQueueLockInit (void) {
-+    pthread_mutex_init(&workQueueLock, NULL);
++    pthread_spin_init(&workQueueLock, FALSE);
 +}
  
  void
@@ -222,14 +222,14 @@ index f9b7b06d9..f4b2aeddc 100644
  {
      WorkQueuePtr q, *p;
  
-+    pthread_mutex_lock(&workQueueLock);
++    pthread_spin_lock(&workQueueLock);
      p = &workQueue;
      while ((q = *p)) {
          *p = q->next;
          free(q);
      }
      workQueueLast = p;
-+    pthread_mutex_unlock(&workQueueLock);
++    pthread_spin_unlock(&workQueueLock);
  }
  
  void
@@ -237,7 +237,7 @@ index f9b7b06d9..f4b2aeddc 100644
  {
      WorkQueuePtr q, *p;
  
-+    pthread_mutex_lock(&workQueueLock);
++    pthread_spin_lock(&workQueueLock);
      p = &workQueue;
      /*
       * Scan the work queue once, calling each function.  Those
@@ -245,20 +245,20 @@ index f9b7b06d9..f4b2aeddc 100644
       * QueueWorkProc.
       */
      while ((q = *p)) {
-+        pthread_mutex_unlock(&workQueueLock);
++        pthread_spin_unlock(&workQueueLock);
          if ((*q->function) (q->client, q->closure)) {
-+            pthread_mutex_lock(&workQueueLock);
++            pthread_spin_lock(&workQueueLock);
              /* remove q from the list */
              *p = q->next;       /* don't fetch until after func called */
              free(q);
          }
          else {
-+            pthread_mutex_lock(&workQueueLock);
++            pthread_spin_lock(&workQueueLock);
              p = &q->next;       /* don't fetch until after func called */
          }
      }
      workQueueLast = p;
-+    pthread_mutex_unlock(&workQueueLock);
++    pthread_spin_unlock(&workQueueLock);
  }
  
  void
@@ -266,7 +266,7 @@ index f9b7b06d9..f4b2aeddc 100644
  {
      WorkQueuePtr q, *p;
  
-+    pthread_mutex_lock(&workQueueLock);
++    pthread_spin_lock(&workQueueLock);
      p = &workQueue;
      while ((q = *p)) {
          if (q->client && q->client->clientGone) {
@@ -274,7 +274,7 @@ index f9b7b06d9..f4b2aeddc 100644
          }
      }
      workQueueLast = p;
-+    pthread_mutex_unlock(&workQueueLock);
++    pthread_spin_unlock(&workQueueLock);
  }
  
  Bool
@@ -282,10 +282,10 @@ index f9b7b06d9..f4b2aeddc 100644
      q->client = client;
      q->closure = closure;
      q->next = NULL;
-+    pthread_mutex_lock(&workQueueLock);
++    pthread_spin_lock(&workQueueLock);
      *workQueueLast = q;
      workQueueLast = &q->next;
-+    pthread_mutex_unlock(&workQueueLock);
++    pthread_spin_unlock(&workQueueLock);
      return TRUE;
  }
  

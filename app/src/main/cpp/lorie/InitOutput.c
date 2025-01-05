@@ -40,45 +40,26 @@ from The Open Group.
 #include <dix-config.h>
 #endif
 
-#include <stdio.h>
 #include <sys/eventfd.h>
 #include <sys/errno.h>
 #include <libxcvt/libxcvt.h>
 #include <X11/X.h>
-#include <X11/Xos.h>
-#include <android/log.h>
-#include <android/native_window.h>
-#include <android/hardware_buffer.h>
+#include <X11/Xmd.h>
 #include <sys/wait.h>
-#include <selection.h>
-#include <X11/Xatom.h>
 #include <present.h>
-#include <present_priv.h>
-#include <dri3.h>
 #include <sys/mman.h>
-#include <busfault.h>
-#include <linux/ashmem.h>
-#include "scrnintstr.h"
-#include "servermd.h"
 #include "fb.h"
-#include "input.h"
 #include "mipointer.h"
 #include "micmap.h"
-#include "dix.h"
 #include "miline.h"
-#include "glx_extinit.h"
-#include "randrstr.h"
-#include "damagestr.h"
-#include "cursorstr.h"
-#include "propertyst.h"
 #include "shmint.h"
 #include "misyncshm.h"
 #include "glxserver.h"
 #include "glxutil.h"
 #include "fbconfigs.h"
+#include "inpututils.h"
 
 #include "renderer.h"
-#include "inpututils.h"
 #include "lorie.h"
 
 extern void android_shmem_sysv_shm_force(uint8_t enable);
@@ -184,8 +165,7 @@ static Bool TrueNoop() { return TRUE; }
 static Bool FalseNoop() { return FALSE; }
 static void VoidNoop() {}
 
-void
-ddxGiveUp(unused enum ExitCode error) {
+void ddxGiveUp(unused enum ExitCode error) {
     log(ERROR, "Server stopped (%d)", error);
     CloseWellKnownConnections();
     UnlockServer();
@@ -237,8 +217,7 @@ static void* ddxReadyThread(unused void* cookie) {
     return NULL;
 }
 
-void
-ddxReady(void) {
+void ddxReady(void) {
     if (!xstartup || !strlen(xstartup))
         xstartup = getenv("TERMUX_X11_XSTARTUP");
     if (!xstartup || !strlen(xstartup))
@@ -248,23 +227,18 @@ ddxReady(void) {
     pthread_create(&t, NULL, ddxReadyThread, NULL);
 }
 
-void
-OsVendorFatalError(unused const char *f, unused va_list args) {
+void OsVendorFatalError(unused const char *f, unused va_list args) {
     log(ERROR, f, args);
 }
 
 #if defined(DDXBEFORERESET)
-void
-ddxBeforeReset(void) {
-    return;
-}
+void ddxBeforeReset(void) {}
 #endif
 
 #if INPUTTHREAD
 /** This function is called in Xserver/os/inputthread.c when starting
     the input thread. */
-void
-ddxInputThreadInit(void) {}
+void ddxInputThreadInit(void) {}
 #endif
 
 void ddxUseMsg(void) {
@@ -514,16 +488,14 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     return TRUE;
 }
 
-static Bool
-lorieCloseScreen(ScreenPtr pScreen) {
+static Bool lorieCloseScreen(ScreenPtr pScreen) {
     pvfb->ready = false;
     unwrap(pvfb, pScreen, CloseScreen)
     // No need to call fbDestroyPixmap since AllocatePixmap sets pixmap as PRIVATE_SCREEN so it is destroyed automatically.
     return pScreen->CloseScreen(pScreen);
 }
 
-static Bool
-lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD32 mmWidth, unused CARD32 mmHeight) {
+static Bool lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD32 mmWidth, unused CARD32 mmHeight) {
     SetRootClip(pScreen, ROOT_CLIP_NONE);
 
     pvfb->root.width = pScreen->width = width;
@@ -544,20 +516,17 @@ lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD
     return TRUE;
 }
 
-static Bool
-lorieRRCrtcSet(unused ScreenPtr pScreen, RRCrtcPtr crtc, RRModePtr mode, int x, int y,
+static Bool lorieRRCrtcSet(unused ScreenPtr pScreen, RRCrtcPtr crtc, RRModePtr mode, int x, int y,
                Rotation rotation, int numOutput, RROutputPtr *outputs) {
     return (crtc && mode) ? RRCrtcNotify(crtc, mode, x, y, rotation, NULL, numOutput, outputs) : FALSE;
 }
 
-static Bool
-lorieRRGetInfo(unused ScreenPtr pScreen, Rotation *rotations) {
+static Bool lorieRRGetInfo(unused ScreenPtr pScreen, Rotation *rotations) {
     *rotations = RR_Rotate_0;
     return TRUE;
 }
 
-static Bool
-lorieRandRInit(ScreenPtr pScreen) {
+static Bool lorieRandRInit(ScreenPtr pScreen) {
     rrScrPrivPtr pScrPriv;
     RROutputPtr output;
     RRCrtcPtr crtc;
@@ -606,8 +575,7 @@ void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d) {
     }
 }
 
-static Bool
-lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
+static Bool lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     static int eventFd = -1;
     pScreenPtr = pScreen;
 
@@ -677,8 +645,7 @@ void lorieConfigureNotify(int width, int height, int framerate, size_t name_size
     }
 }
 
-void
-InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
+void InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     int depths[] = { 1, 4, 8, 15, 16, 24, 32 };
     int bpp[] =    { 1, 8, 8, 16, 16, 32, 32 };
     int i;
@@ -812,8 +779,7 @@ GC_FUNC_DEF(DestroyClip, (GCPtr pGC), (pGC))
 GC_FUNC_DEF(CopyClip, (GCPtr pGC, GCPtr pgcSrc), (pGC, pgcSrc))
 
 static const GCFuncs lorieGCFuncs = {
-        lorieValidateGC, lorieChangeGC, lorieCopyGC, lorieDestroyGC,
-        lorieChangeClip, lorieDestroyClip, lorieCopyClip
+        lorieValidateGC, lorieChangeGC, lorieCopyGC, lorieDestroyGC, lorieChangeClip, lorieDestroyClip, lorieCopyClip
 };
 
 #define LOCK_DRAWABLE(a) if (a == pScreenPtr->devPrivate || (a && a->type == DRAWABLE_WINDOW)) pthread_mutex_lock(&pvfb->state->lock)

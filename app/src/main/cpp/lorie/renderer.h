@@ -8,4 +8,3 @@ __unused void renderer_test_capabilities(int* legacy_drawing, uint8_t* flip);
 __unused void renderer_set_buffer(JNIEnv* env, LorieBuffer* buffer);
 __unused void renderer_set_window(JNIEnv* env, jobject surface);
 __unused void renderer_set_shared_state(struct lorie_shared_server_state* state);
-__unused void renderer_print_fps(float millis);

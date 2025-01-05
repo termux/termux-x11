@@ -460,7 +460,10 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
 }
 
 static CARD32 lorieFramecounter(unused OsTimerPtr timer, unused CARD32 time, unused void *arg) {
-    renderer_print_fps(5000);
+    if (pvfb->state->renderedFrames)
+        log(INFO, "%d frames in 5.0 seconds = %.1f FPS",
+            pvfb->state->renderedFrames, ((float) pvfb->state->renderedFrames) / 5);
+    pvfb->state->renderedFrames = 0;
     return 5000;
 }
 

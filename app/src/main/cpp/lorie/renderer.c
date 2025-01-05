@@ -608,16 +608,6 @@ __noreturn static void* renderer_thread(void* closure) {
     pthread_mutex_unlock(&m);
 }
 
-void renderer_print_fps(float millis) {
-    if (!state)
-        return;
-
-    if (state->renderedFrames)
-        log("%d frames in %.1f seconds = %.1f FPS",
-            state->renderedFrames, millis / 1000, (float) state->renderedFrames *  1000 / millis);
-    state->renderedFrames = 0;
-}
-
 static GLuint load_shader(GLenum shaderType, const char* pSource) {
     GLint compiled = 0, infoLen = 0;
     GLuint shader = glCreateShader(shaderType);

@@ -97,7 +97,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     public static Prefs prefs = null;
 
-    private static boolean oldFullscreen = false, oldHideCutout = false, oldXrMode = false;
+    private static boolean oldFullscreen = false, oldHideCutout = false;
     private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> onPreferencesChanged(key);
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -152,7 +152,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
         oldFullscreen = prefs.fullscreen.get();
         oldHideCutout = prefs.hideCutout.get();
-        oldXrMode = prefs.xrMode.get();
 
         prefs.get().registerOnSharedPreferenceChangeListener(preferencesChangedListener);
 
@@ -561,21 +560,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     void onPreferencesChangedCallback() {
         prefs.recheckStoringSecondaryDisplayPreferences();
 
-        if (oldXrMode != prefs.xrMode.get() && XrActivity.isSupported()) {
-            getBaseContext().startActivity(new Intent(this, MainActivity.class)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
-
-            if (oldXrMode) {
-                // XR process and 2D preferences screen are two different processes.
-                // To close XR, it is needed to do it using a broadcast.
-                Intent intent = new Intent(XrActivity.ACTION_STOP_XR);
-                intent.setPackage(getPackageName());
-                getBaseContext().sendBroadcast(intent);
-            }
-            finish();
-            return;
-        }
-
         onWindowFocusChanged(hasWindowFocus());
         LorieView lorieView = getLorieView();
 
@@ -861,12 +845,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @SuppressWarnings("SameParameterValue")
     void clientConnectedStateChanged(boolean connected) {
-        if (connected && XrActivity.isEnabled() && !(this instanceof XrActivity)) {
-            XrActivity.openIntent(this);
-            mClientConnected = true;
-            return;
-        }
-
         runOnUiThread(()-> {
             mClientConnected = connected;
             setTerminalToolbarView();

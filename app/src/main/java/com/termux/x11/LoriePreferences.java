@@ -286,7 +286,6 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             setVisible("showStylusClickOverride", stylusAvailable);
             setVisible("stylusIsMouse", stylusAvailable);
             setVisible("stylusButtonContactModifierMode", stylusAvailable);
-            setVisible("xrMode", XrActivity.isSupported());
 
             setNoActionOptionText(findPreference("volumeDownAction"), "android volume control");
             setNoActionOptionText(findPreference("volumeUpAction"), "android volume control");

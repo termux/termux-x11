@@ -22,7 +22,6 @@
         <ListPreference app:key="forceOrientation" app:defaultValue="no" app:entries="@array/forceOrientationVariants" app:entryValues="@array/forceOrientationVariants" />
         <SwitchPreferenceCompat app:key="hideCutout" app:defaultValue="false" />
         <SwitchPreferenceCompat app:defaultValue="true" app:key="keepScreenOn" />
-        <SwitchPreferenceCompat app:key="xrMode" app:defaultValue="false" />
     </PreferenceScreen>
     <PreferenceScreen app:key="pointer">
         <ListPreference app:key="touchMode" app:defaultValue="1" app:entries="@array/touchscreenInputModesEntries" app:entryValues="@array/touchscreenInputModesValues" />

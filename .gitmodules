@@ -61,6 +61,3 @@
 [submodule "app/src/main/cpp/bzip2"]
 	path = app/src/main/cpp/bzip2
 	url = https://gitlab.com/bzip2/bzip2.git
-[submodule "app/src/main/cpp/OpenXR-SDK"]
-	path = app/src/main/cpp/OpenXR-SDK
-	url = https://github.com/KhronosGroup/OpenXR-SDK.git

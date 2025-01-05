@@ -8,11 +8,6 @@
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
-    <uses-feature android:name="android.hardware.vr.headtracking" android:required="false" />
-    <uses-feature android:name="com.oculus.feature.PASSTHROUGH" android:required="false" />
-    <uses-feature android:name="oculus.software.handtracking" android:required="false" />
-    <uses-feature android:name="oculus.software.overlay_keyboard" android:required="false" />
-
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -39,20 +34,6 @@
                 <category android:name="android.intent.category.SECONDARY_HOME" />
             </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
-        </activity>
-        <activity
-            android:name=".XrActivity"
-            android:configChanges="density|orientation|screenSize|keyboard|keyboardHidden|uiMode"
-            android:exported="true"
-            android:launchMode="singleTask"
-            android:resizeableActivity="false"
-            android:screenOrientation="landscape"
-            android:process=":vr_process">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="com.oculus.intent.category.VR" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
         </activity>
         <activity
             android:theme="@style/Theme.AppCompat.DayNight"

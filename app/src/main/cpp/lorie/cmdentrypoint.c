@@ -424,11 +424,11 @@ void lorieSendSharedServerState(int memfd) {
     }
 }
 
-void lorieSendRootWindowBuffer(AHardwareBuffer* buffer) {
+void lorieSendRootWindowBuffer(LorieBuffer* buffer) {
     if (conn_fd != -1 && buffer) {
         lorieEvent e = { .type = EVENT_SHARED_ROOT_WINDOW_BUFFER };
         write(conn_fd, &e, sizeof(e));
-        AHardwareBuffer_sendHandleToUnixSocket(buffer, conn_fd);
+        LorieBuffer_sendHandleToUnixSocket(buffer, conn_fd);
     }
 }
 

@@ -144,13 +144,15 @@ static int xcallback(int fd, int events, __unused void* data) {
                     break;
                 }
                 case EVENT_SHARED_ROOT_WINDOW_BUFFER: {
-                    if (sharedBuffer)
-                        AHardwareBuffer_release(sharedBuffer);
-                    int error = AHardwareBuffer_recvHandleFromUnixSocket(conn_fd, &sharedBuffer);
-                    AHardwareBuffer_Desc desc = {0};
-                    if (sharedBuffer)
-                        AHardwareBuffer_describe(sharedBuffer, &desc);
-                    log(INFO, "Received shared buffer width %d height %d format %d (%d)", desc.width, desc.height, desc.format, error);
+                    static LorieBuffer* buffer = NULL;
+                    LorieBuffer_Desc desc = {0};
+                    LorieBuffer_recvHandleFromUnixSocket(conn_fd, &buffer);
+                    LorieBuffer_describe(buffer, &desc);
+                    log(INFO, "Received shared buffer width %d height %d format %d", desc.width, desc.height, desc.format);
+#if 0
+                    renderer_set_buffer(env, buffer);
+#endif
+                    LorieBuffer_release(buffer);
                 }
                 case EVENT_REQUEST_RENDER: {
                     // Currently not implemented, renderer is still running in X server process.

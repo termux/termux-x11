@@ -281,6 +281,7 @@ __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuf
         return;
     }
 
+    *ret = buffer;
     *outBuffer = ret;
 }
 

@@ -115,20 +115,17 @@ static EGLNativeWindowType win = 0;
 static jobject surface = NULL;
 static LorieBuffer *buffer = NULL;
 static EGLImageKHR image = NULL;
-static int renderedFrames = 0;
 
 static jmethodID Surface_release = NULL;
 static jmethodID Surface_destroy = NULL;
 
 static JNIEnv* renderEnv = NULL;
-static volatile bool contextAvailable = false;
-static volatile bool drawRequested = false;
 static volatile bool bufferChanged = false;
 static volatile bool surfaceChanged = false;
 static volatile LorieBuffer* pendingBuffer = NULL;
 static volatile jobject pendingSurface = NULL;
 
-struct lorie_shared_server_state* state = NULL;
+volatile struct lorie_shared_server_state* state = NULL;
 static struct {
     GLuint id;
     LorieBuffer_Desc desc;
@@ -416,7 +413,7 @@ void renderer_refresh_context(JNIEnv* env) {
 
     if (!win) {
         eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-        contextAvailable = false;
+        state->contextAvailable = false;
         return;
     }
 
@@ -425,11 +422,11 @@ void renderer_refresh_context(JNIEnv* env) {
         return vprintEglError("eglCreateWindowSurface failed", __LINE__);
 
     if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE) {
-        contextAvailable = false;
+        state->contextAvailable = false;
         return vprintEglError("eglMakeCurrent failed", __LINE__);
     }
 
-    contextAvailable = true;
+    state->contextAvailable = true;
 
     if (!g_texture_program) {
         g_texture_program = create_program(vertex_shader, fragment_shader);
@@ -476,7 +473,7 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip
 static void draw_cursor(void);
 
 int renderer_should_redraw(void) {
-    return contextAvailable || surfaceChanged || bufferChanged;
+    return state->contextAvailable || surfaceChanged || bufferChanged;
 }
 
 static void renderer_renew_image(void) {
@@ -499,7 +496,7 @@ static void renderer_renew_image(void) {
     if (display.desc.buffer)
         image = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, eglGetNativeClientBufferANDROID(display.desc.buffer), imageAttributes);
 
-    if (contextAvailable) {
+    if (state->contextAvailable) {
         bindLinearTexture(display.id);
         if (image)
             glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
@@ -517,10 +514,10 @@ static void renderer_renew_image(void) {
 
 int renderer_redraw(void) {
     pthread_mutex_lock(&state->lock);
-    drawRequested = TRUE;
+    state->drawRequested = TRUE;
     pthread_cond_signal(&state->cond);
     pthread_mutex_unlock(&state->lock);
-    return contextAvailable;
+    return state->contextAvailable;
 }
 
 int renderer_redraw_locked(JNIEnv* env) {
@@ -534,7 +531,7 @@ int renderer_redraw_locked(JNIEnv* env) {
         renderer_renew_image();
     pthread_mutex_unlock(&state->lock);
 
-    if (!contextAvailable)
+    if (!state->contextAvailable)
         return FALSE;
 
     if (state && state->cursor.updated) {
@@ -548,7 +545,7 @@ int renderer_redraw_locked(JNIEnv* env) {
 
     // We should not read root window content while server is writing it.
     pthread_mutex_lock(&state->lock);
-    drawRequested = FALSE;
+    state->drawRequested = FALSE;
     if (display.desc.data) {
         bindLinearTexture(display.id);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, display.desc.width, display.desc.height, display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, display.desc.data);
@@ -569,7 +566,7 @@ int renderer_redraw_locked(JNIEnv* env) {
         }
     }
 
-    renderedFrames++;
+    state->renderedFrames++;
     return TRUE;
 }
 
@@ -582,7 +579,7 @@ __noreturn static void* renderer_thread(void* closure) {
 
     pthread_mutex_lock(&m); // We do not need this mutex, we only wait for the signal.
     while (true) {
-        while (!drawRequested && !surfaceChanged && !bufferChanged && (!state || (!state->cursor.moved && !state->cursor.updated)))
+        while (!state || (!state->drawRequested && !surfaceChanged && !bufferChanged && (!state || (!state->cursor.moved && !state->cursor.updated))))
             pthread_cond_wait(&state->cond, &m);
 
         renderer_redraw_locked(env);
@@ -591,10 +588,13 @@ __noreturn static void* renderer_thread(void* closure) {
 }
 
 void renderer_print_fps(float millis) {
-    if (renderedFrames)
+    if (!state)
+        return;
+
+    if (state->renderedFrames)
         log("%d frames in %.1f seconds = %.1f FPS",
-                                renderedFrames, millis / 1000, (float) renderedFrames *  1000 / millis);
-    renderedFrames = 0;
+            state->renderedFrames, millis / 1000, (float) state->renderedFrames *  1000 / millis);
+    state->renderedFrames = 0;
 }
 
 static GLuint load_shader(GLenum shaderType, const char* pSource) {

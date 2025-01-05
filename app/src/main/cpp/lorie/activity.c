@@ -154,9 +154,6 @@ static int xcallback(int fd, int events, __unused void* data) {
 #endif
                     LorieBuffer_release(buffer);
                 }
-                case EVENT_REQUEST_RENDER: {
-                    // Currently not implemented, renderer is still running in X server process.
-                }
             }
         }
 

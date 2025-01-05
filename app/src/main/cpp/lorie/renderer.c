@@ -231,6 +231,12 @@ void renderer_test_capabilities(int* legacy_drawing, uint8_t* flip) {
             .format = AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM
     };
 
+    if (egl_display == EGL_NO_DISPLAY) {
+        egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+        if (egl_display == EGL_NO_DISPLAY)
+            return vprintEglError("Got no EGL display", __LINE__);
+    }
+
     status = AHardwareBuffer_allocate(&d0, &new);
     if (status != 0 || new == NULL) {
         loge("Failed to allocate native buffer (%p, error %d)", new, status);
@@ -477,10 +483,6 @@ void renderer_refresh_context(JNIEnv* env) {
 static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip);
 static void draw_cursor(void);
 
-int renderer_should_redraw(void) {
-    return state->contextAvailable || surfaceChanged || bufferChanged;
-}
-
 static void renderer_renew_image(void) {
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     AHardwareBuffer_Desc desc = {0};
@@ -518,10 +520,6 @@ static void renderer_renew_image(void) {
 }
 
 int renderer_redraw(void) {
-    pthread_mutex_lock(&state->lock);
-    state->drawRequested = TRUE;
-    pthread_cond_signal(&state->cond);
-    pthread_mutex_unlock(&state->lock);
     return state->contextAvailable;
 }
 

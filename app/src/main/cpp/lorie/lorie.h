@@ -13,7 +13,6 @@
 #include "buffer.h"
 
 void lorieSetVM(JavaVM* vm);
-Bool lorieChangeWindow(ClientPtr pClient, void *closure);
 void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name);
 void lorieEnableClipboardSync(Bool enable);
 void lorieSendClipboardData(const char* data);
@@ -28,13 +27,11 @@ void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d);
 void lorieActivityConnected(void);
 void lorieSendSharedServerState(int memfd);
 void lorieSendRootWindowBuffer(LorieBuffer* buffer);
-void lorieRequestRender(void);
 
 typedef enum {
     EVENT_UNKNOWN,
     EVENT_SHARED_SERVER_STATE,
     EVENT_SHARED_ROOT_WINDOW_BUFFER,
-    EVENT_REQUEST_RENDER,
     EVENT_SCREEN_SIZE,
     EVENT_TOUCH,
     EVENT_MOUSE,

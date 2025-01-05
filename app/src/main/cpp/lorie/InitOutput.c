@@ -462,19 +462,24 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
 
     loriePerformVblanks();
 
-    if (renderer_should_redraw() && RegionNotEmpty(DamageRegion(pvfb->damage))) {
-        int redrawn = FALSE;
-
+    if (pvfb->state->contextAvailable && RegionNotEmpty(DamageRegion(pvfb->damage))) {
+        // We should unlock and lock buffer in order to update texture content on some devices
+        // In most cases AHardwareBuffer uses DMA memory which is shared between CPU and GPU
+        // and this is not needed. But according to docs we should do it for any case.
+        // Also according to AHardwareBuffer docs simultaneous reading in rendering thread and
+        // locking for writing in other thread is fine.
         LorieBuffer_unlock(pvfb->root.buffer);
-        redrawn = renderer_redraw();
         status = LorieBuffer_lock(pvfb->root.buffer, NULL, &((PixmapPtr) pScreenPtr->devPrivate)->devPrivate.ptr);
         if (status)
-            FatalError("Failed to lock surface: %d\n", status);
+            FatalError("Failed to lock the surface: %d\n", status);
 
-        if (redrawn) {
-            DamageEmpty(pvfb->damage);
-            lorieRequestRender();
-        }
+        DamageEmpty(pvfb->damage);
+
+        // Sending signal about pending root window changes to renderer thread.
+        pthread_mutex_lock(&pvfb->state->lock);
+        pvfb->state->drawRequested = TRUE;
+        pthread_cond_signal(&pvfb->state->cond);
+        pthread_mutex_unlock(&pvfb->state->lock);
     }
 
     return TRUE;
@@ -655,14 +660,6 @@ CursorForDevice(DeviceIntPtr pDev) {
     }
 
     return NULL;
-}
-
-Bool lorieChangeWindow(unused ClientPtr pClient, void *closure) {
-    jobject surface = (jobject) closure;
-    renderer_set_window(pvfb->env, surface);
-    lorieSetCursor(NULL, NULL, CursorForDevice(GetMaster(lorieMouse, MASTER_POINTER)), -1, -1);
-
-    return TRUE;
 }
 
 void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name) {

@@ -432,13 +432,6 @@ void lorieSendRootWindowBuffer(LorieBuffer* buffer) {
     }
 }
 
-void lorieRequestRender(void) {
-    if (conn_fd != -1) {
-        lorieEvent e = { .type = EVENT_REQUEST_RENDER };
-        write(conn_fd, &e, sizeof(e));
-    }
-}
-
 JNIEXPORT jobject JNICALL
 Java_com_termux_x11_CmdEntryPoint_getXConnection(JNIEnv *env, __unused jobject cls) {
     int client[2];

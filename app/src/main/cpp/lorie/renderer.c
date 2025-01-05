@@ -528,18 +528,21 @@ int renderer_redraw(void) {
 int renderer_redraw_locked(JNIEnv* env) {
     int err = EGL_SUCCESS;
 
+    // We should not read root window content while server is writing it.
     pthread_mutex_lock(&state->lock);
-    if (surfaceChanged)
-        renderer_refresh_context(env);
+    // Non-null display.desc.data means we have root window created in legacy drawing mode so we should update it on each frame.
+    if (display.desc.data && state->drawRequested) {
+        state->drawRequested = FALSE;
+        bindLinearTexture(display.id);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, display.desc.width, display.desc.height, display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, display.desc.data);
+    }
 
-    if (bufferChanged)
-        renderer_renew_image();
+    // Not a mistake, we reset drawRequested flag even in the case if there is no legacy drawing.
+    state->drawRequested = FALSE;
+    draw(display.id,  -1.f, -1.f, 1.f, 1.f, display.desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM);
     pthread_mutex_unlock(&state->lock);
 
-    if (!state->contextAvailable)
-        return FALSE;
-
-    if (state && state->cursor.updated) {
+    if (state->cursor.updated) {
         log("Xlorie: updating cursor\n");
         pthread_mutex_lock(&state->cursor.lock);
         state->cursor.updated = false;
@@ -547,17 +550,6 @@ int renderer_redraw_locked(JNIEnv* env) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
         pthread_mutex_unlock(&state->cursor.lock);
     }
-
-    // We should not read root window content while server is writing it.
-    pthread_mutex_lock(&state->lock);
-    state->drawRequested = FALSE;
-    if (display.desc.data) {
-        bindLinearTexture(display.id);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, display.desc.width, display.desc.height, display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, display.desc.data);
-    }
-
-    draw(display.id,  -1.f, -1.f, 1.f, 1.f, display.desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM);
-    pthread_mutex_unlock(&state->lock);
 
     state->cursor.moved = FALSE;
     draw_cursor();
@@ -575,6 +567,19 @@ int renderer_redraw_locked(JNIEnv* env) {
     return TRUE;
 }
 
+static inline __always_inline bool renderer_should_wait(void) {
+    if (!state && !surfaceChanged && !bufferChanged)
+        // No need to draw in the case if there is no shared server state, pending surface of buffer.
+        return true;
+
+    if (!state->drawRequested && !state->cursor.updated && !state->cursor.moved)
+        // Even if there is state or pending surface/buffer,
+        // no need to update anything if server did not report any changes.
+        return true;
+
+    return false;
+}
+
 __noreturn static void* renderer_thread(void* closure) {
     JavaVM* vm = closure;
     JNIEnv* env;
@@ -584,11 +589,22 @@ __noreturn static void* renderer_thread(void* closure) {
 
     pthread_mutex_lock(&m); // We do not need this mutex, we only wait for the signal.
     while (true) {
-        while (!state || (!state->drawRequested && !surfaceChanged && !bufferChanged && (!state || (!state->cursor.moved && !state->cursor.updated))))
+        while (renderer_should_wait())
             pthread_cond_wait(&state->cond, &m);
 
         pthread_spin_lock(&stateLock);
-        renderer_redraw_locked(env);
+        // we should signal X server to not use root window or change cursor while we actively use them
+        pthread_mutex_lock(&state->lock);
+        if (surfaceChanged)
+            renderer_refresh_context(env);
+
+        if (bufferChanged)
+            renderer_renew_image();
+        pthread_mutex_unlock(&state->lock);
+
+        if (state->contextAvailable)
+            renderer_redraw_locked(env);
+
         pthread_spin_unlock(&stateLock);
     }
     pthread_mutex_unlock(&m);
@@ -682,15 +698,8 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip
 __unused static void draw_cursor(void) {
     float x, y, w, h;
 
-    if (!state || !state->cursor.width || !state->cursor.height)
+    if (!state->cursor.width || !state->cursor.height)
         return;
-
-    if (state->cursor.updated) {
-        state->cursor.updated = false;
-        log("Xlorie: updating cursor\n");
-        bindLinearTexture(cursor.id);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
-    }
 
     x = 2.f * ((float) state->cursor.x - (float) state->cursor.xhot) / (float) display.desc.width - 1.f;
     y = 2.f * ((float) state->cursor.y - (float) state->cursor.yhot) / (float) display.desc.height - 1.f;

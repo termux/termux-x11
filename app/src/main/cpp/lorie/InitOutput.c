@@ -674,7 +674,7 @@ void InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     lorieInitClipboard();
 
     if (-1 == AddScreen(lorieScreenInit, argc, argv)) {
-        FatalError("Couldn't add screen %d\n", i);
+        FatalError("Couldn't add screen\n");
     }
 }
 

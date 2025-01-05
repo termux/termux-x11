@@ -686,7 +686,7 @@ void lorieConfigureNotify(int width, int height, int framerate, size_t name_size
         mmWidth = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
         mmHeight = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
         RROutputSetModes(output, &mode, 1, 0);
-        RRCrtcNotify(RRFirstEnabledCrtc(pScreen), mode, 0, 0,RR_Rotate_0, NULL, 1, &output);
+        RRCrtcNotify(RRFirstEnabledCrtc(pScreen), mode, 0, 0, RR_Rotate_0, NULL, 1, &output);
         RRScreenSizeSet(pScreen, mode->mode.width, mode->mode.height, mmWidth, mmHeight);
 
         log(VERBOSE, "New reported framerate is %d", framerate);

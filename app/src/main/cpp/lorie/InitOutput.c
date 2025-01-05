@@ -811,230 +811,74 @@ void lorieSetVM(JavaVM* vm) {
 static const GCOps lorieGCOps;
 static const GCFuncs lorieGCFuncs;
 
-static void lorieValidateGC(GCPtr pGC, unsigned long stateChanges, DrawablePtr pDrawable) {
-    LORIE_GC_FUNC_PROLOGUE(pGC)
-    (*pGC->funcs->ValidateGC) (pGC, stateChanges, pDrawable);
-    LORIE_GC_FUNC_EPILOGUE(pGC)
-}
+#define GC_FUNC_DEF(name, argdefs, args) \
+    static void lorie ## name argdefs { \
+        LORIE_GC_FUNC_PROLOGUE(pGC)    \
+        (*pGC->funcs->name) args; \
+        LORIE_GC_FUNC_EPILOGUE(pGC) \
+    }
 
-static void lorieChangeGC(GCPtr pGC, unsigned long mask) {
-    LORIE_GC_FUNC_PROLOGUE(pGC)
-    (*pGC->funcs->ChangeGC) (pGC, mask);
-    LORIE_GC_FUNC_EPILOGUE(pGC)
-}
-
-static void lorieCopyGC(GCPtr pGCSrc, unsigned long mask, GCPtr pGCDst) {
-    LORIE_GC_FUNC_PROLOGUE(pGCSrc)
-    (*pGCSrc->funcs->CopyGC) (pGCSrc, mask, pGCDst);
-    LORIE_GC_FUNC_EPILOGUE(pGCSrc)
-}
-
-static void lorieDestroyGC(GCPtr pGC) {
-    LORIE_GC_FUNC_PROLOGUE(pGC)
-    (*pGC->funcs->DestroyGC) (pGC);
-    LORIE_GC_FUNC_EPILOGUE(pGC)
-}
-
-static void lorieChangeClip(GCPtr pGC, int type, void *pvalue, int nrects) {
-    LORIE_GC_FUNC_PROLOGUE(pGC)
-    (*pGC->funcs->ChangeClip) (pGC, type, pvalue, nrects);
-    LORIE_GC_FUNC_EPILOGUE(pGC)
-}
-
-static void lorieDestroyClip(GCPtr pGC) {
-    LORIE_GC_FUNC_PROLOGUE(pGC)
-    (*pGC->funcs->DestroyClip) (pGC);
-    LORIE_GC_FUNC_EPILOGUE(pGC)
-}
-
-static void lorieCopyClip(GCPtr pgcDst, GCPtr pgcSrc) {
-    LORIE_GC_FUNC_PROLOGUE(pgcDst)
-    (*pgcDst->funcs->CopyClip) (pgcDst, pgcSrc);
-    LORIE_GC_FUNC_EPILOGUE(pgcDst)
-}
+GC_FUNC_DEF(ValidateGC, (GCPtr pGC, unsigned long stateChanges, DrawablePtr pDrawable), (pGC, stateChanges, pDrawable))
+GC_FUNC_DEF(ChangeGC, (GCPtr pGC, unsigned long mask), (pGC, mask))
+GC_FUNC_DEF(CopyGC, (GCPtr pGC, unsigned long mask, GCPtr pGCDst), (pGC, mask, pGCDst))
+GC_FUNC_DEF(DestroyGC, (GCPtr pGC), (pGC))
+GC_FUNC_DEF(ChangeClip, (GCPtr pGC, int type, void *pvalue, int nrects), (pGC, type, pvalue, nrects))
+GC_FUNC_DEF(DestroyClip, (GCPtr pGC), (pGC))
+GC_FUNC_DEF(CopyClip, (GCPtr pGC, GCPtr pgcSrc), (pGC, pgcSrc))
 
 static const GCFuncs lorieGCFuncs = {
         lorieValidateGC, lorieChangeGC, lorieCopyGC, lorieDestroyGC,
         lorieChangeClip, lorieDestroyClip, lorieCopyClip
 };
+
 #define LOCK_DRAWABLE(a) if (a == pScreenPtr->devPrivate || (a && a->type == DRAWABLE_WINDOW)) pthread_mutex_lock(&pvfb->state->lock)
 #define UNLOCK_DRAWABLE(a) if (a == pScreenPtr->devPrivate || (a && a->type == DRAWABLE_WINDOW)) pthread_mutex_unlock(&pvfb->state->lock)
 
-static void lorieFillSpans(DrawablePtr pDrawable, GCPtr pGC, int nInit, DDXPointPtr pptInit, int * pwidthInit, int fSorted) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->FillSpans) (pDrawable, pGC, nInit, pptInit, pwidthInit, fSorted);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
+#define GC_OP_VOID_DEF(name, argdefs, args) \
+    static void lorie ## name argdefs { \
+        LORIE_GC_OP_PROLOGUE(pGC)   \
+        LOCK_DRAWABLE(pDrawable);   \
+        (*pGC->ops->name) args;   \
+        UNLOCK_DRAWABLE(pDrawable); \
+        LORIE_GC_OP_EPILOGUE(pGC)   \
+    }
 
-static void lorieSetSpans(DrawablePtr pDrawable, GCPtr pGC, char * psrc, DDXPointPtr ppt, int * pwidth, int nspans, int fSorted) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->SetSpans) (pDrawable, pGC, psrc, ppt, pwidth, nspans, fSorted);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
+#define GC_OP_DEF(ret, name, argdefs, args) \
+    static ret lorie ## name argdefs { \
+        LORIE_GC_OP_PROLOGUE(pGC)   \
+        LOCK_DRAWABLE(pDrawable);   \
+        ret r = (*pGC->ops->name) args;   \
+        UNLOCK_DRAWABLE(pDrawable); \
+        LORIE_GC_OP_EPILOGUE(pGC)   \
+        return r;   \
+    }
 
-static void loriePutImage(DrawablePtr pDrawable, GCPtr pGC, int depth, int x, int y, int w, int h, int leftPad, int format, char * pBits) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->PutImage) (pDrawable, pGC, depth, x, y, w, h, leftPad, format, pBits);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
-
-static RegionPtr lorieCopyArea(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC, int srcx, int srcy, int w, int h, int dstx, int dsty) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDst);
-    RegionPtr r = (*pGC->ops->CopyArea) (pSrc, pDst, pGC, srcx, srcy, w, h, dstx, dsty);
-    UNLOCK_DRAWABLE(pDst);
-    LORIE_GC_OP_EPILOGUE(pGC)
-    return r;
-}
-
-static RegionPtr lorieCopyPlane(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC, int srcx, int srcy, int width, int height, int dstx, int dsty, unsigned long bitPlane) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDst);
-    RegionPtr r = (*pGC->ops->CopyPlane) (pSrc, pDst, pGC, srcx, srcy, width, height, dstx, dsty, bitPlane);
-    UNLOCK_DRAWABLE(pDst);
-    LORIE_GC_OP_EPILOGUE(pGC)
-    return r;
-}
-
-static void loriePolyPoint(DrawablePtr pDrawable, GCPtr pGC, int mode, int npt, DDXPointPtr pptInit) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->PolyPoint) (pDrawable, pGC, mode, npt, pptInit);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
-
-static void loriePolylines(DrawablePtr pDrawable, GCPtr pGC, int mode, int npt, DDXPointPtr pptInit) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->Polylines) (pDrawable, pGC, mode, npt, pptInit);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
-
-static void loriePolySegment(DrawablePtr pDrawable, GCPtr pGC, int nseg, xSegment * pSegs) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->PolySegment) (pDrawable, pGC, nseg, pSegs);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
-
-static void loriePolyRectangle(DrawablePtr pDrawable, GCPtr pGC, int nrects, xRectangle * pRects) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->PolyRectangle) (pDrawable, pGC, nrects, pRects);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
-
-static void loriePolyArc(DrawablePtr pDrawable, GCPtr pGC, int narcs, xArc * parcs) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->PolyArc) (pDrawable, pGC, narcs, parcs);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
-
-static void lorieFillPolygon(DrawablePtr pDrawable, GCPtr pGC, int shape, int mode, int count, DDXPointPtr pPts) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->FillPolygon) (pDrawable, pGC, shape, mode, count, pPts);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
-
-static void loriePolyFillRect(DrawablePtr pDrawable, GCPtr pGC, int nrectFill, xRectangle * prectInit) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->PolyFillRect) (pDrawable, pGC, nrectFill, prectInit);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
-
-static void loriePolyFillArc(DrawablePtr pDrawable, GCPtr pGC, int narcs, xArc * parcs) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->PolyFillArc) (pDrawable, pGC, narcs, parcs);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
-
-static int loriePolyText8(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int count, char * chars) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    int r = (*pGC->ops->PolyText8) (pDrawable, pGC, x, y, count, chars);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-    return r;
-}
-
-static int loriePolyText16(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int count, unsigned short * chars) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    int r = (*pGC->ops->PolyText16) (pDrawable, pGC, x, y, count, chars);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-    return r;
-}
-
-static void lorieImageText8(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int count, char * chars) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->ImageText8) (pDrawable, pGC, x, y, count, chars);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
-
-static void lorieImageText16(DrawablePtr pDrawable, GCPtr pGC, int x, int y, int count, unsigned short * chars) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->ImageText16) (pDrawable, pGC, x, y, count, chars);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
-
-static void lorieImageGlyphBlt(DrawablePtr pDrawable, GCPtr pGC, int x, int y, unsigned int nglyph, CharInfoPtr *ppci, void *pglyphBase) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->ImageGlyphBlt) (pDrawable, pGC, x, y, nglyph, ppci, pglyphBase);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
-
-static void loriePolyGlyphBlt(DrawablePtr pDrawable, GCPtr pGC, int x, int y, unsigned int nglyph, CharInfoPtr *ppci, void *pglyphBase) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDrawable);
-    (*pGC->ops->PolyGlyphBlt) (pDrawable, pGC, x, y, nglyph, ppci, pglyphBase);
-    UNLOCK_DRAWABLE(pDrawable);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
-
-static void loriePushPixels(GCPtr pGC, PixmapPtr pSrc, DrawablePtr pDst, int w, int h, int x, int y) {
-    LORIE_GC_OP_PROLOGUE(pGC)
-    LOCK_DRAWABLE(pDst);
-    (*pGC->ops->PushPixels) (pGC, pSrc, pDst, w, h, x, y);
-    UNLOCK_DRAWABLE(pDst);
-    LORIE_GC_OP_EPILOGUE(pGC)
-}
+GC_OP_VOID_DEF(FillSpans, (DrawablePtr pDrawable, GCPtr pGC, int nInit, DDXPointPtr pptInit, int * pwidthInit, int fSorted), (pDrawable, pGC, nInit, pptInit, pwidthInit, fSorted))
+GC_OP_VOID_DEF(SetSpans, (DrawablePtr pDrawable, GCPtr pGC, char * psrc, DDXPointPtr ppt, int * pwidth, int nspans, int fSorted), (pDrawable, pGC, psrc, ppt, pwidth, nspans, fSorted))
+GC_OP_VOID_DEF(PutImage, (DrawablePtr pDrawable, GCPtr pGC, int depth, int x, int y, int w, int h, int leftPad, int format, char * pBits), (pDrawable, pGC, depth, x, y, w, h, leftPad, format, pBits))
+GC_OP_DEF(RegionPtr, CopyArea, (DrawablePtr pSrc, DrawablePtr pDrawable, GCPtr pGC, int srcx, int srcy, int w, int h, int dstx, int dsty), (pSrc, pDrawable, pGC, srcx, srcy, w, h, dstx, dsty))
+GC_OP_DEF(RegionPtr, CopyPlane, (DrawablePtr pSrc, DrawablePtr pDrawable, GCPtr pGC, int srcx, int srcy, int width, int height, int dstx, int dsty, unsigned long bitPlane), (pSrc, pDrawable, pGC, srcx, srcy, width, height, dstx, dsty, bitPlane))
+GC_OP_VOID_DEF(PolyPoint, (DrawablePtr pDrawable, GCPtr pGC, int mode, int npt, DDXPointPtr pptInit), (pDrawable, pGC, mode, npt, pptInit))
+GC_OP_VOID_DEF(Polylines, (DrawablePtr pDrawable, GCPtr pGC, int mode, int npt, DDXPointPtr pptInit), (pDrawable, pGC, mode, npt, pptInit))
+GC_OP_VOID_DEF(PolySegment, (DrawablePtr pDrawable, GCPtr pGC, int nseg, xSegment * pSegs), (pDrawable, pGC, nseg, pSegs))
+GC_OP_VOID_DEF(PolyRectangle, (DrawablePtr pDrawable, GCPtr pGC, int nrects, xRectangle * pRects), (pDrawable, pGC, nrects, pRects))
+GC_OP_VOID_DEF(PolyArc, (DrawablePtr pDrawable, GCPtr pGC, int narcs, xArc * parcs), (pDrawable, pGC, narcs, parcs))
+GC_OP_VOID_DEF(FillPolygon, (DrawablePtr pDrawable, GCPtr pGC, int shape, int mode, int count, DDXPointPtr pPts), (pDrawable, pGC, shape, mode, count, pPts))
+GC_OP_VOID_DEF(PolyFillRect, (DrawablePtr pDrawable, GCPtr pGC, int nrectFill, xRectangle * prectInit), (pDrawable, pGC, nrectFill, prectInit))
+GC_OP_VOID_DEF(PolyFillArc, (DrawablePtr pDrawable, GCPtr pGC, int narcs, xArc * parcs), (pDrawable, pGC, narcs, parcs))
+GC_OP_DEF(int, PolyText8, (DrawablePtr pDrawable, GCPtr pGC, int x, int y, int count, char * chars), (pDrawable, pGC, x, y, count, chars))
+GC_OP_DEF(int, PolyText16, (DrawablePtr pDrawable, GCPtr pGC, int x, int y, int count, unsigned short * chars), (pDrawable, pGC, x, y, count, chars))
+GC_OP_VOID_DEF(ImageText8, (DrawablePtr pDrawable, GCPtr pGC, int x, int y, int count, char * chars), (pDrawable, pGC, x, y, count, chars))
+GC_OP_VOID_DEF(ImageText16, (DrawablePtr pDrawable, GCPtr pGC, int x, int y, int count, unsigned short * chars), (pDrawable, pGC, x, y, count, chars))
+GC_OP_VOID_DEF(ImageGlyphBlt, (DrawablePtr pDrawable, GCPtr pGC, int x, int y, unsigned int nglyph, CharInfoPtr *ppci, void *pglyphBase), (pDrawable, pGC, x, y, nglyph, ppci, pglyphBase))
+GC_OP_VOID_DEF(PolyGlyphBlt, (DrawablePtr pDrawable, GCPtr pGC, int x, int y, unsigned int nglyph, CharInfoPtr *ppci, void *pglyphBase), (pDrawable, pGC, x, y, nglyph, ppci, pglyphBase))
+GC_OP_VOID_DEF(PushPixels, (GCPtr pGC, PixmapPtr pSrc, DrawablePtr pDrawable, int w, int h, int x, int y), (pGC, pSrc, pDrawable, w, h, x, y))
 
 static const GCOps lorieGCOps = {
-        lorieFillSpans, lorieSetSpans,
-        loriePutImage, lorieCopyArea,
-        lorieCopyPlane, loriePolyPoint,
-        loriePolylines, loriePolySegment,
-        loriePolyRectangle, loriePolyArc,
-        lorieFillPolygon, loriePolyFillRect,
-        loriePolyFillArc, loriePolyText8,
-        loriePolyText16, lorieImageText8,
-        lorieImageText16, lorieImageGlyphBlt,
-        loriePolyGlyphBlt, loriePushPixels,
+        lorieFillSpans, lorieSetSpans, loriePutImage, lorieCopyArea, lorieCopyPlane,
+        loriePolyPoint, loriePolylines, loriePolySegment, loriePolyRectangle, loriePolyArc,
+        lorieFillPolygon, loriePolyFillRect, loriePolyFillArc, loriePolyText8, loriePolyText16,
+        lorieImageText8, lorieImageText16, lorieImageGlyphBlt, loriePolyGlyphBlt, loriePushPixels,
 };
 
 /*

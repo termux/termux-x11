@@ -339,7 +339,7 @@ __unused void renderer_set_shared_state(struct lorie_shared_server_state* new_st
 }
 
 void renderer_set_buffer(JNIEnv* env, LorieBuffer* buf) {
-    pthread_mutex_lock(&state->lock);
+    pthread_mutex_lock(&stateLock);
     if (buf == pendingBuffer)
         goto end;
 
@@ -357,19 +357,19 @@ void renderer_set_buffer(JNIEnv* env, LorieBuffer* buf) {
         pthread_cond_signal(&state->cond);
     pthread_cond_signal(&stateCond);
 
-    end: pthread_mutex_unlock(&state->lock);
+    end: pthread_mutex_unlock(&stateLock);
 }
 
 void renderer_set_window(JNIEnv* env, jobject new_surface) {
-    pthread_mutex_lock(&state->lock);
+    pthread_mutex_lock(&stateLock);
     if (pendingSurface && new_surface && pendingSurface != new_surface && (*env)->IsSameObject(env, pendingSurface, new_surface)) {
         (*env)->DeleteGlobalRef(env, new_surface);
-        pthread_mutex_unlock(&state->lock);
+        pthread_mutex_unlock(&stateLock);
         return;
     }
 
     if (pendingSurface && pendingSurface == new_surface) {
-        pthread_mutex_unlock(&state->lock);
+        pthread_mutex_unlock(&stateLock);
         return;
     }
 
@@ -384,7 +384,7 @@ void renderer_set_window(JNIEnv* env, jobject new_surface) {
         pthread_cond_signal(&state->cond);
     pthread_cond_signal(&stateCond);
 
-    pthread_mutex_unlock(&state->lock);
+    pthread_mutex_unlock(&stateLock);
 }
 
 static inline __always_inline void release_win_and_surface(JNIEnv *env, jobject* jsfc, ANativeWindow** anw, EGLSurface *esfc) {
@@ -591,7 +591,11 @@ static inline __always_inline bool renderer_should_wait(void) {
         // If there are pending changes we should process them immediately.
         return false;
 
-    if (state && (state->drawRequested || state->cursor.moved || state->cursor.updated))
+    if (!state || !state->contextAvailable)
+        // Even in the case if there are pending changes, we can not draw it without rendering surface
+        return true;
+
+    if (state->drawRequested || state->cursor.moved || state->cursor.updated)
         // X server reported drawing or cursor changes, no need to wait.
         return false;
 

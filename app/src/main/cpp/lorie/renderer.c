@@ -111,7 +111,7 @@ static EGLDisplay egl_display = EGL_NO_DISPLAY;
 static EGLContext ctx = EGL_NO_CONTEXT;
 static EGLSurface sfc = EGL_NO_SURFACE;
 static EGLConfig cfg = 0;
-static EGLNativeWindowType win = 0;
+static ANativeWindow* win = 0;
 static jobject surface = NULL;
 static LorieBuffer *buffer = NULL;
 static EGLImageKHR image = NULL;
@@ -120,12 +120,12 @@ static jmethodID Surface_release = NULL;
 static jmethodID Surface_destroy = NULL;
 
 static JNIEnv* renderEnv = NULL;
-static volatile bool bufferChanged = false;
-static volatile bool surfaceChanged = false;
+static volatile bool bufferChanged = false, surfaceChanged = false;
 static volatile LorieBuffer* pendingBuffer = NULL;
 static volatile jobject pendingSurface = NULL;
 
 static pthread_mutex_t stateLock;
+static pthread_cond_t stateCond;
 static volatile struct lorie_shared_server_state* state = NULL;
 static struct {
     GLuint id;
@@ -176,6 +176,7 @@ int renderer_init(JNIEnv* env) {
     (*env)->GetJavaVM(env, &vm);
 
     pthread_mutex_init(&stateLock, NULL);
+    pthread_cond_init(&stateCond, NULL);
 
     jclass Surface = (*env)->FindClass(env, "android/view/Surface");
     Surface_release = (*env)->GetMethodID(env, Surface, "release", "()V");
@@ -328,7 +329,12 @@ void renderer_test_capabilities(int* legacy_drawing, uint8_t* flip) {
 __unused void renderer_set_shared_state(struct lorie_shared_server_state* new_state) {
     pthread_mutex_lock(&stateLock);
     state = new_state;
-    pthread_cond_signal(&state->cond);
+
+    // We are not sure which conditional variable is used at current moment so let's signal both
+    if (state)
+        pthread_cond_signal(&state->cond);
+    pthread_cond_signal(&stateCond);
+
     pthread_mutex_unlock(&stateLock);
 }
 
@@ -346,7 +352,11 @@ void renderer_set_buffer(JNIEnv* env, LorieBuffer* buf) {
     if (pendingBuffer)
         LorieBuffer_acquire(pendingBuffer);
 
-    pthread_cond_signal(&state->cond);
+    // We are not sure which conditional variable is used at current moment so let's signal both
+    if (state)
+        pthread_cond_signal(&state->cond);
+    pthread_cond_signal(&stateCond);
+
     end: pthread_mutex_unlock(&state->lock);
 }
 
@@ -368,7 +378,12 @@ void renderer_set_window(JNIEnv* env, jobject new_surface) {
 
     pendingSurface = new_surface;
     surfaceChanged = TRUE;
-    pthread_cond_signal(&state->cond);
+
+    // We are not sure which conditional variable is used at current moment so let's signal both
+    if (state)
+        pthread_cond_signal(&state->cond);
+    pthread_cond_signal(&stateCond);
+
     pthread_mutex_unlock(&state->lock);
 }
 
@@ -396,36 +411,37 @@ static inline __always_inline void release_win_and_surface(JNIEnv *env, jobject*
 
 void renderer_refresh_context(JNIEnv* env) {
     uint32_t emptyData = {0};
-    ANativeWindow* window = pendingSurface ? ANativeWindow_fromSurface(env, pendingSurface) : NULL;
-    if ((pendingSurface && surface && pendingSurface != surface && (*env)->IsSameObject(env, pendingSurface, surface)) || (window && win == window)) {
+    ANativeWindow* pendingWin = pendingSurface ? ANativeWindow_fromSurface(env, pendingSurface) : NULL;
+    if ((pendingSurface && surface && pendingSurface != surface && (*env)->IsSameObject(env, pendingSurface, surface)) || (pendingWin && win == pendingWin)) {
         (*env)->DeleteGlobalRef(env, pendingSurface);
         pendingSurface = NULL;
         surfaceChanged = FALSE;
         return;
     }
 
-    int width = window ? ANativeWindow_getWidth(window) : 0;
-    int height = window ? ANativeWindow_getHeight(window) : 0;
-    log("renderer_set_window %p %d %d", window, width, height);
+    int width = pendingWin ? ANativeWindow_getWidth(pendingWin) : 0;
+    int height = pendingWin ? ANativeWindow_getHeight(pendingWin) : 0;
+    log("renderer_set_window %p %d %d", pendingWin, width, height);
 
-    if (window)
-        ANativeWindow_acquire(window);
+    if (pendingWin)
+        ANativeWindow_acquire(pendingWin);
 
     release_win_and_surface(env, &surface, &win, &sfc);
 
-    if (window && (width <= 0 || height <= 0)) {
+    if (pendingWin && (width <= 0 || height <= 0)) {
         log("Xlorie: We've got invalid surface. Probably it became invalid before we started working with it.\n");
-        release_win_and_surface(env, &pendingSurface, &window, NULL);
+        release_win_and_surface(env, &pendingSurface, &pendingWin, NULL);
     }
 
-    win = window;
+    win = pendingWin;
     surface = pendingSurface;
     pendingSurface = NULL;
     surfaceChanged = FALSE;
 
     if (!win) {
         eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-        state->contextAvailable = false;
+        if (state)
+            state->contextAvailable = false;
         return;
     }
 
@@ -434,11 +450,14 @@ void renderer_refresh_context(JNIEnv* env) {
         return vprintEglError("eglCreateWindowSurface failed", __LINE__);
 
     if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE) {
-        state->contextAvailable = false;
+        if (state)
+            state->contextAvailable = false;
         return vprintEglError("eglMakeCurrent failed", __LINE__);
     }
 
-    state->contextAvailable = true;
+    if (state)
+        // We should redraw image at least once right after surface change
+        state->contextAvailable = state->drawRequested = state->cursor.updated = true;
 
     if (!g_texture_program) {
         g_texture_program = create_program(vertex_shader, fragment_shader);
@@ -475,7 +494,8 @@ void renderer_refresh_context(JNIEnv* env) {
 
         if (display.desc.data && display.desc.width > 0 && display.desc.height > 0) {
             int format = display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA;
-            glTexImage2D(GL_TEXTURE_2D, 0, format, display.desc.width, display.desc.height, 0, format, GL_UNSIGNED_BYTE, display.desc.data);
+            // The image will be updated in redraw call because of `drawRequested` flag, so we are not uploading pixels
+            glTexImage2D(GL_TEXTURE_2D, 0, format, display.desc.width, display.desc.height, 0, format, GL_UNSIGNED_BYTE, NULL);
         } else
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &emptyData);
     }
@@ -486,7 +506,6 @@ static void draw_cursor(void);
 
 static void renderer_renew_image(void) {
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
-    AHardwareBuffer_Desc desc = {0};
     uint32_t emptyData = {0};
 
     if (image)
@@ -504,30 +523,31 @@ static void renderer_renew_image(void) {
     if (display.desc.buffer)
         image = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, eglGetNativeClientBufferANDROID(display.desc.buffer), imageAttributes);
 
-    if (state->contextAvailable) {
+    if (eglGetCurrentContext() != EGL_NO_CONTEXT) {
+        if (state)
+            // We should redraw image at least once right after buffer change
+            state->contextAvailable = state->drawRequested = state->cursor.updated = true;
+
         bindLinearTexture(display.id);
         if (image)
             glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
         else if (display.desc.data && display.desc.width > 0 && display.desc.height > 0) {
             int format = display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA;
-            glTexImage2D(GL_TEXTURE_2D, 0, format, display.desc.width, display.desc.height, 0, format, GL_UNSIGNED_BYTE, display.desc.data);
+            // The image will be updated in redraw call because of `drawRequested` flag, so we are not uploading pixels
+            glTexImage2D(GL_TEXTURE_2D, 0, format, display.desc.width, display.desc.height, 0, format, GL_UNSIGNED_BYTE, NULL);
         } else {
             loge("There is no %s, nothing to be bound.", !buffer ? "AHardwareBuffer" : "EGLImage");
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &emptyData);
         }
     }
 
-    log("renderer: buffer changed %p %d %d", buffer, desc.width, desc.height);
-}
-
-int renderer_redraw(void) {
-    return state->contextAvailable;
+    log("renderer: buffer changed %p %d %d", buffer, display.desc.width, display.desc.height);
 }
 
 int renderer_redraw_locked(JNIEnv* env) {
     int err = EGL_SUCCESS;
 
-    // We should not read root window content while server is writing it.
+    // We should signal X server to not use root window or change cursor while we actively use them
     pthread_mutex_lock(&state->lock);
     // Non-null display.desc.data means we have root window created in legacy drawing mode so we should update it on each frame.
     if (display.desc.data && state->drawRequested) {
@@ -567,16 +587,16 @@ int renderer_redraw_locked(JNIEnv* env) {
 }
 
 static inline __always_inline bool renderer_should_wait(void) {
-    if (!state && !surfaceChanged && !bufferChanged)
-        // No need to draw in the case if there is no shared server state, pending surface of buffer.
-        return true;
+    if (surfaceChanged || bufferChanged)
+        // If there are pending changes we should process them immediately.
+        return false;
 
-    if (!state->drawRequested && !state->cursor.updated && !state->cursor.moved)
-        // Even if there is state or pending surface/buffer,
-        // no need to update anything if server did not report any changes.
-        return true;
+    if (state && (state->drawRequested || state->cursor.moved || state->cursor.updated))
+        // X server reported drawing or cursor changes, no need to wait.
+        return false;
 
-    return false;
+    // Probably spurious wake, no changes we can work with.
+    return true;
 }
 
 __noreturn static void* renderer_thread(void* closure) {
@@ -589,18 +609,14 @@ __noreturn static void* renderer_thread(void* closure) {
         while (renderer_should_wait())
             pthread_cond_wait(&state->cond, &stateLock);
 
-        // we should signal X server to not use root window or change cursor while we actively use them
-        pthread_mutex_lock(&state->lock);
         if (surfaceChanged)
             renderer_refresh_context(env);
 
         if (bufferChanged)
             renderer_renew_image();
-        pthread_mutex_unlock(&state->lock);
 
-        if (state->contextAvailable)
+        if (state && state->contextAvailable && (state->drawRequested || state->cursor.moved || state->cursor.updated))
             renderer_redraw_locked(env);
-
     }
     pthread_mutex_unlock(&stateLock);
 }

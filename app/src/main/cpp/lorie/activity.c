@@ -13,6 +13,7 @@
 #include <android/looper.h>
 #include <wchar.h>
 #include "lorie.h"
+#include "renderer.h"
 
 #pragma clang diagnostic ignored "-Wunknown-pragmas"
 #pragma ide diagnostic ignored "cppcoreguidelines-narrowing-conversions"
@@ -39,9 +40,6 @@ static struct {
 
 static JNIEnv *guienv = NULL; // Must be used only in GUI thread.
 static jobject globalThiz = NULL;
-
-static struct lorie_shared_server_state* state = NULL;
-static AHardwareBuffer* sharedBuffer = NULL;
 
 static jclass FindClassOrDie(JNIEnv *env, const char* name) {
     jclass clazz = (*env)->FindClass(env, name);
@@ -132,13 +130,24 @@ static int xcallback(int fd, int events, __unused void* data) {
                     break;
                 }
                 case EVENT_SHARED_SERVER_STATE: {
+                    struct lorie_shared_server_state* state = NULL;
                     int stateFd = ancil_recv_fd(conn_fd);
 
-                    if (state)
-                        munmap(state, sizeof(*state));
+                    if (stateFd < 0)
+                        break;
 
-                    if (!(state = mmap(NULL, sizeof(*state), PROT_READ|PROT_WRITE, MAP_SHARED, stateFd, 0)))
-                        log(ERROR, "Failed to map server state.");
+                    state = mmap(NULL, sizeof(*state), PROT_READ|PROT_WRITE, MAP_SHARED, stateFd, 0);
+                    if (!state || state == MAP_FAILED) {
+                        log(ERROR, "Failed to map server state: %s", strerror(errno));
+                        state = NULL;
+                    }
+
+#if 0
+                    renderer_set_shared_state(state);
+#else
+                    // Should pass it to renderer thread here, but currently it is not implemented...
+                    munmap(state, sizeof(*state));
+#endif
 
                     close(stateFd); // Closing file descriptor does not unmmap shared memory fragment.
                     break;
@@ -305,10 +314,15 @@ static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
     }
 }
 
+static void surfaceChanged(JNIEnv *env, jobject thiz, jobject sfc) {
+    // Not implemented yet...
+}
+
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
     JNIEnv* env;
     static JNINativeMethod methods[] = {
             {"nativeInit", "()V", (void *)&nativeInit},
+            {"surfaceChanged", "(Landroid/view/Surface;)V", (void *)&surfaceChanged},
             {"connect", "(I)V", (void *)&connect_},
             {"startLogcat", "(I)V", (void *)&startLogcat},
             {"setClipboardSyncEnabled", "(ZZ)V", (void *)&setClipboardSyncEnabled},

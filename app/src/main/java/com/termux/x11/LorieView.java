@@ -61,6 +61,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private final SurfaceHolder.Callback mSurfaceCallback = new SurfaceHolder.Callback() {
         @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
             holder.setFormat(PixelFormat.BGRA_8888);
+            LorieView.this.surfaceChanged(holder.getSurface());
         }
 
         @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int width, int height) {
@@ -72,12 +73,15 @@ public class LorieView extends SurfaceView implements InputStub {
                 return;
 
             getDimensionsFromSettings();
-            mCallback.changed(holder.getSurface(), width, height, p.x, p.y);
+            if (mCallback != null)
+                mCallback.changed(holder.getSurface(), width, height, p.x, p.y);
+            LorieView.this.surfaceChanged(holder.getSurface());
         }
 
         @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
             if (mCallback != null)
                 mCallback.changed(holder.getSurface(), 0, 0, 0, 0);
+            LorieView.this.surfaceChanged(holder.getSurface());
         }
     };
 
@@ -183,6 +187,8 @@ public class LorieView extends SurfaceView implements InputStub {
         if (prefs.displayStretch.get()
               || "native".equals(prefs.displayResolutionMode.get())
               || "scaled".equals(prefs.displayResolutionMode.get())) {
+            getHolder().setSizeFromLayout();
+            return;
         }
 
         getDimensionsFromSettings();
@@ -356,6 +362,7 @@ public class LorieView extends SurfaceView implements InputStub {
     }
 
     @FastNative private native void nativeInit();
+    @FastNative private native void surfaceChanged(Surface surface);
     @FastNative static native void connect(int fd);
     @FastNative static native void startLogcat(int fd);
     @FastNative static native void setClipboardSyncEnabled(boolean enabled, boolean ignored);

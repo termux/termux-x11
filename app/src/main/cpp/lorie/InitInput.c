@@ -36,7 +36,7 @@ from The Open Group.
 #include "xkbsrv.h"
 #include "xserver-properties.h"
 #include "exevents.h"
-#include "renderer.h"
+#include "lorie.h"
 
 #define XI_PEN	"TERMUX-X11 PEN"
 #define XI_ERASER	"TERMUX-X11 ERASER"

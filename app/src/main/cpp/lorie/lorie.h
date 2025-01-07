@@ -1,9 +1,11 @@
 #pragma once
 
 #include <android/hardware_buffer.h>
+#include <android/native_window_jni.h>
 #include <android/choreographer.h>
 #include <android/log.h>
 
+#include <stdbool.h>
 #include <X11/Xdefs.h>
 #include <X11/keysymdef.h>
 #include <jni.h>
@@ -11,6 +13,8 @@
 #include <sys/socket.h>
 #include "linux/input-event-codes.h"
 #include "buffer.h"
+
+struct lorie_shared_server_state;
 
 void lorieSetVM(JavaVM* vm);
 void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name);
@@ -27,6 +31,13 @@ void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d);
 void lorieActivityConnected(void);
 void lorieSendSharedServerState(int memfd);
 void lorieSendRootWindowBuffer(LorieBuffer* buffer);
+bool lorieConnectionAlive(void);
+
+__unused int renderer_init(JNIEnv* env);
+__unused void renderer_test_capabilities(int* legacy_drawing, uint8_t* flip);
+__unused void renderer_set_buffer(JNIEnv* env, LorieBuffer* buffer);
+__unused void renderer_set_window(JNIEnv* env, jobject surface);
+__unused void renderer_set_shared_state(struct lorie_shared_server_state* state);
 
 typedef enum {
     EVENT_UNKNOWN,

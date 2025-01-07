@@ -59,7 +59,6 @@ from The Open Group.
 #include "fbconfigs.h"
 #include "inpututils.h"
 
-#include "renderer.h"
 #include "lorie.h"
 
 extern void android_shmem_sysv_shm_force(uint8_t enable);
@@ -159,6 +158,7 @@ void OsVendorInit(void) {
 
 void lorieActivityConnected(void) {
     lorieSendSharedServerState(pvfb->stateFd);
+    lorieSendRootWindowBuffer(pvfb->root.buffer);
 }
 
 static Bool TrueNoop() { return TRUE; }
@@ -314,11 +314,10 @@ static Bool resetRootCursor(unused ClientPtr pClient, unused void *closure) {
 
 static void lorieMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
     // No need to lock for such an easy operation
-    // just change it and signal for the case if the rendering thread is waiting
+    // just change it and a signal will be sent on the next choreographer tick.
     pvfb->state->cursor.x = x;
     pvfb->state->cursor.y = y;
     pvfb->state->cursor.moved = TRUE;
-    pthread_cond_signal(&pvfb->state->cond);
 }
 
 static void lorieConvertCursor(CursorPtr pCurs, uint32_t *data) {
@@ -368,7 +367,6 @@ static void lorieSetCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, Curs
         pvfb->state->cursor.width = pvfb->state->cursor.height = 0;
     }
     pvfb->state->cursor.updated = true;
-    pthread_cond_signal(&pvfb->state->cond);
     pthread_mutex_unlock(&pvfb->state->cursor.lock);
 
     if (x0 >= 0 && y0 >= 0)
@@ -432,11 +430,16 @@ static void lorieUpdateBuffer(void) {
 static void loriePerformVblanks(void);
 
 static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
-    int status;
+    int status, nonEmpty;
 
     loriePerformVblanks();
 
-    if (pvfb->state->contextAvailable && RegionNotEmpty(DamageRegion(pvfb->damage))) {
+    if (!lorieConnectionAlive() || !pvfb->state->contextAvailable)
+        return TRUE;
+
+    nonEmpty = RegionNotEmpty(DamageRegion(pvfb->damage));
+
+    if (nonEmpty) {
         // We should unlock and lock buffer in order to update texture content on some devices
         // In most cases AHardwareBuffer uses DMA memory which is shared between CPU and GPU
         // and this is not needed. But according to docs we should do it for any case.
@@ -448,12 +451,15 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
             FatalError("Failed to lock the surface: %d\n", status);
 
         DamageEmpty(pvfb->damage);
-
-        // Sending signal about pending root window changes to renderer thread.
-        pthread_mutex_lock(&pvfb->state->lock);
         pvfb->state->drawRequested = TRUE;
+    }
+
+    if (pvfb->state->drawRequested || pvfb->state->cursor.moved || pvfb->state->cursor.updated) {
+        // Sending signal about pending root window changes to renderer thread.
+        // We do not explicitly lock the pvfb->state->lock here because we do not want to wait
+        // for all drawing operations to be finished.
+        // Renderer thread will check the `drawRequested` flag right before going to sleep.
         pthread_cond_signal(&pvfb->state->cond);
-        pthread_mutex_unlock(&pvfb->state->lock);
     }
 
     return TRUE;

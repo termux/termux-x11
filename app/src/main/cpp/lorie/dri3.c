@@ -12,7 +12,6 @@
 #include "drm_fourcc.h"
 #include "screenint.h"
 #include "lorie.h"
-#include "renderer.h"
 
 #define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
 

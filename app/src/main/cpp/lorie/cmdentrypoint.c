@@ -22,14 +22,13 @@
 #include <randrstr.h>
 #include <linux/in.h>
 #include <arpa/inet.h>
-#include "renderer.h"
 #include "lorie.h"
 
 #define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
 
 static int argc = 0;
 static char** argv = NULL;
-static int conn_fd = -1;
+__LIBC_HIDDEN__ volatile int conn_fd = -1; // The only variable shared with activity code.
 extern DeviceIntPtr lorieMouse, lorieTouch, lorieKeyboard, loriePen, lorieEraser;
 extern ScreenPtr pScreenPtr;
 extern int ucs2keysym(long ucs);
@@ -407,6 +406,10 @@ void lorieRequestClipboard(void) {
         lorieEvent e = { .type = EVENT_CLIPBOARD_REQUEST };
         write(conn_fd, &e, sizeof(e));
     }
+}
+
+bool lorieConnectionAlive(void) {
+    return conn_fd != -1;
 }
 
 static Bool addFd(__unused ClientPtr pClient, void *closure) {

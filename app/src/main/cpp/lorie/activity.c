@@ -13,14 +13,13 @@
 #include <android/looper.h>
 #include <wchar.h>
 #include "lorie.h"
-#include "renderer.h"
 
 #pragma clang diagnostic ignored "-Wunknown-pragmas"
 #pragma ide diagnostic ignored "cppcoreguidelines-narrowing-conversions"
 #pragma ide diagnostic ignored "ConstantFunctionResult"
 #define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
 
-static int conn_fd = -1;
+extern volatile int conn_fd; // The only variable from shared with X server code.
 
 static struct {
     jclass self;

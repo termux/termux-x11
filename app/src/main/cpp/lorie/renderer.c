@@ -17,8 +17,8 @@
 #include <android/native_window_jni.h>
 #include <android/log.h>
 #include <dlfcn.h>
-#include "renderer.h"
 #include "os.h"
+#include "lorie.h"
 
 #define log(...) __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", __VA_ARGS__)
 #define loge(...) __android_log_print(ANDROID_LOG_ERROR, "gles-renderer", __VA_ARGS__)
@@ -559,6 +559,8 @@ int renderer_redraw_locked(JNIEnv* env) {
     // Not a mistake, we reset drawRequested flag even in the case if there is no legacy drawing.
     state->drawRequested = FALSE;
     draw(display.id,  -1.f, -1.f, 1.f, 1.f, display.desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM);
+
+    glFinish();
     pthread_mutex_unlock(&state->lock);
 
     if (state->cursor.updated) {

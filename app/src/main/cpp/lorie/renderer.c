@@ -547,8 +547,10 @@ static void renderer_renew_image(void) {
 int renderer_redraw_locked(JNIEnv* env) {
     int err = EGL_SUCCESS;
 
+    glFinish();
+
     // We should signal X server to not use root window or change cursor while we actively use them
-    pthread_mutex_lock(&state->lock);
+    lorie_mutex_lock(&state->lock);
     // Non-null display.desc.data means we have root window created in legacy drawing mode so we should update it on each frame.
     if (display.desc.data && state->drawRequested) {
         state->drawRequested = FALSE;
@@ -561,15 +563,15 @@ int renderer_redraw_locked(JNIEnv* env) {
     draw(display.id,  -1.f, -1.f, 1.f, 1.f, display.desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM);
 
     glFinish();
-    pthread_mutex_unlock(&state->lock);
+    lorie_mutex_unlock(&state->lock);
 
     if (state->cursor.updated) {
         log("Xlorie: updating cursor\n");
-        pthread_mutex_lock(&state->cursor.lock);
+        lorie_mutex_lock(&state->cursor.lock);
         state->cursor.updated = false;
         bindLinearTexture(cursor.id);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
-        pthread_mutex_unlock(&state->cursor.lock);
+        lorie_mutex_unlock(&state->cursor.lock);
     }
 
     state->cursor.moved = FALSE;

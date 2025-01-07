@@ -313,11 +313,12 @@ static Bool resetRootCursor(unused ClientPtr pClient, unused void *closure) {
 }
 
 static void lorieMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
-    // No need to lock for such an easy operation
-    // just change it and a signal will be sent on the next choreographer tick.
     pvfb->state->cursor.x = x;
     pvfb->state->cursor.y = y;
     pvfb->state->cursor.moved = TRUE;
+    // No need to explicitly lock the mutex, it will cause waiting for rendering to be finished.
+    // We are simply signaling the renderer in the case if it sleeps.
+    pthread_cond_signal(&pvfb->state->cond);
 }
 
 static void lorieConvertCursor(CursorPtr pCurs, uint32_t *data) {
@@ -355,7 +356,7 @@ static void lorieSetCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, Curs
         return;
     }
 
-    pthread_mutex_lock(&pvfb->state->cursor.lock);
+    lorie_mutex_lock(&pvfb->state->cursor.lock);
     if (pCurs && bits) {
         pvfb->state->cursor.xhot = bits->xhot;
         pvfb->state->cursor.yhot = bits->yhot;
@@ -367,10 +368,9 @@ static void lorieSetCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, Curs
         pvfb->state->cursor.width = pvfb->state->cursor.height = 0;
     }
     pvfb->state->cursor.updated = true;
-    pthread_mutex_unlock(&pvfb->state->cursor.lock);
+    lorie_mutex_unlock(&pvfb->state->cursor.lock);
 
-    if (x0 >= 0 && y0 >= 0)
-        lorieMoveCursor(NULL, NULL, x0, y0);
+    lorieMoveCursor(NULL, NULL, x0, y0);
 }
 
 static miPointerSpriteFuncRec loriePointerSpriteFuncs = {
@@ -389,7 +389,7 @@ static miPointerScreenFuncRec loriePointerCursorFuncs = {
 };
 
 static void lorieUpdateBuffer(void) {
-    pthread_mutex_lock(&pvfb->state->lock);
+    lorie_mutex_lock(&pvfb->state->lock);
     AHardwareBuffer_Desc desc;
     LorieBuffer *new = NULL, *old = pvfb->root.buffer;
     int status = 0;
@@ -422,7 +422,7 @@ static void lorieUpdateBuffer(void) {
         }
         LorieBuffer_release(old);
     }
-    pthread_mutex_unlock(&pvfb->state->lock);
+    lorie_mutex_unlock(&pvfb->state->lock);
 
     renderer_set_buffer(pvfb->env, new);
 }
@@ -791,8 +791,8 @@ static const GCFuncs lorieGCFuncs = {
         lorieValidateGC, lorieChangeGC, lorieCopyGC, lorieDestroyGC, lorieChangeClip, lorieDestroyClip, lorieCopyClip
 };
 
-#define LOCK_DRAWABLE(a) if (a == pScreenPtr->devPrivate || (a && a->type == DRAWABLE_WINDOW)) pthread_mutex_lock(&pvfb->state->lock)
-#define UNLOCK_DRAWABLE(a) if (a == pScreenPtr->devPrivate || (a && a->type == DRAWABLE_WINDOW)) pthread_mutex_unlock(&pvfb->state->lock)
+#define LOCK_DRAWABLE(a) if (a == pScreenPtr->devPrivate || (a && a->type == DRAWABLE_WINDOW)) lorie_mutex_lock(&pvfb->state->lock)
+#define UNLOCK_DRAWABLE(a) if (a == pScreenPtr->devPrivate || (a && a->type == DRAWABLE_WINDOW)) lorie_mutex_unlock(&pvfb->state->lock)
 
 #define GC_OP_VOID_DEF(name, argdefs, args) \
     static void lorie ## name argdefs { \

@@ -39,6 +39,40 @@ __unused void renderer_set_buffer(JNIEnv* env, LorieBuffer* buffer);
 __unused void renderer_set_window(JNIEnv* env, jobject surface);
 __unused void renderer_set_shared_state(struct lorie_shared_server_state* state);
 
+static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex) {
+    // Unfortunately there is no robust mutexes in bionic.
+    // Posix does not define any valid way to unlock stuck non-robust mutex
+    // so in the case if renderer or X server process unexpectedly die with locked mutex
+    // we will simply reinitialize it.
+    struct timespec ts = {0};
+    while(true) {
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+
+        // 33 msec is enough to complete any drawing operation on both X server and renderer side
+        // In the case if mutex is locked most likely other thread died with the mutex locked
+        ts.tv_nsec += 33UL * 1000000UL;
+        if (ts.tv_nsec >= 1000000000L) {
+            ts.tv_sec  += ts.tv_nsec / 1000000000L;
+            ts.tv_nsec  = ts.tv_nsec % 1000000000L;
+        }
+
+        if (pthread_mutex_timedlock(mutex, &ts) == ETIMEDOUT && !lorieConnectionAlive()) {
+            pthread_mutexattr_t attr;
+            pthread_mutex_t initializer = PTHREAD_MUTEX_INITIALIZER;
+            pthread_mutexattr_init(&attr);
+            pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
+            pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+            memcpy(mutex, &initializer, sizeof(initializer));
+            pthread_mutex_init(mutex, &attr);
+            // Mutex will be locked fine on the next iteration
+        } else return;
+    }
+}
+
+static inline __always_inline void lorie_mutex_unlock(pthread_mutex_t* mutex) {
+    pthread_mutex_unlock(mutex);
+}
+
 typedef enum {
     EVENT_UNKNOWN,
     EVENT_SHARED_SERVER_STATE,

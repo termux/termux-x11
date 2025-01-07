@@ -415,7 +415,7 @@ static void lorieUpdateBuffer(void) {
     if (old) {
         LorieBuffer_unlock(old);
 
-        if (0 != LorieBuffer_copy(old, new)) {
+        if (0 != LorieBuffer_copy(old, new) && pScreenPtr->root) {
             RegionRec reg;
             BoxRec box = {.x1 = 0, .y1 = 0, .x2 = desc.width, .y2 = desc.height};
             RegionInit(&reg, &box, 1);

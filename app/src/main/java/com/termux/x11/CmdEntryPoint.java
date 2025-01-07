@@ -24,15 +24,11 @@ import androidx.annotation.Keep;
 
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.net.ConnectException;
-import java.net.Socket;
 import java.net.URL;
 
 @Keep @SuppressLint({"StaticFieldLeak", "UnsafeDynamicallyLoadedCode"})
 public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static final String ACTION_START = "com.termux.x11.CmdEntryPoint.ACTION_START";
-    public static final int PORT = 7892;
-    public static final byte[] MAGIC = "0xDEADBEEF".getBytes();
     private static final Handler handler;
     public static Context ctx;
 
@@ -128,23 +124,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     }
 
     void spawnListeningThread() {
-        new Thread(() -> listenForConnections(PORT, MAGIC)).start();
-    }
-
-    public static void requestConnection() {
-        System.err.println("Requesting connection...");
-        new Thread(() -> { // New thread is needed to avoid android.os.NetworkOnMainThreadException
-            try (Socket socket = new Socket("127.0.0.1", CmdEntryPoint.PORT)) {
-                socket.getOutputStream().write(CmdEntryPoint.MAGIC);
-            } catch (ConnectException e) {
-                if (e.getMessage() != null && e.getMessage().contains("Connection refused")) {
-                    Log.e("CmdEntryPoint", "ECONNREFUSED: Connection has been refused by the server");
-                } else
-                    Log.e("CmdEntryPoint", "Something went wrong when we requested connection", e);
-            } catch (Exception e) {
-                Log.e("CmdEntryPoint", "Something went wrong when we requested connection", e);
-            }
-        }).start();
+        new Thread(this::listenForConnections).start();
     }
 
     /** @noinspection DataFlowIssue*/
@@ -182,7 +162,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public native ParcelFileDescriptor getXConnection();
     public native ParcelFileDescriptor getLogcatOutput();
     private static native boolean connected();
-    private native void listenForConnections(int port, byte[] bytes);
+    private native void listenForConnections();
 
     static {
         try {

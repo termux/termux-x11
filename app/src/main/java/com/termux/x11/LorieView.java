@@ -35,6 +35,7 @@ import com.termux.x11.input.TouchInputHandler;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.PatternSyntaxException;
 
+import dalvik.annotation.optimization.CriticalNative;
 import dalvik.annotation.optimization.FastNative;
 
 @Keep @SuppressLint("WrongConstant")
@@ -364,7 +365,7 @@ public class LorieView extends SurfaceView implements InputStub {
     @FastNative private native void nativeInit();
     @FastNative private native void surfaceChanged(Surface surface);
     @FastNative static native void connect(int fd);
-    @FastNative static native boolean connected();
+    @CriticalNative static native boolean connected();
     @FastNative static native void startLogcat(int fd);
     @FastNative static native void setClipboardSyncEnabled(boolean enabled, boolean ignored);
     @FastNative public native void sendClipboardAnnounce();
@@ -376,6 +377,7 @@ public class LorieView extends SurfaceView implements InputStub {
     @FastNative static public native void requestStylusEnabled(boolean enabled);
     @FastNative public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
     @FastNative public native void sendTextEvent(byte[] text);
+    @CriticalNative public static native void requestConnection();
 
     static {
         System.loadLibrary("Xlorie");

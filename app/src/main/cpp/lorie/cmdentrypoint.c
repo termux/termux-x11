@@ -480,13 +480,11 @@ Java_com_termux_x11_CmdEntryPoint_connected(__unused JNIEnv *env, __unused jclas
 }
 
 JNIEXPORT void JNICALL
-Java_com_termux_x11_CmdEntryPoint_listenForConnections(JNIEnv *env, jobject thiz, jint port, jbyteArray jbytes) {
+Java_com_termux_x11_CmdEntryPoint_listenForConnections(JNIEnv *env, jobject thiz) {
     int server_fd, client, count;
-    struct sockaddr_in address = { .sin_family = AF_INET, .sin_addr = { .s_addr = INADDR_ANY }, .sin_port = htons(port) };
+    struct sockaddr_in address = { .sin_family = AF_INET, .sin_addr = { .s_addr = INADDR_ANY }, .sin_port = htons(PORT) };
     int addrlen = sizeof(address);
     jmethodID sendBroadcast = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, thiz), "sendBroadcast", "()V");
-    jbyte *bytes = (jbyte *)(*env)->GetByteArrayElements(env, jbytes, NULL);
-    size_t size = (*env)->GetArrayLength(env, jbytes);
     uint8_t buffer[512] = {0};
 
     // Even in the case if it will fail for some reason everything will work fine
@@ -519,7 +517,7 @@ Java_com_termux_x11_CmdEntryPoint_listenForConnections(JNIEnv *env, jobject thiz
         }
 
         if ((count = read(client, buffer, sizeof(buffer))) > 0) {
-            if (!memcmp(buffer, bytes, min(count, size))) {
+            if (!memcmp(buffer, MAGIC, min(count, sizeof(MAGIC)))) {
                 log(DEBUG, "New client connection!\n");
                 (*env)->CallVoidMethod(env, thiz, sendBroadcast);
             }

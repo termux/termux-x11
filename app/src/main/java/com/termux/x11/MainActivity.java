@@ -221,7 +221,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         mNotification = buildNotification();
         mNotificationManager.notify(mNotificationId, mNotification);
 
-        CmdEntryPoint.requestConnection();
+        tryConnect();
         onPreferencesChanged("");
 
         toggleExtraKeys(false, false);
@@ -499,7 +499,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         try {
             service.asBinder().linkToDeath(() -> {
                 service = null;
-                CmdEntryPoint.requestConnection();
 
                 Log.v("Lorie", "Disconnected");
                 runOnUiThread(() -> { LorieView.connect(-1); clientConnectedStateChanged();} );
@@ -526,8 +525,15 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     void tryConnect() {
         if (LorieView.connected())
             return;
+
+        if (service == null) {
+            LorieView.requestConnection();
+            handler.postDelayed(this::tryConnect, 250);
+            return;
+        }
+
         try {
-            ParcelFileDescriptor fd = service == null ? null : service.getXConnection();
+            ParcelFileDescriptor fd = service.getXConnection();
             if (fd != null) {
                 Log.v("MainActivity", "Extracting X connection socket.");
                 LorieView.connect(fd.detachFd());
@@ -535,13 +541,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 clientConnectedStateChanged();
                 getLorieView().reloadPreferences(prefs);
             } else
-                handler.postDelayed(this::tryConnect, 500);
+                handler.postDelayed(this::tryConnect, 250);
         } catch (Exception e) {
             Log.e("MainActivity", "Something went wrong while we were establishing connection", e);
             service = null;
 
             // We should reset the View for the case if we have sent it's surface to the client.
             getLorieView().regenerate();
+            handler.postDelayed(this::tryConnect, 250);
         }
     }
 
@@ -853,8 +860,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             // We should recover connection in the case if file descriptor for some reason was broken...
             if (!connected)
                 tryConnect();
-
-            if (connected)
+            else
                 getLorieView().setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
         });
     }

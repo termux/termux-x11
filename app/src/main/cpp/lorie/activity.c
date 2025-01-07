@@ -95,7 +95,7 @@ static int xcallback(int fd, int events, __unused void* data) {
     if (events & (ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP)) {
         jobject instance = (*env)->CallStaticObjectMethod(env, MainActivity.self, MainActivity.getInstance);
         if (instance)
-            (*env)->CallVoidMethod(env, MainActivity.self, MainActivity.clientConnectedStateChanged, JNI_FALSE);
+            (*env)->CallVoidMethod(env, instance, MainActivity.clientConnectedStateChanged, JNI_FALSE);
 
         ALooper_removeFd(ALooper_forThread(), fd);
         close(conn_fd);

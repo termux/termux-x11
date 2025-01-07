@@ -88,7 +88,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     static InputMethodManager inputMethodManager;
     private static boolean showIMEWhileExternalConnected = true;
     private static boolean externalKeyboardConnected = false;
-    private boolean mClientConnected = false;
     private View.OnKeyListener mLorieKeyListener;
     private boolean filterOutWinKey = false;
     private boolean useTermuxEKBarBehaviour = false;
@@ -250,7 +249,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     //Register the needed events to handle stylus as left, middle and right click
     @SuppressLint("ClickableViewAccessibility")
     private void initStylusAuxButtons() {
-        boolean stylusMenuEnabled = prefs.showStylusClickOverride.get() && mClientConnected;
+        boolean stylusMenuEnabled = prefs.showStylusClickOverride.get() && LorieView.connected();
         final float menuUnselectedTrasparency = 0.66f;
         final float menuSelectedTrasparency = 1.0f;
         Button left = findViewById(R.id.button_left_click);
@@ -338,7 +337,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     private void showStylusAuxButtons(boolean show) {
         LinearLayout buttons = findViewById(R.id.mouse_helper_visibility);
-        if (mClientConnected && show) {
+        if (LorieView.connected() && show) {
             buttons.setVisibility(View.VISIBLE);
             buttons.setAlpha(isInPictureInPictureMode ? 0.f : 1.f);
         } else {
@@ -381,7 +380,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     private void showMouseAuxButtons(boolean show) {
         View v = findViewById(R.id.mouse_buttons);
-        v.setVisibility((mClientConnected && show && "1".equals(prefs.touchMode.get())) ? View.VISIBLE : View.GONE);
+        v.setVisibility((LorieView.connected() && show && "1".equals(prefs.touchMode.get())) ? View.VISIBLE : View.GONE);
         v.setAlpha(isInPictureInPictureMode ? 0.f : 0.7f);
         makeSureHelpersAreVisibleAndInScreenBounds();
     }
@@ -503,7 +502,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 CmdEntryPoint.requestConnection();
 
                 Log.v("Lorie", "Disconnected");
-                runOnUiThread(() -> clientConnectedStateChanged(false));
+                runOnUiThread(() -> { LorieView.connect(-1); clientConnectedStateChanged();} );
             }, 0);
         } catch (RemoteException ignored) {}
 
@@ -525,7 +524,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     void tryConnect() {
-        if (mClientConnected)
+        if (LorieView.connected())
             return;
         try {
             ParcelFileDescriptor fd = service == null ? null : service.getXConnection();
@@ -533,7 +532,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 Log.v("MainActivity", "Extracting X connection socket.");
                 LorieView.connect(fd.detachFd());
                 getLorieView().triggerCallback();
-                clientConnectedStateChanged(true);
+                clientConnectedStateChanged();
                 getLorieView().reloadPreferences(prefs);
             } else
                 handler.postDelayed(this::tryConnect, 500);
@@ -577,7 +576,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         useTermuxEKBarBehaviour = prefs.useTermuxEKBarBehaviour.get();
         showIMEWhileExternalConnected = prefs.showIMEWhileExternalConnected.get();
 
-        findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && mClientConnected ? View.VISIBLE : View.GONE);
+        findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && LorieView.connected() ? View.VISIBLE : View.GONE);
         showMouseAuxButtons(prefs.showMouseHelper.get());
         showStylusAuxButtons(prefs.showStylusClickOverride.get());
 
@@ -627,7 +626,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         final ViewPager pager = getTerminalToolbarViewPager();
         ViewGroup parent = (ViewGroup) pager.getParent();
 
-        boolean showNow = mClientConnected && prefs.showAdditionalKbd.get() && prefs.additionalKbdVisible.get();
+        boolean showNow = LorieView.connected() && prefs.showAdditionalKbd.get() && prefs.additionalKbdVisible.get();
 
         pager.setVisibility(showNow ? View.VISIBLE : View.INVISIBLE);
 
@@ -655,7 +654,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     public void toggleExtraKeys(boolean visible, boolean saveState) {
         boolean enabled = prefs.showAdditionalKbd.get();
 
-        if (enabled && mClientConnected && saveState)
+        if (enabled && LorieView.connected() && saveState)
             prefs.additionalKbdVisible.put(visible);
 
         setTerminalToolbarView();
@@ -842,11 +841,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     }
 
     @SuppressWarnings("SameParameterValue")
-    void clientConnectedStateChanged(boolean connected) {
+    void clientConnectedStateChanged() {
         runOnUiThread(()-> {
-            mClientConnected = connected;
+            boolean connected = LorieView.connected();
             setTerminalToolbarView();
-            findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && mClientConnected ? View.VISIBLE : View.GONE);
+            findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && connected ? View.VISIBLE : View.GONE);
             findViewById(R.id.stub).setVisibility(connected?View.INVISIBLE:View.VISIBLE);
             getLorieView().setVisibility(connected?View.VISIBLE:View.INVISIBLE);
             getLorieView().regenerate();
@@ -864,7 +863,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         if (getInstance() == null)
             return false;
 
-        return getInstance().mClientConnected;
+        return LorieView.connected();
     }
 
     private void checkRestartInput() {

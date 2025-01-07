@@ -440,6 +440,8 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
 
     loriePerformVblanks();
 
+    pvfb->state->waitForNextFrame = false;
+
     if (!lorieConnectionAlive() || !pvfb->state->contextAvailable)
         return TRUE;
 

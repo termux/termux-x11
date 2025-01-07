@@ -80,7 +80,7 @@ static void nativeInit(JNIEnv *env, jobject thiz) {
 
         MainActivity.self = FindClassOrDie(env,  "com/termux/x11/MainActivity");
         MainActivity.getInstance = FindMethodOrDie(env, MainActivity.self, "getInstance", "()Lcom/termux/x11/MainActivity;", JNI_TRUE);
-        MainActivity.clientConnectedStateChanged = FindMethodOrDie(env, MainActivity.self, "clientConnectedStateChanged", "(Z)V", JNI_FALSE);
+        MainActivity.clientConnectedStateChanged = FindMethodOrDie(env, MainActivity.self, "clientConnectedStateChanged", "()V", JNI_FALSE);
     }
 
     (*env)->GetJavaVM(env, &vm);
@@ -95,7 +95,7 @@ static int xcallback(int fd, int events, __unused void* data) {
     if (events & (ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP)) {
         jobject instance = (*env)->CallStaticObjectMethod(env, MainActivity.self, MainActivity.getInstance);
         if (instance)
-            (*env)->CallVoidMethod(env, instance, MainActivity.clientConnectedStateChanged, JNI_FALSE);
+            (*env)->CallVoidMethod(env, instance, MainActivity.clientConnectedStateChanged);
 
         ALooper_removeFd(ALooper_forThread(), fd);
         close(conn_fd);
@@ -178,9 +178,19 @@ static int xcallback(int fd, int events, __unused void* data) {
 }
 
 static void connect_(__unused JNIEnv* env, __unused jobject cls, jint fd) {
-    conn_fd = fd;
-    ALooper_addFd(ALooper_forThread(), fd, 0, ALOOPER_EVENT_INPUT | ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP, xcallback, NULL);
-    log(DEBUG, "XCB connection is successfull");
+    if (conn_fd != -1) {
+        ALooper_removeFd(ALooper_forThread(), conn_fd);
+        close(conn_fd);
+    }
+
+    if ((conn_fd = fd) != -1) {
+        ALooper_addFd(ALooper_forThread(), fd, 0, ALOOPER_EVENT_INPUT | ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP, xcallback, NULL);
+        log(DEBUG, "XCB connection is successfull");
+    }
+}
+
+static jboolean connected(JNIEnv* env, jclass clazz) {
+    return conn_fd != -1;
 }
 
 static void startLogcat(JNIEnv *env, __unused jobject cls, jint fd) {
@@ -337,6 +347,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
             {"nativeInit", "()V", (void *)&nativeInit},
             {"surfaceChanged", "(Landroid/view/Surface;)V", (void *)&surfaceChanged},
             {"connect", "(I)V", (void *)&connect_},
+            {"connected", "()Z", (void *)&connected},
             {"startLogcat", "(I)V", (void *)&startLogcat},
             {"setClipboardSyncEnabled", "(ZZ)V", (void *)&setClipboardSyncEnabled},
             {"sendClipboardAnnounce", "()V", (void *)&sendClipboardAnnounce},

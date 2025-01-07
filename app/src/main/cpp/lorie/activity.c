@@ -23,8 +23,8 @@ extern volatile int conn_fd; // The only variable from shared with X server code
 
 static struct {
     jclass self;
-    jmethodID requestConnection;
-} CmdEntryPoint = {0};
+    jmethodID getInstance, clientConnectedStateChanged;
+} MainActivity = {0};
 
 static struct {
     jclass self;
@@ -78,8 +78,9 @@ static void nativeInit(JNIEnv *env, jobject thiz) {
         CharBuffer.self = FindClassOrDie(env,  "java/nio/CharBuffer");
         CharBuffer.toString = FindMethodOrDie(env, CharBuffer.self, "toString", "()Ljava/lang/String;", JNI_FALSE);
 
-        CmdEntryPoint.self = FindClassOrDie(env,  "com/termux/x11/CmdEntryPoint");
-        CmdEntryPoint.requestConnection = (*env)->GetStaticMethodID(env, CmdEntryPoint.self, "requestConnection", "()V");
+        MainActivity.self = FindClassOrDie(env,  "com/termux/x11/MainActivity");
+        MainActivity.getInstance = FindMethodOrDie(env, MainActivity.self, "getInstance", "()Lcom/termux/x11/MainActivity;", JNI_TRUE);
+        MainActivity.clientConnectedStateChanged = FindMethodOrDie(env, MainActivity.self, "clientConnectedStateChanged", "(Z)V", JNI_FALSE);
     }
 
     (*env)->GetJavaVM(env, &vm);
@@ -92,7 +93,10 @@ static int xcallback(int fd, int events, __unused void* data) {
     jobject thiz = globalThiz;
 
     if (events & (ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP)) {
-        (*env)->CallStaticVoidMethod(env, CmdEntryPoint.self, CmdEntryPoint.requestConnection);
+        jobject instance = (*env)->CallStaticObjectMethod(env, MainActivity.self, MainActivity.getInstance);
+        if (instance)
+            (*env)->CallVoidMethod(env, MainActivity.self, MainActivity.clientConnectedStateChanged, JNI_FALSE);
+
         ALooper_removeFd(ALooper_forThread(), fd);
         close(conn_fd);
         conn_fd = -1;

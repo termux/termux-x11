@@ -61,7 +61,6 @@ public class LorieView extends SurfaceView implements InputStub {
     private final SurfaceHolder.Callback mSurfaceCallback = new SurfaceHolder.Callback() {
         @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {
             holder.setFormat(PixelFormat.BGRA_8888);
-            LorieView.this.surfaceChanged(holder.getSurface());
         }
 
         @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int width, int height) {
@@ -211,7 +210,7 @@ public class LorieView extends SurfaceView implements InputStub {
         getHolder().setFixedSize(p.x, p.y);
         setMeasuredDimension(width, height);
 
-        // In the case if old fixed surface size equals new fixed surface size surfaceChanged will not be called.
+        // In the case if old fixed surface size equals new fixed surface size windowChanged will not be called.
         // We should force it.
         regenerate();
     }
@@ -361,6 +360,7 @@ public class LorieView extends SurfaceView implements InputStub {
         }
     }
 
+    static native boolean renderingInActivity();
     @FastNative private native void nativeInit();
     @FastNative private native void surfaceChanged(Surface surface);
     @FastNative static native void connect(int fd);

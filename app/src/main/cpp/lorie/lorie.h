@@ -1,4 +1,5 @@
 #pragma once
+#define RENDERER_IN_ACTIVITY 0
 
 #include <android/hardware_buffer.h>
 #include <android/native_window_jni.h>
@@ -36,7 +37,11 @@ bool lorieConnectionAlive(void);
 __unused int renderer_init(JNIEnv* env);
 __unused void renderer_test_capabilities(int* legacy_drawing, uint8_t* flip);
 __unused void renderer_set_buffer(JNIEnv* env, LorieBuffer* buffer);
+#if RENDERER_IN_ACTIVITY
+__unused void renderer_set_window(ANativeWindow* win);
+#else
 __unused void renderer_set_window(JNIEnv* env, jobject surface);
+#endif
 __unused void renderer_set_shared_state(struct lorie_shared_server_state* state);
 
 static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex) {

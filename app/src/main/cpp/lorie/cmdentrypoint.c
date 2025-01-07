@@ -204,7 +204,9 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
 
 JNIEXPORT void JNICALL
 Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, __unused jobject cls, jobject surface) {
+#if !RENDERER_IN_ACTIVITY
     renderer_set_window(env, surface ? (*env)->NewGlobalRef(env, surface) : NULL);
+#endif
 }
 
 static Bool sendConfigureNotify(__unused ClientPtr pClient, void *closure) {
@@ -441,7 +443,6 @@ Java_com_termux_x11_CmdEntryPoint_getXConnection(JNIEnv *env, __unused jobject c
     jclass ParcelFileDescriptorClass = (*env)->FindClass(env, "android/os/ParcelFileDescriptor");
     jmethodID adoptFd = (*env)->GetStaticMethodID(env, ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
     socketpair(AF_UNIX, SOCK_STREAM, 0, client);
-    fcntl(client[0], F_SETFL, fcntl(client[0], F_GETFL, 0) | O_NONBLOCK);
     QueueWorkProc(addFd, NULL, (void*) (int64_t) client[1]);
     lorieTriggerWorkingQueue();
 

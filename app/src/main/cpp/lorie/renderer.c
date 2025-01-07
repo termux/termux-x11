@@ -112,7 +112,9 @@ static EGLContext ctx = EGL_NO_CONTEXT;
 static EGLSurface sfc = EGL_NO_SURFACE;
 static EGLConfig cfg = 0;
 static ANativeWindow* win = 0;
+#if !RENDERER_IN_ACTIVITY
 static jobject surface = NULL;
+#endif
 static LorieBuffer *buffer = NULL;
 static EGLImageKHR image = NULL;
 
@@ -120,9 +122,13 @@ static jmethodID Surface_release = NULL;
 static jmethodID Surface_destroy = NULL;
 
 static JNIEnv* renderEnv = NULL;
-static volatile bool bufferChanged = false, surfaceChanged = false;
+static volatile bool bufferChanged = false, windowChanged = false;
 static volatile LorieBuffer* pendingBuffer = NULL;
+#if RENDERER_IN_ACTIVITY
+static volatile ANativeWindow* pendingWin = NULL;
+#else
 static volatile jobject pendingSurface = NULL;
+#endif
 
 static pthread_mutex_t stateLock;
 static pthread_cond_t stateCond;
@@ -360,8 +366,24 @@ void renderer_set_buffer(JNIEnv* env, LorieBuffer* buf) {
     end: pthread_mutex_unlock(&stateLock);
 }
 
+#if RENDERER_IN_ACTIVITY
+void renderer_set_window(ANativeWindow* newWin) {
+#else
 void renderer_set_window(JNIEnv* env, jobject new_surface) {
+#endif
     pthread_mutex_lock(&stateLock);
+#if RENDERER_IN_ACTIVITY
+    if (newWin && pendingWin == newWin) {
+        ANativeWindow_release(newWin);
+        pthread_mutex_unlock(&stateLock);
+        return;
+    }
+
+    if (pendingWin)
+        ANativeWindow_release(pendingWin);
+
+    pendingWin = newWin;
+#else
     if (pendingSurface && new_surface && pendingSurface != new_surface && (*env)->IsSameObject(env, pendingSurface, new_surface)) {
         (*env)->DeleteGlobalRef(env, new_surface);
         pthread_mutex_unlock(&stateLock);
@@ -377,7 +399,8 @@ void renderer_set_window(JNIEnv* env, jobject new_surface) {
         (*env)->DeleteGlobalRef(env, pendingSurface);
 
     pendingSurface = new_surface;
-    surfaceChanged = TRUE;
+#endif
+    windowChanged = TRUE;
 
     // We are not sure which conditional variable is used at current moment so let's signal both
     if (state)
@@ -387,7 +410,11 @@ void renderer_set_window(JNIEnv* env, jobject new_surface) {
     pthread_mutex_unlock(&stateLock);
 }
 
+#if RENDERER_IN_ACTIVITY
+static inline __always_inline void release_win_and_surface(JNIEnv *env, ANativeWindow** anw, EGLSurface *esfc) {
+#else
 static inline __always_inline void release_win_and_surface(JNIEnv *env, jobject* jsfc, ANativeWindow** anw, EGLSurface *esfc) {
+#endif
     if (esfc && *esfc) {
         if (eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE)
             return vprintEglError("eglMakeCurrent failed (EGL_NO_SURFACE)", __LINE__);
@@ -401,42 +428,57 @@ static inline __always_inline void release_win_and_surface(JNIEnv *env, jobject*
         *anw = NULL;
     }
 
+#if !RENDERER_IN_ACTIVITY
     if (jsfc && *jsfc) {
         (*env)->CallVoidMethod(env, *jsfc, Surface_release);
         (*env)->CallVoidMethod(env, *jsfc, Surface_destroy);
         (*env)->DeleteGlobalRef(env, *jsfc);
         *jsfc = NULL;
     }
+#endif
 }
 
 void renderer_refresh_context(JNIEnv* env) {
     uint32_t emptyData = {0};
+#if !RENDERER_IN_ACTIVITY
     ANativeWindow* pendingWin = pendingSurface ? ANativeWindow_fromSurface(env, pendingSurface) : NULL;
     if ((pendingSurface && surface && pendingSurface != surface && (*env)->IsSameObject(env, pendingSurface, surface)) || (pendingWin && win == pendingWin)) {
         (*env)->DeleteGlobalRef(env, pendingSurface);
         pendingSurface = NULL;
-        surfaceChanged = FALSE;
+        windowChanged = FALSE;
         return;
     }
-
+#endif
     int width = pendingWin ? ANativeWindow_getWidth(pendingWin) : 0;
     int height = pendingWin ? ANativeWindow_getHeight(pendingWin) : 0;
     log("renderer_set_window %p %d %d", pendingWin, width, height);
 
+#if RENDERER_IN_ACTIVITY
+    release_win_and_surface(env, &win, &sfc);
+#else
     if (pendingWin)
         ANativeWindow_acquire(pendingWin);
 
     release_win_and_surface(env, &surface, &win, &sfc);
+#endif
 
     if (pendingWin && (width <= 0 || height <= 0)) {
         log("Xlorie: We've got invalid surface. Probably it became invalid before we started working with it.\n");
+#if RENDERER_IN_ACTIVITY
+        release_win_and_surface(env, &pendingWin, NULL);
+#else
         release_win_and_surface(env, &pendingSurface, &pendingWin, NULL);
+#endif
     }
 
     win = pendingWin;
+#if RENDERER_IN_ACTIVITY
+    pendingWin = NULL;
+#else
     surface = pendingSurface;
     pendingSurface = NULL;
-    surfaceChanged = FALSE;
+#endif
+    windowChanged = FALSE;
 
     if (!win) {
         eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
@@ -581,7 +623,11 @@ int renderer_redraw_locked(JNIEnv* env) {
         err = eglGetError();
         if (err == EGL_BAD_NATIVE_WINDOW || err == EGL_BAD_SURFACE) {
             log("The window is to be destroyed. Native window disconnected/abandoned, probably activity is destroyed or in background");
+#if RENDERER_IN_ACTIVITY
+            renderer_set_window(NULL);
+#else
             renderer_set_window(env, NULL);
+#endif
             return FALSE;
         }
     }
@@ -591,7 +637,7 @@ int renderer_redraw_locked(JNIEnv* env) {
 }
 
 static inline __always_inline bool renderer_should_wait(void) {
-    if (surfaceChanged || bufferChanged)
+    if (windowChanged || bufferChanged)
         // If there are pending changes we should process them immediately.
         return false;
 
@@ -615,9 +661,9 @@ __noreturn static void* renderer_thread(void* closure) {
     pthread_mutex_lock(&stateLock);
     while (true) {
         while (renderer_should_wait())
-            pthread_cond_wait(&state->cond, &stateLock);
+            pthread_cond_wait(state ? &state->cond : &stateCond, &stateLock);
 
-        if (surfaceChanged)
+        if (windowChanged)
             renderer_refresh_context(env);
 
         if (bufferChanged)

@@ -153,7 +153,9 @@ void OsVendorInit(void) {
     pthread_condattr_init(&cond_attr);
     pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
     pthread_cond_init(&lorieScreen.state->cond, &cond_attr);
+#if !RENDERER_IN_ACTIVITY
     renderer_set_shared_state(lorieScreen.state);
+#endif
 }
 
 void lorieActivityConnected(void) {
@@ -424,7 +426,11 @@ static void lorieUpdateBuffer(void) {
     }
     lorie_mutex_unlock(&pvfb->state->lock);
 
+#if RENDERER_IN_ACTIVITY
+    lorieSendRootWindowBuffer(new);
+#else
     renderer_set_buffer(pvfb->env, new);
+#endif
 }
 
 static void loriePerformVblanks(void);
@@ -674,7 +680,9 @@ void InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     screen_info->bitmapBitOrder = BITMAP_BIT_ORDER;
     screen_info->numPixmapFormats = ARRAY_SIZE(depths);
 
+#if !RENDERER_IN_ACTIVITY
     renderer_init(pvfb->env);
+#endif
     renderer_test_capabilities(&pvfb->root.legacyDrawing, &pvfb->root.flip);
     xorgGlxCreateVendor();
     lorieInitClipboard();

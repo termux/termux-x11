@@ -422,7 +422,7 @@ static void lorieUpdateBuffer(void) {
 #if RENDERER_IN_ACTIVITY
     lorieSendRootWindowBuffer(new);
 #else
-    renderer_set_buffer(pvfb->env, new);
+    renderer_set_buffer(new);
 #endif
 }
 

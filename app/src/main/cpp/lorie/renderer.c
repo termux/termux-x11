@@ -17,6 +17,7 @@
 #include <android/native_window_jni.h>
 #include <android/log.h>
 #include <dlfcn.h>
+#include <sys/mman.h>
 #include "os.h"
 #include "lorie.h"
 
@@ -118,11 +119,14 @@ static jobject surface = NULL;
 static LorieBuffer *buffer = NULL;
 static EGLImageKHR image = NULL;
 
+#if !RENDERER_IN_ACTIVITY
 static jmethodID Surface_release = NULL;
 static jmethodID Surface_destroy = NULL;
+#endif
 
 static JNIEnv* renderEnv = NULL;
 static volatile bool stateChanged = false, bufferChanged = false, windowChanged = false;
+static volatile struct lorie_shared_server_state* pendingState = NULL;
 static volatile LorieBuffer* pendingBuffer = NULL;
 #if RENDERER_IN_ACTIVITY
 static volatile ANativeWindow* pendingWin = NULL;
@@ -184,6 +188,7 @@ int renderer_init(JNIEnv* env) {
     pthread_mutex_init(&stateLock, NULL);
     pthread_cond_init(&stateCond, NULL);
 
+#if !RENDERER_IN_ACTIVITY
     jclass Surface = (*env)->FindClass(env, "android/view/Surface");
     Surface_release = (*env)->GetMethodID(env, Surface, "release", "()V");
     Surface_destroy = (*env)->GetMethodID(env, Surface, "destroy", "()V");
@@ -195,6 +200,7 @@ int renderer_init(JNIEnv* env) {
         loge("Failed to find required Surface.destroy method. Aborting.\n");
         abort();
     }
+#endif
 
     egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (egl_display == EGL_NO_DISPLAY)
@@ -332,19 +338,26 @@ void renderer_test_capabilities(int* legacy_drawing, uint8_t* flip) {
     }
 }
 
-__unused void renderer_set_shared_state(struct lorie_shared_server_state* new_state) {
+__unused void renderer_set_shared_state(struct lorie_shared_server_state* newState) {
     pthread_mutex_lock(&stateLock);
-    state = new_state;
+    if (newState == pendingState || newState == state)
+        goto end;
+
+    if (pendingState)
+        munmap(pendingState, sizeof(*state));
+
+    pendingState = newState;
+    stateChanged = true;
 
     // We are not sure which conditional variable is used at current moment so let's signal both
     if (state)
         pthread_cond_signal(&state->cond);
     pthread_cond_signal(&stateCond);
 
-    pthread_mutex_unlock(&stateLock);
+    end: pthread_mutex_unlock(&stateLock);
 }
 
-void renderer_set_buffer(JNIEnv* env, LorieBuffer* buf) {
+void renderer_set_buffer(LorieBuffer* buf) {
     pthread_mutex_lock(&stateLock);
     if (buf == pendingBuffer)
         goto end;
@@ -638,7 +651,7 @@ int renderer_redraw_locked(JNIEnv* env) {
 }
 
 static inline __always_inline bool renderer_should_wait(void) {
-    if (windowChanged || bufferChanged)
+    if (stateChanged || windowChanged || bufferChanged)
         // If there are pending changes we should process them immediately.
         return false;
 
@@ -663,6 +676,15 @@ __noreturn static void* renderer_thread(void* closure) {
     while (true) {
         while (renderer_should_wait())
             pthread_cond_wait(state ? &state->cond : &stateCond, &stateLock);
+
+        if (stateChanged) {
+            if (state && pendingState != state)
+                munmap(state, sizeof(*state));
+
+            state = pendingState;
+            pendingState = NULL;
+            stateChanged = false;
+        }
 
         if (windowChanged)
             renderer_refresh_context(env);

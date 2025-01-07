@@ -36,7 +36,7 @@ bool lorieConnectionAlive(void);
 
 __unused int renderer_init(JNIEnv* env);
 __unused void renderer_test_capabilities(int* legacy_drawing, uint8_t* flip);
-__unused void renderer_set_buffer(JNIEnv* env, LorieBuffer* buffer);
+__unused void renderer_set_buffer(LorieBuffer* buffer);
 #if RENDERER_IN_ACTIVITY
 __unused void renderer_set_window(ANativeWindow* win);
 #else

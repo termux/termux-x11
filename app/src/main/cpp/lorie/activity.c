@@ -100,6 +100,10 @@ static int xcallback(int fd, int events, __unused void* data) {
         ALooper_removeFd(ALooper_forThread(), fd);
         close(conn_fd);
         conn_fd = -1;
+#if RENDERER_IN_ACTIVITY
+        renderer_set_shared_state(NULL);
+        renderer_set_buffer(NULL);
+#endif
         log(DEBUG, "disconnected");
         return 1;
     }
@@ -162,7 +166,7 @@ static int xcallback(int fd, int events, __unused void* data) {
                     LorieBuffer_describe(buffer, &desc);
                     log(INFO, "Received shared buffer width %d height %d format %d", desc.width, desc.height, desc.format);
 #if RENDERER_IN_ACTIVITY
-                    renderer_set_buffer(env, buffer);
+                    renderer_set_buffer(buffer);
 #endif
                     LorieBuffer_release(buffer);
                 }

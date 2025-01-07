@@ -274,6 +274,22 @@ InitInput(__unused int argc, __unused char *argv[]) {
     AssignTypeAndName(lorieMouse, MakeAtom(XI_MOUSE, sizeof(XI_MOUSE) - 1, TRUE), "Lorie mouse");
     AssignTypeAndName(lorieTouch, MakeAtom(XI_TOUCHSCREEN, sizeof(XI_TOUCHSCREEN) - 1, TRUE), "Lorie touch");
     AssignTypeAndName(lorieKeyboard, MakeAtom(XI_KEYBOARD, sizeof(XI_KEYBOARD) - 1, TRUE), "Lorie keyboard");
+    ActivateDevice(lorieMouse, FALSE);
+    ActivateDevice(lorieTouch, FALSE);
+    ActivateDevice(lorieKeyboard, FALSE);
+    EnableDevice(lorieMouse, TRUE);
+    EnableDevice(lorieTouch, TRUE);
+    EnableDevice(lorieKeyboard, TRUE);
+    AttachDevice(NULL, lorieMouse, inputInfo.pointer);
+    AttachDevice(NULL, lorieTouch, inputInfo.pointer);
+    AttachDevice(NULL, lorieKeyboard, inputInfo.keyboard);
+
+    // We should explicitly create stylus pen and eraser devices here for the case of X server reset.
+    if (loriePen && lorieEraser) {
+        loriePen = lorieEraser = NULL;
+        lorieSetStylusEnabled(true);
+    }
+
     (void) mieqInit();
 }
 

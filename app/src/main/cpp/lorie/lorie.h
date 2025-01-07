@@ -143,14 +143,51 @@ typedef union {
 } lorieEvent;
 
 struct lorie_shared_server_state {
+    /*
+     * Renderer and X server are separated into 2 different processes.
+     * Root window and cursor content and properties are shared across these 2 processes.
+     * Reading/drawing root window in renderer the same time X server writes it can cause
+     * tearing, texture garbling and other visual artifacts so we should block X server while we are drawing.
+     */
     pthread_mutex_t lock; // initialized at X server side.
+
+    /*
+     * Renderer thread sleeps when it is idle so we must explicitly wake it up.
+     */
     pthread_cond_t cond; // initialized at X server side.
-    volatile uint8_t drawRequested, contextAvailable;
+
+    /* A signal to renderer to update root window texture content from shared fragment if needed */
+    volatile uint8_t drawRequested;
+
+    /* We should avoid triggering renderer if there is no output surface */
+    volatile uint8_t surfaceAvailable;
+
+    /*
+     * We do not want to block the X server for an extended period; ideally, we would avoid blocking it at all.
+     * However, if we don’t block the X server, it will overwrite root window memory fragment, causing tearing or frame distortion.
+     * On some devices, there is no way to make EGL/GLES2 render a frame without calling eglSwapBuffers;
+     * calls like glFinish, eglWaitGL, and eglWaitClient have no effect.
+     * The only way to force EGL to render a frame and flush the command queue is by invoking eglSwapBuffers.
+     * But eglSwapBuffers will not return until Android actually displays the frame.
+     * Since we want to proceed as quickly as possible, waiting for the frame to be shown is not acceptable.
+     *
+     * Therefore, we set eglSwapInterval(dpy, 1), so that eglSwapBuffers does not block until the frame is displayed.
+     * Even then, we do not want to waste GPU resources rendering more than one full-screen quad per vsync,
+     * because that would spend GPU time on a frame that will never be shown.
+     * To handle this, we use a waitForNextFrame flag, which we set after a successful render and clear from the AChoreographer’s frame callback.
+     */
+    volatile uint8_t waitForNextFrame;
+
+    /* Needed to show FPS counter in logcat */
     volatile int renderedFrames;
+
     struct {
+        // We should not allow updating cursor content the same time renderer draws it.
+        // locking the mutex protecting the root window can cause waiting for the frame to be drawn which is unacceptable
         pthread_mutex_t lock; // initialized at X server side.
         uint32_t x, y, xhot, yhot, width, height;
         uint32_t bits[512*512]; // 1 megabyte should be enough for any cursor up to 512x512
+        // Signals to renderer to update cursor's texture or its coordinates
         volatile uint8_t updated, moved;
     } cursor;
 };

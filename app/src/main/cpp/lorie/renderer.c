@@ -122,7 +122,7 @@ static jmethodID Surface_release = NULL;
 static jmethodID Surface_destroy = NULL;
 
 static JNIEnv* renderEnv = NULL;
-static volatile bool bufferChanged = false, windowChanged = false;
+static volatile bool stateChanged = false, bufferChanged = false, windowChanged = false;
 static volatile LorieBuffer* pendingBuffer = NULL;
 #if RENDERER_IN_ACTIVITY
 static volatile ANativeWindow* pendingWin = NULL;
@@ -483,7 +483,7 @@ void renderer_refresh_context(JNIEnv* env) {
     if (!win) {
         eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         if (state)
-            state->contextAvailable = false;
+            state->surfaceAvailable = false;
         return;
     }
 
@@ -493,13 +493,15 @@ void renderer_refresh_context(JNIEnv* env) {
 
     if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE) {
         if (state)
-            state->contextAvailable = false;
+            state->surfaceAvailable = false;
         return vprintEglError("eglMakeCurrent failed", __LINE__);
     }
 
+    eglSwapInterval(egl_display, 0);
+
     if (state)
         // We should redraw image at least once right after surface change
-        state->contextAvailable = state->drawRequested = state->cursor.updated = true;
+        state->surfaceAvailable = state->drawRequested = state->cursor.updated = true;
 
     if (!g_texture_program) {
         g_texture_program = create_program(vertex_shader, fragment_shader);
@@ -568,7 +570,7 @@ static void renderer_renew_image(void) {
     if (eglGetCurrentContext() != EGL_NO_CONTEXT) {
         if (state)
             // We should redraw image at least once right after buffer change
-            state->contextAvailable = state->drawRequested = state->cursor.updated = true;
+            state->surfaceAvailable = state->drawRequested = state->cursor.updated = true;
 
         bindLinearTexture(display.id);
         if (image)
@@ -589,8 +591,6 @@ static void renderer_renew_image(void) {
 int renderer_redraw_locked(JNIEnv* env) {
     int err = EGL_SUCCESS;
 
-    glFinish();
-
     // We should signal X server to not use root window or change cursor while we actively use them
     lorie_mutex_lock(&state->lock);
     // Non-null display.desc.data means we have root window created in legacy drawing mode so we should update it on each frame.
@@ -603,9 +603,6 @@ int renderer_redraw_locked(JNIEnv* env) {
     // Not a mistake, we reset drawRequested flag even in the case if there is no legacy drawing.
     state->drawRequested = FALSE;
     draw(display.id,  -1.f, -1.f, 1.f, 1.f, display.desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM);
-
-    glFinish();
-    lorie_mutex_unlock(&state->lock);
 
     if (state->cursor.updated) {
         log("Xlorie: updating cursor\n");
@@ -628,9 +625,13 @@ int renderer_redraw_locked(JNIEnv* env) {
 #else
             renderer_set_window(env, NULL);
 #endif
+            lorie_mutex_unlock(&state->lock);
             return FALSE;
         }
     }
+    lorie_mutex_unlock(&state->lock);
+
+    state->waitForNextFrame = true;
 
     state->renderedFrames++;
     return TRUE;
@@ -641,7 +642,7 @@ static inline __always_inline bool renderer_should_wait(void) {
         // If there are pending changes we should process them immediately.
         return false;
 
-    if (!state || !state->contextAvailable)
+    if (!state || !state->surfaceAvailable || state->waitForNextFrame)
         // Even in the case if there are pending changes, we can not draw it without rendering surface
         return true;
 
@@ -669,7 +670,7 @@ __noreturn static void* renderer_thread(void* closure) {
         if (bufferChanged)
             renderer_renew_image();
 
-        if (state && state->contextAvailable && (state->drawRequested || state->cursor.moved || state->cursor.updated))
+        if (state && state->surfaceAvailable && !state->waitForNextFrame && (state->drawRequested || state->cursor.moved || state->cursor.updated))
             renderer_redraw_locked(env);
     }
     pthread_mutex_unlock(&stateLock);

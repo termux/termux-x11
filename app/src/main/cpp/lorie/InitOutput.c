@@ -442,7 +442,7 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
 
     pvfb->state->waitForNextFrame = false;
 
-    if (!lorieConnectionAlive() || !pvfb->state->contextAvailable)
+    if (!lorieConnectionAlive() || !pvfb->state->surfaceAvailable)
         return TRUE;
 
     nonEmpty = RegionNotEmpty(DamageRegion(pvfb->damage));

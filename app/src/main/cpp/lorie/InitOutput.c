@@ -220,6 +220,8 @@ static void* ddxReadyThread(unused void* cookie) {
 }
 
 void ddxReady(void) {
+    CursorVisible = TRUE;
+    pScreenPtr->DisplayCursor(lorieMouse, pScreenPtr, rootCursor);
     if (!xstartup || !strlen(xstartup))
         xstartup = getenv("TERMUX_X11_XSTARTUP");
     if (!xstartup || !strlen(xstartup))
@@ -307,13 +309,6 @@ static RRModePtr lorieCvt(int width, int height, int framerate) {
     return mode;
 }
 
-static Bool resetRootCursor(unused ClientPtr pClient, unused void *closure) {
-    CursorVisible = TRUE;
-    pScreenPtr->DisplayCursor(lorieMouse, pScreenPtr, NullCursor);
-    pScreenPtr->DisplayCursor(lorieMouse, pScreenPtr, rootCursor);
-    return TRUE;
-}
-
 static void lorieMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
     pvfb->state->cursor.x = x;
     pvfb->state->cursor.y = y;
@@ -352,11 +347,9 @@ static void lorieConvertCursor(CursorPtr pCurs, uint32_t *data) {
 
 static void lorieSetCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, CursorPtr pCurs, int x0, int y0) {
     CursorBitsPtr bits = pCurs ? pCurs->bits : NULL;
-    if (pCurs && (pCurs->bits->width >= 512 || pCurs->bits->height >= 512)) {
+    if (pCurs && (pCurs->bits->width >= 512 || pCurs->bits->height >= 512))
         // We do not have enough memory allocated for such a big cursor, let's display default "X" cursor
-        QueueWorkProc(resetRootCursor, NULL, NULL);
-        return;
-    }
+        pCurs = rootCursor;
 
     lorie_mutex_lock(&pvfb->state->cursor.lock);
     if (pCurs && bits) {
@@ -625,7 +618,6 @@ static Bool lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **ar
     wrap(pvfb, pScreen, CloseScreen, lorieCloseScreen)
     wrap(pvfb, pScreen, CreateGC, lorieCreateGC)
 
-    QueueWorkProc(resetRootCursor, NULL, NULL);
     ShmRegisterFbFuncs(pScreen);
     miSyncShmScreenInit(pScreen);
 

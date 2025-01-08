@@ -250,7 +250,7 @@ __LIBC_HIDDEN__ void LorieBuffer_sendHandleToUnixSocket(LorieBuffer* _Nonnull bu
 __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuffer** outBuffer) {
     LorieBuffer buffer = {0}, *ret = NULL;
     // We should read buffer from socket despite outbuffer is NULL, otherwise we will get protocol error
-    if (socketFd < 0)
+    if (socketFd < 0 || !outBuffer)
         return;
 
     // Reset process-specific data;
@@ -261,9 +261,21 @@ __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuf
     __sync_fetch_and_add(&buffer.refcount, 1); // refcount is the first object in the struct
 
     read(socketFd, &buffer, sizeof(buffer));
-    if (buffer.desc.type == LORIEBUFFER_REGULAR)
+    if (buffer.desc.type == LORIEBUFFER_REGULAR) {
+        size_t size = alignToPage(buffer.desc.width * buffer.desc.height * sizeof(uint32_t));
         buffer.fd = ancil_recv_fd(socketFd);
-    else if (buffer.desc.type == LORIEBUFFER_AHARDWAREBUFFER)
+        if (buffer.fd == -1) {
+            *outBuffer = NULL;
+            return;
+        }
+
+        buffer.desc.data = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, buffer.fd, 0);
+        if (buffer.desc.data == NULL || buffer.desc.data == MAP_FAILED) {
+            close(buffer.fd);
+            *outBuffer = NULL;
+            return;
+        }
+    } else if (buffer.desc.type == LORIEBUFFER_AHARDWAREBUFFER)
         AHardwareBuffer_recvHandleFromUnixSocket(socketFd, &buffer.desc.buffer);
 
 #pragma clang diagnostic push

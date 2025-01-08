@@ -100,6 +100,7 @@ static void requestConnection(__unused JNIEnv *env, __unused jclass clazz) {
 #undef errorReturn
 }
 
+static void connect_(__unused JNIEnv* env, __unused jobject cls, jint fd);
 static void nativeInit(JNIEnv *env, jobject thiz) {
     JavaVM* vm;
     if (!Charset.self) {
@@ -119,6 +120,7 @@ static void nativeInit(JNIEnv *env, jobject thiz) {
     (*env)->GetJavaVM(env, &vm);
     (*vm)->AttachCurrentThread(vm, &guienv, NULL);
     globalThiz = (*guienv)->NewGlobalRef(env, thiz);
+    connect_(NULL, NULL, -1);
 }
 
 static int xcallback(int fd, int events, __unused void* data) {

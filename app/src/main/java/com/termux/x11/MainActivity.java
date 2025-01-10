@@ -177,7 +177,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             return result;
         };
 
-        lorieParent.setOnTouchListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));
+        lorieParent.setOnTouchListener((v, e) -> {
+            // Avoid batched MotionEvent objects and reduce potential latency.
+            // For reference: https://developer.android.com/develop/ui/views/touch-and-input/stylus-input/advanced-stylus-features#rendering.
+            if (e.getAction() == MotionEvent.ACTION_DOWN)
+                lorieParent.requestUnbufferedDispatch(e);
+
+            return mInputHandler.handleTouchEvent(lorieParent, lorieView, e);
+        });
         lorieParent.setOnHoverListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));
         lorieParent.setOnGenericMotionListener((v, e) -> mInputHandler.handleTouchEvent(lorieParent, lorieView, e));
         lorieView.setOnCapturedPointerListener((v, e) -> mInputHandler.handleTouchEvent(lorieView, lorieView, e));

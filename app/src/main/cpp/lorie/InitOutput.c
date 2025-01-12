@@ -288,7 +288,6 @@ int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
 }
 
 LoriePixmapPriv* lorieRootWindowPixmapPriv(void) {
-    LorieBuffer *r = NULL;
     void* devPriv = pScreenPtr ? pScreenPtr->devPrivate : NULL;
     return devPriv ? exaGetPixmapDriverPrivate(devPriv) : NULL;
 }
@@ -749,9 +748,9 @@ void lorieSetVM(JavaVM* vm) {
     (*vm)->AttachCurrentThread(vm, &pvfb->env, NULL);
 }
 
-void exaDDXDriverInit(ScreenPtr pScreen) {}
+void exaDDXDriverInit(__unused ScreenPtr pScreen) {}
 
-void *lorieCreatePixmap(ScreenPtr pScreen, int width, int height, int depth, int usage_hint, int bpp, int *new_fb_pitch) {
+void *lorieCreatePixmap(__unused ScreenPtr pScreen, int width, int height, __unused int depth, int usage_hint, int bpp, int *new_fb_pitch) {
     LoriePixmapPriv *priv;
     size_t size = sizeof(LoriePixmapPriv);
     *new_fb_pitch = ((width * bpp + FB_MASK) >> FB_SHIFT) * sizeof(FbBits);
@@ -768,7 +767,7 @@ void *lorieCreatePixmap(ScreenPtr pScreen, int width, int height, int depth, int
 
     uint8_t type = pvfb->root.legacyDrawing ? LORIEBUFFER_REGULAR : LORIEBUFFER_AHARDWAREBUFFER;
     uint8_t format = pvfb->root.flip ? AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM : AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
-    priv->buffer = LorieBuffer_allocate(width, height, format, LORIEBUFFER_AHARDWAREBUFFER);
+    priv->buffer = LorieBuffer_allocate(width, height, format, type);
     LorieBuffer_Desc d = {0};
     LorieBuffer_describe(priv->buffer, &d);
     *new_fb_pitch = d.stride * 4;
@@ -782,7 +781,7 @@ void *lorieCreatePixmap(ScreenPtr pScreen, int width, int height, int depth, int
     return priv;
 }
 
-void lorieExaDestroyPixmap(ScreenPtr pScreen, void *driverPriv) {
+void lorieExaDestroyPixmap(__unused ScreenPtr pScreen, void *driverPriv) {
     LoriePixmapPriv *priv = driverPriv;
     if (priv->buffer) {
         LorieBuffer_unlock(priv->buffer);
@@ -793,7 +792,7 @@ void lorieExaDestroyPixmap(ScreenPtr pScreen, void *driverPriv) {
     free(priv);
 }
 
-Bool lorieModifyPixmapHeader(PixmapPtr pPix, int w, int h, int depth, int bitsPerbppPixel, int devKind, void *data) {
+Bool lorieModifyPixmapHeader(PixmapPtr pPix, __unused int w, __unused int h, __unused int depth, __unused int bitsPerbppPixel, __unused int devKind, __unused void *data) {
     LoriePixmapPriv *priv = exaGetPixmapDriverPrivate(pPix);
     if (priv)
         priv->mem = data;
@@ -834,7 +833,7 @@ static ExaDriverRec lorieExa = {
 
 static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *fds, CARD16 width, CARD16 height,
                                     const CARD32 *strides, const CARD32 *offsets, CARD8 depth, __unused CARD8 bpp, CARD64 modifier) {
-#define fail(msg, ...) do { log(ERROR, msg, ##__VA_ARGS__); goto fail; } while(0);
+#define fail(msg, ...) do { log(ERROR, msg, ##__VA_ARGS__); goto fail; } while(0)
 #define check(cond, msg, ...) if ((cond)) fail(msg, ##__VA_ARGS__)
     const CARD64 AHARDWAREBUFFER_SOCKET_FD = 1255;
     const CARD64 AHARDWAREBUFFER_FLIPPED_SOCKET_FD = 1256;

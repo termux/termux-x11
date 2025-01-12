@@ -14,6 +14,8 @@ public class Loader {
      * @param args The command-line arguments
      */
     public static void main(String[] args) {
+        String cls = System.getenv("TERMUX_X11_LOADER_OVERRIDE_CMDENTRYPOINT_CLASS");
+        cls = cls != null ? cls : BuildConfig.CLASS_ID;
         try {
             android.content.pm.PackageInfo targetInfo = (android.os.Build.VERSION.SDK_INT <= 32) ?
                     android.app.ActivityThread.getPackageManager().getPackageInfo(BuildConfig.APPLICATION_ID, android.content.pm.PackageManager.GET_SIGNATURES, 0) :
@@ -22,7 +24,7 @@ public class Loader {
             assert targetInfo.signatures.length == 1 && BuildConfig.SIGNATURE == targetInfo.signatures[0].hashCode() : BuildConfig.packageSignatureMismatchErrorText;
 
             android.util.Log.i(BuildConfig.logTag, "loading " + targetInfo.applicationInfo.sourceDir + "::" + BuildConfig.CLASS_ID + "::main of " + BuildConfig.APPLICATION_ID + " application (commit " + BuildConfig.COMMIT + ")");
-            Class<?> targetClass = Class.forName(BuildConfig.CLASS_ID, true,
+            Class<?> targetClass = Class.forName(cls, true,
                     new dalvik.system.PathClassLoader(targetInfo.applicationInfo.sourceDir, null, ClassLoader.getSystemClassLoader()));
             targetClass.getMethod("main", String[].class).invoke(null, (Object) args);
         } catch (AssertionError e) {

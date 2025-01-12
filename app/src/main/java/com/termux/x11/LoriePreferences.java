@@ -5,6 +5,7 @@ import static android.Manifest.permission.WRITE_SECURE_SETTINGS;
 import static android.content.pm.PackageManager.PERMISSION_DENIED;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.os.Build.VERSION.SDK_INT;
+import static android.system.Os.getuid;
 
 import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
@@ -22,6 +23,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 
+import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -31,6 +33,7 @@ import androidx.preference.Preference;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.RemoteException;
 import android.preference.PreferenceManager;
 
 import androidx.annotation.Nullable;
@@ -68,6 +71,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Scanner;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.PatternSyntaxException;
@@ -493,8 +497,12 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
         @SuppressLint("ApplySharedPref")
         @Override
         public void onReceive(Context context, Intent intent) {
+            Bundle bundle = intent != null ? intent.getBundleExtra(null) : null;
+            IBinder ibinder = bundle != null ? bundle.getBinder(null) : null;
+            IRemoteCmdImterface remote = ibinder != null ? IRemoteCmdImterface.Stub.asInterface(ibinder) : null;
+
             try {
-                if (intent.getExtras() != null) {
+                if (intent != null && intent.getExtras() != null) {
                     Prefs p = (MainActivity.getInstance() != null) ? new Prefs(MainActivity.getInstance()) : (prefs != null ? prefs : new Prefs(context));
                     if (intent.getStringExtra("list") != null) {
                         String result = "";
@@ -516,14 +524,14 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                             }
                         }
 
-                        setResultCode(2);
-                        setResultData(result);
-
+                        sendResponse(remote, 0, 2, result.substring(0, result.length() - 1));
                         return;
                     }
 
                     SharedPreferences.Editor edit = p.get().edit();
                     for (String key : intent.getExtras().keySet()) {
+                        if (key == null)
+                            continue;
                         String newValue = intent.getStringExtra(key);
                         if (newValue == null)
                             continue;
@@ -535,8 +543,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                                     Integer.parseInt(resolution[0]);
                                     Integer.parseInt(resolution[1]);
                                 } catch (NumberFormatException | PatternSyntaxException ignored) {
-                                    setResultCode(1);
-                                    setResultData("displayResolutionCustom: Wrong resolution format.");
+                                    sendResponse(remote, 1, 1, "displayResolutionCustom: Wrong resolution format.");
                                     return;
                                 }
 
@@ -547,8 +554,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                                 if (!"true".equals(newValue))
                                     KeyInterceptor.shutdown(false);
                                 else if (context.checkSelfPermission(WRITE_SECURE_SETTINGS) != PERMISSION_GRANTED) {
-                                    setResultCode(1);
-                                    setResultData("Permission denied.\n" +
+                                    sendResponse(remote, 1, 1, "Permission denied.\n" +
                                             "Android requires WRITE_SECURE_SETTINGS permission to change `enableAccessibilityServiceAutomatically` setting.\n" +
                                             "Please, launch this command using ADB:\n" +
                                             "adb shell pm grant com.termux.x11 android.permission.WRITE_SECURE_SETTINGS");
@@ -572,8 +578,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                                     try {
                                         edit.putInt(key, Integer.parseInt(newValue));
                                     } catch (NumberFormatException | PatternSyntaxException exception) {
-                                        setResultCode(4);
-                                        setResultData(key + ": failed to parse integer: " + exception);
+                                        sendResponse(remote, 1, 4, key + ": failed to parse integer: " + exception);
                                         return;
                                     }
                                 } else if (pref != null && pref.type == String[].class) {
@@ -590,12 +595,10 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                                         break;
                                     }
 
-                                    setResultCode(1);
-                                    setResultData(key + ": can not be set to \"" + newValue + "\", possible options are " + Arrays.toString(entries) + (_p.entries != _p.values ? " or " + Arrays.toString(values) : ""));
+                                    sendResponse(remote, 1, 1, key + ": can not be set to \"" + newValue + "\", possible options are " + Arrays.toString(entries) + (_p.entries != _p.values ? " or " + Arrays.toString(values) : ""));
                                     return;
                                 } else {
-                                    setResultCode(4);
-                                    setResultData(key + ": unrecognised option");
+                                    sendResponse(remote, 1, 4, key + ": unrecognised option");
                                     return;
                                 }
                             }
@@ -610,19 +613,88 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                     edit.commit();
                 }
 
-                setResultCode(2);
-                setResultData("Done");
+                sendResponse(remote, 0, 2, "Done");
             } catch (Exception e) {
-                setResultCode(4);
                 StringWriter sw = new StringWriter();
                 PrintWriter pw = new PrintWriter(sw);
-                e.printStackTrace(pw);
-                setResultData(sw.toString());
+                sendResponse(remote, 1, 4, sw.toString());
             }
+        }
+
+        void sendResponse(IRemoteCmdImterface remote, int status, int oldStatus, String text) {
+            if (remote != null) {
+                try {
+                    remote.exit(status, text);
+                } catch (RemoteException ex) {
+                    Log.e("LoriePreferences", "Failed to send response to commandline proxy", ex);
+                }
+            } else if (isOrderedBroadcast()) {
+                setResultCode(oldStatus);
+                setResultData(text);
+            }
+        }
+
+        // For changing preferences from commandline
+        private static final IBinder iface = new IRemoteCmdImterface.Stub() {
+            @Override
+            public void exit(int code, String output) {
+                System.out.println(output);
+                CmdEntryPoint.handler.post(() -> System.exit(code));
+            }
+        };
+
+        private static void help() {
+            System.err.print("termux-x11-preference [list] {key:value} [{key2:value2}]...");
+            System.exit(0);
+        }
+
+        @Keep
+        @SuppressLint("WrongConstant")
+        public static void main(String[] args) {
+            android.util.Log.i("LoriePreferences$Receiver", "commit " + BuildConfig.COMMIT);
+            Bundle bundle = new Bundle();
+            bundle.putBinder(null, iface);
+
+            Intent i = new Intent("com.termux.x11.CHANGE_PREFERENCE");
+            i.setPackage("com.termux.x11");
+            i.putExtra(null, bundle);
+            if (getuid() == 0 || getuid() == 2000)
+                i.setFlags(0x00400000 /* FLAG_RECEIVER_FROM_SHELL */);
+
+            if (System.console() == null && System.in != null) {
+                Scanner scanner = new Scanner(System.in);
+                String line;
+                String[] v;
+                while (scanner.hasNextLine()) {
+                    line = scanner.nextLine();
+                    if (!line.contains("="))
+                        help();
+
+                    v = line.split("=");
+                    i.putExtra(v[0], v[1]);
+                }
+            }
+
+            for (String a: args) {
+                if ("list".equals(a)) {
+                    i.putExtra("list", "");
+                } else if (a != null && a.contains(":")) {
+                    String[] v = a.split(":");
+                    i.putExtra(v[0], v[1]);
+                } else
+                    help();
+            }
+
+            CmdEntryPoint.handler.post(() -> CmdEntryPoint.sendBroadcast(i));
+            CmdEntryPoint.handler.postDelayed(() -> {
+                System.err.println("Failed to obtain response from app.");
+                System.exit(1);
+            }, 5000);
+            Looper.loop();
         }
     }
 
-    static Handler handler = new Handler(Looper.getMainLooper());
+    static Handler handler = Looper.getMainLooper() != null ? new Handler(Looper.getMainLooper()) : null;
 
     public void onClick(View view) {
         showFragment(new LoriePreferenceFragment("ekbar"));

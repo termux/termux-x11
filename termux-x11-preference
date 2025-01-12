@@ -1,4 +1,11 @@
 #!/data/data/com.termux/files/usr/bin/bash
+if [ "$(getprop ro.build.version.sdk)" -ge "34" ]; then
+  unset LD_LIBRARY_PATH LD_PRELOAD
+  export CLASSPATH=/data/data/com.termux/files/usr/libexec/termux-x11/loader.apk
+  export TERMUX_X11_LOADER_OVERRIDE_CMDENTRYPOINT_CLASS=com.termux.x11.LoriePreferences\$Receiver
+  exec /system/bin/app_process -Xnoimage-dex2oat / com.termux.x11.Loader "$@"
+fi
+
 COMMAND=("am" "broadcast" "-a" "com.termux.x11.CHANGE_PREFERENCE" "-p" "com.termux.x11")
 help() {
   echo "$0 [list] {key:value} [{key2:value2}]..."

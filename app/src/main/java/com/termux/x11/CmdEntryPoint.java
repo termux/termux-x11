@@ -10,6 +10,7 @@ import android.content.Context;
 import android.content.IIntentReceiver;
 import android.content.IIntentSender;
 import android.content.Intent;
+import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -29,8 +30,9 @@ import java.net.URL;
 @Keep @SuppressLint({"StaticFieldLeak", "UnsafeDynamicallyLoadedCode"})
 public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static final String ACTION_START = "com.termux.x11.CmdEntryPoint.ACTION_START";
-    private static final Handler handler;
+    static final Handler handler;
     public static Context ctx;
+    private final Intent intent = createIntent();
 
     /**
      * Command-line entry point.
@@ -52,7 +54,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     }
 
     @SuppressLint({"WrongConstant", "PrivateApi"})
-    void sendBroadcast() {
+    private Intent createIntent() {
         String targetPackage = getenv("TERMUX_X11_OVERRIDE_PACKAGE");
         if (targetPackage == null)
             targetPackage = "com.termux.x11";
@@ -68,6 +70,10 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         if (getuid() == 0 || getuid() == 2000)
             intent.setFlags(0x00400000 /* FLAG_RECEIVER_FROM_SHELL */);
 
+        return intent;
+    }
+
+    static void sendBroadcast(Intent intent) {
         try {
             ctx.sendBroadcast(intent);
         } catch (Exception e) {
@@ -118,7 +124,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     // In this case opened port works like a lock file.
     private void sendBroadcastDelayed() {
         if (!connected())
-            sendBroadcast();
+            sendBroadcast(intent);
 
         handler.postDelayed(this::sendBroadcastDelayed, 1000);
     }

@@ -55,7 +55,8 @@ set(inc "${CMAKE_CURRENT_BINARY_DIR}"
         "xserver/randr"
         "xserver/render"
         "xserver/xfixes"
-        "xserver/glx")
+        "xserver/glx"
+        "xserver/exa")
 
 set(compile_options
         ${common_compile_options}
@@ -247,6 +248,14 @@ add_library(xserver_glx STATIC ${GLX_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/xserv
 target_include_directories(xserver_glx PRIVATE ${inc})
 target_compile_options(xserver_glx PRIVATE ${compile_options})
 
+set(EXA_SOURCES
+        exa.c exa_classic.c exa_migration_classic.c exa_driver.c exa_mixed.c exa_migration_mixed.c
+        exa_accel.c exa_glyphs.c exa_offscreen.c exa_render.c exa_unaccel.c)
+list(TRANSFORM EXA_SOURCES PREPEND "xserver/exa/")
+add_library(xserver_exa STATIC ${EXA_SOURCES})
+target_include_directories(xserver_exa PRIVATE ${inc})
+target_compile_options(xserver_exa PRIVATE ${compile_options})
+
 set(GLXVND_SOURCES
         vndcmds.c vndext.c vndservermapping.c vndservervendor.c)
 list(TRANSFORM GLXVND_SOURCES PREPEND "xserver/glx/")
@@ -256,7 +265,7 @@ target_compile_options(xserver_glxvnd PRIVATE ${compile_options})
 
 set(XSERVER_LIBS tirpc Xdmcp Xau pixman Xfont2 fontenc GLESv2 xshmfence xkbcomp)
 foreach (part glx glxvnd fb mi dix composite damageext dbe randr miext_damage render present xext
-         dri3 miext_sync xfixes xi xkb record xi_stubs xkb_stubs os)
+         dri3 miext_sync xfixes xi xkb record xi_stubs xkb_stubs os exa)
     set(XSERVER_LIBS ${XSERVER_LIBS} xserver_${part})
 endforeach ()
 
@@ -267,7 +276,6 @@ add_library(Xlorie SHARED
         "lorie/shm/shmem.c"
         "lorie/cmdentrypoint.c"
         "lorie/clipboard.c"
-        "lorie/dri3.c"
         "lorie/InitOutput.c"
         "lorie/InitInput.c"
         "lorie/InputXKB.c"

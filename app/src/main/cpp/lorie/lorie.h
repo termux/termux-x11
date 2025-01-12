@@ -11,6 +11,7 @@
 #include <X11/keysymdef.h>
 #include <jni.h>
 #include <screenint.h>
+#include <errno.h>
 #include <sys/socket.h>
 #include "linux/input-event-codes.h"
 #include "buffer.h"
@@ -47,7 +48,7 @@ __unused void renderer_set_window(JNIEnv* env, jobject surface);
 #endif
 __unused void renderer_set_shared_state(struct lorie_shared_server_state* state);
 
-static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex) {
+static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_t* lockingPid) {
     // Unfortunately there is no robust mutexes in bionic.
     // Posix does not define any valid way to unlock stuck non-robust mutex
     // so in the case if renderer or X server process unexpectedly die with locked mutex
@@ -64,7 +65,11 @@ static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex) {
             ts.tv_nsec  = ts.tv_nsec % 1000000000L;
         }
 
-        if (pthread_mutex_timedlock(mutex, &ts) == ETIMEDOUT && !lorieConnectionAlive()) {
+        int ret = pthread_mutex_timedlock(mutex, &ts);
+        if (ret == ETIMEDOUT) {
+            if (*lockingPid == getpid() || lorieConnectionAlive())
+                continue;
+
             pthread_mutexattr_t attr;
             pthread_mutex_t initializer = PTHREAD_MUTEX_INITIALIZER;
             pthread_mutexattr_init(&attr);
@@ -73,11 +78,15 @@ static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex) {
             memcpy(mutex, &initializer, sizeof(initializer));
             pthread_mutex_init(mutex, &attr);
             // Mutex will be locked fine on the next iteration
-        } else return;
+        } else {
+            *lockingPid = getpid();
+            return;
+        }
     }
 }
 
-static inline __always_inline void lorie_mutex_unlock(pthread_mutex_t* mutex) {
+static inline __always_inline void lorie_mutex_unlock(pthread_mutex_t* mutex, pid_t* lockingPid) {
+    *lockingPid = 0;
     pthread_mutex_unlock(mutex);
 }
 
@@ -153,6 +162,7 @@ struct lorie_shared_server_state {
      * tearing, texture garbling and other visual artifacts so we should block X server while we are drawing.
      */
     pthread_mutex_t lock; // initialized at X server side.
+    pid_t lockingPid;
 
     /*
      * Renderer thread sleeps when it is idle so we must explicitly wake it up.
@@ -188,6 +198,7 @@ struct lorie_shared_server_state {
         // We should not allow updating cursor content the same time renderer draws it.
         // locking the mutex protecting the root window can cause waiting for the frame to be drawn which is unacceptable
         pthread_mutex_t lock; // initialized at X server side.
+        pid_t lockingPid;
         uint32_t x, y, xhot, yhot, width, height;
         uint32_t bits[512*512]; // 1 megabyte should be enough for any cursor up to 512x512
         // Signals to renderer to update cursor's texture or its coordinates

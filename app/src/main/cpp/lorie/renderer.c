@@ -553,8 +553,11 @@ void renderer_refresh_context(JNIEnv* env) {
             int format = display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA;
             // The image will be updated in redraw call because of `drawRequested` flag, so we are not uploading pixels
             glTexImage2D(GL_TEXTURE_2D, 0, format, display.desc.width, display.desc.height, 0, format, GL_UNSIGNED_BYTE, NULL);
-        } else
+        } else {
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &emptyData);
+            glClearColor(0, 0, 0, 0);
+            glClear(GL_COLOR_BUFFER_BIT);
+        }
     }
 }
 
@@ -595,17 +598,20 @@ static void renderer_renew_image(void) {
         } else {
             loge("There is no %s, nothing to be bound.", !buffer ? "AHardwareBuffer" : "EGLImage");
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &emptyData);
+            glClearColor(0, 0, 0, 0);
+            glClear(GL_COLOR_BUFFER_BIT);
         }
     }
 
     log("renderer: buffer changed %p %d %d", buffer, display.desc.width, display.desc.height);
 }
 
-int renderer_redraw_locked(JNIEnv* env) {
+void renderer_redraw_locked(JNIEnv* env) {
+    EGLSync fence;
     int err = EGL_SUCCESS;
 
-    // We should signal X server to not use root window or change cursor while we actively use them
-    lorie_mutex_lock(&state->lock);
+    // We should signal X server to not use root window while we actively copy use it
+    lorie_mutex_lock(&state->lock, &state->lockingPid);
     // Non-null display.desc.data means we have root window created in legacy drawing mode so we should update it on each frame.
     if (display.desc.data && state->drawRequested) {
         state->drawRequested = FALSE;
@@ -616,18 +622,28 @@ int renderer_redraw_locked(JNIEnv* env) {
     // Not a mistake, we reset drawRequested flag even in the case if there is no legacy drawing.
     state->drawRequested = FALSE;
     draw(display.id,  -1.f, -1.f, 1.f, 1.f, display.desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM);
+    fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, NULL);
+    glFlush();
 
     if (state->cursor.updated) {
         log("Xlorie: updating cursor\n");
-        lorie_mutex_lock(&state->cursor.lock);
+        lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid);
         state->cursor.updated = false;
         bindLinearTexture(cursor.id);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
-        lorie_mutex_unlock(&state->cursor.lock);
+        lorie_mutex_unlock(&state->cursor.lock, &state->cursor.lockingPid);
     }
 
     state->cursor.moved = FALSE;
     draw_cursor();
+    glFlush();
+
+    // Wait until root window drawing is finished before giving control back to X server
+    eglClientWaitSyncKHR(egl_display, fence, 0, EGL_FOREVER);
+    eglDestroySyncKHR(egl_display, fence);
+    state->waitForNextFrame = true;
+    lorie_mutex_unlock(&state->lock, &state->lockingPid);
+
     if (eglSwapBuffers(egl_display, sfc) != EGL_TRUE) {
         printEglError("Failed to swap buffers", __LINE__);
         err = eglGetError();
@@ -638,16 +654,20 @@ int renderer_redraw_locked(JNIEnv* env) {
 #else
             renderer_set_window(env, NULL);
 #endif
-            lorie_mutex_unlock(&state->lock);
-            return FALSE;
+            lorie_mutex_unlock(&state->lock, &state->lockingPid);
         }
     }
-    lorie_mutex_unlock(&state->lock);
 
-    state->waitForNextFrame = true;
+    // Perform a little drawing operation to make sure the next buffer is ready on the next invocation of drawing
+    glViewport(0, 0, 1, 1);
+    glClearColor(0, 0, 0, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win));
+    fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, NULL);
+    eglClientWaitSyncKHR(egl_display, fence, 0, EGL_FOREVER);
+    eglDestroySyncKHR(egl_display, fence);
 
     state->renderedFrames++;
-    return TRUE;
 }
 
 static inline __always_inline bool renderer_should_wait(void) {
@@ -671,12 +691,17 @@ __noreturn static void* renderer_thread(void* closure) {
     JavaVM* vm = closure;
     JNIEnv* env;
     (*vm)->AttachCurrentThread(vm, &env, NULL);
+    pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_init(&m, NULL);
+    // Mutex is needed only for pthread_cond_wait, it is needed only to make thread sleep when it is idle.
+    // We check for all event that may change in between so we should not miss any events.
+    pthread_mutex_lock(&m);
 
-    pthread_mutex_lock(&stateLock);
     while (true) {
         while (renderer_should_wait())
-            pthread_cond_wait(state ? &state->cond : &stateCond, &stateLock);
+            pthread_cond_wait(state ? &state->cond : &stateCond, &m);
 
+        pthread_mutex_lock(&stateLock);
         if (stateChanged) {
             if (state && pendingState != state)
                 munmap(state, sizeof(*state));
@@ -691,11 +716,11 @@ __noreturn static void* renderer_thread(void* closure) {
 
         if (bufferChanged)
             renderer_renew_image();
+        pthread_mutex_unlock(&stateLock);
 
         if (state && state->surfaceAvailable && !state->waitForNextFrame && (state->drawRequested || state->cursor.moved || state->cursor.updated))
             renderer_redraw_locked(env);
     }
-    pthread_mutex_unlock(&stateLock);
 }
 
 static GLuint load_shader(GLenum shaderType, const char* pSource) {

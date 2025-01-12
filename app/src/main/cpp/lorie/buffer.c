@@ -155,6 +155,7 @@ __LIBC_HIDDEN__ int LorieBuffer_lock(LorieBuffer* buffer, AHardwareBuffer_Desc* 
 
     if (buffer->locked) {
         dprintf(2, "tried to lock already locked buffer\n");
+        *out = buffer->lockedData;
         return EEXIST;
     }
 

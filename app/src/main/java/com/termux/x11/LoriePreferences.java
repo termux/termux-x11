@@ -33,6 +33,7 @@ import androidx.preference.Preference;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.preference.PreferenceManager;
 
@@ -616,9 +617,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
                 sendResponse(remote, 0, 2, "Done");
             } catch (Exception e) {
-                StringWriter sw = new StringWriter();
-                PrintWriter pw = new PrintWriter(sw);
-                sendResponse(remote, 1, 4, sw.toString());
+                sendResponse(remote, 1, 4, e.toString());
             }
         }
 
@@ -653,16 +652,20 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
         @SuppressLint("WrongConstant")
         public static void main(String[] args) {
             android.util.Log.i("LoriePreferences$Receiver", "commit " + BuildConfig.COMMIT);
-            Bundle bundle = new Bundle();
-            bundle.putBinder(null, iface);
-
+            //noinspection resource
+            ParcelFileDescriptor in = ParcelFileDescriptor.adoptFd(0);
             Intent i = new Intent("com.termux.x11.CHANGE_PREFERENCE");
+            Bundle bundle = new Bundle();
+            boolean inputIsFile = !android.system.Os.isatty(in.getFileDescriptor());
+
+            in.detachFd();
+            bundle.putBinder(null, iface);
             i.setPackage("com.termux.x11");
             i.putExtra(null, bundle);
             if (getuid() == 0 || getuid() == 2000)
                 i.setFlags(0x00400000 /* FLAG_RECEIVER_FROM_SHELL */);
 
-            if (System.console() == null && System.in != null) {
+            if (inputIsFile && System.in != null) {
                 Scanner scanner = new Scanner(System.in);
                 String line;
                 String[] v;
@@ -672,6 +675,10 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                         help();
 
                     v = line.split("=");
+                    if (v[0].startsWith("\"") && v[0].endsWith("\""))
+                        v[0] = v[0].substring(1, v[0].length() - 1);
+                    if (v[1].startsWith("\"") && v[1].endsWith("\""))
+                        v[1] = v[1].substring(1, v[1].length() - 1);
                     i.putExtra(v[0], v[1]);
                 }
             }

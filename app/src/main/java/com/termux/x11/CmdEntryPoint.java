@@ -73,6 +73,10 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         return intent;
     }
 
+    private void sendBroadcast() {
+        sendBroadcast(intent);
+    }
+
     static void sendBroadcast(Intent intent) {
         try {
             ctx.sendBroadcast(intent);

@@ -109,6 +109,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="pref_notificationTapAction">Notification tap</string>
     <string name="pref_notificationButton0Action">Notification first button</string>
     <string name="pref_notificationButton1Action">Notification second button</string>
+    <string name="pref_mediaKeysAction">Media keys</string>
 
     <string name="pref_summary_requiresExactOrCustom">Requires "display resolution mode" to be "exact" or "custom"</string>
     <string name="pref_summary_requiresIntercepting">Requires intercepting system shortcuts with Dex mode or with Accessibility service</string>

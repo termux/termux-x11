@@ -72,5 +72,6 @@
         <ListPreference app:key="notificationTapAction" app:defaultValue="open preferences" app:entries="@array/userActionsValues" app:entryValues="@array/userActionsValues" />
         <ListPreference app:key="notificationButton0Action" app:defaultValue="open preferences" app:entries="@array/userActionsValues" app:entryValues="@array/userActionsValues" />
         <ListPreference app:key="notificationButton1Action" app:defaultValue="exit" app:entries="@array/userActionsValues" app:entryValues="@array/userActionsValues" />
+        <ListPreference app:key="mediaKeysAction" app:defaultValue="no action" app:entries="@array/userActionsMediaKeyValues" app:entryValues="@array/userActionsMediaKeyValues" />
     </PreferenceScreen>
 </PreferenceScreen>

@@ -293,6 +293,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
             setNoActionOptionText(findPreference("volumeDownAction"), "android volume control");
             setNoActionOptionText(findPreference("volumeUpAction"), "android volume control");
+            setNoActionOptionText(findPreference("mediaKeysAction"), "android media control");
         }
 
         private void setSummary(CharSequence key, int disabled) {

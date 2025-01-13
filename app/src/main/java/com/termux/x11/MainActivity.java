@@ -118,7 +118,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                     onPreferencesChanged("");
             } else if (ACTION_CUSTOM.equals(intent.getAction())) {
                 android.util.Log.d("ACTION_CUSTOM", "action " + intent.getStringExtra("what"));
-                mInputHandler.extractUserActionFromPreferences(prefs, intent.getStringExtra("what")).accept(true);
+                mInputHandler.extractUserActionFromPreferences(prefs, intent.getStringExtra("what")).accept(0, true);
             }
         }
     };

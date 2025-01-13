@@ -74,6 +74,10 @@
         <item>@array/userActionsValues</item>
         <item>send volume up</item>
     </string-array>
+    <string-array name="userActionsMediaKeyValues">
+        <item>@array/userActionsValues</item>
+        <item>send media action</item>
+    </string-array>
     <string-array name="forceOrientationVariants">
         <item>auto</item>
         <item>portrait</item>

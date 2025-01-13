@@ -43,7 +43,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * This class is responsible for handling Touch input from the user.  Touch events which manipulate
@@ -93,12 +93,10 @@ public class TouchInputHandler {
     private final MainActivity mActivity;
     private final DisplayMetrics mMetrics = new DisplayMetrics();
 
-    private final Consumer<Boolean> noAction = (down) -> {};
-    private Consumer<Boolean> swipeUpAction = noAction;
-    private Consumer<Boolean> swipeDownAction = noAction;
-    private Consumer<Boolean> volumeUpAction = noAction;
-    private Consumer<Boolean> volumeDownAction = noAction;
-    private Consumer<Boolean> backButtonAction = noAction;
+    private final BiConsumer<Integer, Boolean> noAction = (key, down) -> {};
+    private BiConsumer<Integer, Boolean> swipeUpAction = noAction, swipeDownAction = noAction,
+            volumeUpAction = noAction, volumeDownAction = noAction, backButtonAction = noAction,
+            mediaKeysAction = noAction;
 
     private static final int KEY_BACK = 158;
 
@@ -208,7 +206,6 @@ public class TouchInputHandler {
 
         refreshInputDevices();
         ((InputManager) mActivity.getSystemService(Context.INPUT_SERVICE)).registerInputDeviceListener(new InputManager.InputDeviceListener() {
-            /** @noinspection DataFlowIssue*/
             @Override
             public void onInputDeviceAdded(int deviceId) {
                 InputDevice dev = InputDevice.getDevice(deviceId);
@@ -223,7 +220,6 @@ public class TouchInputHandler {
                 refreshInputDevices();
             }
 
-            /** @noinspection DataFlowIssue*/
             @Override
             public void onInputDeviceChanged(int deviceId) {
                 InputDevice dev = InputDevice.getDevice(deviceId);
@@ -468,25 +464,27 @@ public class TouchInputHandler {
         volumeUpAction = extractUserActionFromPreferences(p, "volumeUp");
         volumeDownAction = extractUserActionFromPreferences(p, "volumeDown");
         backButtonAction = extractUserActionFromPreferences(p, "backButton");
+        mediaKeysAction = extractUserActionFromPreferences(p, "mediaKeys");
 
         if(mTouchpadHandler != null)
             mTouchpadHandler.reloadPreferences(p);
     }
 
-    public Consumer<Boolean> extractUserActionFromPreferences(Prefs p, String name) {
+    public BiConsumer<Integer, Boolean> extractUserActionFromPreferences(Prefs p, String name) {
         LoriePreferences.PrefsProto.Preference pref = p.keys.get(name + "Action");
         if (pref == null)
             return noAction;
 
         switch(pref.asList().get()) {
-            case "toggle soft keyboard": return (down) -> { if (down) MainActivity.toggleKeyboardVisibility(mActivity); };
-            case "toggle additional key bar": return (down) -> { if (down) mActivity.toggleExtraKeys(); };
-            case "open preferences": return (down) -> { if (down) mActivity.startActivity(new Intent(mActivity, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}); };
-            case "release pointer and keyboard capture": return (down) -> { if (down) setCapturingEnabled(false); };
-            case "toggle fullscreen": return (down) -> { if (down) MainActivity.prefs.fullscreen.put(!MainActivity.prefs.fullscreen.get()); };
-            case "exit": return (down) -> { if (down) mActivity.finish(); };
-            case "send volume up": return (down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_UP, down);
-            case "send volume down": return (down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_DOWN, down);
+            case "toggle soft keyboard": return (key, down) -> { if (down) MainActivity.toggleKeyboardVisibility(mActivity); };
+            case "toggle additional key bar": return (key, down) -> { if (down) mActivity.toggleExtraKeys(); };
+            case "open preferences": return (key, down) -> { if (down) mActivity.startActivity(new Intent(mActivity, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}); };
+            case "release pointer and keyboard capture": return (key, down) -> { if (down) setCapturingEnabled(false); };
+            case "toggle fullscreen": return (key, down) -> { if (down) MainActivity.prefs.fullscreen.put(!MainActivity.prefs.fullscreen.get()); };
+            case "exit": return (key, down) -> { if (down) mActivity.finish(); };
+            case "send volume up": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_UP, down);
+            case "send volume down": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_DOWN, down);
+            case "send media action": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, key, down);
             default: return noAction;
         }
     }
@@ -572,9 +570,9 @@ public class TouchInputHandler {
     /** Processes a (multi-finger) swipe gesture. */
     private boolean onSwipe() {
         if (mTotalMotionY > mSwipeThreshold)
-            swipeDownAction.accept(true);
+            swipeDownAction.accept(0, true);
         else if (mTotalMotionY < -mSwipeThreshold)
-            swipeUpAction.accept(true);
+            swipeUpAction.accept(0, true);
         else
             return false;
 
@@ -759,6 +757,28 @@ public class TouchInputHandler {
         }
     }
 
+    /**
+     * It is a copy of {@link android.view.KeyEvent#isMediaSessionKey} to be used on Android 30 and below.
+     * Returns whether this key will be sent to the
+     * {@link android.media.session.MediaSession.Callback} if not handled.
+     */
+    public static boolean isMediaSessionKey(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_MEDIA_PLAY:
+            case KeyEvent.KEYCODE_MEDIA_PAUSE:
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+            case KeyEvent.KEYCODE_HEADSETHOOK:
+            case KeyEvent.KEYCODE_MEDIA_STOP:
+            case KeyEvent.KEYCODE_MEDIA_NEXT:
+            case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+            case KeyEvent.KEYCODE_MEDIA_REWIND:
+            case KeyEvent.KEYCODE_MEDIA_RECORD:
+            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
+                return true;
+        }
+        return false;
+    }
+
     public boolean sendKeyEvent(KeyEvent e) {
         int k = e.getKeyCode();
 
@@ -769,11 +789,19 @@ public class TouchInputHandler {
             return false;
         }
 
+        if (isMediaSessionKey(k)) {
+            if (mediaKeysAction == noAction)
+                return false;
+
+            mediaKeysAction.accept(k, e.getAction() == KeyEvent.ACTION_DOWN);
+            return true;
+        }
+
         if (k == KEYCODE_VOLUME_DOWN) {
             if (volumeDownAction == noAction)
                 return false;
 
-            volumeDownAction.accept(e.getAction() == KeyEvent.ACTION_DOWN);
+            volumeDownAction.accept(k, e.getAction() == KeyEvent.ACTION_DOWN);
             return true;
         }
 
@@ -781,7 +809,7 @@ public class TouchInputHandler {
             if (volumeUpAction == noAction)
                 return false;
 
-            volumeUpAction.accept(e.getAction() == KeyEvent.ACTION_DOWN);
+            volumeUpAction.accept(k, e.getAction() == KeyEvent.ACTION_DOWN);
             return true;
         }
 
@@ -795,7 +823,7 @@ public class TouchInputHandler {
             }
 
             if (e.getScanCode() == KEY_BACK && e.getDevice().getKeyboardType() != KEYBOARD_TYPE_ALPHABETIC || e.getScanCode() == 0) {
-                backButtonAction.accept(e.getAction() == KeyEvent.ACTION_DOWN);
+                backButtonAction.accept(k, e.getAction() == KeyEvent.ACTION_DOWN);
                 return true;
             }
         }

@@ -206,7 +206,7 @@ index f9b7b06d9..f4b2aeddc 100644
      free(xkbbasedirflag);
  
      if (!buf) {
-+++ ./dix/dixutils.c	2024-12-22 07:34:35.252860515 +0200
++++ ./dix/dixutils.c
 @@ -506,18 +506,25 @@
  
  WorkQueuePtr workQueue;
@@ -289,3 +289,13 @@ index f9b7b06d9..f4b2aeddc 100644
      return TRUE;
  }
  
++++ ./os/connection.c
+@@ -242,7 +242,7 @@
+ CreateWellKnownSockets(void)
+ {
+     int i;
+-    int partial;
++    int partial = 0;
+ 
+     /* display is initialized to "0" by main(). It is then set to the display
+      * number if specified on the command line. */

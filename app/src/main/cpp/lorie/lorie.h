@@ -29,7 +29,6 @@ void lorieInitClipboard(void);
 void lorieRequestClipboard(void);
 void lorieHandleClipboardAnnounce(void);
 void lorieHandleClipboardData(const char* data);
-Bool lorieInitDri3(ScreenPtr pScreen);
 void lorieSetStylusEnabled(Bool enabled);
 void lorieTriggerWorkingQueue(void);
 void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d);
@@ -91,7 +90,7 @@ static inline __always_inline void lorie_mutex_unlock(pthread_mutex_t* mutex, pi
 }
 
 typedef enum {
-    EVENT_UNKNOWN,
+    EVENT_UNKNOWN __unused = 0,
     EVENT_SHARED_SERVER_STATE,
     EVENT_SHARED_ROOT_WINDOW_BUFFER,
     EVENT_SCREEN_SIZE,

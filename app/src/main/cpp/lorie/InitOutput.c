@@ -165,6 +165,11 @@ void lorieActivityConnected(void) {
     lorieSendRootWindowBuffer(pvfb->root.buffer);
 }
 
+static LoriePixmapPriv* lorieRootWindowPixmapPriv(void) {
+    void* devPriv = pScreenPtr ? pScreenPtr->devPrivate : NULL;
+    return devPriv ? exaGetPixmapDriverPrivate(devPriv) : NULL;
+}
+
 static Bool TrueNoop() { return TRUE; }
 static Bool FalseNoop() { return FALSE; }
 static void VoidNoop() {}
@@ -221,9 +226,32 @@ static void* ddxReadyThread(unused void* cookie) {
     return NULL;
 }
 
+void drawSquare(int x, int y, int l, uint32_t color, uint32_t stride, uint32_t* pixels) {
+    for (int i=0; i<l; i++) for (int j=0; j<l; j++)
+        pixels[(j+y)*stride + x + i] = color;
+}
+
+Bool drawSquares() {
+    LoriePixmapPriv* priv = lorieRootWindowPixmapPriv();
+    uint32_t* pixels = !priv ? NULL : priv->locked;
+    if (pixels) {
+        LorieBuffer_Desc d = {0};
+        LorieBuffer_describe(priv->buffer, &d);
+        int l = min(d.width, d.height) / 4, x = (d.width - l)/2, y = (d.height - l)/2;
+
+        drawSquare(x - l/3, y - l/3, l, 0x00FF0000, d.stride, pixels);
+        drawSquare(x, y, l, 0x0000FF00, d.stride, pixels);
+        drawSquare(x + l/3, y + l/3, l, 0x000000FF, d.stride, pixels);
+    }
+
+    return FALSE;
+}
+
 void ddxReady(void) {
     CursorVisible = TRUE;
     pScreenPtr->DisplayCursor(lorieMouse, pScreenPtr, rootCursor);
+    if (NoListenAll)
+        return;
     if (xstartup && !strlen(xstartup)) // allow overriding $TERMUX_X11_XSTARTUP with empty xstartup arg
         return;
     if (!xstartup || !strlen(xstartup))
@@ -255,6 +283,7 @@ void ddxUseMsg(void) {
     ErrorF("-force-bgra            force flipping colours (RGBA->BGRA)\n");
     ErrorF("-disable-dri3          disabling DRI3 support (to let lavapipe work)\n");
     ErrorF("-force-sysvshm         force using SysV shm syscalls\n");
+    ErrorF("-check-drawing         run server only able to draw some test image (for testing if rendering root window works or not),\n");
 }
 
 int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
@@ -284,12 +313,13 @@ int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
         return 1;
     }
 
-    return 0;
-}
+    if (strcmp(argv[i], "-check-drawing") == 0) {
+        NoListenAll = TRUE;
+        QueueWorkProc(drawSquares, NULL, NULL);
+        return 1;
+    }
 
-LoriePixmapPriv* lorieRootWindowPixmapPriv(void) {
-    void* devPriv = pScreenPtr ? pScreenPtr->devPrivate : NULL;
-    return devPriv ? exaGetPixmapDriverPrivate(devPriv) : NULL;
+    return 0;
 }
 
 static RRModePtr lorieCvt(int width, int height, int framerate) {

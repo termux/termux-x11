@@ -230,8 +230,41 @@ static Bool handleClipboardData(__unused ClientPtr pClient, void *closure) {
     return TRUE;
 }
 
+static Bool handleTouchEvent(__unused ClientPtr pClient, void *closure) {
+    ValuatorMask mask;
+    lorieEvent *e = closure;
+    double x = max(min((float) e->touch.x, pScreenPtr->width), 0);
+    double y = max(min((float) e->touch.y, pScreenPtr->height), 0);
+    valuator_mask_zero(&mask);
+    DDXTouchPointInfoPtr touch = TouchFindByDDXID(lorieTouch, e->touch.id, FALSE);
+
+    // Avoid duplicating events
+    if (touch && touch->active) {
+        double oldx = 0, oldy = 0;
+        if (e->touch.type == XI_TouchUpdate &&
+            valuator_mask_fetch_double(touch->valuators, 0, &oldx) &&
+            valuator_mask_fetch_double(touch->valuators, 1, &oldy) &&
+            oldx == x && oldy == y)
+            goto end;
+    }
+
+    // Sometimes activity part does not send XI_TouchBegin and sends only XI_TouchUpdate.
+    if (e->touch.type == XI_TouchUpdate && (!touch || !touch->active))
+        e->touch.type = XI_TouchBegin;
+
+    if (e->touch.type == XI_TouchEnd && (!touch || !touch->active))
+        goto end;
+
+    valuator_mask_set_double(&mask, 0, x * 0xFFFF / (float) pScreenPtr->width);
+    valuator_mask_set_double(&mask, 1, y * 0xFFFF / (float) pScreenPtr->height);
+    QueueTouchEvents(lorieTouch, e->touch.type, e->touch.id, 0, &mask);
+
+    end:
+    free(e);
+    return TRUE;
+}
+
 void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
-    DrawablePtr screenDrawable = &pScreenPtr->GetScreenPixmap(pScreenPtr)->drawable;
     ValuatorMask mask;
     lorieEvent e = {0};
     valuator_mask_zero(&mask);
@@ -258,30 +291,10 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 break;
             }
             case EVENT_TOUCH: {
-                double x = max(min((float) e.touch.x, screenDrawable->width), 0);
-                double y = max(min((float) e.touch.y, screenDrawable->height), 0);
-                DDXTouchPointInfoPtr touch = TouchFindByDDXID(lorieTouch, e.touch.id, FALSE);
-
-                // Avoid duplicating events
-                if (touch && touch->active) {
-                    double oldx = 0, oldy = 0;
-                    if (e.touch.type == XI_TouchUpdate &&
-                        valuator_mask_fetch_double(touch->valuators, 0, &oldx) &&
-                        valuator_mask_fetch_double(touch->valuators, 1, &oldy) &&
-                        oldx == x && oldy == y)
-                        break;
-                }
-
-                // Sometimes activity part does not send XI_TouchBegin and sends only XI_TouchUpdate.
-                if (e.touch.type == XI_TouchUpdate && (!touch || !touch->active))
-                    e.touch.type = XI_TouchBegin;
-
-                if (e.touch.type == XI_TouchEnd && (!touch || !touch->active))
-                    break;
-
-                valuator_mask_set_double(&mask, 0, x * 0xFFFF / (float) screenDrawable->width);
-                valuator_mask_set_double(&mask, 1, y * 0xFFFF / (float) screenDrawable->height);
-                QueueTouchEvents(lorieTouch, e.touch.type, e.touch.id, 0, &mask);
+                lorieEvent *copy = calloc(1, sizeof(lorieEvent));
+                memcpy(copy, &e, sizeof(e));
+                QueueWorkProc(handleTouchEvent, NULL, copy);
+                lorieTriggerWorkingQueue();
                 break;
             }
             case EVENT_STYLUS: {
@@ -295,8 +308,8 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "got stylus event %f %f %d %d %d %d %s\n", e.stylus.x, e.stylus.y, e.stylus.pressure, e.stylus.tilt_x, e.stylus.tilt_y, e.stylus.orientation,
                                     device == lorieMouse ? "lorieMouse" : (device == loriePen ? "loriePen" : "lorieEraser"));
 
-                valuator_mask_set_double(&mask, 0, max(min(e.stylus.x, screenDrawable->width), 0));
-                valuator_mask_set_double(&mask, 1, max(min(e.stylus.y, screenDrawable->height), 0));
+                valuator_mask_set_double(&mask, 0, max(min(e.stylus.x, pScreenPtr->width), 0));
+                valuator_mask_set_double(&mask, 1, max(min(e.stylus.y, pScreenPtr->height), 0));
                 if (device != lorieMouse) {
                     valuator_mask_set_double(&mask, 2, e.stylus.pressure);
                     valuator_mask_set_double(&mask, 3, e.stylus.tilt_x);
@@ -335,8 +348,8 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                     case 0: // BUTTON_UNDEFINED
                         flags = (e.mouse.relative) ? POINTER_RELATIVE | POINTER_ACCELERATE : POINTER_ABSOLUTE | POINTER_SCREEN | POINTER_NORAW;
                         if (!e.mouse.relative) {
-                            e.mouse.x = max(0, min(e.mouse.x, screenDrawable->width));
-                            e.mouse.y = max(0, min(e.mouse.y, screenDrawable->height));
+                            e.mouse.x = max(0, min(e.mouse.x, pScreenPtr->width));
+                            e.mouse.y = max(0, min(e.mouse.y, pScreenPtr->height));
                         }
                         valuator_mask_set_double(&mask, 0, (double) e.mouse.x);
                         valuator_mask_set_double(&mask, 1, (double) e.mouse.y);

@@ -88,6 +88,8 @@ typedef struct {
     DamagePtr damage;
     OsTimerPtr fpsTimer;
 
+    CloseScreenProcPtr CloseScreen;
+
     int eventFd, stateFd;
 
     struct lorie_shared_server_state* state;
@@ -493,7 +495,10 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
 
 static Bool lorieCloseScreen(ScreenPtr pScreen) {
     pScreenPtr = NULL;
-    return fbCloseScreen(pScreen);
+    pScreen->DestroyPixmap(pScreen->devPrivate);
+    pScreen->devPrivate = NULL;
+    pScreen->CloseScreen = pvfb->CloseScreen;
+    return pScreen->CloseScreen(pScreen);
 }
 
 static int lorieSetPixmapVisitWindow(WindowPtr window, void *data) {
@@ -635,7 +640,6 @@ static Bool lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **ar
           || !miSetPixmapDepths()
           || !fbScreenInit(pScreen, NULL, pvfb->root.width, pvfb->root.height, monitorResolution, monitorResolution, 0, 32)
           || !(pScreen->CreateScreenResources = lorieCreateScreenResources) // Simply replace unneeded function
-          || !(pScreen->CloseScreen = lorieCloseScreen) // Simply replace unneeded function
           || !(!pvfb->dri3 || dri3_screen_init(pScreen, &lorieDri3Info))
           || !fbPictureInit(pScreen, 0, 0)
           || !exaDriverInit(pScreen, &lorieExa)
@@ -644,6 +648,9 @@ static Bool lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **ar
           || !fbCreateDefColormap(pScreen)
           || !present_screen_init(pScreen, &loriePresentInfo))
         return FALSE;
+
+    pvfb->CloseScreen = pScreen->CloseScreen;
+    pScreen->CloseScreen = lorieCloseScreen;
 
     ShmRegisterFbFuncs(pScreen);
     miSyncShmScreenInit(pScreen);

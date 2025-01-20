@@ -1,5 +1,5 @@
 #pragma once
-#define RENDERER_IN_ACTIVITY 0
+#define RENDERER_IN_ACTIVITY 1
 
 #include <android/hardware_buffer.h>
 #include <android/native_window_jni.h>

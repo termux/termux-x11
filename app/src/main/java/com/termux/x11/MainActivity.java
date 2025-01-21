@@ -24,6 +24,7 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
@@ -256,6 +257,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     //Register the needed events to handle stylus as left, middle and right click
     @SuppressLint("ClickableViewAccessibility")
     private void initStylusAuxButtons() {
+        View lorieView = getLorieView();
         boolean stylusMenuEnabled = prefs.showStylusClickOverride.get() && LorieView.connected();
         final float menuUnselectedTrasparency = 0.66f;
         final float menuSelectedTrasparency = 1.0f;
@@ -295,7 +297,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
                 //Calculate screen border making sure btn is fully inside the view
                 float maxX = frm.getWidth() - 4 * left.getWidth();
-                float maxY = frm.getHeight() - 4 * left.getHeight();
+                float maxY = lorieView.getHeight() - 4 * left.getHeight();
 
                 //Make sure the Stylus menu is fully inside the screen
                 overlay.setX(MathUtils.clamp(overlay.getX(), 0, maxX));
@@ -317,7 +319,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             frm.setOnDragListener((v2, event) -> {
                 //Calculate screen border making sure btn is fully inside the view
                 float maxX = frm.getWidth() - visibility.getWidth();
-                float maxY = frm.getHeight() - visibility.getHeight();
+                float maxY = lorieView.getHeight() - visibility.getHeight();
 
                 switch (event.getAction()) {
                     case DragEvent.ACTION_DRAG_LOCATION:
@@ -362,22 +364,17 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     private void makeSureHelpersAreVisibleAndInScreenBounds() {
         int[] offset = new int[2];
-        int[] offset2 = new int[2];
         View mouseAuxButtons = findViewById(R.id.mouse_buttons);
         View stylusAuxButtons = findViewById(R.id.mouse_helper_visibility);
-        frm.getLocationInWindow(offset2);
+        View lorieView = getLorieView();
 
-        if (mouseAuxButtons.getVisibility() == View.VISIBLE) {
-            mouseAuxButtons.getLocationInWindow(offset);
-            mouseAuxButtons.setX(MathUtils.clamp(offset[0], offset2[0], offset2[0] + frm.getWidth() - mouseAuxButtons.getWidth()));
-            mouseAuxButtons.setY(MathUtils.clamp(offset[1], offset2[1], offset2[1] + frm.getHeight() - mouseAuxButtons.getHeight()));
-        }
+        frm.getLocationInWindow(offset);
 
-        if (stylusAuxButtons.getVisibility() == View.VISIBLE) {
-            stylusAuxButtons.getLocationInWindow(offset);
-            stylusAuxButtons.setX(MathUtils.clamp(offset[0], offset2[0], offset2[0] + frm.getWidth() - stylusAuxButtons.getWidth()));
-            stylusAuxButtons.setY(MathUtils.clamp(offset[1], offset2[1], offset2[1] + frm.getHeight() - stylusAuxButtons.getHeight()));
-        }
+        mouseAuxButtons.setX(MathUtils.clamp(mouseAuxButtons.getX(), offset[0], offset[0] + frm.getWidth() - mouseAuxButtons.getWidth()));
+        mouseAuxButtons.setY(MathUtils.clamp(mouseAuxButtons.getY(), offset[1], offset[1] + lorieView.getHeight() - mouseAuxButtons.getHeight()));
+
+        stylusAuxButtons.setX(MathUtils.clamp(stylusAuxButtons.getX(), offset[0], offset[0] + frm.getWidth() - stylusAuxButtons.getWidth()));
+        stylusAuxButtons.setY(MathUtils.clamp(stylusAuxButtons.getY(), offset[1], offset[1] + lorieView.getHeight() - stylusAuxButtons.getHeight()));
     }
 
     public void toggleStylusAuxButtons() {
@@ -407,6 +404,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
     @SuppressLint("ClickableViewAccessibility")
     void initMouseAuxButtons() {
+        View lorieView = getLorieView();
         Button left = findViewById(R.id.mouse_button_left_click);
         Button right = findViewById(R.id.mouse_button_right_click);
         Button middle = findViewById(R.id.mouse_button_middle_click);
@@ -431,7 +429,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 int[] offset = new int[2];
                 frm.getLocationInWindow(offset);
                 primaryLayer.setX(MathUtils.clamp(primaryLayer.getX(), offset[0], offset[0] + frm.getWidth() - primaryLayer.getWidth()));
-                primaryLayer.setY(MathUtils.clamp(primaryLayer.getY(), offset[1], offset[1] + frm.getHeight() - primaryLayer.getHeight()));
+                primaryLayer.setY(MathUtils.clamp(primaryLayer.getY(), offset[1], offset[1] + lorieView.getHeight() - primaryLayer.getHeight()));
             }, 10);
         });
 
@@ -458,6 +456,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             final float[] startOffset = new float[2];
             final int[] startPosition = new int[2];
             long startTime;
+            View lorieView = getLorieView();
             @Override
             public boolean onTouch(View v, MotionEvent e) {
                 switch(e.getAction()) {
@@ -474,7 +473,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         primaryLayer.getLocationInWindow(offset);
                         frm.getLocationInWindow(offset2);
                         primaryLayer.setX(MathUtils.clamp(offset[0] - startOffset[0] + e.getX(), offset2[0], offset2[0] + frm.getWidth() - primaryLayer.getWidth()));
-                        primaryLayer.setY(MathUtils.clamp(offset[1] - startOffset[1] + e.getY(), offset2[1], offset2[1] + frm.getHeight() - primaryLayer.getHeight()));
+                        primaryLayer.setY(MathUtils.clamp(offset[1] - startOffset[1] + e.getY(), offset2[1], offset2[1] + lorieView.getHeight() - primaryLayer.getHeight()));
                         break;
                     }
                     case MotionEvent.ACTION_UP: {
@@ -869,6 +868,8 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 tryConnect();
             else
                 getLorieView().setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
+
+            onWindowFocusChanged(hasWindowFocus());
         });
     }
 

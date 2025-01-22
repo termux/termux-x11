@@ -19,7 +19,7 @@
         <SwitchPreferenceCompat app:key="Reseed" app:defaultValue="true" />
         <SwitchPreferenceCompat app:key="PIP" app:defaultValue="false" />
         <SwitchPreferenceCompat app:key="fullscreen" app:defaultValue="false" />
-        <ListPreference app:key="forceOrientation" app:defaultValue="no" app:entries="@array/forceOrientationVariants" app:entryValues="@array/forceOrientationVariants" />
+        <ListPreference app:key="forceOrientation" app:defaultValue="auto" app:entries="@array/forceOrientationVariants" app:entryValues="@array/forceOrientationVariants" />
         <SwitchPreferenceCompat app:key="hideCutout" app:defaultValue="false" />
         <SwitchPreferenceCompat app:defaultValue="true" app:key="keepScreenOn" />
     </PreferenceScreen>

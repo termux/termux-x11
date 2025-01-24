@@ -297,7 +297,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 //Calculate screen border making sure btn is fully inside the view
                 float maxX = frm.getWidth() - 4 * left.getWidth();
                 float maxY = frm.getHeight() - 4 * left.getHeight();
-                if (prefs.adjustHeightForEK.get() && pager.getVisibility() == View.VISIBLE)
+                if (pager.getVisibility() == View.VISIBLE)
                     maxY -= pager.getHeight();
 
                 //Make sure the Stylus menu is fully inside the screen
@@ -321,7 +321,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 //Calculate screen border making sure btn is fully inside the view
                 float maxX = frm.getWidth() - visibility.getWidth();
                 float maxY = frm.getHeight() - visibility.getHeight();
-                if (prefs.adjustHeightForEK.get() && pager.getVisibility() == View.VISIBLE)
+                if (pager.getVisibility() == View.VISIBLE)
                     maxY -= pager.getHeight();
 
                 switch (event.getAction()) {
@@ -369,7 +369,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         final ViewPager pager = getTerminalToolbarViewPager();
         View mouseAuxButtons = findViewById(R.id.mouse_buttons);
         View stylusAuxButtons = findViewById(R.id.mouse_helper_visibility);
-        int maxYDecrement = (prefs.adjustHeightForEK.get() && pager.getVisibility() == View.VISIBLE) ? pager.getHeight() : 0;
+        int maxYDecrement = (pager.getVisibility() == View.VISIBLE) ? pager.getHeight() : 0;
 
         mouseAuxButtons.setX(MathUtils.clamp(mouseAuxButtons.getX(), frm.getX(), frm.getX() + frm.getWidth() - mouseAuxButtons.getWidth()));
         mouseAuxButtons.setY(MathUtils.clamp(mouseAuxButtons.getY(), frm.getY(), frm.getY() + frm.getHeight() - mouseAuxButtons.getHeight() - maxYDecrement));
@@ -429,7 +429,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             handler.postDelayed(() -> {
                 float maxX = frm.getX() + frm.getWidth() - primaryLayer.getWidth();
                 float maxY = frm.getY() + frm.getHeight() - primaryLayer.getHeight();
-                if (prefs.adjustHeightForEK.get() && pager.getVisibility() == View.VISIBLE)
+                if (pager.getVisibility() == View.VISIBLE)
                     maxY -= pager.getHeight();
                 primaryLayer.setX(MathUtils.clamp(primaryLayer.getX(), frm.getX(), maxX));
                 primaryLayer.setY(MathUtils.clamp(primaryLayer.getY(), frm.getY(), maxY));
@@ -475,7 +475,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                         primaryLayer.getLocationInWindow(offset);
                         float maxX = frm.getX() + frm.getWidth() - primaryLayer.getWidth();
                         float maxY = frm.getY() + frm.getHeight() - primaryLayer.getHeight();
-                        if (prefs.adjustHeightForEK.get() && pager.getVisibility() == View.VISIBLE)
+                        if (pager.getVisibility() == View.VISIBLE)
                             maxY -= pager.getHeight();
 
                         primaryLayer.setX(MathUtils.clamp(offset[0] - startOffset[0] + e.getX(), frm.getX(), maxX));

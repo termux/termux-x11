@@ -36,11 +36,11 @@ void lorieSendSharedServerState(int memfd);
 void lorieSendRootWindowBuffer(LorieBuffer* buffer);
 bool lorieConnectionAlive(void);
 
-__unused int renderer_init(JNIEnv* env);
-__unused void renderer_test_capabilities(int* legacy_drawing, uint8_t* flip);
-__unused void renderer_set_buffer(LorieBuffer* buffer);
-__unused void renderer_set_window(ANativeWindow* win);
-__unused void renderer_set_shared_state(struct lorie_shared_server_state* state);
+__unused int rendererInit(JNIEnv* env);
+__unused void rendererTestCapabilities(int* legacy_drawing, uint8_t* flip);
+__unused void rendererSetBuffer(LorieBuffer* buf);
+__unused void rendererSetWindow(ANativeWindow* newWin);
+__unused void rendererSetSharedState(struct lorie_shared_server_state* newState);
 
 static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_t* lockingPid) {
     // Unfortunately there is no robust mutexes in bionic.

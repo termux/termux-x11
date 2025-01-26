@@ -135,8 +135,8 @@ static int xcallback(int fd, int events, __unused void* data) {
         ALooper_removeFd(ALooper_forThread(), fd);
         close(conn_fd);
         conn_fd = -1;
-        renderer_set_shared_state(NULL);
-        renderer_set_buffer(NULL);
+        rendererSetSharedState(NULL);
+        rendererSetBuffer(NULL);
         log(DEBUG, "disconnected");
         return 1;
     }
@@ -182,7 +182,7 @@ static int xcallback(int fd, int events, __unused void* data) {
                         state = NULL;
                     }
 
-                    renderer_set_shared_state(state);
+                    rendererSetSharedState(state);
 
                     close(stateFd); // Closing file descriptor does not unmmap shared memory fragment.
                     break;
@@ -193,7 +193,7 @@ static int xcallback(int fd, int events, __unused void* data) {
                     LorieBuffer_recvHandleFromUnixSocket(conn_fd, &buffer);
                     LorieBuffer_describe(buffer, &desc);
                     log(INFO, "Received shared buffer width %d height %d format %d", desc.width, desc.height, desc.format);
-                    renderer_set_buffer(buffer);
+                    rendererSetBuffer(buffer);
                     LorieBuffer_release(buffer);
                 }
             }
@@ -361,7 +361,7 @@ static void surfaceChanged(JNIEnv *env, jobject thiz, jobject sfc) {
     if (win)
         ANativeWindow_acquire(win);
 
-    renderer_set_window(win);
+    rendererSetWindow(win);
 }
 
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
@@ -388,7 +388,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
     jclass cls = (*env)->FindClass(env, "com/termux/x11/LorieView");
     (*env)->RegisterNatives(env, cls, methods, sizeof(methods)/sizeof(methods[0]));
 
-    renderer_init(env);
+    rendererInit(env);
 
     return JNI_VERSION_1_6;
 }

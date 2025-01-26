@@ -24,7 +24,7 @@
 #define log(...) __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", __VA_ARGS__)
 #define loge(...) __android_log_print(ANDROID_LOG_ERROR, "gles-renderer", __VA_ARGS__)
 
-static GLuint create_program(const char* p_vertex_source, const char* p_fragment_source);
+static GLuint createProgram(const char* p_vertex_source, const char* p_fragment_source);
 
 static int printEglError(char* msg, int line) {
     char descBuf[32] = {0};
@@ -88,7 +88,7 @@ static void checkGlError(int line) {
 
 #define checkGlError() checkGlError(__LINE__)
 
-static const char vertex_shader[] =
+static const char vertexShaderSrc[] =
     "attribute vec4 position;\n"
     "attribute vec2 texCoords;"
     "varying vec2 outTexCoords;\n"
@@ -105,8 +105,8 @@ static const char vertex_shader[] =
     "   gl_FragColor = texture2D(texture, outTexCoords)" texture ";\n" \
     "}\n"
 
-static const char fragment_shader[] = FRAGMENT_SHADER();
-static const char fragment_shader_bgra[] = FRAGMENT_SHADER(".bgra");
+static const char fragmentShaderSrc[] = FRAGMENT_SHADER();
+static const char fragmentShaderBgraSrc[] = FRAGMENT_SHADER(".bgra");
 
 static EGLDisplay egl_display = EGL_NO_DISPLAY;
 static EGLContext ctx = EGL_NO_CONTEXT;
@@ -137,7 +137,7 @@ static struct {
 GLuint g_texture_program = 0, gv_pos = 0, gv_coords = 0;
 GLuint g_texture_program_bgra = 0, gv_pos_bgra = 0, gv_coords_bgra = 0;
 
-static void* renderer_thread(void* closure);
+static void* rendererThread(void* closure);
 
 static inline __always_inline void bindLinearTexture(GLuint id) {
     glBindTexture(GL_TEXTURE_2D, id);
@@ -161,7 +161,7 @@ const EGLint ctxattribs[] = {
         EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE
 };
 
-int renderer_init(JNIEnv* env) {
+int rendererInit(JNIEnv* env) {
     JavaVM *vm;
     pthread_t t;
     EGLint major, minor;
@@ -198,11 +198,11 @@ int renderer_init(JNIEnv* env) {
     if (eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE)
         return printEglError("eglMakeCurrent failed", __LINE__);
 
-    pthread_create(&t, NULL, renderer_thread, vm);
+    pthread_create(&t, NULL, rendererThread, vm);
     return 1;
 }
 
-void renderer_test_capabilities(int* legacy_drawing, uint8_t* flip) {
+void rendererTestCapabilities(int* legacy_drawing, uint8_t* flip) {
     // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     EGLint numConfigs;
@@ -312,7 +312,7 @@ void renderer_test_capabilities(int* legacy_drawing, uint8_t* flip) {
     }
 }
 
-__unused void renderer_set_shared_state(struct lorie_shared_server_state* newState) {
+__unused void rendererSetSharedState(struct lorie_shared_server_state* newState) {
     pthread_mutex_lock(&stateLock);
     if (newState == pendingState || newState == state)
         goto end;
@@ -331,7 +331,7 @@ __unused void renderer_set_shared_state(struct lorie_shared_server_state* newSta
     end: pthread_mutex_unlock(&stateLock);
 }
 
-void renderer_set_buffer(LorieBuffer* buf) {
+void rendererSetBuffer(LorieBuffer* buf) {
     pthread_mutex_lock(&stateLock);
     if (buf == pendingBuffer)
         goto end;
@@ -353,7 +353,7 @@ void renderer_set_buffer(LorieBuffer* buf) {
     end: pthread_mutex_unlock(&stateLock);
 }
 
-void renderer_set_window(ANativeWindow* newWin) {
+void rendererSetWindow(ANativeWindow* newWin) {
     pthread_mutex_lock(&stateLock);
     if (newWin && pendingWin == newWin) {
         ANativeWindow_release(newWin);
@@ -375,7 +375,7 @@ void renderer_set_window(ANativeWindow* newWin) {
     pthread_mutex_unlock(&stateLock);
 }
 
-static inline __always_inline void release_win_and_surface(JNIEnv *env, ANativeWindow** anw, EGLSurface *esfc) {
+static inline __always_inline void releaseWinAndSurface(JNIEnv *env, ANativeWindow** anw, EGLSurface *esfc) {
     if (esfc && *esfc) {
         if (eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE)
             return vprintEglError("eglMakeCurrent failed (EGL_NO_SURFACE)", __LINE__);
@@ -390,17 +390,17 @@ static inline __always_inline void release_win_and_surface(JNIEnv *env, ANativeW
     }
 }
 
-void renderer_refresh_context(JNIEnv* env) {
+void rendererRefreshContext(JNIEnv* env) {
     uint32_t emptyData = {0};
     int width = pendingWin ? ANativeWindow_getWidth(pendingWin) : 0;
     int height = pendingWin ? ANativeWindow_getHeight(pendingWin) : 0;
-    log("renderer_set_window %p %d %d", pendingWin, width, height);
+    log("rendererSetWindow %p %d %d", pendingWin, width, height);
 
-    release_win_and_surface(env, &win, &sfc);
+    releaseWinAndSurface(env, &win, &sfc);
 
     if (pendingWin && (width <= 0 || height <= 0)) {
         log("Xlorie: We've got invalid surface. Probably it became invalid before we started working with it.\n");
-        release_win_and_surface(env, &pendingWin, NULL);
+        releaseWinAndSurface(env, &pendingWin, NULL);
     }
 
     win = pendingWin;
@@ -431,13 +431,13 @@ void renderer_refresh_context(JNIEnv* env) {
         state->surfaceAvailable = state->drawRequested = state->cursor.updated = true;
 
     if (!g_texture_program) {
-        g_texture_program = create_program(vertex_shader, fragment_shader);
+        g_texture_program = createProgram(vertexShaderSrc, fragmentShaderSrc);
         if (!g_texture_program) {
             log("Xlorie: GLESv2: Unable to create shader program.\n");
             return;
         }
 
-        g_texture_program_bgra = create_program(vertex_shader, fragment_shader_bgra);
+        g_texture_program_bgra = createProgram(vertexShaderSrc, fragmentShaderBgraSrc);
         if (!g_texture_program_bgra) {
             log("Xlorie: GLESv2: Unable to create bgra shader program.\n");
             return;
@@ -476,9 +476,9 @@ void renderer_refresh_context(JNIEnv* env) {
 }
 
 static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip);
-static void draw_cursor(void);
+static void drawCursor(void);
 
-static void renderer_renew_image(void) {
+static void rendererRenewImage(void) {
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     uint32_t emptyData = {0};
 
@@ -520,7 +520,7 @@ static void renderer_renew_image(void) {
     log("renderer: buffer changed %p %d %d", buffer, display.desc.width, display.desc.height);
 }
 
-void renderer_redraw_locked(JNIEnv* env) {
+void rendererRedrawLocked(JNIEnv* env) {
     EGLSync fence;
     int err = EGL_SUCCESS;
 
@@ -549,7 +549,7 @@ void renderer_redraw_locked(JNIEnv* env) {
     }
 
     state->cursor.moved = FALSE;
-    draw_cursor();
+    drawCursor();
     glFlush();
 
     // Wait until root window drawing is finished before giving control back to X server
@@ -563,7 +563,7 @@ void renderer_redraw_locked(JNIEnv* env) {
         err = eglGetError();
         if (err == EGL_BAD_NATIVE_WINDOW || err == EGL_BAD_SURFACE) {
             log("The window is to be destroyed. Native window disconnected/abandoned, probably activity is destroyed or in background");
-            renderer_set_window(NULL);
+            rendererSetWindow(NULL);
             lorie_mutex_unlock(&state->lock, &state->lockingPid);
         }
     }
@@ -580,7 +580,7 @@ void renderer_redraw_locked(JNIEnv* env) {
     state->renderedFrames++;
 }
 
-static inline __always_inline bool renderer_should_wait(void) {
+static inline __always_inline bool rendererShouldWait(void) {
     if (stateChanged || windowChanged || bufferChanged)
         // If there are pending changes we should process them immediately.
         return false;
@@ -597,7 +597,7 @@ static inline __always_inline bool renderer_should_wait(void) {
     return true;
 }
 
-__noreturn static void* renderer_thread(void* closure) {
+__noreturn static void* rendererThread(void* closure) {
     JavaVM* vm = closure;
     JNIEnv* env;
     (*vm)->AttachCurrentThread(vm, &env, NULL);
@@ -608,7 +608,7 @@ __noreturn static void* renderer_thread(void* closure) {
     pthread_mutex_lock(&m);
 
     while (true) {
-        while (renderer_should_wait())
+        while (rendererShouldWait())
             pthread_cond_wait(state ? &state->cond : &stateCond, &m);
 
         pthread_mutex_lock(&stateLock);
@@ -622,18 +622,18 @@ __noreturn static void* renderer_thread(void* closure) {
         }
 
         if (windowChanged)
-            renderer_refresh_context(env);
+            rendererRefreshContext(env);
 
         if (bufferChanged)
-            renderer_renew_image();
+            rendererRenewImage();
         pthread_mutex_unlock(&stateLock);
 
         if (state && state->surfaceAvailable && !state->waitForNextFrame && (state->drawRequested || state->cursor.moved || state->cursor.updated))
-            renderer_redraw_locked(env);
+            rendererRedrawLocked(env);
     }
 }
 
-static GLuint load_shader(GLenum shaderType, const char* pSource) {
+static GLuint loadShader(GLenum shaderType, const char* pSource) {
     GLint compiled = 0, infoLen = 0;
     GLuint shader = glCreateShader(shaderType);
     if (!shader)
@@ -656,11 +656,11 @@ static GLuint load_shader(GLenum shaderType, const char* pSource) {
     return 0;
 }
 
-static GLuint create_program(const char* p_vertex_source, const char* p_fragment_source) {
+static GLuint createProgram(const char* p_vertex_source, const char* p_fragment_source) {
     GLuint program, vertexShader, pixelShader;
     GLint linkStatus = GL_FALSE, bufLength = 0;
-    vertexShader = load_shader(GL_VERTEX_SHADER, p_vertex_source);
-    pixelShader = load_shader(GL_FRAGMENT_SHADER, p_fragment_source);
+    vertexShader = loadShader(GL_VERTEX_SHADER, p_vertex_source);
+    pixelShader = loadShader(GL_FRAGMENT_SHADER, p_fragment_source);
     if (!pixelShader || !vertexShader) {
         return 0;
     }
@@ -708,7 +708,7 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); checkGlError();
 }
 
-__unused static void draw_cursor(void) {
+__unused static void drawCursor(void) {
     float x, y, w, h;
 
     if (!state->cursor.width || !state->cursor.height)

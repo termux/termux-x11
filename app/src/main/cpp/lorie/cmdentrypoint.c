@@ -202,13 +202,6 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
     return JNI_TRUE;
 }
 
-JNIEXPORT void JNICALL
-Java_com_termux_x11_CmdEntryPoint_windowChanged(JNIEnv *env, __unused jobject cls, jobject surface) {
-#if !RENDERER_IN_ACTIVITY
-    renderer_set_window(env, surface ? (*env)->NewGlobalRef(env, surface) : NULL);
-#endif
-}
-
 static Bool sendConfigureNotify(__unused ClientPtr pClient, void *closure) {
     // This must be done only on X server thread.
     lorieEvent* e = closure;

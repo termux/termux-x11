@@ -204,14 +204,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             else
                 name = "External Display";
             LorieView.sendWindowChange(screenWidth, screenHeight, framerate, name);
-
-            if (service != null && !LorieView.renderingInActivity()) {
-                try {
-                    service.windowChanged(sfc);
-                } catch (RemoteException e) {
-                    Log.e("MainActivity", "failed to send windowChanged request", e);
-                }
-            }
         });
 
         registerReceiver(receiver, new IntentFilter(ACTION_START) {{

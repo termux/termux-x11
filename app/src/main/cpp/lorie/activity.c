@@ -135,10 +135,8 @@ static int xcallback(int fd, int events, __unused void* data) {
         ALooper_removeFd(ALooper_forThread(), fd);
         close(conn_fd);
         conn_fd = -1;
-#if RENDERER_IN_ACTIVITY
         renderer_set_shared_state(NULL);
         renderer_set_buffer(NULL);
-#endif
         log(DEBUG, "disconnected");
         return 1;
     }
@@ -184,12 +182,7 @@ static int xcallback(int fd, int events, __unused void* data) {
                         state = NULL;
                     }
 
-#if RENDERER_IN_ACTIVITY
                     renderer_set_shared_state(state);
-#else
-                    // Should pass it to renderer thread here, but currently it is not implemented...
-                    munmap(state, sizeof(*state));
-#endif
 
                     close(stateFd); // Closing file descriptor does not unmmap shared memory fragment.
                     break;
@@ -200,9 +193,7 @@ static int xcallback(int fd, int events, __unused void* data) {
                     LorieBuffer_recvHandleFromUnixSocket(conn_fd, &buffer);
                     LorieBuffer_describe(buffer, &desc);
                     log(INFO, "Received shared buffer width %d height %d format %d", desc.width, desc.height, desc.format);
-#if RENDERER_IN_ACTIVITY
                     renderer_set_buffer(buffer);
-#endif
                     LorieBuffer_release(buffer);
                 }
             }
@@ -366,18 +357,11 @@ static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
 }
 
 static void surfaceChanged(JNIEnv *env, jobject thiz, jobject sfc) {
-#if RENDERER_IN_ACTIVITY
     ANativeWindow* win = sfc ? ANativeWindow_fromSurface(env, sfc) : NULL;
     if (win)
         ANativeWindow_acquire(win);
 
     renderer_set_window(win);
-#endif
-}
-
-JNIEXPORT jboolean JNICALL
-Java_com_termux_x11_LorieView_renderingInActivity(JNIEnv *env, jobject thiz) {
-    return RENDERER_IN_ACTIVITY;
 }
 
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
@@ -404,9 +388,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
     jclass cls = (*env)->FindClass(env, "com/termux/x11/LorieView");
     (*env)->RegisterNatives(env, cls, methods, sizeof(methods)/sizeof(methods[0]));
 
-#if RENDERER_IN_ACTIVITY
     renderer_init(env);
-#endif
 
     return JNI_VERSION_1_6;
 }

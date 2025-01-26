@@ -113,26 +113,14 @@ static EGLContext ctx = EGL_NO_CONTEXT;
 static EGLSurface sfc = EGL_NO_SURFACE;
 static EGLConfig cfg = 0;
 static ANativeWindow* win = 0;
-#if !RENDERER_IN_ACTIVITY
-static jobject surface = NULL;
-#endif
 static LorieBuffer *buffer = NULL;
 static EGLImageKHR image = NULL;
-
-#if !RENDERER_IN_ACTIVITY
-static jmethodID Surface_release = NULL;
-static jmethodID Surface_destroy = NULL;
-#endif
 
 static JNIEnv* renderEnv = NULL;
 static volatile bool stateChanged = false, bufferChanged = false, windowChanged = false;
 static volatile struct lorie_shared_server_state* pendingState = NULL;
 static volatile LorieBuffer* pendingBuffer = NULL;
-#if RENDERER_IN_ACTIVITY
 static volatile ANativeWindow* pendingWin = NULL;
-#else
-static volatile jobject pendingSurface = NULL;
-#endif
 
 static pthread_mutex_t stateLock;
 static pthread_cond_t stateCond;
@@ -187,20 +175,6 @@ int renderer_init(JNIEnv* env) {
 
     pthread_mutex_init(&stateLock, NULL);
     pthread_cond_init(&stateCond, NULL);
-
-#if !RENDERER_IN_ACTIVITY
-    jclass Surface = (*env)->FindClass(env, "android/view/Surface");
-    Surface_release = (*env)->GetMethodID(env, Surface, "release", "()V");
-    Surface_destroy = (*env)->GetMethodID(env, Surface, "destroy", "()V");
-    if (!Surface_release) {
-        loge("Failed to find required Surface.release method. Aborting.\n");
-        abort();
-    }
-    if (!Surface_destroy) {
-        loge("Failed to find required Surface.destroy method. Aborting.\n");
-        abort();
-    }
-#endif
 
     egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (egl_display == EGL_NO_DISPLAY)
@@ -379,13 +353,8 @@ void renderer_set_buffer(LorieBuffer* buf) {
     end: pthread_mutex_unlock(&stateLock);
 }
 
-#if RENDERER_IN_ACTIVITY
 void renderer_set_window(ANativeWindow* newWin) {
-#else
-void renderer_set_window(JNIEnv* env, jobject new_surface) {
-#endif
     pthread_mutex_lock(&stateLock);
-#if RENDERER_IN_ACTIVITY
     if (newWin && pendingWin == newWin) {
         ANativeWindow_release(newWin);
         pthread_mutex_unlock(&stateLock);
@@ -396,23 +365,6 @@ void renderer_set_window(JNIEnv* env, jobject new_surface) {
         ANativeWindow_release(pendingWin);
 
     pendingWin = newWin;
-#else
-    if (pendingSurface && new_surface && pendingSurface != new_surface && (*env)->IsSameObject(env, pendingSurface, new_surface)) {
-        (*env)->DeleteGlobalRef(env, new_surface);
-        pthread_mutex_unlock(&stateLock);
-        return;
-    }
-
-    if (pendingSurface && pendingSurface == new_surface) {
-        pthread_mutex_unlock(&stateLock);
-        return;
-    }
-
-    if (pendingSurface)
-        (*env)->DeleteGlobalRef(env, pendingSurface);
-
-    pendingSurface = new_surface;
-#endif
     windowChanged = TRUE;
 
     // We are not sure which conditional variable is used at current moment so let's signal both
@@ -423,11 +375,7 @@ void renderer_set_window(JNIEnv* env, jobject new_surface) {
     pthread_mutex_unlock(&stateLock);
 }
 
-#if RENDERER_IN_ACTIVITY
 static inline __always_inline void release_win_and_surface(JNIEnv *env, ANativeWindow** anw, EGLSurface *esfc) {
-#else
-static inline __always_inline void release_win_and_surface(JNIEnv *env, jobject* jsfc, ANativeWindow** anw, EGLSurface *esfc) {
-#endif
     if (esfc && *esfc) {
         if (eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE)
             return vprintEglError("eglMakeCurrent failed (EGL_NO_SURFACE)", __LINE__);
@@ -440,57 +388,23 @@ static inline __always_inline void release_win_and_surface(JNIEnv *env, jobject*
         ANativeWindow_release(*anw);
         *anw = NULL;
     }
-
-#if !RENDERER_IN_ACTIVITY
-    if (jsfc && *jsfc) {
-        (*env)->CallVoidMethod(env, *jsfc, Surface_release);
-        (*env)->CallVoidMethod(env, *jsfc, Surface_destroy);
-        (*env)->DeleteGlobalRef(env, *jsfc);
-        *jsfc = NULL;
-    }
-#endif
 }
 
 void renderer_refresh_context(JNIEnv* env) {
     uint32_t emptyData = {0};
-#if !RENDERER_IN_ACTIVITY
-    ANativeWindow* pendingWin = pendingSurface ? ANativeWindow_fromSurface(env, pendingSurface) : NULL;
-    if ((pendingSurface && surface && pendingSurface != surface && (*env)->IsSameObject(env, pendingSurface, surface)) || (pendingWin && win == pendingWin)) {
-        (*env)->DeleteGlobalRef(env, pendingSurface);
-        pendingSurface = NULL;
-        windowChanged = FALSE;
-        return;
-    }
-#endif
     int width = pendingWin ? ANativeWindow_getWidth(pendingWin) : 0;
     int height = pendingWin ? ANativeWindow_getHeight(pendingWin) : 0;
     log("renderer_set_window %p %d %d", pendingWin, width, height);
 
-#if RENDERER_IN_ACTIVITY
     release_win_and_surface(env, &win, &sfc);
-#else
-    if (pendingWin)
-        ANativeWindow_acquire(pendingWin);
-
-    release_win_and_surface(env, &surface, &win, &sfc);
-#endif
 
     if (pendingWin && (width <= 0 || height <= 0)) {
         log("Xlorie: We've got invalid surface. Probably it became invalid before we started working with it.\n");
-#if RENDERER_IN_ACTIVITY
         release_win_and_surface(env, &pendingWin, NULL);
-#else
-        release_win_and_surface(env, &pendingSurface, &pendingWin, NULL);
-#endif
     }
 
     win = pendingWin;
-#if RENDERER_IN_ACTIVITY
     pendingWin = NULL;
-#else
-    surface = pendingSurface;
-    pendingSurface = NULL;
-#endif
     windowChanged = FALSE;
 
     if (!win) {
@@ -649,11 +563,7 @@ void renderer_redraw_locked(JNIEnv* env) {
         err = eglGetError();
         if (err == EGL_BAD_NATIVE_WINDOW || err == EGL_BAD_SURFACE) {
             log("The window is to be destroyed. Native window disconnected/abandoned, probably activity is destroyed or in background");
-#if RENDERER_IN_ACTIVITY
             renderer_set_window(NULL);
-#else
-            renderer_set_window(env, NULL);
-#endif
             lorie_mutex_unlock(&state->lock, &state->lockingPid);
         }
     }

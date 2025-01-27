@@ -94,7 +94,6 @@ typedef struct {
 
     struct lorie_shared_server_state* state;
     struct {
-        LorieBuffer* buffer;
         Bool legacyDrawing;
         uint8_t flip;
         uint32_t width, height;
@@ -161,7 +160,7 @@ void OsVendorInit(void) {
 
 void lorieActivityConnected(void) {
     lorieSendSharedServerState(pvfb->stateFd);
-    lorieSendRootWindowBuffer(pvfb->root.buffer);
+    lorieSendRootWindowBuffer(((LoriePixmapPriv*) exaGetPixmapDriverPrivate(pScreenPtr->devPrivate))->buffer);
 }
 
 static LoriePixmapPriv* lorieRootWindowPixmapPriv(void) {

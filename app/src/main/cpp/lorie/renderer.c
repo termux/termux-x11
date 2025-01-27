@@ -569,10 +569,13 @@ void rendererRedrawLocked(JNIEnv* env) {
     }
 
     // Perform a little drawing operation to make sure the next buffer is ready on the next invocation of drawing
+    glEnable(GL_SCISSOR_TEST);
     glViewport(0, 0, 1, 1);
     glClearColor(0, 0, 0, 0);
+    glScissor(0, 0, 1, 1);
     glClear(GL_COLOR_BUFFER_BIT);
     glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win));
+    glDisable(GL_SCISSOR_TEST);
     fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, NULL);
     eglClientWaitSyncKHR(egl_display, fence, 0, EGL_FOREVER);
     eglDestroySyncKHR(egl_display, fence);

@@ -195,6 +195,7 @@ static int xcallback(int fd, int events, __unused void* data) {
                     log(INFO, "Received shared buffer width %d height %d format %d", desc.width, desc.height, desc.format);
                     rendererSetBuffer(buffer);
                     LorieBuffer_release(buffer);
+                    break;
                 }
             }
         }

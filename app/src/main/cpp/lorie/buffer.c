@@ -198,45 +198,6 @@ __LIBC_HIDDEN__ int LorieBuffer_unlock(LorieBuffer* buffer) {
     return ret;
 }
 
-__LIBC_HIDDEN__ int LorieBuffer_copy(LorieBuffer* src, LorieBuffer* dst) {
-    int ret = 0;
-    uint8_t srcWasLocked = src ? src->locked : false, dstWasLocked = dst ? dst->locked : false;
-    AHardwareBuffer_Desc srcDesc = {0}, dstDesc = {0};
-
-    if (!src || !dst)
-        return 1;
-
-    if (!src->locked)
-        ret = LorieBuffer_lock(src, NULL, NULL);
-
-    if (ret != 0) {
-        dprintf(2, "failed to lock src LorieBuffer! error %d\n", ret);
-        return 1;
-    }
-
-    if (!dst->locked)
-        ret = LorieBuffer_lock(dst, NULL, NULL);
-
-    if (ret != 0) {
-        dprintf(2, "failed to lock dst LorieBuffer! error %d\n", ret);
-        if (!srcWasLocked)
-            LorieBuffer_unlock(src);
-        return 1;
-    }
-
-    ret = !pixman_blt(src->lockedData, dst->lockedData, (int) srcDesc.stride, (int) dstDesc.stride,
-               32, 32, 0, 0, 0, 0,
-               min(srcDesc.width, dstDesc.width), min(srcDesc.height, dstDesc.height));
-
-    if (!srcWasLocked)
-        LorieBuffer_unlock(src);
-
-    if (!dstWasLocked)
-        LorieBuffer_unlock(dst);
-
-    return ret;
-}
-
 __LIBC_HIDDEN__ void LorieBuffer_sendHandleToUnixSocket(LorieBuffer* _Nonnull buffer, int socketFd) {
     if (socketFd < 0 || !buffer)
         return;

@@ -114,15 +114,6 @@ void LorieBuffer_sendHandleToUnixSocket(LorieBuffer* buffer, int socketFd);
  */
 void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuffer** outBuffer);
 
-/**
- * Copy/blit data from one LorieBuffer to another one.
- *
- * @param src
- * @param dst
- * @return
- */
-int LorieBuffer_copy(LorieBuffer* src, LorieBuffer* dst);
-
 #undef STATIC_INLINE
 
 int ancil_send_fd(int sock, int fd);

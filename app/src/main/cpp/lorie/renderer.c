@@ -638,6 +638,11 @@ __noreturn static void* rendererThread(JNIEnv* env) {
 
             if (state)
                 state->surfaceAvailable = win != defaultWin;
+            else if (win != defaultWin) {
+                glClearColor(0, 0, 0, 0);
+                glClear(GL_COLOR_BUFFER_BIT);
+                eglSwapBuffers(egl_display, sfc);
+            }
         }
 
         if (windowChanged)

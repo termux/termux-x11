@@ -142,6 +142,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
     @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt", "ClickableViewAccessibility", "WrongConstant", "UnspecifiedRegisterReceiverFlag"})
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        LorieView.requestConnection(); // We should send as soon as possible
 
         prefs = new Prefs(this);
         int modeValue = Integer.parseInt(prefs.touchMode.get()) - 1;
@@ -191,7 +192,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         lorieParent.setOnCapturedPointerListener((v, e) -> mInputHandler.handleTouchEvent(lorieView, lorieView, e));
         lorieView.setOnKeyListener(mLorieKeyListener);
 
-        lorieView.setCallback((sfc, surfaceWidth, surfaceHeight, screenWidth, screenHeight) -> {
+        lorieView.setCallback((surfaceWidth, surfaceHeight, screenWidth, screenHeight) -> {
             String name;
             int framerate = (int) ((lorieView.getDisplay() != null) ? lorieView.getDisplay().getRefreshRate() : 30);
 
@@ -550,8 +551,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             Log.e("MainActivity", "Something went wrong while we were establishing connection", e);
             service = null;
 
-            // We should reset the View for the case if we have sent it's surface to the client.
-            getLorieView().regenerate();
             handler.postDelayed(this::tryConnect, 250);
         }
     }
@@ -859,7 +858,6 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
             findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && connected ? View.VISIBLE : View.GONE);
             findViewById(R.id.stub).setVisibility(connected?View.INVISIBLE:View.VISIBLE);
             getLorieView().setVisibility(connected?View.VISIBLE:View.INVISIBLE);
-            getLorieView().regenerate();
 
             // We should recover connection in the case if file descriptor for some reason was broken...
             if (!connected)

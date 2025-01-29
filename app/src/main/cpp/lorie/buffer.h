@@ -114,6 +114,13 @@ void LorieBuffer_sendHandleToUnixSocket(LorieBuffer* buffer, int socketFd);
  */
 void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuffer** outBuffer);
 
+void LorieBuffer_attachToGL(LorieBuffer* buffer);
+void LorieBuffer_bindTexture(LorieBuffer *buffer);
+
+int LorieBuffer_getWidth(LorieBuffer *buffer);
+int LorieBuffer_getHeight(LorieBuffer *buffer);
+bool LorieBuffer_isRgba(LorieBuffer *buffer);
+
 #undef STATIC_INLINE
 
 int ancil_send_fd(int sock, int fd);

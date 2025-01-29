@@ -114,7 +114,6 @@ static EGLSurface defaultSfc = EGL_NO_SURFACE, sfc = EGL_NO_SURFACE;
 static EGLConfig cfg = 0;
 static ANativeWindow *defaultWin = NULL, *win = NULL;
 static LorieBuffer *buffer = NULL;
-static EGLImageKHR image = NULL;
 
 static JNIEnv* renderEnv = NULL;
 static volatile bool stateChanged = false, bufferChanged = false, windowChanged = false;
@@ -126,10 +125,6 @@ static pthread_mutex_t stateLock;
 static pthread_cond_t stateCond;
 static pthread_cond_t stateChangeFinishCond;
 static volatile struct lorie_shared_server_state* state = NULL;
-static struct {
-    GLuint id;
-    LorieBuffer_Desc desc;
-} display;
 static struct {
     GLuint id;
     bool cursorChanged;
@@ -228,7 +223,6 @@ int rendererInitThread(JavaVM *vm) {
     gv_coords_bgra = (GLuint) glGetAttribLocation(g_texture_program_bgra, "texCoords");
 
     glActiveTexture(GL_TEXTURE0);
-    glGenTextures(1, &display.id);
     glGenTextures(1, &cursor.id);
 
     rendererThread(env);
@@ -383,12 +377,6 @@ __unused void rendererSetSharedState(struct lorie_shared_server_state* newState)
 
 void rendererSetBuffer(LorieBuffer* buf) {
     pthread_mutex_lock(&stateLock);
-    if (buf == pendingBuffer)
-        goto end;
-
-    if (pendingBuffer)
-        LorieBuffer_release(pendingBuffer);
-
     pendingBuffer = buf;
     bufferChanged = true;
 
@@ -400,7 +388,10 @@ void rendererSetBuffer(LorieBuffer* buf) {
         pthread_cond_signal(&state->cond);
     pthread_cond_signal(&stateCond);
 
-    end: pthread_mutex_unlock(&stateLock);
+    while(bufferChanged)
+        pthread_cond_wait(&stateChangeFinishCond, &stateLock);
+
+    pthread_mutex_unlock(&stateLock);
 }
 
 void rendererSetWindow(ANativeWindow* newWin) {
@@ -435,7 +426,7 @@ void rendererSetWindow(ANativeWindow* newWin) {
 
 static inline __always_inline void releaseWinAndSurface(JNIEnv *env, ANativeWindow** anw, EGLSurface *esfc) {
     if (esfc && *esfc && *esfc != defaultSfc) {
-        // Requeue the dequeued buffer
+        // Requeue the dequeued buffer, causes flickering during window reconfiguring
         eglSwapBuffers(egl_display, *esfc);
         if (eglMakeCurrent(egl_display, defaultSfc, defaultSfc, ctx) != EGL_TRUE)
             return vprintEglError("eglMakeCurrent failed (EGL_NO_SURFACE)", __LINE__);
@@ -495,64 +486,35 @@ void rendererRefreshContext(JNIEnv* env) {
 }
 
 static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip);
-static void drawCursor(void);
+static void drawCursor(float displayWidth, float displayHeight);
 
 static void rendererRenewImage(void) {
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
-    uint32_t emptyData = {0};
-
-    if (image)
-        eglDestroyImageKHR(egl_display, image);
     if (buffer)
         LorieBuffer_release(buffer);
 
     buffer = pendingBuffer;
     pendingBuffer = NULL;
     bufferChanged = false;
-    image = NULL;
+    blockRedraw = false;
 
-    LorieBuffer_describe(buffer, &display.desc);
-
-    if (display.desc.buffer)
-        image = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, eglGetNativeClientBufferANDROID(display.desc.buffer), imageAttributes);
+    LorieBuffer_attachToGL(buffer);
+    log("renderer: buffer changed %p %d %d", buffer, (int) LorieBuffer_getWidth(buffer), (int) LorieBuffer_getHeight(buffer));
 
     // We should redraw image at least once right after buffer change
     if (state)
         state->surfaceAvailable = state->drawRequested = state->cursor.updated = win != defaultWin;
-
-    bindLinearTexture(display.id);
-    if (image)
-        glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
-    else if (display.desc.data && display.desc.width > 0 && display.desc.height > 0) {
-        int format = display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA;
-        // The image will be updated in redraw call because of `drawRequested` flag, so we are not uploading pixels
-        glTexImage2D(GL_TEXTURE_2D, 0, format, display.desc.width, display.desc.height, 0, format, GL_UNSIGNED_BYTE, NULL);
-    } else {
-        loge("There is no %s, nothing to be bound.", !buffer ? "AHardwareBuffer" : "EGLImage");
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &emptyData);
-        glClearColor(0, 0, 0, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
-    }
-
-    log("renderer: buffer changed %p %d %d", buffer, display.desc.width, display.desc.height);
 }
 
 void rendererRedrawLocked(JNIEnv* env) {
     EGLSync fence;
-    int err = EGL_SUCCESS;
 
-    // We should signal X server to not use root window while we actively copy use it
+    // We should signal X server to not use root window while we actively copy it
     lorie_mutex_lock(&state->lock, &state->lockingPid);
-    // Non-null display.desc.data means we have root window created in legacy drawing mode so we should update it on each frame.
-    if (display.desc.data && state->drawRequested) {
-        state->drawRequested = FALSE;
-        bindLinearTexture(display.id);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, display.desc.width, display.desc.height, display.desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, display.desc.data);
-    }
-
-    // Not a mistake, we reset drawRequested flag even in the case if there is no legacy drawing.
     state->drawRequested = FALSE;
-    draw(display.id,  -1.f, -1.f, 1.f, 1.f, display.desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM);
+
+    LorieBuffer_bindTexture(buffer);
+    draw(0,  -1.f, -1.f, 1.f, 1.f, LorieBuffer_isRgba(buffer));
     fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, NULL);
     glFlush();
 
@@ -566,7 +528,7 @@ void rendererRedrawLocked(JNIEnv* env) {
     }
 
     state->cursor.moved = FALSE;
-    drawCursor();
+    drawCursor((float) (LorieBuffer_getWidth(buffer)), (float) (LorieBuffer_getHeight(buffer)));
     glFlush();
 
     // Wait until root window drawing is finished before giving control back to X server
@@ -575,16 +537,8 @@ void rendererRedrawLocked(JNIEnv* env) {
     state->waitForNextFrame = true;
     lorie_mutex_unlock(&state->lock, &state->lockingPid);
 
-    if (eglSwapBuffers(egl_display, sfc) != EGL_TRUE) {
+    if (eglSwapBuffers(egl_display, sfc) != EGL_TRUE)
         printEglError("Failed to swap buffers", __LINE__);
-        err = eglGetError();
-        if (err == EGL_BAD_NATIVE_WINDOW || err == EGL_BAD_SURFACE) {
-            log("The window is to be destroyed. Native window disconnected/abandoned, probably activity is destroyed or in background");
-            pendingWin = NULL;
-            windowChanged = TRUE;
-            lorie_mutex_unlock(&state->lock, &state->lockingPid);
-        }
-    }
 
     // Perform a little drawing operation to make sure the next buffer is ready on the next invocation of drawing
     glEnable(GL_SCISSOR_TEST);
@@ -725,7 +679,8 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip
 
     glActiveTexture(GL_TEXTURE0);
     glUseProgram(flip ? g_texture_program_bgra : g_texture_program);
-    glBindTexture(GL_TEXTURE_2D, id);
+    if (id)
+        glBindTexture(GL_TEXTURE_2D, id);
 
     glVertexAttribPointer(p, 2, GL_FLOAT, GL_FALSE, 16, coords);
     glVertexAttribPointer(c, 2, GL_FLOAT, GL_FALSE, 16, &coords[2]);
@@ -734,16 +689,16 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); checkGlError();
 }
 
-__unused static void drawCursor(void) {
+__unused static void drawCursor(float displayWidth, float displayHeight) {
     float x, y, w, h;
 
     if (!state->cursor.width || !state->cursor.height)
         return;
 
-    x = 2.f * ((float) state->cursor.x - (float) state->cursor.xhot) / (float) display.desc.width - 1.f;
-    y = 2.f * ((float) state->cursor.y - (float) state->cursor.yhot) / (float) display.desc.height - 1.f;
-    w = 2.f * (float) state->cursor.width / (float) display.desc.width;
-    h = 2.f * (float) state->cursor.height / (float) display.desc.height;
+    x = 2.f * ((float) state->cursor.x - (float) state->cursor.xhot) / displayWidth - 1.f;
+    y = 2.f * ((float) state->cursor.y - (float) state->cursor.yhot) / displayHeight - 1.f;
+    w = 2.f * (float) state->cursor.width / displayWidth;
+    h = 2.f * (float) state->cursor.height / displayHeight;
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     draw(cursor.id, x, y, x + w, y + h, false);

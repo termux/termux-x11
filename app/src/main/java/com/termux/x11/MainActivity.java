@@ -670,6 +670,8 @@ public class MainActivity extends AppCompatActivity {
                 (TermuxX11ExtraKeys.getExtraKeysInfo() == null ? 0 : TermuxX11ExtraKeys.getExtraKeysInfo().getMatrix().length));
         pager.setLayoutParams(layoutParams);
 
+//        getLorieView().setBottomPadding(prefs.adjustHeightForEK.get() && showNow ? layoutParams.height : 0);
+//        getLorieView().triggerCallback();
         frm.setPadding(0, 0, 0, prefs.adjustHeightForEK.get() && showNow ? layoutParams.height : 0);
         getLorieView().requestFocus();
     }

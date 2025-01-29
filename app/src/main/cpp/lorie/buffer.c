@@ -1,3 +1,5 @@
+#define EGL_EGLEXT_PROTOTYPES
+#define GL_GLEXT_PROTOTYPES
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -7,6 +9,10 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <errno.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
 #include "misc.h"
 #include "buffer.h"
 
@@ -19,6 +25,9 @@ struct LorieBuffer {
 
     // file descriptor of shared memory fragment for shared memory backed buffer
     int fd;
+
+    GLuint id;
+    EGLImage image;
 };
 
 __attribute__((unused))
@@ -125,6 +134,12 @@ __LIBC_HIDDEN__ void __LorieBuffer_free(LorieBuffer* buffer) {
     if (!buffer)
         return;
 
+    if (eglGetCurrentContext())
+        glDeleteTextures(1, &buffer->id);
+
+    if (eglGetCurrentDisplay() && buffer->image)
+        eglDestroyImageKHR(eglGetCurrentDisplay(), buffer->image);
+
     if (buffer->desc.type == LORIEBUFFER_REGULAR) {
         if (buffer->desc.data)
             munmap (buffer->desc.data, alignToPage(buffer->desc.width * buffer->desc.height * sizeof(uint32_t)));
@@ -223,6 +238,7 @@ __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuf
     __sync_fetch_and_add(&buffer.refcount, 1); // refcount is the first object in the struct
 
     read(socketFd, &buffer, sizeof(buffer));
+    buffer.image = NULL; // Only for process-local use
     if (buffer.desc.type == LORIEBUFFER_REGULAR) {
         size_t size = alignToPage(buffer.desc.width * buffer.desc.height * sizeof(uint32_t));
         buffer.fd = ancil_recv_fd(socketFd);
@@ -257,6 +273,51 @@ __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuf
 
     *ret = buffer;
     *outBuffer = ret;
+}
+
+void LorieBuffer_attachToGL(LorieBuffer* buffer) {
+    const EGLint imageAttributes[] = { EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE };
+    if (!eglGetCurrentDisplay() || !buffer)
+        return;
+
+    if (buffer->image == NULL && buffer->desc.buffer)
+        buffer->image = eglCreateImageKHR(eglGetCurrentDisplay(), EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, eglGetNativeClientBufferANDROID(buffer->desc.buffer), imageAttributes);
+
+    glGenTextures(1, &buffer->id);
+    glBindTexture(GL_TEXTURE_2D, buffer->id);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    if (buffer->image)
+        glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, buffer->image);
+    else if (buffer->desc.data && buffer->desc.width > 0 && buffer->desc.height > 0) {
+        int format = buffer->desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA;
+        // The image will be updated in redraw call because of `drawRequested` flag, so we are not uploading pixels
+        glTexImage2D(GL_TEXTURE_2D, 0, format, buffer->desc.width, buffer->desc.height, 0, format, GL_UNSIGNED_BYTE, NULL);
+    }
+}
+
+void LorieBuffer_bindTexture(LorieBuffer *buffer) {
+    if (!buffer)
+        return;
+
+    glBindTexture(GL_TEXTURE_2D, buffer->id);
+    if (buffer->desc.type == LORIEBUFFER_REGULAR)
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, buffer->desc.width, buffer->desc.height, buffer->desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, buffer->desc.data);
+}
+
+int LorieBuffer_getWidth(LorieBuffer *buffer) {
+    return buffer ? buffer->desc.width : 0;
+}
+
+int LorieBuffer_getHeight(LorieBuffer *buffer) {
+    return buffer ? buffer->desc.height : 0;
+}
+
+bool LorieBuffer_isRgba(LorieBuffer *buffer) {
+    return buffer ? buffer->desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM : false;
 }
 
 __LIBC_HIDDEN__ int ancil_send_fd(int sock, int fd) {

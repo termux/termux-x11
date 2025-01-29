@@ -681,6 +681,7 @@ public class MainActivity extends AppCompatActivity {
             prefs.additionalKbdVisible.put(visible);
 
         setTerminalToolbarView();
+        getWindow().setSoftInputMode(prefs.Reseed.get() ? SOFT_INPUT_ADJUST_RESIZE : SOFT_INPUT_ADJUST_PAN);
     }
 
     public void toggleExtraKeys() {

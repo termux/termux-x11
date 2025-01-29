@@ -496,7 +496,6 @@ static void rendererRenewImage(void) {
     buffer = pendingBuffer;
     pendingBuffer = NULL;
     bufferChanged = false;
-    blockRedraw = false;
 
     LorieBuffer_attachToGL(buffer);
     log("renderer: buffer changed %p %d %d", buffer, (int) LorieBuffer_getWidth(buffer), (int) LorieBuffer_getHeight(buffer));

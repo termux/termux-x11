@@ -70,8 +70,9 @@ static jclass FindMethodOrDie(JNIEnv *env, jclass clazz, const char* name, const
     return method;
 }
 
-static void requestConnection(__unused JNIEnv *env, __unused jclass clazz) {
+static jboolean requestConnection(__unused JNIEnv *env, __unused jclass clazz) {
 #define check(cond, fmt, ...) if ((cond)) do { __android_log_print(ANDROID_LOG_ERROR, "requestConnection", fmt, ## __VA_ARGS__); goto end; } while (0)
+    bool sent = JNI_FALSE;
     // We do not want to block GUI thread for a long time so we will set timeout to 20 msec.
     struct sockaddr_in server = { .sin_family = AF_INET, .sin_port = htons(PORT), .sin_addr.s_addr = inet_addr("127.0.0.1") };
     int so_error, sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -91,12 +92,14 @@ static void requestConnection(__unused JNIEnv *env, __unused jclass clazz) {
         check(so_error != 0, "Connection failed: %s", strerror(so_error));
 
         check(write(sock, MAGIC, sizeof(MAGIC)) < 0, "failed to send message: %s", strerror(errno));
+        sent = JNI_TRUE;
         goto end;
     }
 
     check(1, "something went wrong: %s, %s", strerror(errno), strerror(r));
 
     end: if (sock >= 0) close(sock);
+    return sent;
 #undef errorReturn
 }
 
@@ -383,7 +386,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
             {"requestStylusEnabled", "(Z)V", (void *)&requestStylusEnabled},
             {"sendKeyEvent", "(IIZ)Z", (void *)&sendKeyEvent},
             {"sendTextEvent", "([B)V", (void *)&sendTextEvent},
-            {"requestConnection", "()V", (void *)&requestConnection},
+            {"requestConnection", "()Z", (void *)&requestConnection},
     };
     (*vm)->AttachCurrentThread(vm, &env, NULL);
     jclass cls = (*env)->FindClass(env, "com/termux/x11/LorieView");

@@ -45,6 +45,7 @@ import android.view.PointerIcon;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.inputmethod.InputMethodManager;
@@ -120,6 +121,15 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
                 android.util.Log.d("ACTION_CUSTOM", "action " + intent.getStringExtra("what"));
                 mInputHandler.extractUserActionFromPreferences(prefs, intent.getStringExtra("what")).accept(0, true);
             }
+        }
+    };
+
+    ViewTreeObserver.OnPreDrawListener mOnPredrawListener = new ViewTreeObserver.OnPreDrawListener() {
+        @Override
+        public boolean onPreDraw() {
+            if (LorieView.connected())
+                handler.post(() -> findViewById(android.R.id.content).getViewTreeObserver().removeOnPreDrawListener(mOnPredrawListener));
+            return false;
         }
     };
 
@@ -221,7 +231,11 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         mNotification = buildNotification();
         mNotificationManager.notify(mNotificationId, mNotification);
 
-        tryConnect();
+        if (tryConnect()) {
+            final View content = findViewById(android.R.id.content);
+            content.getViewTreeObserver().addOnPreDrawListener(mOnPredrawListener);
+            handler.postDelayed(() -> content.getViewTreeObserver().removeOnPreDrawListener(mOnPredrawListener), 500);
+        }
         onPreferencesChanged("");
 
         toggleExtraKeys(false, false);
@@ -527,14 +541,14 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
         }
     }
 
-    void tryConnect() {
+    boolean tryConnect() {
         if (LorieView.connected())
-            return;
+            return false;
 
         if (service == null) {
-            LorieView.requestConnection();
+            boolean sent = LorieView.requestConnection();
             handler.postDelayed(this::tryConnect, 250);
-            return;
+            return true;
         }
 
         try {
@@ -553,6 +567,7 @@ public class MainActivity extends AppCompatActivity implements View.OnApplyWindo
 
             handler.postDelayed(this::tryConnect, 250);
         }
+        return false;
     }
 
     void onPreferencesChanged(String key) {

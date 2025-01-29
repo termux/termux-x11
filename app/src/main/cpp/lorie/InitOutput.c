@@ -530,6 +530,12 @@ static Bool lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height,
     DamageRegister(&newPixmap->drawable, pvfb->damage);
 
     if (oldPixmap) {
+        GCPtr gc = GetScratchGC(newPixmap->drawable.depth, pScreen);
+        if (gc) {
+            ValidateGC(&newPixmap->drawable, gc);
+            gc->ops->CopyArea(&oldPixmap->drawable, &newPixmap->drawable, gc, 0, 0, min(oldPixmap->drawable.width, newPixmap->drawable.width), min(oldPixmap->drawable.height, newPixmap->drawable.height), 0, 0);
+            FreeScratchGC(gc);
+        }
         TraverseTree(pScreen->root, lorieSetPixmapVisitWindow, oldPixmap);
         pScreen->DestroyPixmap(oldPixmap);
     }

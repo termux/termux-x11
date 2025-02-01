@@ -63,13 +63,17 @@ import androidx.viewpager.widget.ViewPager;
 import com.termux.x11.input.InputEventSender;
 import com.termux.x11.input.InputStub;
 import com.termux.x11.input.TouchInputHandler;
+import com.termux.x11.input.VirtualKeyHandler;
 import com.termux.x11.utils.FullscreenWorkaround;
 import com.termux.x11.utils.KeyInterceptor;
 import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @SuppressLint("ApplySharedPref")
 @SuppressWarnings({"deprecation", "unused"})
@@ -146,6 +150,8 @@ public class MainActivity extends AppCompatActivity {
     public static MainActivity getInstance() {
         return instance;
     }
+
+    private VirtualKeyHandler virtualKeyHandler;
 
     @Override
     @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt", "ClickableViewAccessibility", "WrongConstant", "UnspecifiedRegisterReceiverFlag"})
@@ -250,7 +256,74 @@ public class MainActivity extends AppCompatActivity {
 
         onReceiveConnection(getIntent());
         findViewById(android.R.id.content).addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> makeSureHelpersAreVisibleAndInScreenBounds());
+
+        // Obținem containerul principal
+        FrameLayout mainContainer = findViewById(R.id.frame);
+        if (mainContainer == null) {
+            Log.e("DEBUG", "❌ Eroare: containerul principal nu a fost găsit!");
+            return;
+        }
+
+// Instanțiem VirtualKeyHandler
+        VirtualKeyHandler virtualKeyHandler = new VirtualKeyHandler(this);
+
+// Încărcăm butoanele virtuale
+        List<Button> buttons = VirtualKeyMapperActivity.loadButtons(this, virtualKeyHandler);
+
+// Procesăm fiecare buton
+        for (Button button : buttons) {
+            // Setăm input-ul pentru buton
+            virtualKeyHandler.setupInputForButton(button);
+
+            // Adăugăm butonul în container
+            mainContainer.addView(button);
+        }
+
+        Log.d("DEBUG", "✅ Toate butoanele virtuale au fost încărcate și configurate!");
     }
+
+    private void loadVirtualKeys(VirtualKeyHandler virtualKeyHandler) {
+        SharedPreferences prefs = getSharedPreferences("button_prefs", MODE_PRIVATE);
+        Set<String> buttonData = prefs.getStringSet("button_data", new HashSet<>());
+
+
+        FrameLayout mainContainer = findViewById(R.id.frame);
+        if (mainContainer == null) {
+            Log.e("DEBUG", "❌ Eroare: containerul principal nu a fost găsit!");
+            return;
+        }
+
+        for (String data : buttonData) {
+            String[] parts = data.split(",");
+            if (parts.length < 6) continue; // Verificăm dacă avem toate datele necesare
+
+            int id = Integer.parseInt(parts[0]);
+            float x = Float.parseFloat(parts[1]);
+            float y = Float.parseFloat(parts[2]);
+            int width = Integer.parseInt(parts[3]);
+            float alpha = Float.parseFloat(parts[4]);
+            String inputKey = parts[5]; // Tasta mapată (ex: "W", "Enter", etc.)
+
+            // 📌 Creăm butonul virtual
+            Button button = new Button(this);
+            button.setText(inputKey);
+            button.setId(id);
+            button.setLayoutParams(new FrameLayout.LayoutParams(width, width));
+            button.setX(x);
+            button.setY(y);
+            button.setAlpha(alpha);
+            button.setTag(inputKey); // Salvăm input-ul în tag
+
+            // ✅ Apelăm funcția pentru a seta input-ul
+            virtualKeyHandler.setupInputForButton(button);
+
+            // 📌 Adăugăm butonul pe ecran
+            mainContainer.addView(button);
+        }
+
+        Log.d("DEBUG", "✅ Toate butoanele virtuale au fost încărcate și configurate!");
+    }
+
 
     @Override
     protected void onDestroy() {
@@ -443,20 +516,20 @@ public class MainActivity extends AppCompatActivity {
 
         Map.of(left, InputStub.BUTTON_LEFT, middle, InputStub.BUTTON_MIDDLE, right, InputStub.BUTTON_RIGHT)
                 .forEach((v, b) -> v.setOnTouchListener((__, e) -> {
-            switch(e.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                case MotionEvent.ACTION_POINTER_DOWN:
-                    getLorieView().sendMouseEvent(0, 0, b, true, true);
-                    v.setPressed(true);
-                    break;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_POINTER_UP:
-                    getLorieView().sendMouseEvent(0, 0, b, false, true);
-                    v.setPressed(false);
-                    break;
-            }
-            return true;
-        }));
+                    switch(e.getAction()) {
+                        case MotionEvent.ACTION_DOWN:
+                        case MotionEvent.ACTION_POINTER_DOWN:
+                            getLorieView().sendMouseEvent(0, 0, b, true, true);
+                            v.setPressed(true);
+                            break;
+                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_POINTER_UP:
+                            getLorieView().sendMouseEvent(0, 0, b, false, true);
+                            v.setPressed(false);
+                            break;
+                    }
+                    return true;
+                }));
 
         pos.setOnTouchListener(new View.OnTouchListener() {
             final int touchSlop = (int) Math.pow(ViewConfiguration.get(MainActivity.this).getScaledTouchSlop(), 2);
@@ -884,8 +957,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void checkRestartInput() {
         // an imperfect workaround for Gboard CJK keyboard in DeX soft keyboard mode
-        // in that particular mode during language switching, InputConnection#requestCursorUpdates() is not called and no signal can be picked up. 
-        // therefore, check to activate CJK keyboard is done upon a keypress.  
+        // in that particular mode during language switching, InputConnection#requestCursorUpdates() is not called and no signal can be picked up.
+        // therefore, check to activate CJK keyboard is done upon a keypress.
         if (getLorieView().enableGboardCJK && SamsungDexUtils.checkDeXEnabled(this))
             getLorieView().checkRestartInput(false);
         handler.postDelayed(this::checkRestartInput, 300);

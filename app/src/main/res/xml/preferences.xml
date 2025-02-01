@@ -62,6 +62,11 @@
         <SwitchPreferenceCompat app:key="useTermuxEKBarBehaviour" app:defaultValue="false" />
         <SeekBarPreference app:key="opacityEKBar" app:defaultValue="100" app:min="1" android:max="100" app:seekBarIncrement="1" app:showSeekBarValue="true" app:updatesContinuously="true" />
         <EditTextPreference app:key="extra_keys_config" />
+        <Preference
+            android:key="editVirtualKeys"
+            android:title="Customize Virtual Keys"
+            android:summary="Map, resize, and position virtual keys on the screen."
+            android:onClick="openVirtualKeyMapper"/>
     </PreferenceScreen>
     <PreferenceScreen app:key="userActions">
         <ListPreference app:key="swipeUpAction" app:defaultValue="no action" app:entries="@array/userActionsValues" app:entryValues="@array/userActionsValues" />

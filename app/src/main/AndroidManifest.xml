@@ -17,6 +17,7 @@
         android:theme="@style/AppTheme"
         android:hardwareAccelerated="true"
         tools:ignore="DataExtractionRules,GoogleAppIndexingWarning">
+        <activity android:name=".VirtualKeyMapperActivity" />
         <activity
             android:name=".MainActivity"
             android:taskAffinity=".MainActivity"

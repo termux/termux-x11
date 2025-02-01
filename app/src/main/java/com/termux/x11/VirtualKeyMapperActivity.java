@@ -168,24 +168,26 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
 
     /**
      * Salvează poziția butonului în SharedPreferences
+     *
+     * @return
      */
-    private void saveButtonSettings(Button button) {
+    private String saveButtonSettings(Button button) {
         SharedPreferences prefs = getSharedPreferences("button_prefs", MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
 
         Set<String> buttonData = new HashSet<>(prefs.getStringSet("button_data", new HashSet<>()));
 
         int id = button.getId();
+        String tag = (String) button.getTag();
+        String text = button.getText().toString();
         float x = button.getX();
         float y = button.getY();
         int width = button.getWidth();
         int height = button.getHeight();
-        float alpha = button.getAlpha();
-        String name = button.getText().toString(); // Salvăm numele!
-        String tag = (String) button.getTag(); // Salvăm tag-ul (inputul asociat)
+        int alpha = button.getBackground().getAlpha();; // Salvăm tag-ul (inputul asociat)
 
         // Construim un string care conține toate datele
-        String line = id + "," + x + "," + y + "," + width + "," + height + "," + alpha + "," + tag + "," + name;
+        String line = id + "," + x + "," + y + "," + width + "," + height + "," + alpha + "," + tag + "," + text;
 
         // Ștergem orice linie care începe cu același ID, ca să nu avem duplicat
         buttonData.removeIf(data -> data.startsWith(id + ","));
@@ -196,7 +198,8 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
         editor.putStringSet("button_data", buttonData);
         editor.apply();
 
-        Log.d("DEBUG", "Salvăm butonul: id=" + id + ", tag=" + tag + ", text=" + name);
+        Log.d("DEBUG", "Salvăm butonul: id=" + id + ", tag=" + tag + ", text=" + text);
+        return line;
     }
 
 
@@ -219,19 +222,18 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
             float y = Float.parseFloat(parts[2]);
             int width = Integer.parseInt(parts[3]);
             int height = Integer.parseInt(parts[4]);
-            float alpha = Float.parseFloat(parts[5]);
-            String tag = parts[6]; // Tag-ul (inputul asociat)
-            String text = parts[7]; // Textul butonului
+            int alpha = Integer.parseInt(parts[5]);  // ✅ Convertim alpha corect (0-255)
+            String tag = parts[6];
+            String text = parts[7];
 
-            // Creăm butonul virtual
             Button button = new Button(context);
-            button.setText(text); // Setăm textul butonului
-            button.setTag(tag); // Setăm tag-ul (inputul asociat)
+            button.setText(text);
+            button.setTag(tag);
             button.setId(id);
             button.setLayoutParams(new FrameLayout.LayoutParams(width, height));
             button.setX(x);
             button.setY(y);
-            button.setAlpha(alpha);
+            button.getBackground().setAlpha(alpha);
 
             // Adăugăm butonul în listă
             buttons.add(button);
@@ -388,28 +390,17 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
             View view = buttonContainer.getChildAt(i);
             if (view instanceof Button) {
                 Button button = (Button) view;
-                String tag = (String) button.getTag(); // Obținem tag-ul (inputul asociat)
-                String text = button.getText().toString(); // Obținem textul butonului
-                float x = button.getX();
-                float y = button.getY();
-                int width = button.getWidth();
-                int height = button.getHeight(); // ✅ Salvăm înălțimea
-                float alpha = button.getAlpha();
 
-                // Adăugăm toate datele inclusiv `height`
-                String data = button.getId() + "," + x + "," + y + "," + width + "," + height + "," + alpha + "," + tag + "," + text;
+                String data = saveButtonSettings(button);
                 buttonData.add(data);
-
-                Log.d("DEBUG", "💾 Salvăm butonul: " + data);
             }
         }
 
+
         editor.putStringSet("preset_default", buttonData);
         editor.apply();
-
         Toast.makeText(this, "✅ Preset saved!", Toast.LENGTH_SHORT).show();
     }
-
 
 
     private void showLoadPresetDialog() {
@@ -440,7 +431,30 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
 
 
     private void showSetInputDialog(Button button) {
-        String[] keys = {"W", "A", "S", "D", "Space", "Enter", "Backspace", "↑", "↓", "←", "→"};
+        String[] keys = {
+                // Litere
+                "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+                "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+
+                // Cifre
+                "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+
+                // Taste speciale
+                "Space", "Enter", "Backspace", "Tab", "Escape", "Delete", "Insert",
+                "Home", "End", "Page Up", "Page Down",
+
+                // Taste de navigare (săgeți)
+                "↑", "↓", "←", "→",
+
+                // Combinații de taste (modificatori)
+                "Alt + F4",
+
+                // Altele
+                "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+
+                // Input personalizat
+                //"Custom..."
+        };
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Select Input Key")
@@ -465,29 +479,27 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
             return;
         }
 
-        // Ștergem toate butoanele actuale
         buttonContainer.removeAllViews();
 
+        for (int i = 0; i < buttonContainer.getChildCount(); i++) {
+            View view = buttonContainer.getChildAt(i);
 
-        Log.e("DEBUG", "Datele: " + buttonData);
+            removeButtonFromStorage(view.getId());
+        }
 
         for (String data : buttonData) {
             String[] parts = data.split(",");
-            if (parts.length < 8) {
-                Log.e("DEBUG", "Date incomplete pentru buton: " + data);
-                //continue; // Sărim peste datele incomplete
-            }
+            if (parts.length < 8) continue;
+
             int id = Integer.parseInt(parts[0]);
             float x = Float.parseFloat(parts[1]);
             float y = Float.parseFloat(parts[2]);
             int width = Integer.parseInt(parts[3]);
             int height = Integer.parseInt(parts[4]);
-            float alpha = Float.parseFloat(parts[5]);
+            int alpha = Integer.parseInt(parts[5]);  // ✅ Convertim alpha corect (0-255)
             String tag = parts[6];
             String text = parts[7];
 
-
-            // Creăm butonul
             Button button = new Button(this);
             button.setText(text);
             button.setTag(tag);
@@ -495,15 +507,13 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
             button.setLayoutParams(new FrameLayout.LayoutParams(width, height));
             button.setX(x);
             button.setY(y);
-            button.setAlpha(alpha);
+            button.getBackground().setAlpha(alpha);  // ✅ Aplicăm corect transparența
 
-            Log.e("DEBUG", "A reusit sa ajunga pana aici.");
             addNewButton(button);
         }
 
         Toast.makeText(this, "Preset loaded: " + presetName, Toast.LENGTH_SHORT).show();
     }
-
 
 
 }

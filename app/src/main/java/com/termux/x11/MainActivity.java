@@ -282,48 +282,6 @@ public class MainActivity extends AppCompatActivity {
         Log.d("DEBUG", "✅ Toate butoanele virtuale au fost încărcate și configurate!");
     }
 
-    private void loadVirtualKeys(VirtualKeyHandler virtualKeyHandler) {
-        SharedPreferences prefs = getSharedPreferences("button_prefs", MODE_PRIVATE);
-        Set<String> buttonData = prefs.getStringSet("button_data", new HashSet<>());
-
-
-        FrameLayout mainContainer = findViewById(R.id.frame);
-        if (mainContainer == null) {
-            Log.e("DEBUG", "❌ Eroare: containerul principal nu a fost găsit!");
-            return;
-        }
-
-        for (String data : buttonData) {
-            String[] parts = data.split(",");
-            if (parts.length < 6) continue; // Verificăm dacă avem toate datele necesare
-
-            int id = Integer.parseInt(parts[0]);
-            float x = Float.parseFloat(parts[1]);
-            float y = Float.parseFloat(parts[2]);
-            int width = Integer.parseInt(parts[3]);
-            float alpha = Float.parseFloat(parts[4]);
-            String inputKey = parts[5]; // Tasta mapată (ex: "W", "Enter", etc.)
-
-            // 📌 Creăm butonul virtual
-            Button button = new Button(this);
-            button.setText(inputKey);
-            button.setId(id);
-            button.setLayoutParams(new FrameLayout.LayoutParams(width, width));
-            button.setX(x);
-            button.setY(y);
-            button.setAlpha(alpha);
-            button.setTag(inputKey); // Salvăm input-ul în tag
-
-            // ✅ Apelăm funcția pentru a seta input-ul
-            virtualKeyHandler.setupInputForButton(button);
-
-            // 📌 Adăugăm butonul pe ecran
-            mainContainer.addView(button);
-        }
-
-        Log.d("DEBUG", "✅ Toate butoanele virtuale au fost încărcate și configurate!");
-    }
-
 
     @Override
     protected void onDestroy() {

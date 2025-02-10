@@ -124,8 +124,7 @@ static char *xstartup = NULL;
 
 typedef struct {
     LorieBuffer *buffer;
-    AHardwareBuffer* ahb;
-    uint8_t flipped;
+    bool flipped, imported;
     void *locked;
     void *mem;
 } LoriePixmapPriv;
@@ -806,11 +805,10 @@ void *lorieCreatePixmap(__unused ScreenPtr pScreen, int width, int height, __unu
 void lorieExaDestroyPixmap(__unused ScreenPtr pScreen, void *driverPriv) {
     LoriePixmapPriv *priv = driverPriv;
     if (priv->buffer) {
-        LorieBuffer_unlock(priv->buffer);
+        if (!priv->imported)
+            LorieBuffer_unlock(priv->buffer);
         LorieBuffer_release(priv->buffer);
     }
-    if (priv->ahb)
-        AHardwareBuffer_release(priv->ahb);
     free(priv);
 }
 
@@ -826,8 +824,8 @@ Bool loriePrepareAccess(PixmapPtr pPix, int index) {
     if (index == EXA_PREPARE_DEST && pScreenPtr->GetScreenPixmap(pScreenPtr) == pPix)
         lorie_mutex_lock(&pvfb->state->lock, &pvfb->state->lockingPid);
 
-    if (priv->ahb) {
-        if (AHardwareBuffer_lock(priv->ahb, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1, NULL, &pPix->devPrivate.ptr))
+    if (priv->imported) {
+        if (LorieBuffer_lock(priv->buffer, &pPix->devPrivate.ptr))
             return FALSE;
     } else
         pPix->devPrivate.ptr = priv->locked ?: priv->mem ?: priv + 1;
@@ -839,8 +837,8 @@ void lorieFinishAccess(PixmapPtr pPix, int index) {
     if (index == EXA_PREPARE_DEST && pScreenPtr->GetScreenPixmap(pScreenPtr) == pPix)
         lorie_mutex_unlock(&pvfb->state->lock, &pvfb->state->lockingPid);
 
-    if (priv->ahb)
-        AHardwareBuffer_unlock(priv->ahb, NULL);
+    if (priv->imported)
+        LorieBuffer_unlock(priv->buffer);
 }
 
 static ExaDriverRec lorieExa = {
@@ -863,7 +861,6 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
     AHardwareBuffer_Desc desc = {0};
     PixmapPtr pixmap = NullPixmap;
     LoriePixmapPriv *priv = NULL;
-    void *addr = NULL;
 
     check(num_fds > 1, "DRI3: More than 1 fd");
     check(modifier != RAW_MMAPPABLE_FD && modifier != AHARDWAREBUFFER_SOCKET_FD && modifier != AHARDWAREBUFFER_FLIPPED_SOCKET_FD &&
@@ -875,14 +872,16 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
     priv = exaGetPixmapDriverPrivate(pixmap);
     check(!priv, "DRI3: failed to obtain pixmap private");
 
+    priv->imported = true;
+
     if (modifier == DRM_FORMAT_MOD_INVALID || modifier == RAW_MMAPPABLE_FD) {
-        addr = mmap(NULL, strides[0] * height, PROT_READ, MAP_SHARED, fds[0], offsets[0]);
-        check(!addr || addr == MAP_FAILED, "DRI3: RAW_MMAPPABLE_FD: mmap failed");
-        screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, strides[0], addr);
+        check(!(priv->buffer = LorieBuffer_wrapFileDescriptor(width, height, AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM, fds[0], offsets[0])), "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");
+        screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, strides[0], NULL);
         return pixmap;
     }
 
     if (modifier == AHARDWAREBUFFER_SOCKET_FD || modifier == AHARDWAREBUFFER_FLIPPED_SOCKET_FD) {
+        AHardwareBuffer* buffer;
         struct stat info;
         uint8_t buf = 1;
         int r;
@@ -892,14 +891,15 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
         check(!S_ISSOCK(info.st_mode), "DRI3: modifier is AHARDWAREBUFFER_SOCKET_FD but fd is not a socket");
         // Sending signal to other end of socket to send buffer.
         check(write(fds[0], &buf, 1) != 1, "DRI3: AHARDWAREBUFFER_SOCKET_FD: failed to write to socket: %s", strerror(errno));
-        check((r = AHardwareBuffer_recvHandleFromUnixSocket(fds[0], &priv->ahb)) != 0,
+        check((r = AHardwareBuffer_recvHandleFromUnixSocket(fds[0], &buffer)) != 0,
               "DRI3: AHARDWAREBUFFER_SOCKET_FD: failed to obtain AHardwareBuffer from socket: %d", r);
-        check(!priv->ahb, "DRI3: AHARDWAREBUFFER_SOCKET_FD: did not receive AHardwareSocket from buffer");
-        AHardwareBuffer_describe(priv->ahb, &desc);
+        check(!buffer, "DRI3: AHARDWAREBUFFER_SOCKET_FD: did not receive AHardwareSocket from buffer");
+        AHardwareBuffer_describe(buffer, &desc);
         check(desc.format != AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM
             && desc.format != AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM
             && desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM,
             "DRI3: AHARDWAREBUFFER_SOCKET_FD: wrong format of AHardwareBuffer. Must be one of: AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM, AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM, AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM (stands for 5).");
+        check(!(priv->buffer = LorieBuffer_wrapAHardwareBuffer(buffer)), "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");
 
         screen->ModifyPixmapHeader(pixmap, desc.width, desc.height, 0, 0, desc.stride * 4, NULL);
     }
@@ -907,12 +907,6 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
     return pixmap;
 
     fail:
-    if (priv && priv->ahb) {
-        AHardwareBuffer_release(priv->ahb);
-        priv->ahb = NULL;
-    }
-    if (addr)
-        munmap(addr, strides[0] * height);
     if (pixmap)
         screen->DestroyPixmap(pixmap);
 

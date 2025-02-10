@@ -31,6 +31,7 @@ struct LorieBuffer {
     // file descriptor of shared memory fragment for shared memory backed buffer
     int fd;
     size_t size;
+    off_t offset;
 
     GLuint id;
     EGLImage image;
@@ -93,12 +94,12 @@ int LorieBuffer_createRegion(char const* name, size_t size) {
 }
 #pragma clang diagnostic pop
 
-static LorieBuffer* allocate(int32_t width, int32_t height, int8_t format, int8_t type, AHardwareBuffer *buf, int fd, size_t size) {
+static LorieBuffer* allocate(int32_t width, int32_t height, int8_t format, int8_t type, AHardwareBuffer *buf, int fd, size_t size, off_t offset) {
     AHardwareBuffer_Desc desc = {0};
     bool acceptable = (format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM || format == AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM) && width > 0 && height > 0;
-    LorieBuffer b = { .desc = { .width = width, .stride = width, .height = height, .format = format, .type = type, .buffer = buf }, .fd = fd, .size = size };
+    LorieBuffer b = { .desc = { .width = width, .stride = width, .height = height, .format = format, .type = type, .buffer = buf }, .fd = fd, .size = size, .offset = offset };
 
-    if (format != LORIEBUFFER_AHARDWAREBUFFER && !acceptable)
+    if (type != LORIEBUFFER_AHARDWAREBUFFER && !acceptable)
         return NULL;
 
     __sync_fetch_and_add(&b.refcount, 1);
@@ -113,7 +114,7 @@ static LorieBuffer* allocate(int32_t width, int32_t height, int8_t format, int8_
             if (b.fd < 0)
                 return NULL;
 
-            b.desc.data = mmap(NULL, b.size, PROT_READ|PROT_WRITE, MAP_SHARED, b.fd, 0);
+            b.desc.data = mmap(NULL, b.size, PROT_READ|PROT_WRITE, MAP_SHARED, b.fd, b.offset);
             if (b.desc.data == NULL || b.desc.data == MAP_FAILED) {
                 close(b.fd);
                 return NULL;
@@ -171,15 +172,15 @@ __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_allocate(int32_t width, int32_t height,
             dprintf(2, "FATAL: failed to allocate AHardwareBuffer (width %d height %d format %d): error %d\n", width, height, format, err);
     }
 
-    return allocate(width, height, format, type, ahardwarebuffer, fd, size);
+    return allocate(width, height, format, type, ahardwarebuffer, fd, size, 0);
 }
 
-__LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapFileDescriptor(int32_t width, int32_t height, int8_t format, int fd) {
-    return allocate(width, height, format, LORIEBUFFER_FD, NULL, fd, width * height * sizeof(uint32_t));
+__LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapFileDescriptor(int32_t width, int32_t height, int8_t format, int fd, off_t offset) {
+    return allocate(width, height, format, LORIEBUFFER_FD, NULL, fd, width * height * sizeof(uint32_t), offset);
 }
 
 __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapAHardwareBuffer(AHardwareBuffer* buffer) {
-    return allocate(0, 0, 0, LORIEBUFFER_AHARDWAREBUFFER, buffer, -1, 0);
+    return allocate(0, 0, 0, LORIEBUFFER_AHARDWAREBUFFER, buffer, -1, 0, 0);
 }
 
 __LIBC_HIDDEN__ void __LorieBuffer_free(LorieBuffer* buffer) {

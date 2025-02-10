@@ -52,9 +52,11 @@ LorieBuffer* LorieBuffer_allocate(int32_t width, int32_t height, int8_t format, 
  * @param height height of buffer.
  * @param format format of buffer. Accepts AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM or AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM
  * @param fd file descriptor of buffer.
+ * @param size size of memory fragment.
+ * @param offset offset inside memory fragment.
  * @return
  */
-LorieBuffer* LorieBuffer_wrapFileDescriptor(int32_t width, int32_t height, int8_t format, int fd);
+LorieBuffer* LorieBuffer_wrapFileDescriptor(int32_t width, int32_t height, int8_t format, int fd, off_t offset);
 
 /**
  * Wraps given AHardwareBuffer into LorieBuffer.

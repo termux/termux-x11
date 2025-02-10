@@ -875,7 +875,7 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
     priv->imported = true;
 
     if (modifier == DRM_FORMAT_MOD_INVALID || modifier == RAW_MMAPPABLE_FD) {
-        check(!(priv->buffer = LorieBuffer_wrapFileDescriptor(width, height, AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM, fds[0], offsets[0])), "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");
+        check(!(priv->buffer = LorieBuffer_wrapFileDescriptor(max(width, strides[0] / 4), height, AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM, fds[0], offsets[0])), "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");
         screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, strides[0], NULL);
         return pixmap;
     }

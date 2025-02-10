@@ -101,8 +101,6 @@ typedef struct {
         uint32_t framerate;
     } root;
 
-    JavaVM* vm;
-    JNIEnv* env;
     Bool dri3;
 
     uint64_t vblank_interval;
@@ -769,11 +767,6 @@ static struct present_screen_info loriePresentInfo = {
         .abort_vblank = loriePresentAbortVblank,
 };
 
-void lorieSetVM(JavaVM* vm) {
-    pvfb->vm = vm;
-    (*vm)->AttachCurrentThread(vm, &pvfb->env, NULL);
-}
-
 void exaDDXDriverInit(__unused ScreenPtr pScreen) {}
 
 void *lorieCreatePixmap(__unused ScreenPtr pScreen, int width, int height, __unused int depth, int usage_hint, __unused int bpp, int *new_fb_pitch) {
@@ -828,7 +821,7 @@ Bool loriePrepareAccess(PixmapPtr pPix, int index) {
         if (LorieBuffer_lock(priv->buffer, &pPix->devPrivate.ptr))
             return FALSE;
     } else
-        pPix->devPrivate.ptr = priv->locked ?: priv->mem ?: priv + 1;
+        pPix->devPrivate.ptr = priv->locked ?: priv->mem;
     return TRUE;
 }
 

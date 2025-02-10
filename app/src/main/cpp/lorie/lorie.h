@@ -20,7 +20,6 @@
 
 struct lorie_shared_server_state;
 
-void lorieSetVM(JavaVM* vm);
 void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name);
 void lorieEnableClipboardSync(Bool enable);
 void lorieSendClipboardData(const char* data);

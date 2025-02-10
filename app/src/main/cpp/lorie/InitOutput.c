@@ -233,13 +233,12 @@ Bool drawSquares() {
     LoriePixmapPriv* priv = lorieRootWindowPixmapPriv();
     uint32_t* pixels = !priv ? NULL : priv->locked;
     if (pixels) {
-        LorieBuffer_Desc d = {0};
-        LorieBuffer_describe(priv->buffer, &d);
-        int l = min(d.width, d.height) / 4, x = (d.width - l)/2, y = (d.height - l)/2;
+        const LorieBuffer_Desc *d = LorieBuffer_description(priv->buffer);
+        int l = min(d->width, d->height) / 4, x = (d->width - l)/2, y = (d->height - l)/2;
 
-        drawSquare(x - l/3, y - l/3, l, 0x00FF0000, d.stride, pixels);
-        drawSquare(x, y, l, 0x0000FF00, d.stride, pixels);
-        drawSquare(x + l/3, y + l/3, l, 0x000000FF, d.stride, pixels);
+        drawSquare(x - l/3, y - l/3, l, 0x00FF0000, d->stride, pixels);
+        drawSquare(x, y, l, 0x0000FF00, d->stride, pixels);
+        drawSquare(x + l/3, y + l/3, l, 0x000000FF, d->stride, pixels);
     }
 
     return FALSE;
@@ -443,7 +442,7 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
         // Also according to AHardwareBuffer docs simultaneous reading in rendering thread and
         // locking for writing in other thread is fine.
         LorieBuffer_unlock(priv->buffer);
-        status = LorieBuffer_lock(priv->buffer, NULL, &priv->locked);
+        status = LorieBuffer_lock(priv->buffer, &priv->locked);
         if (status)
             FatalError("Failed to lock the surface: %d\n", status);
 
@@ -778,29 +777,24 @@ void lorieSetVM(JavaVM* vm) {
 
 void exaDDXDriverInit(__unused ScreenPtr pScreen) {}
 
-void *lorieCreatePixmap(__unused ScreenPtr pScreen, int width, int height, __unused int depth, int usage_hint, int bpp, int *new_fb_pitch) {
+void *lorieCreatePixmap(__unused ScreenPtr pScreen, int width, int height, __unused int depth, int usage_hint, __unused int bpp, int *new_fb_pitch) {
     LoriePixmapPriv *priv;
     size_t size = sizeof(LoriePixmapPriv);
-    *new_fb_pitch = ((width * bpp + FB_MASK) >> FB_SHIFT) * sizeof(FbBits);
-
-    if (usage_hint != CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED)
-        size += *new_fb_pitch * height;
+    *new_fb_pitch = 0;
 
     priv = calloc(1, size);
     if (!priv)
         return NULL;
 
-    if (usage_hint != CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED)
+    if (width == 0 || height == 0)
         return priv;
 
-    uint8_t type = pvfb->root.legacyDrawing ? LORIEBUFFER_REGULAR : LORIEBUFFER_AHARDWAREBUFFER;
+    uint8_t type = usage_hint != CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED ? LORIEBUFFER_REGULAR : pvfb->root.legacyDrawing ? LORIEBUFFER_FD : LORIEBUFFER_AHARDWAREBUFFER;
     uint8_t format = pvfb->root.flip ? AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM : AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
     priv->buffer = LorieBuffer_allocate(width, height, format, type);
-    LorieBuffer_Desc d = {0};
-    LorieBuffer_describe(priv->buffer, &d);
-    *new_fb_pitch = d.stride * 4;
+    *new_fb_pitch = LorieBuffer_description(priv->buffer)->stride * 4;
 
-    LorieBuffer_lock(priv->buffer, NULL, &priv->locked);
+    LorieBuffer_lock(priv->buffer, &priv->locked);
     if (!priv->buffer) {
         free(priv);
         return NULL;

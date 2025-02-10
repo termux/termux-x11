@@ -1,3 +1,8 @@
+#pragma clang diagnostic ignored "-Wunknown-pragmas"
+#pragma ide diagnostic ignored "bugprone-reserved-identifier"
+#pragma ide diagnostic ignored "ConstantParameter"
+#pragma ide diagnostic ignored "OCUnusedGlobalDeclarationInspection"
+#pragma ide diagnostic ignored "OCUnusedMacroInspection"
 #define EGL_EGLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES
 #include <string.h>
@@ -25,6 +30,7 @@ struct LorieBuffer {
 
     // file descriptor of shared memory fragment for shared memory backed buffer
     int fd;
+    size_t size;
 
     GLuint id;
     EGLImage image;
@@ -87,47 +93,93 @@ int LorieBuffer_createRegion(char const* name, size_t size) {
 }
 #pragma clang diagnostic pop
 
-__LIBC_HIDDEN__ LorieBuffer* LorieBuffer_allocate(int32_t width, int32_t height, int8_t format, int8_t type) {
-    if (width <= 0 || height <= 0
-        || (format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM && format != AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM)
-        || (type != LORIEBUFFER_REGULAR && type != LORIEBUFFER_AHARDWAREBUFFER))
+static LorieBuffer* allocate(int32_t width, int32_t height, int8_t format, int8_t type, AHardwareBuffer *buf, int fd, size_t size) {
+    AHardwareBuffer_Desc desc = {0};
+    bool acceptable = (format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM || format == AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM) && width > 0 && height > 0;
+    LorieBuffer b = { .desc = { .width = width, .stride = width, .height = height, .format = format, .type = type, .buffer = buf }, .fd = fd, .size = size };
+
+    if (format != LORIEBUFFER_AHARDWAREBUFFER && !acceptable)
         return NULL;
+
+    __sync_fetch_and_add(&b.refcount, 1);
+
+    switch (type) {
+        case LORIEBUFFER_REGULAR:
+            b.desc.data = calloc(1, width * height * sizeof(uint32_t));
+            if (!b.desc.data)
+                return NULL;
+            break;
+        case LORIEBUFFER_FD:
+            if (b.fd < 0)
+                return NULL;
+
+            b.desc.data = mmap(NULL, b.size, PROT_READ|PROT_WRITE, MAP_SHARED, b.fd, 0);
+            if (b.desc.data == NULL || b.desc.data == MAP_FAILED) {
+                close(b.fd);
+                return NULL;
+            }
+            break;
+        case LORIEBUFFER_AHARDWAREBUFFER: {
+            if (!b.desc.buffer)
+                return NULL;
+
+            AHardwareBuffer_describe(b.desc.buffer, &desc);
+            b.desc.stride = desc.stride;
+            break;
+        }
+        default: return NULL;
+    }
+
     LorieBuffer* buffer = calloc(1, sizeof(*buffer));
-    if (!buffer)
+    if (!buffer) {
+        switch (type) {
+            case LORIEBUFFER_REGULAR:
+                free(b.desc.data);
+                break;
+            case LORIEBUFFER_FD:
+                munmap(b.desc.data, b.size);
+                close(b.fd);
+                break;
+            case LORIEBUFFER_AHARDWAREBUFFER:
+                AHardwareBuffer_release(b.desc.buffer);
+                break;
+            default: break;
+        }
+
         return NULL;
+    }
 
-    *buffer = (LorieBuffer) { .desc = { .width = width, .stride = width, .height = height, .format = format, .type = type }, .fd = -1 };
-    __sync_fetch_and_add(&buffer->refcount, 1);
-    if (type == LORIEBUFFER_REGULAR) {
-        size_t size = alignToPage(width * height * sizeof(uint32_t));
-        buffer->fd = LorieBuffer_createRegion("LorieBuffer", size);
-        if (buffer->fd < 0)
-            goto error;
+    *buffer = b;
+    return buffer;
+}
 
-        buffer->desc.data = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, buffer->fd, 0);
-        if (buffer->desc.data == NULL || buffer->desc.data == MAP_FAILED)
-            goto error;
+__LIBC_HIDDEN__ LorieBuffer* LorieBuffer_allocate(int32_t width, int32_t height, int8_t format, int8_t type) {
+    int fd = -1;
+    size_t size = 0;
+    AHardwareBuffer *ahardwarebuffer = NULL;
+
+    if (type == LORIEBUFFER_FD) {
+        size = alignToPage(width * height * sizeof(uint32_t));
+        fd = LorieBuffer_createRegion("LorieBuffer", size);
+        if (fd < 0)
+            return NULL;
     } else if (type == LORIEBUFFER_AHARDWAREBUFFER) {
         AHardwareBuffer_Desc desc = { .width = width, .height = height, .format = format, .layers = 1,
                 .usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE };
-        int err = AHardwareBuffer_allocate(&desc, &buffer->desc.buffer);
-        if (err != 0) {
+        int err = AHardwareBuffer_allocate(&desc, &ahardwarebuffer);
+        if (err != 0)
             dprintf(2, "FATAL: failed to allocate AHardwareBuffer (width %d height %d format %d): error %d\n", width, height, format, err);
-            goto error;
-        }
-        AHardwareBuffer_describe(buffer->desc.buffer, &desc);
-        buffer->desc.stride = desc.stride;
-    } else
-        goto error;
+    }
 
-    return buffer;
+    return allocate(width, height, format, type, ahardwarebuffer, fd, size);
+}
 
-    error:
-    if (buffer->fd >= 0)
-        close(buffer->fd);
+__LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapFileDescriptor(int32_t width, int32_t height, int8_t format, int fd) {
+    return allocate(width, height, format, LORIEBUFFER_FD, NULL, fd, width * height * sizeof(uint32_t));
+}
 
-    free(buffer);
-    return NULL;
+__LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapAHardwareBuffer(AHardwareBuffer* buffer) {
+    return allocate(0, 0, 0, LORIEBUFFER_AHARDWAREBUFFER, buffer, -1, 0);
 }
 
 __LIBC_HIDDEN__ void __LorieBuffer_free(LorieBuffer* buffer) {
@@ -140,51 +192,44 @@ __LIBC_HIDDEN__ void __LorieBuffer_free(LorieBuffer* buffer) {
     if (eglGetCurrentDisplay() && buffer->image)
         eglDestroyImageKHR(eglGetCurrentDisplay(), buffer->image);
 
-    if (buffer->desc.type == LORIEBUFFER_REGULAR) {
-        if (buffer->desc.data)
-            munmap (buffer->desc.data, alignToPage(buffer->desc.width * buffer->desc.height * sizeof(uint32_t)));
-        if (buffer->fd != -1)
+    switch (buffer->desc.type) {
+        case LORIEBUFFER_REGULAR:
+            free(buffer->desc.data);
+            break;
+        case LORIEBUFFER_FD:
+            munmap(buffer->desc.data, buffer->size);
             close(buffer->fd);
-    } else if (buffer->desc.type == LORIEBUFFER_AHARDWAREBUFFER) {
-        if (buffer)
+            break;
+        case LORIEBUFFER_AHARDWAREBUFFER:
             AHardwareBuffer_release(buffer->desc.buffer);
+            break;
+        default: break;
     }
 
     free(buffer);
 }
 
-__LIBC_HIDDEN__ void LorieBuffer_describe(LorieBuffer* buffer, LorieBuffer_Desc* desc) {
-    if (!desc)
-        return;
-
-    if (buffer)
-        memcpy(desc, &buffer->desc, sizeof(*desc));
-    else
-        memset(desc, 0, sizeof(*desc));
+__LIBC_HIDDEN__ const LorieBuffer_Desc* LorieBuffer_description(LorieBuffer* buffer) {
+    static const LorieBuffer_Desc none = {0};
+    return buffer ? &buffer->desc : &none;
 }
 
-__LIBC_HIDDEN__ int LorieBuffer_lock(LorieBuffer* buffer, AHardwareBuffer_Desc* outDesc, void** out) {
+__LIBC_HIDDEN__ int LorieBuffer_lock(LorieBuffer* buffer, void** out) {
     int ret = 0;
     if (!buffer)
         return ENODEV;
 
     if (buffer->locked) {
         dprintf(2, "tried to lock already locked buffer\n");
-        *out = buffer->lockedData;
+        if (out)
+            *out = buffer->lockedData;
         return EEXIST;
     }
 
-    if (buffer->desc.type == LORIEBUFFER_REGULAR)
+    if (buffer->desc.type == LORIEBUFFER_REGULAR || buffer->desc.type == LORIEBUFFER_FD)
         buffer->lockedData = buffer->desc.data;
     else if (buffer->desc.type == LORIEBUFFER_AHARDWAREBUFFER)
         ret = AHardwareBuffer_lock(buffer->desc.buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1, NULL, &buffer->lockedData);
-
-    if (outDesc) {
-        outDesc->width = buffer->desc.width;
-        outDesc->height = buffer->desc.height;
-        outDesc->stride = buffer->desc.stride;
-        outDesc->format = buffer->desc.format;
-    }
 
     if (out)
         *out = buffer->lockedData;
@@ -218,7 +263,7 @@ __LIBC_HIDDEN__ void LorieBuffer_sendHandleToUnixSocket(LorieBuffer* _Nonnull bu
         return;
 
     write(socketFd, buffer, sizeof(*buffer));
-    if (buffer->desc.type == LORIEBUFFER_REGULAR)
+    if (buffer->desc.type == LORIEBUFFER_FD)
         ancil_send_fd(socketFd, buffer->fd);
     else if (buffer->desc.type == LORIEBUFFER_AHARDWAREBUFFER)
         AHardwareBuffer_sendHandleToUnixSocket(buffer->desc.buffer, socketFd);
@@ -227,7 +272,7 @@ __LIBC_HIDDEN__ void LorieBuffer_sendHandleToUnixSocket(LorieBuffer* _Nonnull bu
 __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuffer** outBuffer) {
     LorieBuffer buffer = {0}, *ret = NULL;
     // We should read buffer from socket despite outbuffer is NULL, otherwise we will get protocol error
-    if (socketFd < 0 || !outBuffer)
+    if (socketFd < 0)
         return;
 
     // Reset process-specific data;
@@ -239,18 +284,20 @@ __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuf
 
     read(socketFd, &buffer, sizeof(buffer));
     buffer.image = NULL; // Only for process-local use
-    if (buffer.desc.type == LORIEBUFFER_REGULAR) {
+    if (buffer.desc.type == LORIEBUFFER_FD) {
         size_t size = alignToPage(buffer.desc.width * buffer.desc.height * sizeof(uint32_t));
         buffer.fd = ancil_recv_fd(socketFd);
         if (buffer.fd == -1) {
-            *outBuffer = NULL;
+            if (outBuffer)
+                *outBuffer = NULL;
             return;
         }
 
         buffer.desc.data = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, buffer.fd, 0);
         if (buffer.desc.data == NULL || buffer.desc.data == MAP_FAILED) {
             close(buffer.fd);
-            *outBuffer = NULL;
+            if (outBuffer)
+                *outBuffer = NULL;
             return;
         }
     } else if (buffer.desc.type == LORIEBUFFER_AHARDWAREBUFFER)
@@ -304,20 +351,20 @@ void LorieBuffer_bindTexture(LorieBuffer *buffer) {
         return;
 
     glBindTexture(GL_TEXTURE_2D, buffer->id);
-    if (buffer->desc.type == LORIEBUFFER_REGULAR)
+    if (buffer->desc.type == LORIEBUFFER_FD)
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, buffer->desc.width, buffer->desc.height, buffer->desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, buffer->desc.data);
 }
 
 int LorieBuffer_getWidth(LorieBuffer *buffer) {
-    return buffer ? buffer->desc.width : 0;
+    return LorieBuffer_description(buffer)->width;
 }
 
 int LorieBuffer_getHeight(LorieBuffer *buffer) {
-    return buffer ? buffer->desc.height : 0;
+    return LorieBuffer_description(buffer)->height;
 }
 
 bool LorieBuffer_isRgba(LorieBuffer *buffer) {
-    return buffer ? buffer->desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM : false;
+    return LorieBuffer_description(buffer)->format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
 }
 
 __LIBC_HIDDEN__ int ancil_send_fd(int sock, int fd) {
@@ -339,11 +386,14 @@ __LIBC_HIDDEN__ int ancil_send_fd(int sock, int fd) {
             .msg_controllen = sizeof(struct cmsghdr) + sizeof(int)
     };
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "NullDereference"
     struct cmsghdr* cmsg = CMSG_FIRSTHDR(&message_header);
     cmsg->cmsg_len = message_header.msg_controllen; // sizeof(int);
     cmsg->cmsg_level = SOL_SOCKET;
     cmsg->cmsg_type = SCM_RIGHTS;
     ((int*) CMSG_DATA(cmsg))[0] = fd;
+#pragma clang diagnostic pop
 
     return sendmsg(sock, &message_header, 0) >= 0 ? 0 : -1;
 }
@@ -367,11 +417,14 @@ __LIBC_HIDDEN__ int ancil_recv_fd(int sock) {
             .msg_controllen = sizeof(struct cmsghdr) + sizeof(int)
     };
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "NullDereference"
     struct cmsghdr* cmsg = CMSG_FIRSTHDR(&message_header);
     cmsg->cmsg_len = message_header.msg_controllen;
     cmsg->cmsg_level = SOL_SOCKET;
     cmsg->cmsg_type = SCM_RIGHTS;
     ((int*) CMSG_DATA(cmsg))[0] = -1;
+#pragma clang diagnostic pop
 
     if (recvmsg(sock, &message_header, 0) < 0) return -1;
 

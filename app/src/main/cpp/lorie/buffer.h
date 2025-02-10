@@ -10,6 +10,7 @@
 enum {
     LORIEBUFFER_UNKNOWN,
     LORIEBUFFER_REGULAR,
+    LORIEBUFFER_FD,
     LORIEBUFFER_AHARDWAREBUFFER,
 };
 
@@ -44,6 +45,27 @@ int LorieBuffer_createRegion(char const* name, size_t size);
 LorieBuffer* LorieBuffer_allocate(int32_t width, int32_t height, int8_t format, int8_t type);
 
 /**
+ * Wraps given memory fragment file descriptor into LorieBuffer.
+ * Takes ownership on the given file descriptor.
+ *
+ * @param width width of buffer.
+ * @param height height of buffer.
+ * @param format format of buffer. Accepts AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM or AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM
+ * @param fd file descriptor of buffer.
+ * @return
+ */
+LorieBuffer* LorieBuffer_wrapFileDescriptor(int32_t width, int32_t height, int8_t format, int fd);
+
+/**
+ * Wraps given AHardwareBuffer into LorieBuffer.
+ * Takes ownership on the given AHardwareBuffer.
+ *
+ * @param buffer buffer to be wrapped
+ * @return
+ */
+LorieBuffer* LorieBuffer_wrapAHardwareBuffer(AHardwareBuffer* buffer);
+
+/**
  * Acquire a reference on the given LorieBuffer object.
  *
  * This prevents the object from being deleted until the last reference
@@ -71,12 +93,12 @@ STATIC_INLINE void LorieBuffer_release(LorieBuffer* buffer) {
 }
 
 /**
- * Return a description of the LorieBuffer in the passed LorieBuffer_Desc struct.
+ * Return a description of the LorieBuffer.
  *
  * @param buffer the buffer to be described
- * @param desc reference to description
+ * @return reference to description
  */
-void LorieBuffer_describe(LorieBuffer* buffer, LorieBuffer_Desc* desc);
+const LorieBuffer_Desc* LorieBuffer_description(LorieBuffer* buffer);
 
 /**
  * Lock the AHardwareBuffer for direct CPU access.
@@ -87,7 +109,7 @@ void LorieBuffer_describe(LorieBuffer* buffer, LorieBuffer_Desc* desc);
  * @param out description of the buffer
  * @return 0 on success, not 0 on failure
  */
-int LorieBuffer_lock(LorieBuffer* buffer, AHardwareBuffer_Desc* outDesc, void** out);
+int LorieBuffer_lock(LorieBuffer* buffer, void** out);
 
 /**
  * Unlock the AHardwareBuffer from direct CPU access.

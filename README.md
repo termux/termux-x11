@@ -185,7 +185,7 @@ It is possible to change preferences of termux-x11 from command line.
 termux-x11-preference [list] {key:value} [{key2:value2}]..."
 ```
 
-Use `termux-x11-preference` to dump current preference.
+Use `termux-x11-preference list` to dump current preferences.
 Use `termux-x11-preference list > file` to dump current preferences to file.
 Use `termux-x11-preferences < file` to restore preferences from file.
 Use `termux-x11-preferences "fullscreen"="false" "showAdditionalKbd"="true"` to disable fullscreen and enable additional key bar. The full list of preferences you can modify is available with `termux-x11-preference list` command. You can specify one or more preferences here.

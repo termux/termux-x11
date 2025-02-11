@@ -43,6 +43,7 @@ public class VirtualKeyHandler {
                 case MotionEvent.ACTION_DOWN:
                     // Trimite evenimentul de tastă "apăsat"
                     lorieView.sendKeyEvent(keyCode, keyCode, true);
+                    //lorieView.sendGamepadEvent(1, true, 0.0F, 0.0F, 0.0F,0.0F,0.0F,0.0F, 0.0F, 0.0F);
                     Log.d("DEBUG", "✅ Tasta " + selectedKey + " apăsată.");
                     break;
 
@@ -50,6 +51,7 @@ public class VirtualKeyHandler {
                 case MotionEvent.ACTION_CANCEL:
                     // Trimite evenimentul de tastă "eliberat"
                     lorieView.sendKeyEvent(keyCode, keyCode, false);
+                    //lorieView.sendGamepadEvent(1, false, 0.0F, 0.0F,0.0F,0.0F,0.0F,0.0F, 0.0F, 0.0F);
                     Log.d("DEBUG", "✅ Tasta " + selectedKey + " eliberată.");
                     break;
             }

@@ -6,8 +6,11 @@
         <Preference app:title="@string/pref_output" app:fragment="output" />
         <Preference app:title="@string/pref_pointer" app:fragment="pointer" />
         <Preference app:title="@string/pref_kbd" app:fragment="kbd" />
+        <Preference app:key="controller" app:title="Controller" />
         <Preference app:title="@string/pref_other" app:fragment="other" />
-        <Preference app:key="version" app:title="@string/pref_version" />
+        <Preference
+            app:key="version"
+            app:title="@string/pref_version" />
     </PreferenceScreen>
     <PreferenceScreen app:key="output">
         <ListPreference app:key="displayResolutionMode" app:defaultValue="native" app:entries="@array/displayResolutionVariants" app:entryValues="@array/displayResolutionVariants"  />
@@ -68,6 +71,7 @@
             android:summary="Map, resize, and position virtual keys on the screen."
             android:onClick="openVirtualKeyMapper"/>
     </PreferenceScreen>
+
     <PreferenceScreen app:key="userActions">
         <ListPreference app:key="swipeUpAction" app:defaultValue="no action" app:entries="@array/userActionsValues" app:entryValues="@array/userActionsValues" />
         <ListPreference app:key="swipeDownAction" app:defaultValue="toggle additional key bar" app:entries="@array/userActionsValues" app:entryValues="@array/userActionsValues" />

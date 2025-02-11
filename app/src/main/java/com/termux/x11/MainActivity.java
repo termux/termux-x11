@@ -58,18 +58,22 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
 import androidx.core.math.MathUtils;
+import androidx.preference.Preference;
 import androidx.viewpager.widget.ViewPager;
 
+import com.termux.x11.input.GamepadInputHandler;
 import com.termux.x11.input.InputEventSender;
 import com.termux.x11.input.InputStub;
 import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.input.VirtualKeyHandler;
+import com.termux.x11.VirtualKeyMapperActivity;
 import com.termux.x11.utils.FullscreenWorkaround;
 import com.termux.x11.utils.KeyInterceptor;
 import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -152,6 +156,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private VirtualKeyHandler virtualKeyHandler;
+    private GamepadInputHandler gamepadHandler;
+
 
     @Override
     @SuppressLint({"AppCompatMethod", "ObsoleteSdkInt", "ClickableViewAccessibility", "WrongConstant", "UnspecifiedRegisterReceiverFlag"})
@@ -264,22 +270,86 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-// Instanțiem VirtualKeyHandler
+
         VirtualKeyHandler virtualKeyHandler = new VirtualKeyHandler(this);
+        VirtualKeyMapperActivity virtualKeyMapperActivity = new VirtualKeyMapperActivity();
+        List<Button> buttons = (List<Button>) virtualKeyMapperActivity.loadPreset(this, mainContainer);
 
-// Încărcăm butoanele virtuale
-        List<Button> buttons = VirtualKeyMapperActivity.loadButtons(this, virtualKeyHandler);
-
-// Procesăm fiecare buton
-        for (Button button : buttons) {
-            // Setăm input-ul pentru buton
-            virtualKeyHandler.setupInputForButton(button);
-
-            // Adăugăm butonul în container
-            mainContainer.addView(button);
+        for (View btn : buttons) {
+            virtualKeyHandler.setupInputForButton((Button) btn);
         }
 
+        // Inițializează GamepadInputHandler
+        gamepadHandler = new GamepadInputHandler(this);
+        gamepadHandler.setupGamepadInput();
+        View rootView = findViewById(android.R.id.content);
+        rootView.setFocusableInTouchMode(true);
+        rootView.requestFocus();
+
+
         Log.d("DEBUG", "✅ Toate butoanele virtuale au fost încărcate și configurate!");
+    }
+
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (event.getDevice() != null) {
+            int source = event.getSource();
+
+            if ((source & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
+                    (source & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK ||
+                    (source & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD) {
+
+                if (gamepadHandler != null) {
+                    boolean handled = gamepadHandler.handleKeyDown(keyCode, event);
+                    return handled || super.onKeyDown(keyCode, event);
+                }
+            }
+        }
+
+        return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (event.getDevice() != null) {
+            int source = event.getSource();
+
+            if ((source & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
+                    (source & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK ||
+                    (source & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD) {
+
+                if (gamepadHandler != null) {
+                    boolean handled = gamepadHandler.handleKeyUp(keyCode, event);
+                    return handled || super.onKeyUp(keyCode, event);
+                }
+            }
+        }
+
+        return super.onKeyUp(keyCode, event);
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            return onKeyDown(event.getKeyCode(), event);
+        } else if (event.getAction() == KeyEvent.ACTION_UP) {
+            return onKeyUp(event.getKeyCode(), event);
+        }
+
+        return super.dispatchKeyEvent(event);
+    }
+
+
+
+    @Override
+    public boolean onGenericMotionEvent(MotionEvent event) {
+        if (gamepadHandler != null) {
+            Log.e("DEBUG", "✅ Controller");
+            return gamepadHandler.handleGenericMotionEvent(event) || super.onGenericMotionEvent(event);
+        }
+        return super.onGenericMotionEvent(event);
     }
 
 

@@ -27,6 +27,7 @@
             android:resizeableActivity="true"
             android:windowSoftInputMode="stateHidden"
             android:exported="true">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -34,6 +35,11 @@
             <intent-filter>
                 <category android:name="android.intent.category.SECONDARY_HOME" />
             </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
+
+            <meta-data android:name="android.hardware.gamepad" android:value="true"/>
+            <meta-data android:name="android.hardware.usb.host" android:value="true"/>
+
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
         <activity
@@ -64,7 +70,6 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
-
         <receiver android:name=".LoriePreferences$Receiver" android:exported="true" tools:ignore="ExportedReceiver" android:enabled="true">
             <intent-filter>
                 <action android:name="com.termux.x11.CHANGE_PREFERENCE" />

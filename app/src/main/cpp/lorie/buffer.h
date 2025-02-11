@@ -17,6 +17,7 @@ enum {
 typedef struct {
     int32_t width, height, stride;
     uint8_t format, type;
+    unsigned long id;
     AHardwareBuffer* buffer;
     void* data;
 } LorieBuffer_Desc;
@@ -56,7 +57,7 @@ LorieBuffer* LorieBuffer_allocate(int32_t width, int32_t height, int8_t format, 
  * @param offset offset inside memory fragment.
  * @return
  */
-LorieBuffer* LorieBuffer_wrapFileDescriptor(int32_t width, int32_t height, int8_t format, int fd, off_t offset);
+LorieBuffer* LorieBuffer_wrapFileDescriptor(int32_t width, int32_t stride, int32_t height, int8_t format, int fd, off_t offset);
 
 /**
  * Wraps given AHardwareBuffer into LorieBuffer.

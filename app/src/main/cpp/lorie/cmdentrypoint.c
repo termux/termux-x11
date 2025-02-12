@@ -47,7 +47,6 @@ static Bool detectTracer(void)
     FILE *fp;
     char  line[256];
     int pid = 0;
-    Bool detected = FALSE;
 
     fp = fopen("/proc/self/status", "r");
     if (!fp)

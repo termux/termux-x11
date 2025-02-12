@@ -18,7 +18,7 @@
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
-#include "misc.h"
+#include "list.h"
 #include "buffer.h"
 
 struct LorieBuffer {
@@ -35,6 +35,7 @@ struct LorieBuffer {
 
     GLuint id;
     EGLImage image;
+    struct xorg_list link;
 };
 
 __attribute__((unused))
@@ -96,7 +97,7 @@ int LorieBuffer_createRegion(char const* name, size_t size) {
 
 static LorieBuffer* allocate(int32_t width, int32_t stride, int32_t height, int8_t format, int8_t type, AHardwareBuffer *buf, int fd, size_t size, off_t offset) {
     AHardwareBuffer_Desc desc = {0};
-    static unsigned long id = 0;
+    static uint64_t id = 0;
     bool acceptable = (format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM || format == AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM) && width > 0 && height > 0;
     LorieBuffer b = { .desc = { .width = width, .stride = stride, .height = height, .format = format, .type = type, .buffer = buf, .id = id++ }, .fd = fd, .size = size, .offset = offset };
 
@@ -152,6 +153,7 @@ static LorieBuffer* allocate(int32_t width, int32_t stride, int32_t height, int8
     }
 
     *buffer = b;
+    xorg_list_init(&buffer->link);
     return buffer;
 }
 
@@ -177,7 +179,7 @@ __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_allocate(int32_t width, int32_t height,
 }
 
 __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapFileDescriptor(int32_t width, int32_t stride, int32_t height, int8_t format, int fd, off_t offset) {
-    return allocate(width, stride, height, format, LORIEBUFFER_FD, NULL, fd, width * height * sizeof(uint32_t), offset);
+    return allocate(width, stride, height, format, LORIEBUFFER_FD, NULL, fd, stride * height * sizeof(uint32_t), offset);
 }
 
 __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapAHardwareBuffer(AHardwareBuffer* buffer) {
@@ -187,6 +189,8 @@ __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapAHardwareBuffer(AHardwareBuffer* bu
 __LIBC_HIDDEN__ void __LorieBuffer_free(LorieBuffer* buffer) {
     if (!buffer)
         return;
+
+    xorg_list_del(&buffer->link);
 
     if (eglGetCurrentContext())
         glDeleteTextures(1, &buffer->id);
@@ -321,10 +325,11 @@ __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuf
     }
 
     *ret = buffer;
+    xorg_list_init(&ret->link);
     *outBuffer = ret;
 }
 
-void LorieBuffer_attachToGL(LorieBuffer* buffer) {
+__LIBC_HIDDEN__ void LorieBuffer_attachToGL(LorieBuffer* buffer) {
     const EGLint imageAttributes[] = { EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE };
     if (!eglGetCurrentDisplay() || !buffer)
         return;
@@ -348,7 +353,7 @@ void LorieBuffer_attachToGL(LorieBuffer* buffer) {
     }
 }
 
-void LorieBuffer_bindTexture(LorieBuffer *buffer) {
+__LIBC_HIDDEN__ void LorieBuffer_bindTexture(LorieBuffer *buffer) {
     if (!buffer)
         return;
 
@@ -357,16 +362,38 @@ void LorieBuffer_bindTexture(LorieBuffer *buffer) {
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, buffer->desc.width, buffer->desc.height, buffer->desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, buffer->desc.data);
 }
 
-int LorieBuffer_getWidth(LorieBuffer *buffer) {
+__LIBC_HIDDEN__ int LorieBuffer_getWidth(LorieBuffer *buffer) {
     return LorieBuffer_description(buffer)->width;
 }
 
-int LorieBuffer_getHeight(LorieBuffer *buffer) {
+__LIBC_HIDDEN__ int LorieBuffer_getHeight(LorieBuffer *buffer) {
     return LorieBuffer_description(buffer)->height;
 }
 
-bool LorieBuffer_isRgba(LorieBuffer *buffer) {
+__LIBC_HIDDEN__ bool LorieBuffer_isRgba(LorieBuffer *buffer) {
     return LorieBuffer_description(buffer)->format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
+}
+
+__LIBC_HIDDEN__ void LorieBuffer_addToList(LorieBuffer* _Nullable buffer, struct xorg_list* _Nullable list) {
+    if (buffer && list)
+        xorg_list_add(&buffer->link, list);
+}
+
+__LIBC_HIDDEN__ void LorieBuffer_removeFromList(LorieBuffer* _Nullable buffer) {
+    if (buffer)
+        xorg_list_del(&buffer->link);
+}
+
+__LIBC_HIDDEN__ LorieBuffer* _Nullable LorieBufferList_first(struct xorg_list* _Nullable list) {
+    return xorg_list_is_empty(list) ? NULL : xorg_list_first_entry(list, LorieBuffer, link);
+}
+
+__LIBC_HIDDEN__ LorieBuffer* _Nullable LorieBufferList_findById(struct xorg_list* _Nullable list, uint64_t id) {
+    LorieBuffer *buffer;
+    xorg_list_for_each_entry(buffer, list, link)
+        if (buffer->desc.id == id)
+            return buffer;
+    return NULL;
 }
 
 __LIBC_HIDDEN__ int ancil_send_fd(int sock, int fd) {

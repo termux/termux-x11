@@ -17,7 +17,7 @@ enum {
 typedef struct {
     int32_t width, height, stride;
     uint8_t format, type;
-    unsigned long id;
+    uint64_t id;
     AHardwareBuffer* _Nullable buffer;
     void* _Nullable data;
 } LorieBuffer_Desc;
@@ -91,7 +91,7 @@ STATIC_INLINE void LorieBuffer_acquire(LorieBuffer* _Nullable buffer) {
  */
 STATIC_INLINE void LorieBuffer_release(LorieBuffer* _Nullable buffer) {
     void __LorieBuffer_free(LorieBuffer* buffer);
-    if (buffer && __sync_fetch_and_sub((int*) buffer, 1) == 1) // refcount is the first object in the struct
+    if (buffer && __sync_fetch_and_sub((int16_t*) buffer, 1) == 1) // refcount is the first object in the struct
         __LorieBuffer_free(buffer);
 }
 
@@ -177,6 +177,40 @@ int LorieBuffer_getHeight(LorieBuffer* _Nullable buffer);
  * @return
  */
 bool LorieBuffer_isRgba(LorieBuffer* _Nullable buffer);
+
+struct xorg_list;
+
+/**
+ * Add the buffer to xorg_list.
+ *
+ * @param buffer
+ * @param list
+ */
+void LorieBuffer_addToList(LorieBuffer* _Nullable buffer, struct xorg_list* _Nullable list);
+
+/**
+ * Remove the buffer from xorg_list.
+ *
+ * @param buffer
+ */
+void LorieBuffer_removeFromList(LorieBuffer* _Nullable buffer);
+
+/**
+ * Get the first buffer in the list.
+ *
+ * @param list
+ * @return buffer if it is present, NULL otherwise.
+ */
+LorieBuffer* _Nullable LorieBufferList_first(struct xorg_list* _Nullable list);
+
+/**
+ * Find the buffer with given ID in the list
+ *
+ * @param list
+ * @param id
+ * @return buffer if it is present, NULL otherwise.
+ */
+LorieBuffer* _Nullable LorieBufferList_findById(struct xorg_list* _Nullable list, uint64_t id);
 
 #undef STATIC_INLINE
 

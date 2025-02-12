@@ -140,7 +140,7 @@ static int xcallback(int fd, int events, __unused void* data) {
         close(conn_fd);
         conn_fd = -1;
         rendererSetSharedState(NULL);
-        rendererSetBuffer(NULL);
+        rendererRemoveAllBuffers();
         log(DEBUG, "disconnected");
         return 1;
     }
@@ -197,8 +197,8 @@ static int xcallback(int fd, int events, __unused void* data) {
                     LorieBuffer_recvHandleFromUnixSocket(conn_fd, &buffer);
                     desc = LorieBuffer_description(buffer);
                     log(INFO, "Received shared buffer width %d height %d format %d", desc->width, desc->height, desc->format);
-                    rendererSetBuffer(buffer);
-                    LorieBuffer_release(buffer);
+                    rendererRemoveAllBuffers();
+                    rendererAddBuffer(buffer);
                     break;
                 }
             }
@@ -217,7 +217,7 @@ static void connect_(__unused JNIEnv* env, __unused jobject cls, jint fd) {
         ALooper_removeFd(ALooper_forThread(), conn_fd);
         close(conn_fd);
         rendererSetSharedState(NULL);
-        rendererSetBuffer(NULL);
+        rendererRemoveAllBuffers();
         log(DEBUG, "disconnected");
     }
 

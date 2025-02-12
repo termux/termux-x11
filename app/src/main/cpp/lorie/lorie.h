@@ -37,9 +37,11 @@ bool lorieConnectionAlive(void);
 
 __unused void rendererInit(JNIEnv* env);
 __unused void rendererTestCapabilities(int* legacy_drawing, uint8_t* flip);
-__unused void rendererSetBuffer(LorieBuffer* buf);
 __unused void rendererSetWindow(ANativeWindow* newWin);
 __unused void rendererSetSharedState(struct lorie_shared_server_state* newState);
+__unused void rendererAddBuffer(LorieBuffer* buf);
+__unused void rendererRemoveBuffer(uint64_t id);
+__unused void rendererRemoveAllBuffers(void);
 
 static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_t* lockingPid) {
     // Unfortunately there is no robust mutexes in bionic.
@@ -163,7 +165,7 @@ struct lorie_shared_server_state {
     pthread_cond_t cond; // initialized at X server side.
 
     /* ID of root window texture to be drawn. */
-    unsigned long rootWindowTextureID;
+    uint64_t rootWindowTextureID;
 
     /* A signal to renderer to update root window texture content from shared fragment if needed */
     volatile uint8_t drawRequested;

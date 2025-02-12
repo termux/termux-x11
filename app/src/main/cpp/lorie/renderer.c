@@ -518,7 +518,10 @@ static void drawCursor(float displayWidth, float displayHeight);
 
 void rendererRedrawLocked(JNIEnv* env) {
     EGLSync fence;
+    // The buffer will not be released until this function ends, but main thread can modify buffer list
+    pthread_mutex_lock(&stateLock);
     LorieBuffer *buffer = LorieBufferList_findById(&buffers, state->rootWindowTextureID);
+    pthread_mutex_unlock(&stateLock);
     if (!buffer) {
         log("Buffer %llu not found", state->rootWindowTextureID);
         usleep(2); // probably other thread did not push the buffer yet.

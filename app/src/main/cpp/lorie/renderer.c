@@ -229,12 +229,12 @@ int rendererInitThread(JavaVM *vm) {
     return 1;
 }
 
-int rendererInit(JNIEnv* env) {
+void rendererInit(JNIEnv* env) {
     pthread_t t;
     JavaVM *vm;
 
     if (ctx)
-        return 1;
+        return;
 
     (*env)->GetJavaVM(env, &vm);
 
@@ -243,7 +243,6 @@ int rendererInit(JNIEnv* env) {
     pthread_cond_init(&stateChangeFinishCond, NULL);
 
     pthread_create(&t, NULL, (void*(*)(void*)) rendererInitThread, vm);
-    return 1;
 }
 
 void rendererTestCapabilities(int* legacy_drawing, uint8_t* flip) {
@@ -508,12 +507,15 @@ static void rendererRenewImage(void) {
 void rendererRedrawLocked(JNIEnv* env) {
     EGLSync fence;
 
+    if (!buffer)
+        return;
+
     // We should signal X server to not use root window while we actively copy it
     lorie_mutex_lock(&state->lock, &state->lockingPid);
     state->drawRequested = FALSE;
 
     LorieBuffer_bindTexture(buffer);
-    draw(0,  -1.f, -1.f, 1.f, 1.f, LorieBuffer_isRgba(buffer));
+    draw(0, -1.f, -1.f, 1.f, 1.f, LorieBuffer_isRgba(buffer));
     fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, NULL);
     glFlush();
 

@@ -216,6 +216,9 @@ static void connect_(__unused JNIEnv* env, __unused jobject cls, jint fd) {
     if (conn_fd != -1) {
         ALooper_removeFd(ALooper_forThread(), conn_fd);
         close(conn_fd);
+        rendererSetSharedState(NULL);
+        rendererSetBuffer(NULL);
+        log(DEBUG, "disconnected");
     }
 
     if ((conn_fd = fd) != -1) {

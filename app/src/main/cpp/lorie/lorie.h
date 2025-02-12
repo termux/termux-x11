@@ -35,7 +35,7 @@ void lorieSendSharedServerState(int memfd);
 void lorieSendRootWindowBuffer(LorieBuffer* buffer);
 bool lorieConnectionAlive(void);
 
-__unused int rendererInit(JNIEnv* env);
+__unused void rendererInit(JNIEnv* env);
 __unused void rendererTestCapabilities(int* legacy_drawing, uint8_t* flip);
 __unused void rendererSetBuffer(LorieBuffer* buf);
 __unused void rendererSetWindow(ANativeWindow* newWin);
@@ -161,6 +161,9 @@ struct lorie_shared_server_state {
      * Renderer thread sleeps when it is idle so we must explicitly wake it up.
      */
     pthread_cond_t cond; // initialized at X server side.
+
+    /* ID of root window texture to be drawn. */
+    unsigned long rootWindowTextureID;
 
     /* A signal to renderer to update root window texture content from shared fragment if needed */
     volatile uint8_t drawRequested;

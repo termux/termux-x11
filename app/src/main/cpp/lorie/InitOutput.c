@@ -48,7 +48,7 @@ extern DeviceIntPtr lorieMouse, lorieKeyboard;
 #define CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED 5
 
 struct vblank {
-    struct xorg_list list;
+    struct xorg_list link;
     uint64_t id, msc;
 };
 
@@ -99,6 +99,8 @@ typedef struct {
     void *mem;
 } LoriePixmapPriv;
 
+#define LORIE_BUFFER_FROM_PIXMAP(pixmap) (pixmap ? ((LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap))->buffer : NULL)
+
 void OsVendorInit(void) {
     pthread_mutexattr_t mutex_attr;
     pthread_condattr_t cond_attr;
@@ -128,8 +130,9 @@ void OsVendorInit(void) {
 }
 
 void lorieActivityConnected(void) {
+    pvfb->state->drawRequested = pvfb->state->cursor.updated = true;
     lorieSendSharedServerState(pvfb->stateFd);
-    lorieSendRootWindowBuffer(((LoriePixmapPriv*) exaGetPixmapDriverPrivate(pScreenPtr->devPrivate))->buffer);
+    lorieSendRootWindowBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate));
 }
 
 static LoriePixmapPriv* lorieRootWindowPixmapPriv(void) {
@@ -404,7 +407,11 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     nonEmpty = RegionNotEmpty(DamageRegion(pvfb->damage));
     priv = lorieRootWindowPixmapPriv();
 
-    if (nonEmpty && priv && priv->buffer) {
+    if (!priv)
+        // Impossible situation, but let's skip this step
+        return TRUE;
+
+    if (nonEmpty && priv->buffer) {
         // We should unlock and lock buffer in order to update texture content on some devices
         // In most cases AHardwareBuffer uses DMA memory which is shared between CPU and GPU
         // and this is not needed. But according to docs we should do it for any case.
@@ -420,6 +427,8 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     }
 
     if (pvfb->state->drawRequested || pvfb->state->cursor.moved || pvfb->state->cursor.updated) {
+        pvfb->state->rootWindowTextureID = LorieBuffer_description(priv->buffer)->id;
+
         // Sending signal about pending root window changes to renderer thread.
         // We do not explicitly lock the pvfb->state->lock here because we do not want to wait
         // for all drawing operations to be finished.
@@ -448,7 +457,7 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->damage);
     pvfb->fpsTimer = TimerSet(NULL, 0, 5000, lorieFramecounter, pScreen);
 
-    lorieSendRootWindowBuffer(((LoriePixmapPriv*) exaGetPixmapDriverPrivate(pScreen->devPrivate))->buffer);
+    lorieSendRootWindowBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreen->devPrivate));
 
     return TRUE;
 }
@@ -508,7 +517,7 @@ static Bool lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height,
         pScreen->DestroyPixmap(oldPixmap);
     }
 
-    lorieSendRootWindowBuffer(((LoriePixmapPriv*) exaGetPixmapDriverPrivate(pScreen->devPrivate))->buffer);
+    lorieSendRootWindowBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreen->devPrivate));
 
     pScreen->ResizeWindow(pScreen->root, 0, 0, width, height, NULL);
     RegionReset(&pScreen->root->winSize, &box);
@@ -699,7 +708,7 @@ static Bool loriePresentQueueVblank(__unused RRCrtcPtr crtc, uint64_t event_id, 
         return BadAlloc;
 
     *vblank = (struct vblank) { .id = event_id, .msc = msc };
-    xorg_list_add(&vblank->list, &pvfb->vblank_queue);
+    xorg_list_add(&vblank->link, &pvfb->vblank_queue);
 
     return Success;
 #pragma clang diagnostic pop
@@ -708,9 +717,9 @@ static Bool loriePresentQueueVblank(__unused RRCrtcPtr crtc, uint64_t event_id, 
 static void loriePresentAbortVblank(__unused RRCrtcPtr crtc, uint64_t id, __unused uint64_t msc) {
     struct vblank *vblank, *tmp;
 
-    xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, list) {
+    xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, link) {
         if (vblank->id == id) {
-            xorg_list_del(&vblank->list);
+            xorg_list_del(&vblank->link);
             free (vblank);
             break;
         }
@@ -722,11 +731,11 @@ static void loriePerformVblanks(void) {
     uint64_t ust, msc;
     pvfb->current_msc++;
 
-    xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, list) {
+    xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, link) {
         if (vblank->msc <= pvfb->current_msc) {
             loriePresentGetUstMsc(NULL, &ust, &msc);
             present_event_notify(vblank->id, ust, msc);
-            xorg_list_del(&vblank->list);
+            xorg_list_del(&vblank->link);
             free (vblank);
         }
     }

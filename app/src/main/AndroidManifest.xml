@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
 
     <application
         android:allowBackup="false"
@@ -17,7 +18,9 @@
         android:theme="@style/AppTheme"
         android:hardwareAccelerated="true"
         tools:ignore="DataExtractionRules,GoogleAppIndexingWarning">
-        <activity android:name=".VirtualKeyMapperActivity" />
+        <activity
+            android:name=".VirtualKeyMapperActivity"
+            android:theme="@style/VirtualKeyMapperTheme"></activity>
         <activity
             android:name=".MainActivity"
             android:taskAffinity=".MainActivity"
@@ -55,7 +58,9 @@
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </activity>
-	    <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="false"/>
+
+
+        <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="false"/>
 	    <meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />
 
         <service android:name=".utils.KeyInterceptor"

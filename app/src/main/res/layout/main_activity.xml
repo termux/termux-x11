@@ -46,6 +46,17 @@
             <Space
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:minHeight="10dp" />
+
+            <Button
+                android:id="@+id/command_button"
+                android:layout_width="193dp"
+                android:layout_height="wrap_content"
+                android:text="Launch Command" />
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:minHeight="20dp" />
 
             <TextView

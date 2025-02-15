@@ -3,7 +3,6 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Buton pentru adăugarea de noi taste -->
     <Button
         android:id="@+id/addNewKeyButton"
         android:layout_width="wrap_content"
@@ -36,7 +35,6 @@
         android:text="Load Preset" />
 
 
-    <!-- Layout unde vor fi adăugate butoanele virtuale -->
     <FrameLayout
         android:id="@+id/buttonContainer"
         android:layout_width="match_parent"

@@ -1,31 +1,3 @@
-/*
-
-Copyright 1993, 1998  The Open Group
-
-Permission to use, copy, modify, distribute, and sell this software and its
-documentation for any purpose is hereby granted without fee, provided that
-the above copyright notice appear in all copies and that both that
-copyright notice and this permission notice appear in supporting
-documentation.
-
-The above copyright notice and this permission notice shall be included
-in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE OPEN GROUP BE LIABLE FOR ANY CLAIM, DAMAGES OR
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
-
-Except as contained in this notice, the name of The Open Group shall
-not be used in advertising or otherwise to promote the sale, use or
-other dealings in this Software without prior written authorization
-from The Open Group.
-
-*/
-
 #pragma clang diagnostic ignored "-Wunknown-pragmas"
 #pragma clang diagnostic ignored "-Wstrict-prototypes"
 #pragma ide diagnostic ignored "cppcoreguidelines-narrowing-conversions"
@@ -76,7 +48,7 @@ extern DeviceIntPtr lorieMouse, lorieKeyboard;
 #define CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED 5
 
 struct vblank {
-    struct xorg_list list;
+    struct xorg_list link;
     uint64_t id, msc;
 };
 
@@ -101,8 +73,6 @@ typedef struct {
         uint32_t framerate;
     } root;
 
-    JavaVM* vm;
-    JNIEnv* env;
     Bool dri3;
 
     uint64_t vblank_interval;
@@ -124,11 +94,12 @@ static char *xstartup = NULL;
 
 typedef struct {
     LorieBuffer *buffer;
-    AHardwareBuffer* ahb;
-    uint8_t flipped;
+    bool flipped, imported;
     void *locked;
     void *mem;
 } LoriePixmapPriv;
+
+#define LORIE_BUFFER_FROM_PIXMAP(pixmap) (pixmap ? ((LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap))->buffer : NULL)
 
 void OsVendorInit(void) {
     pthread_mutexattr_t mutex_attr;
@@ -159,8 +130,9 @@ void OsVendorInit(void) {
 }
 
 void lorieActivityConnected(void) {
+    pvfb->state->drawRequested = pvfb->state->cursor.updated = true;
     lorieSendSharedServerState(pvfb->stateFd);
-    lorieSendRootWindowBuffer(((LoriePixmapPriv*) exaGetPixmapDriverPrivate(pScreenPtr->devPrivate))->buffer);
+    lorieSendRootWindowBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate));
 }
 
 static LoriePixmapPriv* lorieRootWindowPixmapPriv(void) {
@@ -233,13 +205,12 @@ Bool drawSquares() {
     LoriePixmapPriv* priv = lorieRootWindowPixmapPriv();
     uint32_t* pixels = !priv ? NULL : priv->locked;
     if (pixels) {
-        LorieBuffer_Desc d = {0};
-        LorieBuffer_describe(priv->buffer, &d);
-        int l = min(d.width, d.height) / 4, x = (d.width - l)/2, y = (d.height - l)/2;
+        const LorieBuffer_Desc *d = LorieBuffer_description(priv->buffer);
+        int l = min(d->width, d->height) / 4, x = (d->width - l)/2, y = (d->height - l)/2;
 
-        drawSquare(x - l/3, y - l/3, l, 0x00FF0000, d.stride, pixels);
-        drawSquare(x, y, l, 0x0000FF00, d.stride, pixels);
-        drawSquare(x + l/3, y + l/3, l, 0x000000FF, d.stride, pixels);
+        drawSquare(x - l/3, y - l/3, l, 0x00FF0000, d->stride, pixels);
+        drawSquare(x, y, l, 0x0000FF00, d->stride, pixels);
+        drawSquare(x + l/3, y + l/3, l, 0x000000FF, d->stride, pixels);
     }
 
     return FALSE;
@@ -436,14 +407,18 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     nonEmpty = RegionNotEmpty(DamageRegion(pvfb->damage));
     priv = lorieRootWindowPixmapPriv();
 
-    if (nonEmpty && priv && priv->buffer) {
+    if (!priv)
+        // Impossible situation, but let's skip this step
+        return TRUE;
+
+    if (nonEmpty && priv->buffer) {
         // We should unlock and lock buffer in order to update texture content on some devices
         // In most cases AHardwareBuffer uses DMA memory which is shared between CPU and GPU
         // and this is not needed. But according to docs we should do it for any case.
         // Also according to AHardwareBuffer docs simultaneous reading in rendering thread and
         // locking for writing in other thread is fine.
         LorieBuffer_unlock(priv->buffer);
-        status = LorieBuffer_lock(priv->buffer, NULL, &priv->locked);
+        status = LorieBuffer_lock(priv->buffer, &priv->locked);
         if (status)
             FatalError("Failed to lock the surface: %d\n", status);
 
@@ -452,6 +427,8 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     }
 
     if (pvfb->state->drawRequested || pvfb->state->cursor.moved || pvfb->state->cursor.updated) {
+        pvfb->state->rootWindowTextureID = LorieBuffer_description(priv->buffer)->id;
+
         // Sending signal about pending root window changes to renderer thread.
         // We do not explicitly lock the pvfb->state->lock here because we do not want to wait
         // for all drawing operations to be finished.
@@ -480,7 +457,7 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->damage);
     pvfb->fpsTimer = TimerSet(NULL, 0, 5000, lorieFramecounter, pScreen);
 
-    lorieSendRootWindowBuffer(((LoriePixmapPriv*) exaGetPixmapDriverPrivate(pScreen->devPrivate))->buffer);
+    lorieSendRootWindowBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreen->devPrivate));
 
     return TRUE;
 }
@@ -540,7 +517,7 @@ static Bool lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height,
         pScreen->DestroyPixmap(oldPixmap);
     }
 
-    lorieSendRootWindowBuffer(((LoriePixmapPriv*) exaGetPixmapDriverPrivate(pScreen->devPrivate))->buffer);
+    lorieSendRootWindowBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreen->devPrivate));
 
     pScreen->ResizeWindow(pScreen->root, 0, 0, width, height, NULL);
     RegionReset(&pScreen->root->winSize, &box);
@@ -731,7 +708,7 @@ static Bool loriePresentQueueVblank(__unused RRCrtcPtr crtc, uint64_t event_id, 
         return BadAlloc;
 
     *vblank = (struct vblank) { .id = event_id, .msc = msc };
-    xorg_list_add(&vblank->list, &pvfb->vblank_queue);
+    xorg_list_add(&vblank->link, &pvfb->vblank_queue);
 
     return Success;
 #pragma clang diagnostic pop
@@ -740,9 +717,9 @@ static Bool loriePresentQueueVblank(__unused RRCrtcPtr crtc, uint64_t event_id, 
 static void loriePresentAbortVblank(__unused RRCrtcPtr crtc, uint64_t id, __unused uint64_t msc) {
     struct vblank *vblank, *tmp;
 
-    xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, list) {
+    xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, link) {
         if (vblank->id == id) {
-            xorg_list_del(&vblank->list);
+            xorg_list_del(&vblank->link);
             free (vblank);
             break;
         }
@@ -754,11 +731,11 @@ static void loriePerformVblanks(void) {
     uint64_t ust, msc;
     pvfb->current_msc++;
 
-    xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, list) {
+    xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, link) {
         if (vblank->msc <= pvfb->current_msc) {
             loriePresentGetUstMsc(NULL, &ust, &msc);
             present_event_notify(vblank->id, ust, msc);
-            xorg_list_del(&vblank->list);
+            xorg_list_del(&vblank->link);
             free (vblank);
         }
     }
@@ -771,36 +748,26 @@ static struct present_screen_info loriePresentInfo = {
         .abort_vblank = loriePresentAbortVblank,
 };
 
-void lorieSetVM(JavaVM* vm) {
-    pvfb->vm = vm;
-    (*vm)->AttachCurrentThread(vm, &pvfb->env, NULL);
-}
-
 void exaDDXDriverInit(__unused ScreenPtr pScreen) {}
 
-void *lorieCreatePixmap(__unused ScreenPtr pScreen, int width, int height, __unused int depth, int usage_hint, int bpp, int *new_fb_pitch) {
+void *lorieCreatePixmap(__unused ScreenPtr pScreen, int width, int height, __unused int depth, int usage_hint, __unused int bpp, int *new_fb_pitch) {
     LoriePixmapPriv *priv;
     size_t size = sizeof(LoriePixmapPriv);
-    *new_fb_pitch = ((width * bpp + FB_MASK) >> FB_SHIFT) * sizeof(FbBits);
-
-    if (usage_hint != CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED)
-        size += *new_fb_pitch * height;
+    *new_fb_pitch = 0;
 
     priv = calloc(1, size);
     if (!priv)
         return NULL;
 
-    if (usage_hint != CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED)
+    if (width == 0 || height == 0)
         return priv;
 
-    uint8_t type = pvfb->root.legacyDrawing ? LORIEBUFFER_REGULAR : LORIEBUFFER_AHARDWAREBUFFER;
+    uint8_t type = usage_hint != CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED ? LORIEBUFFER_REGULAR : pvfb->root.legacyDrawing ? LORIEBUFFER_FD : LORIEBUFFER_AHARDWAREBUFFER;
     uint8_t format = pvfb->root.flip ? AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM : AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
     priv->buffer = LorieBuffer_allocate(width, height, format, type);
-    LorieBuffer_Desc d = {0};
-    LorieBuffer_describe(priv->buffer, &d);
-    *new_fb_pitch = d.stride * 4;
+    *new_fb_pitch = LorieBuffer_description(priv->buffer)->stride * 4;
 
-    LorieBuffer_lock(priv->buffer, NULL, &priv->locked);
+    LorieBuffer_lock(priv->buffer, &priv->locked);
     if (!priv->buffer) {
         free(priv);
         return NULL;
@@ -812,11 +779,10 @@ void *lorieCreatePixmap(__unused ScreenPtr pScreen, int width, int height, __unu
 void lorieExaDestroyPixmap(__unused ScreenPtr pScreen, void *driverPriv) {
     LoriePixmapPriv *priv = driverPriv;
     if (priv->buffer) {
-        LorieBuffer_unlock(priv->buffer);
+        if (!priv->imported)
+            LorieBuffer_unlock(priv->buffer);
         LorieBuffer_release(priv->buffer);
     }
-    if (priv->ahb)
-        AHardwareBuffer_release(priv->ahb);
     free(priv);
 }
 
@@ -832,11 +798,11 @@ Bool loriePrepareAccess(PixmapPtr pPix, int index) {
     if (index == EXA_PREPARE_DEST && pScreenPtr->GetScreenPixmap(pScreenPtr) == pPix)
         lorie_mutex_lock(&pvfb->state->lock, &pvfb->state->lockingPid);
 
-    if (priv->ahb) {
-        if (AHardwareBuffer_lock(priv->ahb, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1, NULL, &pPix->devPrivate.ptr))
+    if (priv->imported) {
+        if (LorieBuffer_lock(priv->buffer, &pPix->devPrivate.ptr))
             return FALSE;
     } else
-        pPix->devPrivate.ptr = priv->locked ?: priv->mem ?: priv + 1;
+        pPix->devPrivate.ptr = priv->locked ?: priv->mem;
     return TRUE;
 }
 
@@ -845,8 +811,8 @@ void lorieFinishAccess(PixmapPtr pPix, int index) {
     if (index == EXA_PREPARE_DEST && pScreenPtr->GetScreenPixmap(pScreenPtr) == pPix)
         lorie_mutex_unlock(&pvfb->state->lock, &pvfb->state->lockingPid);
 
-    if (priv->ahb)
-        AHardwareBuffer_unlock(priv->ahb, NULL);
+    if (priv->imported)
+        LorieBuffer_unlock(priv->buffer);
 }
 
 static ExaDriverRec lorieExa = {
@@ -869,7 +835,6 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
     AHardwareBuffer_Desc desc = {0};
     PixmapPtr pixmap = NullPixmap;
     LoriePixmapPriv *priv = NULL;
-    void *addr = NULL;
 
     check(num_fds > 1, "DRI3: More than 1 fd");
     check(modifier != RAW_MMAPPABLE_FD && modifier != AHARDWAREBUFFER_SOCKET_FD && modifier != AHARDWAREBUFFER_FLIPPED_SOCKET_FD &&
@@ -881,14 +846,16 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
     priv = exaGetPixmapDriverPrivate(pixmap);
     check(!priv, "DRI3: failed to obtain pixmap private");
 
+    priv->imported = true;
+
     if (modifier == DRM_FORMAT_MOD_INVALID || modifier == RAW_MMAPPABLE_FD) {
-        addr = mmap(NULL, strides[0] * height, PROT_READ, MAP_SHARED, fds[0], offsets[0]);
-        check(!addr || addr == MAP_FAILED, "DRI3: RAW_MMAPPABLE_FD: mmap failed");
-        screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, strides[0], addr);
+        check(!(priv->buffer = LorieBuffer_wrapFileDescriptor(width, strides[0]/4, height, AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM, fds[0], offsets[0])), "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");
+        screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, strides[0], NULL);
         return pixmap;
     }
 
     if (modifier == AHARDWAREBUFFER_SOCKET_FD || modifier == AHARDWAREBUFFER_FLIPPED_SOCKET_FD) {
+        AHardwareBuffer* buffer;
         struct stat info;
         uint8_t buf = 1;
         int r;
@@ -898,14 +865,15 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
         check(!S_ISSOCK(info.st_mode), "DRI3: modifier is AHARDWAREBUFFER_SOCKET_FD but fd is not a socket");
         // Sending signal to other end of socket to send buffer.
         check(write(fds[0], &buf, 1) != 1, "DRI3: AHARDWAREBUFFER_SOCKET_FD: failed to write to socket: %s", strerror(errno));
-        check((r = AHardwareBuffer_recvHandleFromUnixSocket(fds[0], &priv->ahb)) != 0,
+        check((r = AHardwareBuffer_recvHandleFromUnixSocket(fds[0], &buffer)) != 0,
               "DRI3: AHARDWAREBUFFER_SOCKET_FD: failed to obtain AHardwareBuffer from socket: %d", r);
-        check(!priv->ahb, "DRI3: AHARDWAREBUFFER_SOCKET_FD: did not receive AHardwareSocket from buffer");
-        AHardwareBuffer_describe(priv->ahb, &desc);
+        check(!buffer, "DRI3: AHARDWAREBUFFER_SOCKET_FD: did not receive AHardwareSocket from buffer");
+        AHardwareBuffer_describe(buffer, &desc);
         check(desc.format != AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM
             && desc.format != AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM
             && desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM,
             "DRI3: AHARDWAREBUFFER_SOCKET_FD: wrong format of AHardwareBuffer. Must be one of: AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM, AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM, AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM (stands for 5).");
+        check(!(priv->buffer = LorieBuffer_wrapAHardwareBuffer(buffer)), "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");
 
         screen->ModifyPixmapHeader(pixmap, desc.width, desc.height, 0, 0, desc.stride * 4, NULL);
     }
@@ -913,12 +881,6 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
     return pixmap;
 
     fail:
-    if (priv && priv->ahb) {
-        AHardwareBuffer_release(priv->ahb);
-        priv->ahb = NULL;
-    }
-    if (addr)
-        munmap(addr, strides[0] * height);
     if (pixmap)
         screen->DestroyPixmap(pixmap);
 

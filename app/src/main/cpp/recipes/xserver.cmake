@@ -110,8 +110,8 @@ target_compile_options(xserver_dri3 PRIVATE ${compile_options})
 
 set(FB_SOURCES
         fballpriv.c fbarc.c fbbits.c fbblt.c fbbltone.c fbcmap_mi.c fbcopy.c fbfill.c fbfillrect.c
-        fbfillsp.c fbgc.c fbgetsp.c fbglyph.c fbimage.c fbline.c fboverlay.c fbpict.c fbpixmap.c
-        fbpoint.c fbpush.c fbscreen.c fbseg.c fbsetsp.c fbsolid.c fbtrap.c fbutil.c fbwindow.c)
+        fbfillsp.c fbgc.c fbgetsp.c fbglyph.c fbimage.c fbline.c fbpict.c fbpixmap.c fbpoint.c
+        fbpush.c fbscreen.c fbseg.c fbsetsp.c fbsolid.c fbtrap.c fbutil.c fbwindow.c)
 list(TRANSFORM FB_SOURCES PREPEND "xserver/fb/")
 add_library(xserver_fb STATIC ${FB_SOURCES})
 target_include_directories(xserver_fb PRIVATE ${inc})

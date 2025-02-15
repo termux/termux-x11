@@ -20,7 +20,6 @@
 
 struct lorie_shared_server_state;
 
-void lorieSetVM(JavaVM* vm);
 void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name);
 void lorieEnableClipboardSync(Bool enable);
 void lorieSendClipboardData(const char* data);
@@ -36,11 +35,13 @@ void lorieSendSharedServerState(int memfd);
 void lorieSendRootWindowBuffer(LorieBuffer* buffer);
 bool lorieConnectionAlive(void);
 
-__unused int rendererInit(JNIEnv* env);
+__unused void rendererInit(JNIEnv* env);
 __unused void rendererTestCapabilities(int* legacy_drawing, uint8_t* flip);
-__unused void rendererSetBuffer(LorieBuffer* buf);
 __unused void rendererSetWindow(ANativeWindow* newWin);
 __unused void rendererSetSharedState(struct lorie_shared_server_state* newState);
+__unused void rendererAddBuffer(LorieBuffer* buf);
+__unused void rendererRemoveBuffer(uint64_t id);
+__unused void rendererRemoveAllBuffers(void);
 
 static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_t* lockingPid) {
     // Unfortunately there is no robust mutexes in bionic.
@@ -173,6 +174,9 @@ struct lorie_shared_server_state {
      * Renderer thread sleeps when it is idle so we must explicitly wake it up.
      */
     pthread_cond_t cond; // initialized at X server side.
+
+    /* ID of root window texture to be drawn. */
+    uint64_t rootWindowTextureID;
 
     /* A signal to renderer to update root window texture content from shared fragment if needed */
     volatile uint8_t drawRequested;

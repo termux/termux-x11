@@ -38,7 +38,6 @@ char *xtrans_unix_path_x11 = NULL;
 char *xtrans_unix_dir_x11 = NULL;
 
 static void* startServer(__unused void* cookie) {
-    lorieSetVM((JavaVM*) cookie);
     char* envp[] = { NULL };
     exit(dix_main(argc, (char**) argv, envp));
 }
@@ -48,7 +47,6 @@ static Bool detectTracer(void)
     FILE *fp;
     char  line[256];
     int pid = 0;
-    Bool detected = FALSE;
 
     fp = fopen("/proc/self/status", "r");
     if (!fp)

@@ -2,7 +2,18 @@ diff --git a/Xtranssock.c b/Xtranssock.c
 index b06579c..bb5238b 100644
 --- a/Xtranssock.c
 +++ b/Xtranssock.c
-@@ -200,20 +200,28 @@ static int TRANS(SocketINETClose) (XtransConnInfo ciptr);
+@@ -141,10 +141,6 @@
+ /* others don't need this */
+ #define SocketInitOnce() /**/
+ 
+-#ifdef __linux__
+-#define HAVE_ABSTRACT_SOCKETS
+-#endif
+-
+ #define MIN_BACKLOG 128
+ #ifdef SOMAXCONN
+ #if SOMAXCONN > MIN_BACKLOG
+@@ -200,20 +196,28 @@ static int TRANS(SocketINETClose) (XtransConnInfo ciptr);
  
  
  #if defined(X11_t)

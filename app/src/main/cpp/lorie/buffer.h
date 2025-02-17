@@ -69,6 +69,15 @@ LorieBuffer* _Nullable LorieBuffer_wrapFileDescriptor(int32_t width, int32_t str
 LorieBuffer* _Nullable LorieBuffer_wrapAHardwareBuffer(AHardwareBuffer* _Nullable buffer);
 
 /**
+ * Convert regular buffer to given type.
+ *
+ * @param buffer
+ * @param type
+ * @param format
+ */
+void LorieBuffer_convert(LorieBuffer* _Nullable buffer, int8_t type, int8_t format);
+
+/**
  * Acquire a reference on the given LorieBuffer object.
  *
  * This prevents the object from being deleted until the last reference

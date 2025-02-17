@@ -743,11 +743,48 @@ static void loriePerformVblanks(void) {
     }
 }
 
+Bool loriePresentCheckFlip(__unused RRCrtcPtr crtc, WindowPtr window, PixmapPtr pixmap, __unused Bool sync_flip) {
+    LoriePixmapPriv* priv = (LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap);
+    if (!priv || !priv->buffer || priv->mem)
+        return FALSE;
+
+    const LorieBuffer_Desc *desc = LorieBuffer_description(priv->buffer);
+    if (desc->type == LORIEBUFFER_REGULAR) {
+        // Regular buffers can not be shared to activity, we must explicitly convert LorieBuffer to FD or AHardwareBuffer
+        int8_t type = pvfb->root.legacyDrawing ? LORIEBUFFER_FD : LORIEBUFFER_AHARDWAREBUFFER;
+        int8_t format = pvfb->root.flip ? AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM : AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
+        LorieBuffer_convert(priv->buffer, type, format);
+        if (desc->type != LORIEBUFFER_REGULAR) {
+            // LorieBuffer_convert does not report status but it does not let the type change in the case of error.
+            pScreenPtr->ModifyPixmapHeader(pixmap, 0, 0, 0, 0, desc->stride * 4, NULL);
+            LorieBuffer_lock(priv->buffer, &priv->locked);
+        }
+    }
+
+    if (desc->type != LORIEBUFFER_FD && desc->type != LORIEBUFFER_AHARDWAREBUFFER)
+        return FALSE;
+
+    /* currently not implemented */
+    return FALSE;
+}
+
+Bool loriePresentFlip(__unused RRCrtcPtr crtc, uint64_t event_id, uint64_t target_msc, PixmapPtr pixmap, __unused Bool sync_flip) {
+    /* currently not implemented */
+    return FALSE;
+}
+
+void loriePresentUnflip(__unused ScreenPtr screen, uint64_t event_id) {
+    /* currently not implemented */
+}
+
 static struct present_screen_info loriePresentInfo = {
         .get_crtc = loriePresentGetCrtc,
         .get_ust_msc = loriePresentGetUstMsc,
         .queue_vblank = loriePresentQueueVblank,
         .abort_vblank = loriePresentAbortVblank,
+        .check_flip = loriePresentCheckFlip,
+        .flip = loriePresentFlip,
+        .unflip = loriePresentUnflip,
 };
 
 void exaDDXDriverInit(__unused ScreenPtr pScreen) {}

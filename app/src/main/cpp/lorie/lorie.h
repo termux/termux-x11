@@ -32,7 +32,8 @@ void lorieTriggerWorkingQueue(void);
 void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d);
 void lorieActivityConnected(void);
 void lorieSendSharedServerState(int memfd);
-void lorieSendRootWindowBuffer(LorieBuffer* buffer);
+void lorieRegisterBuffer(LorieBuffer* buffer);
+void lorieUnregisterBuffer(LorieBuffer* buffer);
 bool lorieConnectionAlive(void);
 
 __unused void rendererInit(JNIEnv* env);
@@ -88,7 +89,8 @@ static inline __always_inline void lorie_mutex_unlock(pthread_mutex_t* mutex, pi
 typedef enum {
     EVENT_UNKNOWN __unused = 0,
     EVENT_SHARED_SERVER_STATE,
-    EVENT_SHARED_ROOT_WINDOW_BUFFER,
+    EVENT_ADD_BUFFER,
+    EVENT_REMOVE_BUFFER,
     EVENT_SCREEN_SIZE,
     EVENT_TOUCH,
     EVENT_MOUSE,
@@ -110,6 +112,10 @@ typedef union {
         size_t name_size;
         char *name;
     } screenSize;
+    struct {
+        uint8_t t;
+        unsigned long id;
+    } removeBuffer;
     struct {
         uint8_t t;
         uint16_t type, id, x, y;

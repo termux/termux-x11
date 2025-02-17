@@ -127,7 +127,10 @@ static LorieBuffer* allocate(int32_t width, int32_t stride, int32_t height, int8
                 return NULL;
 
             AHardwareBuffer_describe(b.desc.buffer, &desc);
+            b.desc.width = desc.width;
+            b.desc.height = desc.height;
             b.desc.stride = desc.stride;
+            b.desc.format = desc.format;
             break;
         }
         default: return NULL;

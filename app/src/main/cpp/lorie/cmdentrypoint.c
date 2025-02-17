@@ -37,6 +37,8 @@ void lorieKeysymKeyboardEvent(KeySym keysym, int down);
 char *xtrans_unix_path_x11 = NULL;
 char *xtrans_unix_dir_x11 = NULL;
 
+struct xorg_list registeredBuffers;
+
 static void* startServer(__unused void* cookie) {
     char* envp[] = { NULL };
     exit(dix_main(argc, (char**) argv, envp));
@@ -196,6 +198,7 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
     // Trigger it first time
     AChoreographer_postFrameCallback(choreographer, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, choreographer);
 
+    xorg_list_init(&registeredBuffers);
     pthread_create(&t, NULL, startServer, vm);
     return JNI_TRUE;
 }
@@ -261,10 +264,13 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
     valuator_mask_zero(&mask);
 
     if (ready & X_NOTIFY_ERROR) {
+        LorieBuffer* buf;
         InputThreadUnregisterDev(fd);
         close(fd);
         conn_fd = -1;
         lorieEnableClipboardSync(FALSE);
+        while ((buf = LorieBufferList_first(&registeredBuffers)))
+            LorieBuffer_removeFromList(buf);
         return;
     }
 
@@ -433,11 +439,30 @@ void lorieSendSharedServerState(int memfd) {
     }
 }
 
-void lorieSendRootWindowBuffer(LorieBuffer* buffer) {
+void lorieRegisterBuffer(LorieBuffer* buffer) {
+    unsigned long id = LorieBuffer_description(buffer)->id;
+    if (LorieBufferList_findById(&registeredBuffers, id))
+        return; // Already registered
+
     if (conn_fd != -1 && buffer) {
-        lorieEvent e = { .type = EVENT_SHARED_ROOT_WINDOW_BUFFER };
+        lorieEvent e = { .type = EVENT_ADD_BUFFER };
         write(conn_fd, &e, sizeof(e));
         LorieBuffer_sendHandleToUnixSocket(buffer, conn_fd);
+        LorieBuffer_addToList(buffer, &registeredBuffers);
+        const LorieBuffer_Desc* desc = LorieBuffer_description(buffer);
+        log(INFO, "Received shared buffer width %d height %d format %d type %d id %llu", desc->width, desc->height, desc->format, desc->type, desc->id);
+    }
+}
+
+void lorieUnregisterBuffer(LorieBuffer* buffer) {
+    unsigned long id;
+    if (!buffer || (!LorieBufferList_findById(&registeredBuffers, (id = LorieBuffer_description(buffer)->id))))
+        return;  // Not exist or not registered so no need to unregister
+
+    if (conn_fd != -1 && buffer) {
+        lorieEvent e = { .removeBuffer = { .t = EVENT_REMOVE_BUFFER, .id = id } };
+        write(conn_fd, &e, sizeof(e));
+        LorieBuffer_removeFromList(buffer);
     }
 }
 

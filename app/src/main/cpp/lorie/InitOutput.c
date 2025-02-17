@@ -99,6 +99,7 @@ typedef struct {
     void *mem;
 } LoriePixmapPriv;
 
+#define LORIE_PIXMAP_PRIV_FROM_PIXMAP(pixmap) (pixmap ? ((LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap)) : NULL)
 #define LORIE_BUFFER_FROM_PIXMAP(pixmap) (pixmap ? ((LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap))->buffer : NULL)
 
 void OsVendorInit(void) {
@@ -132,7 +133,7 @@ void OsVendorInit(void) {
 void lorieActivityConnected(void) {
     pvfb->state->drawRequested = pvfb->state->cursor.updated = true;
     lorieSendSharedServerState(pvfb->stateFd);
-    lorieSendRootWindowBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate));
+    lorieRegisterBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate));
 }
 
 static LoriePixmapPriv* lorieRootWindowPixmapPriv(void) {
@@ -396,6 +397,7 @@ static void loriePerformVblanks(void);
 static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     int status, nonEmpty;
     LoriePixmapPriv* priv;
+    PixmapPtr root = pScreenPtr && pScreenPtr->root ? pScreenPtr->GetWindowPixmap(pScreenPtr->root) : NULL;
 
     loriePerformVblanks();
 
@@ -405,7 +407,7 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
         return TRUE;
 
     nonEmpty = RegionNotEmpty(DamageRegion(pvfb->damage));
-    priv = lorieRootWindowPixmapPriv();
+    priv = root ? exaGetPixmapDriverPrivate(root) : NULL;
 
     if (!priv)
         // Impossible situation, but let's skip this step
@@ -457,7 +459,7 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->damage);
     pvfb->fpsTimer = TimerSet(NULL, 0, 5000, lorieFramecounter, pScreen);
 
-    lorieSendRootWindowBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreen->devPrivate));
+    lorieRegisterBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate));
 
     return TRUE;
 }
@@ -517,7 +519,7 @@ static Bool lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height,
         pScreen->DestroyPixmap(oldPixmap);
     }
 
-    lorieSendRootWindowBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreen->devPrivate));
+    lorieRegisterBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate));
 
     pScreen->ResizeWindow(pScreen->root, 0, 0, width, height, NULL);
     RegionReset(&pScreen->root->winSize, &box);
@@ -782,6 +784,7 @@ void lorieExaDestroyPixmap(__unused ScreenPtr pScreen, void *driverPriv) {
         if (!priv->imported)
             LorieBuffer_unlock(priv->buffer);
         LorieBuffer_release(priv->buffer);
+        lorieUnregisterBuffer(priv->buffer);
     }
     free(priv);
 }

@@ -521,10 +521,13 @@ void rendererRedrawLocked(JNIEnv* env) {
     // The buffer will not be released until this function ends, but main thread can modify buffer list
     pthread_mutex_lock(&stateLock);
     LorieBuffer *buffer = LorieBufferList_findById(&buffers, state->rootWindowTextureID);
+    // Probably X server requested us to draw removed buffer and immediately requested to remove it. Let's display it one last time.
+    if (!buffer)
+        buffer = LorieBufferList_findById(&removedBuffers, state->rootWindowTextureID);
     pthread_mutex_unlock(&stateLock);
     if (!buffer) {
         log("Buffer %llu not found", state->rootWindowTextureID);
-        usleep(2); // probably other thread did not push the buffer yet.
+        usleep(4000); // probably other thread did not push the buffer yet, 4 ms should be enough time to finish this.
         return;
     }
 

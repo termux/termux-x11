@@ -22,6 +22,7 @@
 #include <randrstr.h>
 #include <linux/in.h>
 #include <arpa/inet.h>
+#include <poll.h>
 #include "lorie.h"
 
 #define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
@@ -421,7 +422,12 @@ void lorieRequestClipboard(void) {
 }
 
 bool lorieConnectionAlive(void) {
-    return conn_fd != -1;
+    if (conn_fd == -1)
+        return false;
+
+    // Check if socket is closed or has errors.
+    struct pollfd p = { .fd = conn_fd, .events = POLLIN | POLLHUP | POLLERR | POLLRDHUP };
+    return !(poll(&p, 1, 0) == 1 && (p.revents & (POLLERR | POLLNVAL | POLLRDHUP | POLLHUP)));
 }
 
 static Bool addFd(__unused ClientPtr pClient, void *closure) {

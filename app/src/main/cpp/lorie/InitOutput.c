@@ -28,6 +28,7 @@
 #include "micmap.h"
 #include "miline.h"
 #include "shmint.h"
+#include "present_priv.h"
 #include "misyncshm.h"
 #include "glxserver.h"
 #include "glxutil.h"
@@ -50,6 +51,7 @@ extern DeviceIntPtr lorieMouse, lorieKeyboard;
 struct vblank {
     struct xorg_list link;
     uint64_t id, msc;
+    bool flip;
 };
 
 static struct present_screen_info loriePresentInfo;
@@ -60,6 +62,7 @@ typedef struct {
     DamagePtr damage;
     OsTimerPtr fpsTimer;
 
+    SetWindowPixmapProcPtr SetWindowPixmap;
     CloseScreenProcPtr CloseScreen;
 
     int eventFd, stateFd;
@@ -94,7 +97,7 @@ static char *xstartup = NULL;
 
 typedef struct {
     LorieBuffer *buffer;
-    bool flipped, imported;
+    bool flipped, wasLocked;
     void *locked;
     void *mem;
 } LoriePixmapPriv;
@@ -392,14 +395,16 @@ static miPointerScreenFuncRec loriePointerCursorFuncs = {
     .WarpCursor = miPointerWarpCursor
 };
 
-static void loriePerformVblanks(void);
+static void loriePerformVblanks(bool);
 
 static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     int status, nonEmpty;
     LoriePixmapPriv* priv;
     PixmapPtr root = pScreenPtr && pScreenPtr->root ? pScreenPtr->GetWindowPixmap(pScreenPtr->root) : NULL;
 
-    loriePerformVblanks();
+    pvfb->current_msc++;
+    loriePerformVblanks(true);
+    loriePerformVblanks(false);
 
     pvfb->state->waitForNextFrame = false;
 
@@ -419,10 +424,12 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
         // and this is not needed. But according to docs we should do it for any case.
         // Also according to AHardwareBuffer docs simultaneous reading in rendering thread and
         // locking for writing in other thread is fine.
-        LorieBuffer_unlock(priv->buffer);
-        status = LorieBuffer_lock(priv->buffer, &priv->locked);
-        if (status)
-            FatalError("Failed to lock the surface: %d\n", status);
+        if (priv->locked) {
+            LorieBuffer_unlock(priv->buffer);
+            status = LorieBuffer_lock(priv->buffer, &priv->locked);
+            if (status)
+                FatalError("Failed to lock the surface: %d\n", status);
+        }
 
         DamageEmpty(pvfb->damage);
         pvfb->state->drawRequested = TRUE;
@@ -472,6 +479,30 @@ static Bool lorieCloseScreen(ScreenPtr pScreen) {
     return pScreen->CloseScreen(pScreen);
 }
 
+void lorieSetWindowPixmap(WindowPtr pWindow, PixmapPtr newPixmap) {
+    bool isRoot = pWindow == pScreenPtr->root;
+    PixmapPtr oldPixmap = isRoot ? pScreenPtr->GetWindowPixmap(pWindow) : NULL;
+    LoriePixmapPriv *old, *new;
+    if (isRoot) {
+        old = LORIE_PIXMAP_PRIV_FROM_PIXMAP(oldPixmap);
+        new = LORIE_PIXMAP_PRIV_FROM_PIXMAP(newPixmap);
+        if (old && old->buffer && old->locked) {
+            LorieBuffer_unlock(old->buffer);
+            old->locked = NULL;
+            old->wasLocked = false;
+        }
+        if (new && new->buffer && !new->locked) {
+            LorieBuffer_lock(new->buffer, &new->locked);
+            new->wasLocked = false;
+        }
+    }
+
+    pScreenPtr->SetWindowPixmap = pvfb->SetWindowPixmap;
+    (*pScreenPtr->SetWindowPixmap) (pWindow, newPixmap);
+    pvfb->SetWindowPixmap = pScreenPtr->SetWindowPixmap;
+    pScreenPtr->SetWindowPixmap = lorieSetWindowPixmap;
+}
+
 static int lorieSetPixmapVisitWindow(WindowPtr window, void *data) {
     ScreenPtr screen = window->drawable.pScreen;
 
@@ -486,6 +517,13 @@ static int lorieSetPixmapVisitWindow(WindowPtr window, void *data) {
 static Bool lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD32 mmWidth, unused CARD32 mmHeight) {
     PixmapPtr oldPixmap, newPixmap;
     BoxRec box = { 0, 0, width, height };
+
+    // Drain all pending vblanks.
+    loriePerformVblanks(true);
+    loriePerformVblanks(false);
+
+    // Restore root window pixmap.
+    present_restore_screen_pixmap(pScreenPtr);
 
     SetRootClip(pScreen, ROOT_CLIP_NONE);
 
@@ -623,7 +661,9 @@ static Bool lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **ar
         return FALSE;
 
     pvfb->CloseScreen = pScreen->CloseScreen;
+    pvfb->SetWindowPixmap = pScreenPtr->SetWindowPixmap;
     pScreen->CloseScreen = lorieCloseScreen;
+    pScreen->SetWindowPixmap = lorieSetWindowPixmap;
 
     ShmRegisterFbFuncs(pScreen);
     miSyncShmScreenInit(pScreen);
@@ -702,18 +742,22 @@ static int loriePresentGetUstMsc(__unused RRCrtcPtr crtc, uint64_t *ust, uint64_
     return Success;
 }
 
-static Bool loriePresentQueueVblank(__unused RRCrtcPtr crtc, uint64_t event_id, uint64_t msc) {
+static Bool loriePresentQueueVblankInternal(__unused RRCrtcPtr crtc, uint64_t event_id, uint64_t msc, bool flip) {
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "MemoryLeak" // it is not leaked, it is destroyed in lorieRedraw
     struct vblank* vblank = calloc (1, sizeof (*vblank));
     if (!vblank)
         return BadAlloc;
 
-    *vblank = (struct vblank) { .id = event_id, .msc = msc };
+    *vblank = (struct vblank) { .id = event_id, .msc = msc, .flip = flip };
     xorg_list_add(&vblank->link, &pvfb->vblank_queue);
 
     return Success;
 #pragma clang diagnostic pop
+}
+
+static Bool loriePresentQueueVblank(RRCrtcPtr crtc, uint64_t event_id, uint64_t msc) {
+    return loriePresentQueueVblankInternal(crtc, event_id, msc, false);
 }
 
 static void loriePresentAbortVblank(__unused RRCrtcPtr crtc, uint64_t id, __unused uint64_t msc) {
@@ -728,16 +772,18 @@ static void loriePresentAbortVblank(__unused RRCrtcPtr crtc, uint64_t id, __unus
     }
 }
 
-static void loriePerformVblanks(void) {
+static void loriePerformVblanks(bool flip) {
+    BoxRec box = { 0, 0, 1, 1 }; // lorieRedraw only checks if it is empty or not.
     struct vblank *vblank, *tmp;
     uint64_t ust, msc;
-    pvfb->current_msc++;
 
     xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, link) {
-        if (vblank->msc <= pvfb->current_msc) {
+        if (vblank->flip == flip && vblank->msc <= pvfb->current_msc) {
             loriePresentGetUstMsc(NULL, &ust, &msc);
             present_event_notify(vblank->id, ust, msc);
             xorg_list_del(&vblank->link);
+            if (flip)
+                RegionReset(DamageRegion(pvfb->damage), &box);
             free (vblank);
         }
     }
@@ -764,17 +810,27 @@ Bool loriePresentCheckFlip(__unused RRCrtcPtr crtc, WindowPtr window, PixmapPtr 
     if (desc->type != LORIEBUFFER_FD && desc->type != LORIEBUFFER_AHARDWAREBUFFER)
         return FALSE;
 
-    /* currently not implemented */
-    return FALSE;
+    lorieRegisterBuffer(priv->buffer);
+    present_get_window_priv(window, true);
+    return TRUE;
+}
+
+Bool loriePerformFlips(__unused ClientPtr clientPtr, __unused void *closure) {
+    loriePerformVblanks(true);
+    return TRUE;
 }
 
 Bool loriePresentFlip(__unused RRCrtcPtr crtc, uint64_t event_id, uint64_t target_msc, PixmapPtr pixmap, __unused Bool sync_flip) {
-    /* currently not implemented */
-    return FALSE;
+    // Unfortunately we can not call present_event_notify inside of present_screen_info::flip
+    // So we queue new vblank and tell Xorg to process all vblanks immediately after processing client requests
+    loriePresentQueueVblankInternal(crtc, event_id, target_msc, true);
+    QueueWorkProc(loriePerformFlips, NULL, NULL);
+    lorieTriggerWorkingQueue();
+    return true;
 }
 
 void loriePresentUnflip(__unused ScreenPtr screen, uint64_t event_id) {
-    /* currently not implemented */
+    present_event_notify(event_id, 0, 0);
 }
 
 static struct present_screen_info loriePresentInfo = {
@@ -818,7 +874,7 @@ void *lorieCreatePixmap(__unused ScreenPtr pScreen, int width, int height, __unu
 void lorieExaDestroyPixmap(__unused ScreenPtr pScreen, void *driverPriv) {
     LoriePixmapPriv *priv = driverPriv;
     if (priv->buffer) {
-        if (!priv->imported)
+        if (priv->locked)
             LorieBuffer_unlock(priv->buffer);
         LorieBuffer_release(priv->buffer);
         lorieUnregisterBuffer(priv->buffer);
@@ -828,7 +884,7 @@ void lorieExaDestroyPixmap(__unused ScreenPtr pScreen, void *driverPriv) {
 
 Bool lorieModifyPixmapHeader(PixmapPtr pPix, __unused int w, __unused int h, __unused int depth, __unused int bitsPerbppPixel, __unused int devKind, __unused void *data) {
     LoriePixmapPriv *priv = exaGetPixmapDriverPrivate(pPix);
-    if (priv)
+    if (priv && data)
         priv->mem = data;
     return FALSE;
 }
@@ -838,11 +894,17 @@ Bool loriePrepareAccess(PixmapPtr pPix, int index) {
     if (index == EXA_PREPARE_DEST && pScreenPtr->GetScreenPixmap(pScreenPtr) == pPix)
         lorie_mutex_lock(&pvfb->state->lock, &pvfb->state->lockingPid);
 
-    if (priv->imported) {
-        if (LorieBuffer_lock(priv->buffer, &pPix->devPrivate.ptr))
+    if (!priv->locked && !priv->mem) {
+        int err = LorieBuffer_lock(priv->buffer, &priv->locked);
+        if (err) {
+            dprintf(2, "Failed to lock buffer, err %d\n", err);
             return FALSE;
+        }
+        priv->wasLocked = FALSE;
     } else
-        pPix->devPrivate.ptr = priv->locked ?: priv->mem;
+        priv->wasLocked = TRUE;
+
+    pPix->devPrivate.ptr = priv->locked ?: priv->mem;
     return TRUE;
 }
 
@@ -851,8 +913,11 @@ void lorieFinishAccess(PixmapPtr pPix, int index) {
     if (index == EXA_PREPARE_DEST && pScreenPtr->GetScreenPixmap(pScreenPtr) == pPix)
         lorie_mutex_unlock(&pvfb->state->lock, &pvfb->state->lockingPid);
 
-    if (priv->imported)
+    if (!priv->wasLocked) {
         LorieBuffer_unlock(priv->buffer);
+        priv->locked = NULL;
+        priv->wasLocked = FALSE;
+    }
 }
 
 static ExaDriverRec lorieExa = {
@@ -885,8 +950,6 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
 
     priv = exaGetPixmapDriverPrivate(pixmap);
     check(!priv, "DRI3: failed to obtain pixmap private");
-
-    priv->imported = true;
 
     if (modifier == DRM_FORMAT_MOD_INVALID || modifier == RAW_MMAPPABLE_FD) {
         check(!(priv->buffer = LorieBuffer_wrapFileDescriptor(width, strides[0]/4, height, AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM, fds[0], offsets[0])), "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");

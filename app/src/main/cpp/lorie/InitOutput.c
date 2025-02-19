@@ -97,7 +97,7 @@ static char *xstartup = NULL;
 
 typedef struct {
     LorieBuffer *buffer;
-    bool flipped, wasLocked;
+    bool flipped, wasLocked, imported;
     void *locked;
     void *mem;
 } LoriePixmapPriv;
@@ -795,6 +795,9 @@ Bool loriePresentCheckFlip(__unused RRCrtcPtr crtc, WindowPtr window, PixmapPtr 
         return FALSE;
 
     const LorieBuffer_Desc *desc = LorieBuffer_description(priv->buffer);
+    if (desc->type == LORIEBUFFER_FD && priv->imported)
+        return FALSE; // For some reason it does not work fine with turnip.
+
     if (desc->type == LORIEBUFFER_REGULAR) {
         // Regular buffers can not be shared to activity, we must explicitly convert LorieBuffer to FD or AHardwareBuffer
         int8_t type = pvfb->root.legacyDrawing ? LORIEBUFFER_FD : LORIEBUFFER_AHARDWAREBUFFER;
@@ -950,6 +953,8 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
 
     priv = exaGetPixmapDriverPrivate(pixmap);
     check(!priv, "DRI3: failed to obtain pixmap private");
+
+    priv->imported = true;
 
     if (modifier == DRM_FORMAT_MOD_INVALID || modifier == RAW_MMAPPABLE_FD) {
         check(!(priv->buffer = LorieBuffer_wrapFileDescriptor(width, strides[0]/4, height, AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM, fds[0], offsets[0])), "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");

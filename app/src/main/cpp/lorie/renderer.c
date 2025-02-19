@@ -384,10 +384,12 @@ void rendererAddBuffer(LorieBuffer* buf) {
     LorieBuffer_addToList(buf, &addedBuffers);
     pthread_spin_unlock(&bufferLock);
 
+    pthread_mutex_lock(&stateLock);
     // We are not sure which conditional variable is used at current moment so let's signal both
     if (state)
         pthread_cond_signal(&state->cond);
     pthread_cond_signal(&stateCond);
+    pthread_mutex_unlock(&stateLock);
 }
 
 void rendererRemoveBuffer(uint64_t id) {

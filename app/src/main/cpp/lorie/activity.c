@@ -191,14 +191,17 @@ static int xcallback(int fd, int events, __unused void* data) {
                     close(stateFd); // Closing file descriptor does not unmmap shared memory fragment.
                     break;
                 }
-                case EVENT_SHARED_ROOT_WINDOW_BUFFER: {
+                case EVENT_ADD_BUFFER: {
                     static LorieBuffer* buffer = NULL;
                     const LorieBuffer_Desc* desc;
                     LorieBuffer_recvHandleFromUnixSocket(conn_fd, &buffer);
                     desc = LorieBuffer_description(buffer);
-                    log(INFO, "Received shared buffer width %d height %d format %d", desc->width, desc->height, desc->format);
-                    rendererRemoveAllBuffers();
+                    log(INFO, "Received shared buffer width %d height %d format %d type %d id %llu", desc->width, desc->height, desc->format, desc->type, desc->id);
                     rendererAddBuffer(buffer);
+                    break;
+                }
+                case EVENT_REMOVE_BUFFER: {
+                    rendererRemoveBuffer(e.removeBuffer.id);
                     break;
                 }
             }

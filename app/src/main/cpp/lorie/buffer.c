@@ -127,7 +127,10 @@ static LorieBuffer* allocate(int32_t width, int32_t stride, int32_t height, int8
                 return NULL;
 
             AHardwareBuffer_describe(b.desc.buffer, &desc);
+            b.desc.width = desc.width;
+            b.desc.height = desc.height;
             b.desc.stride = desc.stride;
+            b.desc.format = desc.format;
             break;
         }
         default: return NULL;
@@ -184,6 +187,56 @@ __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapFileDescriptor(int32_t width, int32
 
 __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapAHardwareBuffer(AHardwareBuffer* buffer) {
     return allocate(0, 0, 0, 0, LORIEBUFFER_AHARDWAREBUFFER, buffer, -1, 0, 0);
+}
+
+__LIBC_HIDDEN__ void LorieBuffer_convert(LorieBuffer* buffer, int8_t type, int8_t format) {
+    if (!buffer || buffer->desc.type != LORIEBUFFER_REGULAR
+        || (type != LORIEBUFFER_FD && type != LORIEBUFFER_AHARDWAREBUFFER)
+        || (format != AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM && format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM))
+        return;
+
+    if (type == LORIEBUFFER_FD) {
+        size_t size = alignToPage(buffer->desc.stride * buffer->desc.height * sizeof(uint32_t));
+        int fd = LorieBuffer_createRegion("LorieBuffer", size);
+        void *data;
+        if (fd < 0)
+            return;
+
+        data = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+        if (!data || data == MAP_FAILED) {
+            close(fd);
+            return;
+        }
+
+        buffer->desc.type = type;
+        buffer->desc.format = format;
+        buffer->fd = fd;
+        buffer->size = size;
+        buffer->offset = 0;
+        free(buffer->desc.data);
+        buffer->desc.data = data;
+
+        buffer->lockedData = NULL;
+        buffer->locked = 0;
+    } else {
+        AHardwareBuffer *b = NULL;
+        AHardwareBuffer_Desc desc = { .width = buffer->desc.width, .height = buffer->desc.height, .format = format, .layers = 1,
+                .usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE };
+        int err = AHardwareBuffer_allocate(&desc, &b);
+        if (err != 0)
+            return;
+
+        AHardwareBuffer_describe(b, &desc);
+
+        buffer->desc.type = type;
+        buffer->desc.format = format;
+        buffer->desc.stride = desc.stride;
+        buffer->desc.buffer = b;
+        free(buffer->desc.data);
+        buffer->desc.data = NULL;
+        buffer->lockedData = NULL;
+        buffer->locked = 0;
+    }
 }
 
 __LIBC_HIDDEN__ void __LorieBuffer_free(LorieBuffer* buffer) {

@@ -4,7 +4,7 @@
 A Termux:X11 fork but with extra features.
 
 It supports Controller and more customizable Screen Keys.
-For Cotroller input make sure to enable "Prefer scancodes when possible" and dissable "Hardware keyboard scancodes workaround".
+For Controller input make sure to enable "Prefer scancodes when possible" and disable "Hardware keyboard scancodes workaround".
 
 A [Termux](https://termux.com) X11 server add-on app.
 

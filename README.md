@@ -73,28 +73,33 @@ For some reason some devices show screen with swapped colours, in this case you 
 
 ## Using with proot environment
 If you plan to use the program with proot, keep in mind that you need to launch proot/proot-distro with the --shared-tmp option. 
+
 If passing this option is not possible, set the TMPDIR environment variable to point to the directory that corresponds to /tmp in the target container.
+
 If you are using proot-distro you should know that it is possible to start `termux-x11` command from inside proot container.
 
 ## Using with chroot environment
-If you plan to use the program with chroot or unshare, you must to run it as root and set the TMPDIR environment variable to point to the directory that corresponds to /tmp in the target container. 
+If you plan to use the program with chroot or unshare, you must to run it as root and set the TMPDIR environment variable to point to the directory that corresponds to /tmp in the target container.
+
 This directory must be accessible from the shell from which you launch termux-x11, i.e. it must be in the same SELinux context, same mount namespace, and so on.
+
 Also you must set `XKB_CONFIG_ROOT` environment variable pointing to container's `/usr/share/X11/xkb` directory, otherwise you will have `xkbcomp`-related errors.
+
 You can get loader for nightly build from an artifact of [last successful build](https://github.com/termux/termux-x11/actions/workflows/debug_build.yml)
+
 Do not forget to disable SELinux
 ```
 setenforce 0
 export TMPDIR=/path/to/chroot/container/tmp
 export CLASSPATH=$(/system/bin/pm path com.termux.x11 | cut -d: -f2)
-/system/bin/app_process / com.termux.x11.CmdEntryPoint :0
+/system/bin/app_process / --nice-name=termux-x11 com.termux.x11.CmdEntryPoint :0
 ```
 
 ### Force stopping X server (running in termux background, not an activity)
 
-termux-x11's X server runs in process with name "app_process", not "termux-x11". But you can kill it by searching "com.termux.x11" in commandline.
-So killing it will look like
+termux-x11's X server runs in process with name "termux-x11". You can kill it by
 ```
-pkill -f com.termux.x11
+pkill termux-x11
 ```
 
 ### Closing Android activity (running in foreground, not X server)

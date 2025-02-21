@@ -784,7 +784,7 @@ Bool loriePresentFlip(__unused RRCrtcPtr crtc, __unused uint64_t event_id, __unu
 
     const LorieBuffer_Desc *desc = LorieBuffer_description(priv->buffer);
     char *forceFlip = getenv("TERMUX_X11_FORCE_FLIP");
-    if (desc->type == LORIEBUFFER_FD && priv->imported && strcmp(forceFlip, "1") != 0)
+    if (desc->type == LORIEBUFFER_FD && priv->imported && forceFlip && strcmp(forceFlip, "1") != 0)
         return FALSE; // For some reason it does not work fine with turnip.
 
     if (desc->type == LORIEBUFFER_REGULAR) {

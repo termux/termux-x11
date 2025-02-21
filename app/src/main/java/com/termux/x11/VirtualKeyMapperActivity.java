@@ -15,8 +15,10 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.ListView;
 import android.widget.SeekBar;
 import android.widget.Toast;
 import android.widget.EditText;
@@ -50,13 +52,11 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
         Button savePresetButton = findViewById(R.id.savePresetButton);
         Button loadPresetButton = findViewById(R.id.loadPresetButton);
 
-        // Când apasă pe "Add New Key", se creează un buton nou
+
         addNewKeyButton.setOnClickListener(v -> addNewButton(null));
 
-        // Când apasă pe "Save Preset", salvează toate butoanele
-        savePresetButton.setOnClickListener(v -> savePreset());
+        savePresetButton.setOnClickListener(v -> showSavePresetDialog());
 
-        // Când apasă pe "Load Preset", deschide lista cu preseturi
         VirtualKeyHandler virtualKeyHandler = new VirtualKeyHandler(this);
         loadPresetButton.setOnClickListener(v -> showLoadPresetDialog(buttonContainer, virtualKeyHandler));
         //loadButtons(this, virtualKeyHandler);
@@ -65,7 +65,7 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
 
         buttonContainer = findViewById(R.id.buttonContainer);
         if (buttonContainer == null) {
-            Log.e("DEBUG", "buttonContainer NU a fost găsit!"); // Dacă apare asta, verifică ID-ul din XML
+            Log.e("DEBUG", "buttonContainer NU a fost găsit!");
         }
         buttonContainer.setVisibility(View.VISIBLE);
 
@@ -90,11 +90,9 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
             button = newButton;
         }
 
-        // Înregistrează context menu & drag
         registerForContextMenu(button);
         enableDrag(button);
 
-        // OnLongClick → deschide meniul contextual
         button.setOnLongClickListener(v -> {
             openContextMenu(v);
             return true;
@@ -275,26 +273,55 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
                 return true;
 
             } else if (item.getItemId() == R.id.action_transparency) {
-                showTransparencyDialog(button); // Aplicăm transparența
-                //saveButtonSettings(button);
+                showTransparencyDialog(button);
                 return true;
 
             } else if (item.getItemId() == R.id.action_resize) {
                 showResizeDialog(button);
                 return true;
 
-            } else if (item.getItemId() == R.id.action_rename) { // Adăugăm redenumirea
+            } else if (item.getItemId() == R.id.action_rename) {
                 showRenameDialog(button);
                 return true;
+
             } else if (item.getItemId() == R.id.action_set_input) {
                 showSetInputDialog(button);
                 return true;
-            }
 
+            } else if (item.getItemId() == R.id.action_copy) { // 📌 Noua opțiune pentru copiere
+                copyButton(button);
+                return true;
+            }
         }
         return super.onContextItemSelected(item);
     }
 
+    private void copyButton(Button originalButton) {
+        Button copiedButton = new Button(this);
+
+        int newId = generateUniqueButtonId(); // Generăm un ID unic
+        copiedButton.setId(newId);
+        //copiedButton.setText(originalButton.getText() + " (Copy)");
+        copiedButton.setLayoutParams(originalButton.getLayoutParams());
+        copiedButton.setX(originalButton.getX() + 50); // Lăsăm un mic offset ca să nu fie suprapus
+        copiedButton.setY(originalButton.getY() + 50);
+        copiedButton.getBackground().setAlpha(originalButton.getBackground().getAlpha());
+
+        // Copiem input-ul asociat butonului (dacă există)
+        copiedButton.setTag(originalButton.getTag());
+
+        // Activăm mutarea și meniul contextual pentru noul buton
+        enableDrag(copiedButton);
+        registerForContextMenu(copiedButton);
+
+        // Adăugăm butonul în container
+        buttonContainer.addView(copiedButton);
+
+        // Salvăm noul buton în preferințe
+        saveButtonSettings(copiedButton);
+
+        Toast.makeText(this, "✅ Button copied!", Toast.LENGTH_SHORT).show();
+    }
 
     private void removeButtonFromStorage(int buttonId) {
         SharedPreferences prefs = getSharedPreferences("button_prefs", MODE_PRIVATE);
@@ -375,16 +402,19 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
             }
         });
 
-        // Buton "Cancel" pentru a ieși fără să salvăm
         builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
 
         builder.show();
     }
 
 
-    private void savePreset() {
+    private void savePreset(String presetKey) {
         SharedPreferences prefs = getSharedPreferences("button_prefs", MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
+
+        if (buttonContainer == null) {
+            return;
+        }
 
         Set<String> buttonData = new HashSet<>();
         for (int i = 0; i < buttonContainer.getChildCount(); i++) {
@@ -396,63 +426,182 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
             }
         }
 
-        String presetName = "preset_custom"; // Poți schimba acest nume dacă vrei să fie editabil
-
-        editor.putStringSet(presetName, buttonData);
+        String displayId = getDisplayId(buttonContainer.getContext());
+        editor.putStringSet(presetKey, buttonData);
+        editor.putString("last_used_preset_" + displayId, presetKey);
         editor.apply();
 
-        Toast.makeText(this, "✅ Preset salvat: " + presetName, Toast.LENGTH_SHORT).show();
+        MainActivity instance = MainActivity.getInstance();
+        if (instance != null) {
+            instance.refreshLoadedPreset();
+        }
+
+        Toast.makeText(this, "✅ Preset saved: " + presetKey.replace("preset_", ""), Toast.LENGTH_SHORT).show();
     }
 
 
     private void showLoadPresetDialog(FrameLayout mainContainer, VirtualKeyHandler virtualKeyHandler) {
         SharedPreferences prefs = getSharedPreferences("button_prefs", MODE_PRIVATE);
-
-        // ✅ Asigurăm că există presetul gol
         ensureEmptyPresetExists(prefs);
 
-        // ✅ Obținem ID-ul display-ului curent
         String displayId = getDisplayId(buttonContainer.getContext());
+        List<String> presetNames = getPresetNames(prefs);
 
-        // ✅ Obținem toate cheile preseturilor
-        Set<String> presetKeys = prefs.getAll().keySet();
-
-        // ✅ Filtrăm doar preset-urile și adăugăm „empty” dacă nu există deja
-        Set<String> presetNames = new HashSet<>();
-        presetNames.add("empty"); // ✅ Adăugăm „empty” mereu
-        for (String key : presetKeys) {
-            if (key.startsWith("preset_")) {
-                presetNames.add(key.replace("preset_", ""));
-            }
-        }
-
-        // ✅ Verificăm dacă există preseturi disponibile
         if (presetNames.isEmpty()) {
             Toast.makeText(this, "No presets available", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        String[] presetArray = presetNames.toArray(new String[0]);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Manage Presets");
+
+        ListView listView = new ListView(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, presetNames);
+        listView.setAdapter(adapter);
+
+        listView.setOnItemClickListener((parent, view, position, id) -> {
+            String selectedPreset = "preset_" + presetNames.get(position);
+            List<Button> buttons = loadPreset(this, selectedPreset, mainContainer);
+
+            for (Button btn : buttons) {
+                enableDrag(btn);
+                registerForContextMenu(btn);
+            }
+
+            // 🔄 Corectare salvare preset
+            prefs.edit().putString("last_used_preset_" + displayId, selectedPreset).apply();
+
+            // 🔄 Acum MainActivity ar trebui să detecteze și să reîncarce presetul
+            MainActivity instance = MainActivity.getInstance();
+            if (instance != null) {
+                instance.refreshLoadedPreset();
+            }
+
+            Toast.makeText(this, "✅ Preset loaded: " + presetNames.get(position), Toast.LENGTH_SHORT).show();
+        });
+
+        listView.setOnItemLongClickListener((parent, view, position, id) -> {
+            String selectedPreset = "preset_" + presetNames.get(position);
+            showPresetOptionsDialog(selectedPreset, mainContainer, virtualKeyHandler, adapter, presetNames);
+            return true;
+        });
+
+        builder.setView(listView);
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+
+        builder.show();
+    }
+
+
+    /**
+     * Funcție pentru a extrage preseturile disponibile
+     */
+    private List<String> getPresetNames(SharedPreferences prefs) {
+        Set<String> presetKeys = prefs.getAll().keySet();
+        List<String> presetNames = new ArrayList<>();
+
+        for (String key : presetKeys) {
+            if (key.startsWith("preset_")) {
+                presetNames.add(key.replace("preset_", ""));
+            }
+        }
+        return presetNames;
+    }
+
+    /**
+     * Afișează opțiuni pentru un preset (Load, Rename, Delete) și actualizează lista în timp real
+     */
+    private void showPresetOptionsDialog(String presetKey, FrameLayout mainContainer, VirtualKeyHandler virtualKeyHandler, ArrayAdapter<String> adapter, List<String> presetNames) {
+        String presetName = presetKey.replace("preset_", "");
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Load Preset")
-                .setItems(presetArray, (dialog, which) -> {
-                    String selectedPreset = "preset_" + presetArray[which]; // ✅ Adăugăm prefixul corect
+        builder.setTitle("Preset: " + presetName)
+                .setItems(new String[]{"Load", "Rename", "Delete"}, (dialog, which) -> {
+                    switch (which) {
+                        case 0: // Load
+                            loadPreset(this, presetKey, mainContainer);
+                            Toast.makeText(this, "✅ Preset loaded: " + presetName, Toast.LENGTH_SHORT).show();
+                            break;
 
-                    // ✅ Încărcăm presetul în containerul de butoane
-                    List<Button> buttons = loadPreset(this, selectedPreset, mainContainer);
+                        case 1: // Rename
+                            showRenamePresetDialog(presetKey, adapter, presetNames);
+                            break;
 
-                    // ✅ Activăm drag pentru fiecare buton
-                    for (Button btn : buttons) {
-                        enableDrag(btn);
+                        case 2: // Delete
+                            showDeletePresetDialog(presetKey, adapter, presetNames);
+                            break;
                     }
-
-                    // ✅ Salvăm acest preset ca "ultimul folosit" pentru acest display
-                    prefs.edit().putString("last_used_preset_" + displayId, selectedPreset).apply();
                 })
-                .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
-                .show();
+                .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+
+        builder.show();
     }
+
+    /**
+     * Rename
+     */
+    private void showRenamePresetDialog(String oldPresetKey, ArrayAdapter<String> adapter, List<String> presetNames) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Rename Preset");
+
+        final EditText input = new EditText(this);
+        input.setText(oldPresetKey.replace("preset_", ""));
+        builder.setView(input);
+
+        builder.setPositiveButton("Rename", (dialog, which) -> {
+            String newPresetName = input.getText().toString().trim();
+            if (!newPresetName.isEmpty()) {
+                SharedPreferences prefs = getSharedPreferences("button_prefs", MODE_PRIVATE);
+                SharedPreferences.Editor editor = prefs.edit();
+
+                Set<String> oldData = prefs.getStringSet(oldPresetKey, new HashSet<>());
+                String newPresetKey = "preset_" + newPresetName;
+
+                editor.putStringSet(newPresetKey, oldData);
+                editor.remove(oldPresetKey);
+                editor.apply();
+
+                // 🔄 Actualizează lista în timp real
+                presetNames.remove(oldPresetKey.replace("preset_", ""));
+                presetNames.add(newPresetName);
+                adapter.notifyDataSetChanged();
+
+                Toast.makeText(this, "✅ Preset renamed!", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+
+        builder.show();
+    }
+
+    /**
+     * Trash
+     */
+    private void showDeletePresetDialog(String presetKey, ArrayAdapter<String> adapter, List<String> presetNames) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Delete Preset");
+        builder.setMessage("Are you sure you want to delete this preset?");
+
+        builder.setPositiveButton("Delete", (dialog, which) -> {
+            SharedPreferences prefs = getSharedPreferences("button_prefs", MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.remove(presetKey);
+            editor.apply();
+
+            // 🔄 Actualizează lista în timp real
+            presetNames.remove(presetKey.replace("preset_", ""));
+            adapter.notifyDataSetChanged();
+
+            Toast.makeText(this, "✅ Preset deleted!", Toast.LENGTH_SHORT).show();
+        });
+
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+
+        builder.show();
+    }
+
+
 
 
     private void showSetInputDialog(Button button) {
@@ -477,8 +626,6 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
                 // Altele
                 "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
 
-                // Input personalizat
-                //"Custom..."
         };
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -502,7 +649,6 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
             Log.e("ERROR", "❌ buttonContainer este NULL!");
             return new ArrayList<>();
         }
-
         SharedPreferences prefs = context.getSharedPreferences("button_prefs", Context.MODE_PRIVATE);
 
         String screenID = getDisplayId(context);
@@ -527,7 +673,6 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
         for (View view : toRemove) {
             buttonContainer.removeView(view);
         }
-        Log.d("DEBUG", "✅ Au fost șterse " + toRemove.size() + " butoane.");
 
         List<Button> buttons = new ArrayList<>();
         if (!presetName.equals("preset_empty")) {
@@ -557,7 +702,6 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
                 buttons.add(button);
             }
         }
-
         return buttons;
     }
 
@@ -578,10 +722,66 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
             editor.putStringSet("Empty", emptyPreset);
             editor.apply();
 
-            Log.d("DEBUG", "✅ Preset gol creat: " + "Empty");
-            Log.d("DEBUG", "✅ Presetul empty a fost creat automat.");
         }
     }
+
+    private void showSavePresetDialog() {
+        SharedPreferences prefs = getSharedPreferences("button_prefs", MODE_PRIVATE);
+        Set<String> presetKeys = prefs.getAll().keySet();
+        List<String> presetNames = new ArrayList<>();
+
+        for (String key : presetKeys) {
+            if (key.startsWith("preset_")) {
+                presetNames.add(key.replace("preset_", ""));
+            }
+        }
+
+        presetNames.add(0, "New Preset...");
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Save Preset");
+
+        builder.setItems(presetNames.toArray(new String[0]), (dialog, which) -> {
+            if (which == 0) {
+                showNewPresetDialog();
+            } else {
+                String selectedPreset = "preset_" + presetNames.get(which);
+                savePreset(selectedPreset);
+            }
+            MainActivity instance = MainActivity.getInstance();
+            if (instance != null) {
+                instance.refreshLoadedPreset();
+            }
+        });
+
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+        builder.show();
+    }
+
+    private void showNewPresetDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Enter New Preset Name");
+
+        final EditText input = new EditText(this);
+        input.setHint("Preset Name");
+
+        builder.setView(input);
+
+        builder.setPositiveButton("Save", (dialog, which) -> {
+            String presetName = input.getText().toString().trim();
+            if (!presetName.isEmpty()) {
+                String presetKey = "preset_" + presetName;
+                savePreset(presetKey);
+            } else {
+                Toast.makeText(this, "Preset name cannot be empty!", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+        builder.show();
+    }
+
+
 
     public static String getDisplayId(Context context) {
         String displayType = "Builtin Display"; // Implicit

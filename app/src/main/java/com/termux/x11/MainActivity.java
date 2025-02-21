@@ -7,6 +7,7 @@ import static android.view.KeyEvent.*;
 import static android.view.WindowManager.LayoutParams.*;
 import static com.termux.x11.CmdEntryPoint.ACTION_START;
 import static com.termux.x11.LoriePreferences.ACTION_PREFERENCES_CHANGED;
+import static com.termux.x11.VirtualKeyMapperActivity.getDisplayId;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
@@ -180,7 +181,7 @@ public class MainActivity extends AppCompatActivity {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
 
-        frm = findViewById(R.id.frame);
+
         frm = findViewById(R.id.frame);
         findViewById(R.id.command_button).setOnClickListener((l) -> {
             Intent intent = new Intent();
@@ -292,31 +293,20 @@ public class MainActivity extends AppCompatActivity {
         onReceiveConnection(getIntent());
         findViewById(android.R.id.content).addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> makeSureHelpersAreVisibleAndInScreenBounds());
 
-        // Obținem containerul principal
         FrameLayout mainContainer = findViewById(R.id.frame);
         if (mainContainer == null) {
             Log.e("DEBUG", "❌ Eroare: containerul principal nu a fost găsit!");
             return;
         }
 
+        refreshLoadedPreset();
 
-        VirtualKeyHandler virtualKeyHandler = new VirtualKeyHandler(this);
-        VirtualKeyMapperActivity virtualKeyMapperActivity = new VirtualKeyMapperActivity();
-        List<Button> buttons = (List<Button>) virtualKeyMapperActivity.loadPreset(this, mainContainer);
-
-        for (View btn : buttons) {
-            virtualKeyHandler.setupInputForButton((Button) btn);
-        }
-
-        // Inițializează GamepadInputHandler
         gamepadHandler = new GamepadInputHandler(this);
         gamepadHandler.setupGamepadInput();
         View rootView = findViewById(android.R.id.content);
         rootView.setFocusableInTouchMode(true);
         rootView.requestFocus();
 
-
-        Log.d("DEBUG", "✅ Toate butoanele virtuale au fost încărcate și configurate!");
     }
 
 
@@ -359,8 +349,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-
+    public boolean dispatchKeyEvent(KeyEvent event) { //
+        if (event.getDevice() != null && event.getDevice().isVirtual()) {
+            return super.dispatchKeyEvent(event);
+        }
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             return onKeyDown(event.getKeyCode(), event);
         } else if (event.getAction() == KeyEvent.ACTION_UP) {
@@ -380,6 +372,43 @@ public class MainActivity extends AppCompatActivity {
         }
         return super.onGenericMotionEvent(event);
     }
+
+    void refreshLoadedPreset() {
+        FrameLayout mainContainer = findViewById(R.id.frame);
+        if (mainContainer == null) {
+            Log.e("DEBUG", "❌ Eroare: containerul principal nu a fost găsit!");
+            return;
+        }
+
+        List<View> toRemove = new ArrayList<>();
+        for (int i = 0; i < mainContainer.getChildCount(); i++) {
+            View child = mainContainer.getChildAt(i);
+            if (child instanceof Button) {
+                toRemove.add(child);
+            }
+        }
+        for (View view : toRemove) {
+            mainContainer.removeView(view);
+        }
+
+        SharedPreferences prefs = getSharedPreferences("button_prefs", MODE_PRIVATE);
+        String screenID = getDisplayId(this);
+        String lastPreset = prefs.getString("last_used_preset_" + screenID, "preset_empty");
+
+        VirtualKeyHandler virtualKeyHandler = new VirtualKeyHandler(this);
+        VirtualKeyMapperActivity virtualKeyMapperActivity = new VirtualKeyMapperActivity();
+        List<Button> buttons = virtualKeyMapperActivity.loadPreset(this, lastPreset, mainContainer);
+
+        for (Button btn : buttons) {
+            virtualKeyHandler.setupInputForButton(btn);
+            if (btn.getParent() == null) {
+                mainContainer.addView(btn);
+            }
+        }
+
+    }
+
+
 
 
     @Override
@@ -827,7 +856,7 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("ObsoleteSdkInt")
     Notification buildNotification() {
         NotificationCompat.Builder builder =  new NotificationCompat.Builder(this, getNotificationChannel(mNotificationManager))
-                .setContentTitle("Termux:X11")
+                .setContentTitle("Termux:X11-Extra")
                 .setSmallIcon(R.drawable.ic_x11_icon)
                 .setContentText(getResources().getText(R.string.notification_content_text))
                 .setOngoing(true)

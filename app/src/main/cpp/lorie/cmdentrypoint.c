@@ -285,14 +285,14 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 if (copy->screenSize.name_size)
                     read(fd, copy->screenSize.name, copy->screenSize.name_size);
                 QueueWorkProc(sendConfigureNotify, NULL, copy);
-                lorieTriggerWorkingQueue();
+                lorieWakeServer();
                 break;
             }
             case EVENT_TOUCH: {
                 lorieEvent *copy = calloc(1, sizeof(lorieEvent));
                 memcpy(copy, &e, sizeof(e));
                 QueueWorkProc(handleTouchEvent, NULL, copy);
-                lorieTriggerWorkingQueue();
+                lorieWakeServer();
                 break;
             }
             case EVENT_STYLUS: {
@@ -388,14 +388,14 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 break;
             case EVENT_CLIPBOARD_ANNOUNCE:
                 QueueWorkProc(handleClipboardAnnounce, NULL, NULL);
-                lorieTriggerWorkingQueue();
+                lorieWakeServer();
                 break;
             case EVENT_CLIPBOARD_SEND: {
                 char *data = calloc(1, e.clipboardSend.count + 1);
                 read(conn_fd, data, e.clipboardSend.count);
                 data[e.clipboardSend.count] = 0;
                 QueueWorkProc(handleClipboardData, NULL, data);
-                lorieTriggerWorkingQueue();
+                lorieWakeServer();
             }
         }
 
@@ -447,7 +447,7 @@ void lorieSendSharedServerState(int memfd) {
 
 void lorieRegisterBuffer(LorieBuffer* buffer) {
     unsigned long id = LorieBuffer_description(buffer)->id;
-    if (LorieBufferList_findById(&registeredBuffers, id))
+    if (conn_fd == -1 || LorieBufferList_findById(&registeredBuffers, id))
         return; // Already registered
 
     if (conn_fd != -1 && buffer) {
@@ -456,7 +456,7 @@ void lorieRegisterBuffer(LorieBuffer* buffer) {
         LorieBuffer_sendHandleToUnixSocket(buffer, conn_fd);
         LorieBuffer_addToList(buffer, &registeredBuffers);
         const LorieBuffer_Desc* desc = LorieBuffer_description(buffer);
-        log(INFO, "Received shared buffer width %d height %d format %d type %d id %llu", desc->width, desc->height, desc->format, desc->type, desc->id);
+        log(INFO, "Sent shared buffer width %d stride %d height %d format %d type %d id %llu", desc->width, desc->stride, desc->height, desc->format, desc->type, desc->id);
     }
 }
 
@@ -479,7 +479,7 @@ Java_com_termux_x11_CmdEntryPoint_getXConnection(JNIEnv *env, __unused jobject c
     jmethodID adoptFd = (*env)->GetStaticMethodID(env, ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
     socketpair(AF_UNIX, SOCK_STREAM, 0, client);
     QueueWorkProc(addFd, NULL, (void*) (int64_t) client[1]);
-    lorieTriggerWorkingQueue();
+    lorieWakeServer();
 
     return (*env)->CallStaticObjectMethod(env, ParcelFileDescriptorClass, adoptFd, client[0]);
 }

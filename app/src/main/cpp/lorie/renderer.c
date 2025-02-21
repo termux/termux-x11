@@ -522,10 +522,12 @@ void rendererRefreshContext(void) {
     log("Xlorie: new surface applied: %p\n", sfc);
 }
 
-static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip);
+static void draw(GLuint id, float x0, float y0, float x1, float y1, float xfactor, uint8_t flip);
 static void drawCursor(float displayWidth, float displayHeight);
 
 void rendererRedrawLocked(bool* waitingForBuffers) {
+    float xfactor = 1.f;
+    LorieBuffer_Desc *desc = NULL;
     EGLSync fence;
     // The buffer will not be released until this function ends, but main thread can modify buffer list
     pthread_spin_lock(&bufferLock);
@@ -540,12 +542,16 @@ void rendererRedrawLocked(bool* waitingForBuffers) {
         return;
     }
 
+    desc = LorieBuffer_description(buffer);
+
     // We should signal X server to not use root window while we actively copy it
     lorie_mutex_lock(&state->lock, &state->lockingPid);
     state->drawRequested = FALSE;
 
     LorieBuffer_bindTexture(buffer);
-    draw(0, -1.f, -1.f, 1.f, 1.f, LorieBuffer_isRgba(buffer));
+    if (desc->type == LORIEBUFFER_FD)
+        xfactor = (float) desc->width/(float) desc->stride;
+    draw(0, -1.f, -1.f, 1.f, 1.f, xfactor, LorieBuffer_isRgba(buffer));
     fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, NULL);
     glFlush();
 
@@ -715,12 +721,12 @@ static GLuint createProgram(const char* p_vertex_source, const char* p_fragment_
     return 0;
 }
 
-static void draw(GLuint id, float x0, float y0, float x1, float y1, uint8_t flip) {
+static void draw(GLuint id, float x0, float y0, float x1, float y1, float xfactor, uint8_t flip) {
     float coords[16] = {
         x0, -y0, 0.f, 0.f,
-        x1, -y0, 1.f, 0.f,
+        x1, -y0, xfactor, 0.f,
         x0, -y1, 0.f, 1.f,
-        x1, -y1, 1.f, 1.f,
+        x1, -y1, xfactor, 1.f,
     };
 
     GLuint p = flip ? gv_pos_bgra : gv_pos, c = flip ? gv_coords_bgra : gv_coords;
@@ -749,6 +755,6 @@ __unused static void drawCursor(float displayWidth, float displayHeight) {
     h = 2.f * (float) state->cursor.height / displayHeight;
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    draw(cursor.id, x, y, x + w, y + h, false);
+    draw(cursor.id, x, y, x + w, y + h, 1.f, false);
     glDisable(GL_BLEND);
 }

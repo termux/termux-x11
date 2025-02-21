@@ -299,3 +299,33 @@ index f9b7b06d9..f4b2aeddc 100644
  
      /* display is initialized to "0" by main(). It is then set to the display
       * number if specified on the command line. */
+
++++ b/present/present.h
+@@ -93,6 +93,9 @@ typedef Bool (*present_flip_ptr) (RRCrtcPtr crtc,
+                                   uint64_t target_msc,
+                                   PixmapPtr pixmap,
+                                   Bool sync_flip);
++
++typedef void (*present_after_flip_ptr) (RRCrtcPtr crtc, uint64_t event_id, uint64_t ust, uint64_t target_msc, PixmapPtr pixmap);
++
+ /* Flip pixmap for window, return false if it didn't happen.
+  *
+  * Like present_flip_ptr, additionally with:
+@@ -134,6 +137,7 @@ typedef struct present_screen_info {
+     uint32_t                            capabilities;
+     present_check_flip_ptr              check_flip;
+     present_flip_ptr                    flip;
++    present_after_flip_ptr              after_flip;
+     present_unflip_ptr                  unflip;
+     present_check_flip2_ptr             check_flip2;
+ 
++++ b/present/present_scmd.c
+@@ -599,6 +599,8 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
+                     damage = &window->clipList;
+ 
+                 DamageDamageRegion(&vblank->window->drawable, damage);
++
++                screen_priv->info->after_flip(vblank->crtc, vblank->event_id, ust, vblank->target_msc, vblank->pixmap);
+                 return;
+             }
+ 

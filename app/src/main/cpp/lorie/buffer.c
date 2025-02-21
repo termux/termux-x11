@@ -190,6 +190,7 @@ __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapAHardwareBuffer(AHardwareBuffer* bu
 }
 
 __LIBC_HIDDEN__ void LorieBuffer_convert(LorieBuffer* buffer, int8_t type, int8_t format) {
+    void *data;
     if (!buffer || buffer->desc.type != LORIEBUFFER_REGULAR
         || (type != LORIEBUFFER_FD && type != LORIEBUFFER_AHARDWAREBUFFER)
         || (format != AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM && format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM))
@@ -198,7 +199,6 @@ __LIBC_HIDDEN__ void LorieBuffer_convert(LorieBuffer* buffer, int8_t type, int8_
     if (type == LORIEBUFFER_FD) {
         size_t size = alignToPage(buffer->desc.stride * buffer->desc.height * sizeof(uint32_t));
         int fd = LorieBuffer_createRegion("LorieBuffer", size);
-        void *data;
         if (fd < 0)
             return;
 
@@ -207,6 +207,8 @@ __LIBC_HIDDEN__ void LorieBuffer_convert(LorieBuffer* buffer, int8_t type, int8_
             close(fd);
             return;
         }
+
+        pixman_blt(buffer->desc.data, data, buffer->desc.stride, buffer->desc.stride, 32, 32, 0, 0, 0, 0, buffer->desc.width, buffer->desc.height);
 
         buffer->desc.type = type;
         buffer->desc.format = format;
@@ -227,6 +229,11 @@ __LIBC_HIDDEN__ void LorieBuffer_convert(LorieBuffer* buffer, int8_t type, int8_
             return;
 
         AHardwareBuffer_describe(b, &desc);
+
+        if (AHardwareBuffer_lock(b, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1, NULL, &data) == 0) {
+            pixman_blt(buffer->desc.data, data, buffer->desc.stride, desc.stride, 32, 32, 0, 0, 0, 0, buffer->desc.width, buffer->desc.height);
+            AHardwareBuffer_unlock(b, NULL);
+        }
 
         buffer->desc.type = type;
         buffer->desc.format = format;

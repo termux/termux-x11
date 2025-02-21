@@ -779,7 +779,7 @@ static void loriePerformVblanks(void) {
 
 Bool loriePresentFlip(__unused RRCrtcPtr crtc, __unused uint64_t event_id, __unused uint64_t target_msc, PixmapPtr pixmap, __unused Bool sync_flip) {
     LoriePixmapPriv* priv = (LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap);
-    if (!priv || !priv->buffer || priv->mem)
+    if (!priv || !priv->buffer || priv->mem || pvfb->root.width != pixmap->drawable.width || pvfb->root.width != pixmap->drawable.height)
         return FALSE;
 
     const LorieBuffer_Desc *desc = LorieBuffer_description(priv->buffer);
@@ -801,6 +801,8 @@ Bool loriePresentFlip(__unused RRCrtcPtr crtc, __unused uint64_t event_id, __unu
 
     if (desc->type != LORIEBUFFER_FD && desc->type != LORIEBUFFER_AHARDWAREBUFFER)
         return FALSE;
+
+    dprintf(2, "flip! pixmap %dx%d screen %dx%d\n", pixmap->drawable.width, pixmap->drawable.height, pvfb->root.width, pvfb->root.height);
 
     lorieRegisterBuffer(priv->buffer);
     return TRUE;

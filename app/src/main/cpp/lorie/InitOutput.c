@@ -51,7 +51,6 @@ extern DeviceIntPtr lorieMouse, lorieKeyboard;
 struct vblank {
     struct xorg_list link;
     uint64_t id, msc;
-    bool flip;
 };
 
 static struct present_screen_info loriePresentInfo;
@@ -395,7 +394,7 @@ static miPointerScreenFuncRec loriePointerCursorFuncs = {
     .WarpCursor = miPointerWarpCursor
 };
 
-static void loriePerformVblanks(bool);
+static void loriePerformVblanks(void);
 
 static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     int status, nonEmpty;
@@ -403,8 +402,7 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     PixmapPtr root = pScreenPtr && pScreenPtr->root ? pScreenPtr->GetWindowPixmap(pScreenPtr->root) : NULL;
 
     pvfb->current_msc++;
-    loriePerformVblanks(true);
-    loriePerformVblanks(false);
+    loriePerformVblanks();
 
     pvfb->state->waitForNextFrame = false;
 
@@ -519,8 +517,7 @@ static Bool lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height,
     BoxRec box = { 0, 0, width, height };
 
     // Drain all pending vblanks.
-    loriePerformVblanks(true);
-    loriePerformVblanks(false);
+    loriePerformVblanks();
 
     // Restore root window pixmap.
     present_restore_screen_pixmap(pScreenPtr);
@@ -612,12 +609,13 @@ static Bool lorieRandRInit(ScreenPtr pScreen) {
     return TRUE;
 }
 
-void lorieTriggerWorkingQueue(void) {
+void lorieWakeServer(void) {
+    // Wake the server if it sleeps.
     eventfd_write(pvfb->eventFd, 1);
 }
 
 static void lorieWorkingQueueCallback(int fd, int __unused ready, void __unused *data) {
-    // Nothing to do here. It is needed to finish ospoll_wait.
+    // Nothing to do here. It is needed to interrupt ospoll_wait.
     eventfd_t dummy;
     eventfd_read(fd, &dummy);
 }
@@ -626,7 +624,7 @@ void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d) {
     AChoreographer_postFrameCallback(d, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, d);
     if (pScreenPtr) {
         QueueWorkProc(lorieRedraw, NULL, NULL);
-        lorieTriggerWorkingQueue();
+        lorieWakeServer();
     }
 }
 
@@ -742,22 +740,18 @@ static int loriePresentGetUstMsc(__unused RRCrtcPtr crtc, uint64_t *ust, uint64_
     return Success;
 }
 
-static Bool loriePresentQueueVblankInternal(__unused RRCrtcPtr crtc, uint64_t event_id, uint64_t msc, bool flip) {
+static Bool loriePresentQueueVblank(__unused RRCrtcPtr crtc, uint64_t event_id, uint64_t msc) {
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "MemoryLeak" // it is not leaked, it is destroyed in lorieRedraw
     struct vblank* vblank = calloc (1, sizeof (*vblank));
     if (!vblank)
         return BadAlloc;
 
-    *vblank = (struct vblank) { .id = event_id, .msc = msc, .flip = flip };
+    *vblank = (struct vblank) { .id = event_id, .msc = msc };
     xorg_list_add(&vblank->link, &pvfb->vblank_queue);
 
     return Success;
 #pragma clang diagnostic pop
-}
-
-static Bool loriePresentQueueVblank(RRCrtcPtr crtc, uint64_t event_id, uint64_t msc) {
-    return loriePresentQueueVblankInternal(crtc, event_id, msc, false);
 }
 
 static void loriePresentAbortVblank(__unused RRCrtcPtr crtc, uint64_t id, __unused uint64_t msc) {
@@ -772,30 +766,25 @@ static void loriePresentAbortVblank(__unused RRCrtcPtr crtc, uint64_t id, __unus
     }
 }
 
-static void loriePerformVblanks(bool flip) {
-    BoxRec box = { 0, 0, 1, 1 }; // lorieRedraw only checks if it is empty or not.
+static void loriePerformVblanks(void) {
     struct vblank *vblank, *tmp;
-    uint64_t ust, msc;
-
     xorg_list_for_each_entry_safe(vblank, tmp, &pvfb->vblank_queue, link) {
-        if (vblank->flip == flip && vblank->msc <= pvfb->current_msc) {
-            loriePresentGetUstMsc(NULL, &ust, &msc);
-            present_event_notify(vblank->id, ust, msc);
+        if (vblank->msc <= pvfb->current_msc) {
+            present_event_notify(vblank->id, GetTimeInMicros(), pvfb->current_msc);
             xorg_list_del(&vblank->link);
-            if (flip)
-                RegionReset(DamageRegion(pvfb->damage), &box);
             free (vblank);
         }
     }
 }
 
-Bool loriePresentCheckFlip(__unused RRCrtcPtr crtc, WindowPtr window, PixmapPtr pixmap, __unused Bool sync_flip) {
+Bool loriePresentFlip(__unused RRCrtcPtr crtc, __unused uint64_t event_id, __unused uint64_t target_msc, PixmapPtr pixmap, __unused Bool sync_flip) {
     LoriePixmapPriv* priv = (LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap);
-    if (!priv || !priv->buffer || priv->mem)
+    if (!priv || !priv->buffer || priv->mem || pvfb->root.width != pixmap->drawable.width || pvfb->root.width != pixmap->drawable.height)
         return FALSE;
 
     const LorieBuffer_Desc *desc = LorieBuffer_description(priv->buffer);
-    if (desc->type == LORIEBUFFER_FD && priv->imported)
+    char *forceFlip = getenv("TERMUX_X11_FORCE_FLIP");
+    if (desc->type == LORIEBUFFER_FD && priv->imported && !(forceFlip && strcmp(forceFlip, "1") == 0))
         return FALSE; // For some reason it does not work fine with turnip.
 
     if (desc->type == LORIEBUFFER_REGULAR) {
@@ -813,23 +802,21 @@ Bool loriePresentCheckFlip(__unused RRCrtcPtr crtc, WindowPtr window, PixmapPtr 
     if (desc->type != LORIEBUFFER_FD && desc->type != LORIEBUFFER_AHARDWAREBUFFER)
         return FALSE;
 
+    dprintf(2, "flip! pixmap %dx%d screen %dx%d\n", pixmap->drawable.width, pixmap->drawable.height, pvfb->root.width, pvfb->root.height);
+
     lorieRegisterBuffer(priv->buffer);
-    present_get_window_priv(window, true);
     return TRUE;
 }
 
-Bool loriePerformFlips(__unused ClientPtr clientPtr, __unused void *closure) {
-    loriePerformVblanks(true);
-    return TRUE;
-}
-
-Bool loriePresentFlip(__unused RRCrtcPtr crtc, uint64_t event_id, uint64_t target_msc, PixmapPtr pixmap, __unused Bool sync_flip) {
-    // Unfortunately we can not call present_event_notify inside of present_screen_info::flip
-    // So we queue new vblank and tell Xorg to process all vblanks immediately after processing client requests
-    loriePresentQueueVblankInternal(crtc, event_id, target_msc, true);
-    QueueWorkProc(loriePerformFlips, NULL, NULL);
-    lorieTriggerWorkingQueue();
-    return true;
+void loriePresentAfterFlip(__unused RRCrtcPtr crtc, uint64_t event_id, uint64_t ust, uint64_t target_msc, __unused PixmapPtr pixmap) {
+    // X server was patched to call this function right after finishing all present_flip shenanigans
+    // Since we do not invoke DRM API or anything similar we do not need to implement this as callback
+    // For some reason calling present_event_notify in BlockHandler or as QueueWorkProc/eventfd callback
+    // adds some delay which may be easily avoided this way.
+    static BoxRec box = { 0, 0, 1, 1 }; // lorieRedraw only checks if it is empty or not.
+    RegionReset(DamageRegion(pvfb->damage), &box);
+    pvfb->current_msc = min(pvfb->current_msc + 1, target_msc);
+    present_event_notify(event_id, ust, pvfb->current_msc);
 }
 
 void loriePresentUnflip(__unused ScreenPtr screen, uint64_t event_id) {
@@ -841,8 +828,12 @@ static struct present_screen_info loriePresentInfo = {
         .get_ust_msc = loriePresentGetUstMsc,
         .queue_vblank = loriePresentQueueVblank,
         .abort_vblank = loriePresentAbortVblank,
-        .check_flip = loriePresentCheckFlip,
+        // check_flip is called only in present_check_flip_window during window reconfiguration.
+        // The function should tell if pixmap can be used for flipping window.
+        // Since there are no other drivers involved here we assume it always fits.
+        .check_flip = TrueNoop,
         .flip = loriePresentFlip,
+        .after_flip = loriePresentAfterFlip,
         .unflip = loriePresentUnflip,
 };
 

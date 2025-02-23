@@ -196,7 +196,7 @@ static int xcallback(int fd, int events, __unused void* data) {
                     const LorieBuffer_Desc* desc;
                     LorieBuffer_recvHandleFromUnixSocket(conn_fd, &buffer);
                     desc = LorieBuffer_description(buffer);
-                    log(INFO, "Received shared buffer width %d height %d format %d type %d id %llu", desc->width, desc->height, desc->format, desc->type, desc->id);
+                    log(INFO, "Received shared buffer width %d stride %d height %d format %d type %d id %llu", desc->width, desc->stride, desc->height, desc->format, desc->type, desc->id);
                     rendererAddBuffer(buffer);
                     break;
                 }

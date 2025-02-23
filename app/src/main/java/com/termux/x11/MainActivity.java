@@ -299,7 +299,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
 
-        refreshLoadedPreset();
+        refreshLoadedPreset(true);
 
         gamepadHandler = new GamepadInputHandler(this);
         gamepadHandler.setupGamepadInput();
@@ -370,36 +370,40 @@ public class MainActivity extends AppCompatActivity {
         return super.onGenericMotionEvent(event);
     }
 
-    void refreshLoadedPreset() {
-        FrameLayout buttonLayer = findViewById(R.id.top);
+    private boolean isPresetLoaded = false;
+    void refreshLoadedPreset(boolean forceLoad) {
+        if (!isPresetLoaded || forceLoad){
+            FrameLayout buttonLayer = findViewById(R.id.top);
 
-        List<View> toRemove = new ArrayList<>();
-        for (int i = 0; i < buttonLayer.getChildCount(); i++) {
-            View child = buttonLayer.getChildAt(i);
-            if (child instanceof Button) {
-                toRemove.add(child);
+            List<View> toRemove = new ArrayList<>();
+            for (int i = 0; i < buttonLayer.getChildCount(); i++) {
+                View child = buttonLayer.getChildAt(i);
+                if (child instanceof Button) {
+                    toRemove.add(child);
+                }
+            }
+            for (View view : toRemove) {
+                buttonLayer.removeView(view);
+            }
+            if (LorieView.connected()){
+                SharedPreferences prefs = getSharedPreferences("button_prefs", MODE_PRIVATE);
+                String screenID = getDisplayId(this);
+                String lastPreset = prefs.getString("last_used_preset_" + screenID, "preset_empty");
+
+                VirtualKeyHandler virtualKeyHandler = new VirtualKeyHandler(this);
+                VirtualKeyMapperActivity virtualKeyMapperActivity = new VirtualKeyMapperActivity();
+                List<Button> buttons = virtualKeyMapperActivity.loadPreset(this, lastPreset, buttonLayer);
+
+                for (Button btn : buttons) {
+                    virtualKeyHandler.setupInputForButton(btn);
+
+                    if (btn.getParent() == null) {
+                        buttonLayer.addView(btn);
+                    }
+                }
+
             }
         }
-        for (View view : toRemove) {
-            buttonLayer.removeView(view);
-        }
-
-        SharedPreferences prefs = getSharedPreferences("button_prefs", MODE_PRIVATE);
-        String screenID = getDisplayId(this);
-        String lastPreset = prefs.getString("last_used_preset_" + screenID, "preset_empty");
-
-        VirtualKeyHandler virtualKeyHandler = new VirtualKeyHandler(this);
-        VirtualKeyMapperActivity virtualKeyMapperActivity = new VirtualKeyMapperActivity();
-        List<Button> buttons = virtualKeyMapperActivity.loadPreset(this, lastPreset, buttonLayer);
-
-        for (Button btn : buttons) {
-            virtualKeyHandler.setupInputForButton(btn);
-
-            if (btn.getParent() == null) {
-                buttonLayer.addView(btn);
-            }
-        }
-
     }
 
 
@@ -1010,18 +1014,22 @@ public class MainActivity extends AppCompatActivity {
     @SuppressWarnings("SameParameterValue")
     void clientConnectedStateChanged() {
         runOnUiThread(()-> {
-            boolean connected = LorieView.connected();
-            setTerminalToolbarView();
-            findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && connected ? View.VISIBLE : View.GONE);
-            findViewById(R.id.stub).setVisibility(connected?View.INVISIBLE:View.VISIBLE);
-            getLorieView().setVisibility(connected?View.VISIBLE:View.INVISIBLE);
+                    boolean connected = LorieView.connected();
+                    setTerminalToolbarView();
+                    findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && connected ? View.VISIBLE : View.GONE);
+                    findViewById(R.id.stub).setVisibility(connected ? View.INVISIBLE : View.VISIBLE);
+                    getLorieView().setVisibility(connected ? View.VISIBLE : View.INVISIBLE);
 
-            // We should recover connection in the case if file descriptor for some reason was broken...
-            if (!connected)
-                tryConnect();
-            else
-                getLorieView().setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
-
+                    // We should recover connection in the case if file descriptor for some reason was broken...
+                    if (!connected) {
+                        tryConnect();
+                        isPresetLoaded = false;
+                        refreshLoadedPreset(false);
+                    } else{
+                        getLorieView().setPointerIcon(PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL));
+                        refreshLoadedPreset(false);
+                        isPresetLoaded = true;
+                    }
             onWindowFocusChanged(hasWindowFocus());
         });
     }

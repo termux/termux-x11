@@ -95,11 +95,11 @@ int LorieBuffer_createRegion(char const* name, size_t size) {
 }
 #pragma clang diagnostic pop
 
-static LorieBuffer* allocate(int32_t width, int32_t stride, int32_t height, int8_t format, int8_t type, AHardwareBuffer *buf, int fd, size_t size, off_t offset) {
+static LorieBuffer* allocate(int32_t width, int32_t stride, int32_t height, int8_t format, int8_t type, AHardwareBuffer *buf, int fd, size_t size, off_t offset, bool takeFd) {
     AHardwareBuffer_Desc desc = {0};
     static uint64_t id = 0;
     bool acceptable = (format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM || format == AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM) && width > 0 && height > 0;
-    LorieBuffer b = { .desc = { .width = width, .stride = stride, .height = height, .format = format, .type = type, .buffer = buf, .id = id++ }, .fd = fd, .size = size, .offset = offset };
+    LorieBuffer b = { .desc = { .width = width, .stride = stride, .height = height, .format = format, .type = type, .buffer = buf, .id = id++ }, .fd = takeFd ? fd : dup(fd), .size = size, .offset = offset };
 
     if (type != LORIEBUFFER_AHARDWAREBUFFER && !acceptable)
         return NULL;
@@ -108,7 +108,7 @@ static LorieBuffer* allocate(int32_t width, int32_t stride, int32_t height, int8
 
     switch (type) {
         case LORIEBUFFER_REGULAR:
-            b.desc.data = calloc(1, width * height * sizeof(uint32_t));
+            b.desc.data = calloc(1, stride * height * sizeof(uint32_t));
             if (!b.desc.data)
                 return NULL;
             break;
@@ -178,18 +178,19 @@ __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_allocate(int32_t width, int32_t height,
             dprintf(2, "FATAL: failed to allocate AHardwareBuffer (width %d height %d format %d): error %d\n", width, height, format, err);
     }
 
-    return allocate(width, width, height, format, type, ahardwarebuffer, fd, size, 0);
+    return allocate(width, width, height, format, type, ahardwarebuffer, fd, size, 0, true);
 }
 
 __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapFileDescriptor(int32_t width, int32_t stride, int32_t height, int8_t format, int fd, off_t offset) {
-    return allocate(width, stride, height, format, LORIEBUFFER_FD, NULL, fd, stride * height * sizeof(uint32_t), offset);
+    return allocate(width, stride, height, format, LORIEBUFFER_FD, NULL, fd, stride * height * sizeof(uint32_t), offset, false);
 }
 
 __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapAHardwareBuffer(AHardwareBuffer* buffer) {
-    return allocate(0, 0, 0, 0, LORIEBUFFER_AHARDWAREBUFFER, buffer, -1, 0, 0);
+    return allocate(0, 0, 0, 0, LORIEBUFFER_AHARDWAREBUFFER, buffer, -1, 0, 0, false);
 }
 
 __LIBC_HIDDEN__ void LorieBuffer_convert(LorieBuffer* buffer, int8_t type, int8_t format) {
+    void *data;
     if (!buffer || buffer->desc.type != LORIEBUFFER_REGULAR
         || (type != LORIEBUFFER_FD && type != LORIEBUFFER_AHARDWAREBUFFER)
         || (format != AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM && format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM))
@@ -198,7 +199,6 @@ __LIBC_HIDDEN__ void LorieBuffer_convert(LorieBuffer* buffer, int8_t type, int8_
     if (type == LORIEBUFFER_FD) {
         size_t size = alignToPage(buffer->desc.stride * buffer->desc.height * sizeof(uint32_t));
         int fd = LorieBuffer_createRegion("LorieBuffer", size);
-        void *data;
         if (fd < 0)
             return;
 
@@ -207,6 +207,8 @@ __LIBC_HIDDEN__ void LorieBuffer_convert(LorieBuffer* buffer, int8_t type, int8_
             close(fd);
             return;
         }
+
+        pixman_blt(buffer->desc.data, data, buffer->desc.stride, buffer->desc.stride, 32, 32, 0, 0, 0, 0, buffer->desc.width, buffer->desc.height);
 
         buffer->desc.type = type;
         buffer->desc.format = format;
@@ -227,6 +229,11 @@ __LIBC_HIDDEN__ void LorieBuffer_convert(LorieBuffer* buffer, int8_t type, int8_
             return;
 
         AHardwareBuffer_describe(b, &desc);
+
+        if (AHardwareBuffer_lock(b, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1, NULL, &data) == 0) {
+            pixman_blt(buffer->desc.data, data, buffer->desc.stride, desc.stride, 32, 32, 0, 0, 0, 0, buffer->desc.width, buffer->desc.height);
+            AHardwareBuffer_unlock(b, NULL);
+        }
 
         buffer->desc.type = type;
         buffer->desc.format = format;
@@ -344,7 +351,7 @@ __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuf
     read(socketFd, &buffer, sizeof(buffer));
     buffer.image = NULL; // Only for process-local use
     if (buffer.desc.type == LORIEBUFFER_FD) {
-        size_t size = alignToPage(buffer.desc.width * buffer.desc.height * sizeof(uint32_t));
+        size_t size = buffer.desc.stride * buffer.desc.height * sizeof(uint32_t);
         buffer.fd = ancil_recv_fd(socketFd);
         if (buffer.fd == -1) {
             if (outBuffer)
@@ -402,7 +409,7 @@ __LIBC_HIDDEN__ void LorieBuffer_attachToGL(LorieBuffer* buffer) {
     else if (buffer->desc.data && buffer->desc.width > 0 && buffer->desc.height > 0) {
         int format = buffer->desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA;
         // The image will be updated in redraw call because of `drawRequested` flag, so we are not uploading pixels
-        glTexImage2D(GL_TEXTURE_2D, 0, format, buffer->desc.width, buffer->desc.height, 0, format, GL_UNSIGNED_BYTE, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, buffer->desc.stride, buffer->desc.height, 0, format, GL_UNSIGNED_BYTE, NULL);
     }
 }
 
@@ -412,7 +419,7 @@ __LIBC_HIDDEN__ void LorieBuffer_bindTexture(LorieBuffer *buffer) {
 
     glBindTexture(GL_TEXTURE_2D, buffer->id);
     if (buffer->desc.type == LORIEBUFFER_FD)
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, buffer->desc.width, buffer->desc.height, buffer->desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, buffer->desc.data);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, buffer->desc.stride, buffer->desc.height, buffer->desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, buffer->desc.data);
 }
 
 __LIBC_HIDDEN__ int LorieBuffer_getWidth(LorieBuffer *buffer) {

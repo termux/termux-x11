@@ -433,7 +433,7 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
 
         MainActivity instance = MainActivity.getInstance();
         if (instance != null) {
-            instance.refreshLoadedPreset();
+            instance.refreshLoadedPreset(true);
         }
 
         Toast.makeText(this, "✅ Preset saved: " + presetKey.replace("preset_", ""), Toast.LENGTH_SHORT).show();
@@ -474,7 +474,7 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
             // 🔄 Acum MainActivity ar trebui să detecteze și să reîncarce presetul
             MainActivity instance = MainActivity.getInstance();
             if (instance != null) {
-                instance.refreshLoadedPreset();
+                instance.refreshLoadedPreset(true);
             }
 
             Toast.makeText(this, "✅ Preset loaded: " + presetNames.get(position), Toast.LENGTH_SHORT).show();
@@ -750,7 +750,7 @@ public class VirtualKeyMapperActivity extends AppCompatActivity {
             }
             MainActivity instance = MainActivity.getInstance();
             if (instance != null) {
-                instance.refreshLoadedPreset();
+                instance.refreshLoadedPreset(true);
             }
         });
 

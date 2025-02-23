@@ -295,17 +295,15 @@ public class MainActivity extends AppCompatActivity {
 
         FrameLayout mainContainer = findViewById(R.id.frame);
         if (mainContainer == null) {
-            Log.e("DEBUG", "❌ Eroare: containerul principal nu a fost găsit!");
             return;
         }
+
 
         refreshLoadedPreset();
 
         gamepadHandler = new GamepadInputHandler(this);
         gamepadHandler.setupGamepadInput();
-        View rootView = findViewById(android.R.id.content);
-        rootView.setFocusableInTouchMode(true);
-        rootView.requestFocus();
+
 
     }
 
@@ -367,28 +365,23 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
         if (gamepadHandler != null) {
-            Log.e("DEBUG", "✅ Controller");
             return gamepadHandler.handleGenericMotionEvent(event) || super.onGenericMotionEvent(event);
         }
         return super.onGenericMotionEvent(event);
     }
 
     void refreshLoadedPreset() {
-        FrameLayout mainContainer = findViewById(R.id.frame);
-        if (mainContainer == null) {
-            Log.e("DEBUG", "❌ Eroare: containerul principal nu a fost găsit!");
-            return;
-        }
+        FrameLayout buttonLayer = findViewById(R.id.top);
 
         List<View> toRemove = new ArrayList<>();
-        for (int i = 0; i < mainContainer.getChildCount(); i++) {
-            View child = mainContainer.getChildAt(i);
+        for (int i = 0; i < buttonLayer.getChildCount(); i++) {
+            View child = buttonLayer.getChildAt(i);
             if (child instanceof Button) {
                 toRemove.add(child);
             }
         }
         for (View view : toRemove) {
-            mainContainer.removeView(view);
+            buttonLayer.removeView(view);
         }
 
         SharedPreferences prefs = getSharedPreferences("button_prefs", MODE_PRIVATE);
@@ -397,18 +390,17 @@ public class MainActivity extends AppCompatActivity {
 
         VirtualKeyHandler virtualKeyHandler = new VirtualKeyHandler(this);
         VirtualKeyMapperActivity virtualKeyMapperActivity = new VirtualKeyMapperActivity();
-        List<Button> buttons = virtualKeyMapperActivity.loadPreset(this, lastPreset, mainContainer);
+        List<Button> buttons = virtualKeyMapperActivity.loadPreset(this, lastPreset, buttonLayer);
 
         for (Button btn : buttons) {
             virtualKeyHandler.setupInputForButton(btn);
+
             if (btn.getParent() == null) {
-                mainContainer.addView(btn);
+                buttonLayer.addView(btn);
             }
         }
 
     }
-
-
 
 
     @Override

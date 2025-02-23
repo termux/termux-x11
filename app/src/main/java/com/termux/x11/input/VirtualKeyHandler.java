@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.util.Log;
 import android.view.MotionEvent;
+import android.view.View;
 import android.widget.Button;
 import com.termux.x11.LorieView;
 import com.termux.x11.MainActivity;
@@ -21,44 +22,38 @@ public class VirtualKeyHandler {
         button.setOnTouchListener((v, event) -> {
             String selectedKey = (String) button.getTag();
             if (selectedKey == null) {
-                Log.e("DEBUG", "⚠️ Butonul nu are un input key asignat!");
                 return false;
             }
 
             int keyCode = getKeyEventCode(selectedKey);
-            Log.d("DEBUG", "🔎 Tasta apăsată: " + selectedKey + " -> KeyCode: " + keyCode);
-
             if (keyCode == -1) {
-                Log.e("DEBUG", "⚠️ Cod necunoscut pentru tasta: " + selectedKey);
                 return false;
             }
 
             LorieView lorieView = ((MainActivity) context).findViewById(R.id.lorieView);
             if (lorieView == null) {
-                Log.e("DEBUG", "❌ Eroare: LorieView nu a fost găsit!");
                 return false;
             }
 
-            switch (event.getAction()) {
+            switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    // Trimite evenimentul de tastă "apăsat"
                     lorieView.sendKeyEvent(keyCode, keyCode, true);
-                    //lorieView.sendGamepadEvent(1, true, 0.0F, 0.0F, 0.0F,0.0F,0.0F,0.0F, 0.0F, 0.0F);
-                    Log.d("DEBUG", "✅ Tasta " + selectedKey + " apăsată.");
+                    v.performClick();
+                    break;
+
+                case MotionEvent.ACTION_MOVE:
                     break;
 
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
-                    // Trimite evenimentul de tastă "eliberat"
                     lorieView.sendKeyEvent(keyCode, keyCode, false);
-                    //lorieView.sendGamepadEvent(1, false, 0.0F, 0.0F,0.0F,0.0F,0.0F,0.0F, 0.0F, 0.0F);
-                    Log.d("DEBUG", "✅ Tasta " + selectedKey + " eliberată.");
                     break;
             }
-
-            return true; // Returnăm true pentru a consuma evenimentul
+            return false;
         });
     }
+
+
 
     private int getKeyEventCode(String key) {
         switch (key) {

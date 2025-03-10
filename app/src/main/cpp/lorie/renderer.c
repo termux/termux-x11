@@ -407,12 +407,6 @@ void rendererRemoveBuffer(uint64_t id) {
 void rendererRemoveAllBuffers(void) {
     LorieBuffer *buf = NULL;
 
-    if (eglGetCurrentSurface(EGL_DRAW) != defaultSfc) {
-        glClearColor(0, 0, 0, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
-        eglSwapBuffers(egl_display, sfc);
-    }
-
     pthread_spin_lock(&bufferLock);
     while ((buf = LorieBufferList_first(&addedBuffers))) {
         // These buffers are not yet attached to GL, it is safe to release them

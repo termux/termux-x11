@@ -868,8 +868,8 @@ void lorieExaDestroyPixmap(__unused ScreenPtr pScreen, void *driverPriv) {
     if (priv->buffer) {
         if (priv->locked)
             LorieBuffer_unlock(priv->buffer);
-        LorieBuffer_release(priv->buffer);
         lorieUnregisterBuffer(priv->buffer);
+        LorieBuffer_release(priv->buffer);
     }
     free(priv);
 }

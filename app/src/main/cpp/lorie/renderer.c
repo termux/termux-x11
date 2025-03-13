@@ -521,10 +521,11 @@ void rendererRedrawLocked(bool* waitingForBuffers) {
     // Probably X server requested us to draw removed buffer and immediately requested to remove it. Let's display it one last time.
     if (!buffer)
         buffer = LorieBufferList_findById(&removedBuffers, state->rootWindowTextureID);
+    if (!buffer)
+        *waitingForBuffers = true;
     pthread_spin_unlock(&bufferLock);
     if (!buffer) {
         log("Buffer %llu not found", state->rootWindowTextureID);
-        *waitingForBuffers = true;
         return;
     }
 
@@ -576,7 +577,8 @@ void rendererRedrawLocked(bool* waitingForBuffers) {
     state->renderedFrames++;
 }
 
-static inline __always_inline bool rendererShouldWait(const bool *waitingForBuffers) {
+static inline __always_inline bool rendererShouldWait(bool *waitingForBuffers) {
+    static uint64_t lastRequestedBufferId = 0;
     bool buffersChanged;
     pthread_spin_lock(&bufferLock);
     buffersChanged = !xorg_list_is_empty(&addedBuffers) || !xorg_list_is_empty(&removedBuffers);
@@ -584,6 +586,12 @@ static inline __always_inline bool rendererShouldWait(const bool *waitingForBuff
     if (stateChanged || windowChanged || buffersChanged)
         // If there are pending changes we should process them immediately.
         return false;
+
+    if (state) {
+        if (lastRequestedBufferId != state->rootWindowTextureID)
+            *waitingForBuffers = false;
+        lastRequestedBufferId = state->rootWindowTextureID;
+    }
 
     if (!state || !state->surfaceAvailable || state->waitForNextFrame || *waitingForBuffers)
         // Even in the case if there are pending changes, we can not draw it without rendering surface
@@ -612,6 +620,7 @@ __noreturn static void* rendererThread(void) {
             state = pendingState;
             pendingState = NULL;
             stateChanged = false;
+            waitingForBuffers = false;
 
             if (state)
                 state->surfaceAvailable = win != defaultWin;

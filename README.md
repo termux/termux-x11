@@ -192,10 +192,10 @@ termux-x11-preference [list] {key:value} [{key2:value2}]..."
 
 Use `termux-x11-preference list` to dump current preferences.
 Use `termux-x11-preference list > file` to dump current preferences to file.
-Use `termux-x11-preferences < file` to restore preferences from file.
-Use `termux-x11-preferences "fullscreen"="false" "showAdditionalKbd"="true"` to disable fullscreen and enable additional key bar. The full list of preferences you can modify is available with `termux-x11-preference list` command. You can specify one or more preferences here.
+Use `termux-x11-preference < file` to restore preferences from file.
+Use `termux-x11-preference "fullscreen"="false" "showAdditionalKbd"="true"` to disable fullscreen and enable additional key bar. The full list of preferences you can modify is available with `termux-x11-preference list` command. You can specify one or more preferences here.
 
-Termux:X11 activity should be available in background or foreground, otherwise `termux-x11-preferences` tool will hang indefinitely.
+Termux:X11 activity should be available in background or foreground, otherwise `termux-x11-preference` tool will hang indefinitely.
 In the case if there is `Store preferences for secondary displays separately` preference active `termux-x11-preference` will use/modify preferences of display where Termux:X11 activity is currently opened.
 
 ## Using with 3rd party apps

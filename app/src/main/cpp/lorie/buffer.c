@@ -18,6 +18,7 @@
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
+#include <android/sharedmem.h>
 #include "list.h"
 #include "buffer.h"
 
@@ -68,7 +69,11 @@ static inline size_t alignToPage(size_t size) {
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "UnreachableCallsOfFunction"
 int LorieBuffer_createRegion(char const* name, size_t size) {
-    int fd = memfd_create(name, MFD_CLOEXEC|MFD_ALLOW_SEALING);
+    int fd = ASharedMemory_create(name, size);
+    if (fd)
+        return fd;
+
+    fd = memfd_create(name, MFD_CLOEXEC|MFD_ALLOW_SEALING);
     if (fd) {
         ftruncate (fd, size);
         return fd;

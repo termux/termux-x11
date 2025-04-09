@@ -19,13 +19,11 @@ jobs:
     name: "Build"
     runs-on: ubuntu-latest
     steps:
-    - name: Install dependencies
-      run: |
-        sudo apt update && sudo apt install -y libarchive-tools
     - name: Clone repository
       uses: actions/checkout@v4
       with:
         submodules: recursive
+        fetch-depth: 1
     - name: Validation
       uses: gradle/actions/wrapper-validation@v4
       

@@ -25,7 +25,11 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Rect;
+import android.graphics.RectF;
+import android.graphics.Region;
+import android.hardware.display.DisplayManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
@@ -40,11 +44,15 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Rational;
 import android.util.TypedValue;
+import android.view.Display;
 import android.view.DragEvent;
+import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.OrientationEventListener;
 import android.view.PointerIcon;
+import android.view.Surface;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
@@ -77,6 +85,7 @@ import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
 
 import java.util.Map;
+import java.util.Objects;
 
 @Keep @SuppressLint("ApplySharedPref")
 @SuppressWarnings({"deprecation", "unused"})
@@ -93,6 +102,7 @@ public class MainActivity extends AppCompatActivity {
     private final int mNotificationId = 7892;
     NotificationManager mNotificationManager;
     static InputMethodManager inputMethodManager;
+    private static DisplayManager displayManager;
     private static boolean showIMEWhileExternalConnected = true;
     private static boolean externalKeyboardConnected = false;
     private View.OnKeyListener mLorieKeyListener;
@@ -109,6 +119,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static boolean oldFullscreen = false, oldHideCutout = false;
     private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> onPreferencesChanged(key);
+    private OrientationEventListener orientationListener;
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @SuppressLint("UnspecifiedRegisterReceiverFlag")
@@ -235,6 +246,27 @@ public class MainActivity extends AppCompatActivity {
             registerReceiver(receiver, filter);
 
         inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        displayManager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
+        orientationListener = new OrientationEventListener(this) {
+            @Override public void onOrientationChanged(int orientation) {
+                setTerminalToolbarViewLayout();
+            }
+        };
+        frm.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            String savedPos;
+            int savedRotation;
+
+            @Override
+            public void onGlobalLayout() {
+                Display d = frm.getDisplay();
+                String pos = prefs.ekbarPosition.get();
+                if ((d != null && savedRotation != d.getRotation()) || !Objects.equals(savedPos, pos)) {
+                    savedRotation = d == null ? 0 : d.getRotation();
+                    savedPos = pos;
+                    setTerminalToolbarViewLayout();
+                }
+            }
+        });
 
         ImeHeightProvider.assistActivity(this);
         mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -307,19 +339,18 @@ public class MainActivity extends AppCompatActivity {
                 int m = TouchInputHandler.STYLUS_INPUT_HELPER_MODE;
                 visibility.setText(m == 1 ? "L" : (m == 2 ? "M" : (m == 3 ? "R" : "U")));
             } else {
+                RectF frmRect = getVisibleFrmRect();
                 buttons.setVisibility(View.VISIBLE);
                 visibility.setAlpha(menuUnselectedTrasparency);
                 visibility.setText("X");
 
                 //Calculate screen border making sure btn is fully inside the view
-                float maxX = frm.getWidth() - 4 * left.getWidth();
-                float maxY = frm.getHeight() - 4 * left.getHeight();
-                if (pager.getVisibility() == View.VISIBLE)
-                    maxY -= pager.getHeight();
+                float maxX = frmRect.right - 4 * left.getWidth();
+                float maxY = frmRect.bottom - 4 * left.getHeight();
 
                 //Make sure the Stylus menu is fully inside the screen
-                overlay.setX(MathUtils.clamp(overlay.getX(), 0, maxX));
-                overlay.setY(MathUtils.clamp(overlay.getY(), 0, maxY));
+                overlay.setX(MathUtils.clamp(overlay.getX(), frmRect.left, maxX));
+                overlay.setY(MathUtils.clamp(overlay.getY(), frmRect.top, maxY));
 
                 int m = TouchInputHandler.STYLUS_INPUT_HELPER_MODE;
                 listener.onClick(m == 1 ? left : (m == 2 ? middle : (m == 3 ? right : left)));
@@ -335,26 +366,26 @@ public class MainActivity extends AppCompatActivity {
             }, null, View.DRAG_FLAG_GLOBAL);
 
             frm.setOnDragListener((v2, event) -> {
+                RectF frmRect = getVisibleFrmRect();
+
                 //Calculate screen border making sure btn is fully inside the view
-                float maxX = frm.getWidth() - visibility.getWidth();
-                float maxY = frm.getHeight() - visibility.getHeight();
-                if (pager.getVisibility() == View.VISIBLE)
-                    maxY -= pager.getHeight();
+                float minX = frmRect.left, minY = frmRect.top;
+                float maxX = frmRect.right;
+                float maxY = frmRect.bottom;
 
                 switch (event.getAction()) {
                     case DragEvent.ACTION_DRAG_LOCATION:
                         //Center touch location with btn icon
                         float dX = event.getX() - visibility.getWidth() / 2.0f;
-                        float dY = event.getY() - visibility.getHeight() / 2.0f;
+                        float dY = event.getY() + visibility.getHeight() / 2.0f;
 
                         //Make sure the dragged btn is inside the view with clamp
-                        overlay.setX(MathUtils.clamp(dX, 0, maxX));
-                        overlay.setY(MathUtils.clamp(dY, 0, maxY));
+                        overlay.setX(MathUtils.clamp(dX, frmRect.left, frmRect.right));
+                        overlay.setY(MathUtils.clamp(dY, frmRect.top, frmRect.bottom));
                         break;
                     case DragEvent.ACTION_DRAG_ENDED:
-                        //Make sure the dragged btn is inside the view
-                        overlay.setX(MathUtils.clamp(overlay.getX(), 0, maxX));
-                        overlay.setY(MathUtils.clamp(overlay.getY(), 0, maxY));
+                        overlay.setX(MathUtils.clamp(overlay.getX(), frmRect.left, frmRect.right));
+                        overlay.setY(MathUtils.clamp(overlay.getY(), frmRect.top, frmRect.bottom));
                         break;
                 }
                 return true;
@@ -382,17 +413,36 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private RectF getVisibleFrmRect() {
+        final ViewPager pager = getTerminalToolbarViewPager();
+        Rect frmRect = new Rect();
+        frm.getGlobalVisibleRect(frmRect);
+        RectF result = new RectF(frmRect.left, frmRect.top, frmRect.right, frmRect.bottom);
+        if (pager.getVisibility() == View.VISIBLE) {
+            // getGlobalVisibleRect ignores setRotation(), so we compute bounds from bar thickness
+            // directly. For LEFT/RIGHT the pager is rotated 90°: its measured height is always
+            // the on-screen thin dimension regardless of orientation.
+            int barThickness = pager.getMeasuredHeight();
+            switch (getPagerPosition()) {
+                case PAGER_POSITION_TOP:    result.top    += barThickness; break;
+                case PAGER_POSITION_BOTTOM: result.bottom -= barThickness; break;
+                case PAGER_POSITION_LEFT:   result.left   += barThickness; break;
+                case PAGER_POSITION_RIGHT:  result.right  -= barThickness; break;
+            }
+        }
+        return result;
+    }
+
     private void makeSureHelpersAreVisibleAndInScreenBounds() {
         final ViewPager pager = getTerminalToolbarViewPager();
+        final RectF frmRect = getVisibleFrmRect();
         View mouseAuxButtons = findViewById(R.id.mouse_buttons);
         View stylusAuxButtons = findViewById(R.id.mouse_helper_visibility);
-        int maxYDecrement = (pager.getVisibility() == View.VISIBLE) ? pager.getHeight() : 0;
 
-        mouseAuxButtons.setX(MathUtils.clamp(mouseAuxButtons.getX(), frm.getX(), frm.getX() + frm.getWidth() - mouseAuxButtons.getWidth()));
-        mouseAuxButtons.setY(MathUtils.clamp(mouseAuxButtons.getY(), frm.getY(), frm.getY() + frm.getHeight() - mouseAuxButtons.getHeight() - maxYDecrement));
-
-        stylusAuxButtons.setX(MathUtils.clamp(stylusAuxButtons.getX(), frm.getX(), frm.getX() + frm.getWidth() - stylusAuxButtons.getWidth()));
-        stylusAuxButtons.setY(MathUtils.clamp(stylusAuxButtons.getY(), frm.getY(), frm.getY() + frm.getHeight() - stylusAuxButtons.getHeight() - maxYDecrement));
+        mouseAuxButtons.setX(MathUtils.clamp(mouseAuxButtons.getX(), frmRect.left, frmRect.right - mouseAuxButtons.getWidth()));
+        mouseAuxButtons.setY(MathUtils.clamp(mouseAuxButtons.getY(), frmRect.top, frmRect.bottom - mouseAuxButtons.getHeight()));
+        stylusAuxButtons.setX(MathUtils.clamp(stylusAuxButtons.getX(), frmRect.left, frmRect.right - stylusAuxButtons.getWidth()));
+        stylusAuxButtons.setY(MathUtils.clamp(stylusAuxButtons.getY(), frmRect.top, frmRect.bottom - stylusAuxButtons.getHeight()));
     }
 
     public void toggleStylusAuxButtons() {
@@ -444,12 +494,9 @@ public class MainActivity extends AppCompatActivity {
                 secondaryLayer.setOrientation(LinearLayout.HORIZONTAL);
             }
             handler.postDelayed(() -> {
-                float maxX = frm.getX() + frm.getWidth() - primaryLayer.getWidth();
-                float maxY = frm.getY() + frm.getHeight() - primaryLayer.getHeight();
-                if (pager.getVisibility() == View.VISIBLE)
-                    maxY -= pager.getHeight();
-                primaryLayer.setX(MathUtils.clamp(primaryLayer.getX(), frm.getX(), maxX));
-                primaryLayer.setY(MathUtils.clamp(primaryLayer.getY(), frm.getY(), maxY));
+                final RectF frmRect = getVisibleFrmRect();
+                primaryLayer.setX(MathUtils.clamp(primaryLayer.getX(), frmRect.left, frmRect.right - primaryLayer.getWidth()));
+                primaryLayer.setY(MathUtils.clamp(primaryLayer.getY(), frmRect.top, frmRect.bottom - primaryLayer.getHeight()));
             }, 10);
         });
 
@@ -487,16 +534,12 @@ public class MainActivity extends AppCompatActivity {
                         pos.setPressed(true);
                         break;
                     case MotionEvent.ACTION_MOVE: {
+                        final RectF frmRect = getVisibleFrmRect();
                         final ViewPager pager = getTerminalToolbarViewPager();
                         int[] offset = new int[2];
                         primaryLayer.getLocationInWindow(offset);
-                        float maxX = frm.getX() + frm.getWidth() - primaryLayer.getWidth();
-                        float maxY = frm.getY() + frm.getHeight() - primaryLayer.getHeight();
-                        if (pager.getVisibility() == View.VISIBLE)
-                            maxY -= pager.getHeight();
-
-                        primaryLayer.setX(MathUtils.clamp(offset[0] - startOffset[0] + e.getX(), frm.getX(), maxX));
-                        primaryLayer.setY(MathUtils.clamp(offset[1] - startOffset[1] + e.getY(), frm.getY(), maxY));
+                        primaryLayer.setX(MathUtils.clamp(offset[0] - startOffset[0] + e.getX(), frmRect.left, frmRect.right - primaryLayer.getWidth()));
+                        primaryLayer.setY(MathUtils.clamp(offset[1] - startOffset[1] + e.getY(), frmRect.top, frmRect.bottom - primaryLayer.getHeight()));
                         break;
                     }
                     case MotionEvent.ACTION_UP: {
@@ -641,6 +684,7 @@ public class MainActivity extends AppCompatActivity {
         mNotification = buildNotification();
         mNotificationManager.notify(mNotificationId, mNotification);
 
+        orientationListener.enable();
         setTerminalToolbarView();
         getLorieView().requestFocus();
     }
@@ -653,6 +697,7 @@ public class MainActivity extends AppCompatActivity {
             if (notification.getId() == mNotificationId)
                 mNotificationManager.cancel(mNotificationId);
 
+        orientationListener.disable();
         super.onPause();
     }
 
@@ -664,6 +709,10 @@ public class MainActivity extends AppCompatActivity {
         return findViewById(R.id.terminal_toolbar_view_pager);
     }
 
+    // We can not define function-static variables in Java, so we are defining them outside a function
+    private final X11ToolbarViewPager.PageAdapter mPageAdapter =
+            new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(e));
+    private final X11ToolbarViewPager.OnPageChangeListener mOnPageListener = new X11ToolbarViewPager.OnPageChangeListener(this);
     private void setTerminalToolbarView() {
         final ViewPager pager = getTerminalToolbarViewPager();
         ViewGroup parent = (ViewGroup) pager.getParent();
@@ -673,9 +722,9 @@ public class MainActivity extends AppCompatActivity {
         pager.setVisibility(showNow ? View.VISIBLE : View.INVISIBLE);
 
         if (showNow) {
-            pager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(e)));
+            pager.setAdapter(mPageAdapter);
             pager.clearOnPageChangeListeners();
-            pager.addOnPageChangeListener(new X11ToolbarViewPager.OnPageChangeListener(this, pager));
+            pager.addOnPageChangeListener(mOnPageListener);
             pager.bringToFront();
         } else {
             parent.removeView(pager);
@@ -684,14 +733,60 @@ public class MainActivity extends AppCompatActivity {
                 mExtraKeys.unsetSpecialKeys();
         }
 
-        ViewGroup.LayoutParams layoutParams = pager.getLayoutParams();
-        layoutParams.height = Math.round(37.5f * getResources().getDisplayMetrics().density *
-                (TermuxX11ExtraKeys.getExtraKeysInfo() == null ? 0 : TermuxX11ExtraKeys.getExtraKeysInfo().getMatrix().length));
-        pager.setLayoutParams(layoutParams);
-
-        ekbarContentInset = prefs.adjustHeightForEK.get() && showNow ? layoutParams.height : 0;
-        applyContentInsets();
+        setTerminalToolbarViewLayout();
         getLorieView().requestFocus();
+    }
+
+    // Keep in sync with Surface.ROTATION_*
+    public static final int PAGER_POSITION_TOP = 0, PAGER_POSITION_LEFT = 1, PAGER_POSITION_BOTTOM = 2, PAGER_POSITION_RIGHT = 3;
+    public int getPagerPosition() {
+        String _pos = prefs.ekbarPosition.get();
+        int pos = "top".equals(_pos) ? PAGER_POSITION_TOP : "left".equals(_pos) ? PAGER_POSITION_LEFT : "bottom".equals(_pos) ? PAGER_POSITION_BOTTOM : "right".equals(_pos) ? PAGER_POSITION_RIGHT : 0;
+        if (prefs.ekbarPositionIgnoreOrientation.get()) {
+            Display dpy = displayManager.getDisplay(Display.DEFAULT_DISPLAY);
+            if (dpy != null)
+                pos = (pos + dpy.getRotation()) % 4;
+        }
+        return pos;
+    }
+
+    @SuppressLint("RtlHardcoded")
+    private void setTerminalToolbarViewLayout() {
+        handler.post(() -> {
+            final ViewPager pager = getTerminalToolbarViewPager();
+            boolean showNow = pager.getVisibility() == View.VISIBLE;
+            FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) pager.getLayoutParams();
+            int pos = getPagerPosition();
+
+            // The window is not resized for the keyboard, so a bar along a side has to end above it.
+            layoutParams.width = (pos == PAGER_POSITION_LEFT || pos == PAGER_POSITION_RIGHT) ? frm.getHeight() - imeHeight : frm.getWidth();
+            layoutParams.height = Math.round(37.5f * getResources().getDisplayMetrics().density *
+                    (TermuxX11ExtraKeys.getExtraKeysInfo() == null ? 0 : TermuxX11ExtraKeys.getExtraKeysInfo().getMatrix().length));
+
+            switch (pos) {
+                case PAGER_POSITION_TOP:
+                case PAGER_POSITION_BOTTOM:
+                    layoutParams.gravity = (pos == PAGER_POSITION_TOP ? Gravity.TOP : Gravity.BOTTOM) | Gravity.LEFT;
+                    // reset everything we set for "left" and "right"
+                    pager.setPivotX(layoutParams.width / 2f);
+                    pager.setPivotY(layoutParams.width / 2f);
+                    pager.setRotation(0f);
+                    pager.setTranslationX(0);
+                    break;
+                case PAGER_POSITION_LEFT:
+                case PAGER_POSITION_RIGHT:
+                    layoutParams.gravity = (pos == PAGER_POSITION_LEFT ? Gravity.LEFT : Gravity.RIGHT) | Gravity.TOP;
+                    pager.setPivotX(pos == PAGER_POSITION_LEFT ? 0 : layoutParams.width);
+                    pager.setPivotY(0f);
+                    pager.setRotation(90f * (pos == PAGER_POSITION_LEFT ? 1 : -1));
+                    pager.setTranslationX(layoutParams.height * (pos == PAGER_POSITION_LEFT ? 1 : -1));
+                    break;
+            }
+            pager.setLayoutParams(layoutParams);
+
+            ekbarContentInset = prefs.adjustHeightForEK.get() && showNow ? layoutParams.height : 0;
+            applyContentInsets();
+        });
     }
 
     private int ekbarContentInset = 0;
@@ -700,20 +795,30 @@ public class MainActivity extends AppCompatActivity {
 
     private void applyContentInsets() {
         int imeContentInset = prefs.Reseed.get() ? imeHeight : 0;
-        getLorieView().setContentInsets(0, captionHeight, 0, ekbarContentInset + imeContentInset);
+        int pos = getPagerPosition();
+        getLorieView().setContentInsets(pos == PAGER_POSITION_LEFT ? ekbarContentInset : 0,
+                captionHeight + (pos == PAGER_POSITION_TOP ? ekbarContentInset : 0),
+                pos == PAGER_POSITION_RIGHT ? ekbarContentInset : 0,
+                imeContentInset + (pos == PAGER_POSITION_BOTTOM ? ekbarContentInset : 0));
         getLorieView().setObscuredBottom(imeHeight - imeContentInset);
 
+        // Only a bar at the bottom has to step aside for the keyboard.
+        int bottomMargin = pos == PAGER_POSITION_BOTTOM ? imeHeight : 0;
         ViewPager pager = getTerminalToolbarViewPager();
         ViewGroup.MarginLayoutParams pagerParams = (ViewGroup.MarginLayoutParams) pager.getLayoutParams();
-        if (pagerParams.bottomMargin != imeHeight) {
-            pagerParams.bottomMargin = imeHeight;
+        if (pagerParams.bottomMargin != bottomMargin) {
+            pagerParams.bottomMargin = bottomMargin;
             pager.setLayoutParams(pagerParams);
         }
     }
 
     public void setImeHeight(int height) {
+        // Reported on every insets dispatch, but relaying out the bar for it must not become a loop.
+        if (imeHeight == height)
+            return;
+
         imeHeight = height;
-        applyContentInsets();
+        setTerminalToolbarViewLayout();
     }
 
     // The window header of desktop windowing can not be hidden, so its space has to be given up even

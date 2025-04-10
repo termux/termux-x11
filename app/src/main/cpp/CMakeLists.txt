@@ -20,7 +20,13 @@ find_package(Python3 REQUIRED)
 find_package(BISON REQUIRED)
 
 function(target_apply_patch patch_target d p)
-    execute_process(COMMAND "bash" "-c" "patch -p1 -d ${d} -i ${p} -R --dry-run > /dev/null 2>&1 || patch -p1 -N -d ${d} -i ${p} -r -")
+    string(RANDOM LENGTH 8 __NAME)
+    add_custom_target(patch_${__NAME} ALL COMMAND
+            echo patch -p1 -d ${d} -i ${p} -R --dry-run >/dev/null 2>&1 || patch -p1 -N -d ${d} -i ${p} -r -
+            COMMENT "Applying patch ${p}"
+            BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/patch_${__NAME}.marker
+    )
+    target_sources(${patch_target} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/patch_${__NAME}.marker)
 endfunction()
 
 set(test_compile_options

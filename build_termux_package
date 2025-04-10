@@ -106,7 +106,6 @@ PACMAN_PACKAGE_PATH=`realpath $PACMAN_PACKAGE_PATH`
 cd $DATA_DIR
 shopt -s dotglob globstar
 mapfile -d '' FILES < <(printf '%s\0' .BUILDINFO .INSTALL .PKGINFO data/**/*)
-printf '%s\n' ${FILES[@]}
 shopt -u dotglob globstar
 
 # Bsdtar is missing in Github CI image and installing it takes a while

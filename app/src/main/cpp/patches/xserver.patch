@@ -349,3 +349,13 @@ index f9b7b06d9..f4b2aeddc 100644
      if (!IsKeyboardDevice(pDev))
          return;
  
+
++++ ./os/connection.c
+@@ -281,6 +281,7 @@ CreateWellKnownSockets(void)
+         int fd = _XSERVTransGetConnectionNumber(ListenTransConns[i]);
+
+         ListenTransFds[i] = fd;
++        _XSERVTransSetOption(ListenTransConns[i], TRANS_CLOSEONEXEC, 0);
+         SetNotifyFd(fd, EstablishNewConnections, X_NOTIFY_READ, NULL);
+
+         if (!_XSERVTransIsLocal(ListenTransConns[i]))

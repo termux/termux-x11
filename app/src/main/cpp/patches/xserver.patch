@@ -30,7 +30,7 @@ diff --git a/dix/main.c b/dix/main.c
 index bfc8addbe..56fb30b63 100644
 --- a/dix/main.c
 +++ b/dix/main.c
-@@ -266,6 +266,7 @@ dix_main(int argc, char *argv[], char *envp[])
+@@ -268,6 +268,7 @@ dix_main(int argc, char *argv[], char *envp[])
          }
  
          NotifyParentProcess();
@@ -42,7 +42,7 @@ diff --git a/include/os.h b/include/os.h
 index bb3348b18..1a5400717 100644
 --- a/include/os.h
 +++ b/include/os.h
-@@ -560,6 +560,8 @@ enum ExitCode {
+@@ -557,6 +557,8 @@ enum ExitCode {
  extern _X_EXPORT void
  ddxGiveUp(enum ExitCode error);
  extern _X_EXPORT void
@@ -114,7 +114,7 @@ diff --git a/os/utils.c b/os/utils.c
 index 92a66e81a..d2ca69684 100644
 --- a/os/utils.c
 +++ b/os/utils.c
-@@ -212,6 +212,8 @@ OsSignal(int sig, OsSigHandlerPtr handler)
+@@ -214,6 +214,8 @@ OsSignal(int sig, OsSigHandlerPtr handler)
  {
  #if defined(WIN32) && !defined(__CYGWIN__)
      return signal(sig, handler);
@@ -123,7 +123,7 @@ index 92a66e81a..d2ca69684 100644
  #else
      struct sigaction act, oact;
  
-@@ -232,7 +234,7 @@ OsSignal(int sig, OsSigHandlerPtr handler)
+@@ -234,7 +236,7 @@ OsSignal(int sig, OsSigHandlerPtr handler)
   * server at a time.  This keeps the servers from stomping on each other
   * if the user forgets to give them different display numbers.
   */
@@ -132,7 +132,7 @@ index 92a66e81a..d2ca69684 100644
  #define LOCK_TMP_PREFIX "/.tX"
  #define LOCK_PREFIX "/.X"
  #define LOCK_SUFFIX "-lock"
-@@ -324,7 +326,7 @@ LockServer(void)
+@@ -326,7 +328,7 @@ LockServer(void)
      i = 0;
      haslock = 0;
      while ((!haslock) && (i++ < 3)) {
@@ -141,7 +141,7 @@ index 92a66e81a..d2ca69684 100644
          if (haslock) {
              /*
               * We're done.
-@@ -1412,6 +1414,10 @@ static struct pid {
+@@ -1421,6 +1423,10 @@ static struct pid {
      int pid;
  } *pidlist;
  
@@ -152,7 +152,7 @@ index 92a66e81a..d2ca69684 100644
  void *
  Popen(const char *command, const char *type)
  {
-@@ -1475,8 +1481,11 @@ Popen(const char *command, const char *type)
+@@ -1484,8 +1490,11 @@ Popen(const char *command, const char *type)
              }
              close(pdes[1]);
          }
@@ -328,6 +328,7 @@ index f9b7b06d9..f4b2aeddc 100644
 +                screen_priv->info->after_flip(vblank->crtc, vblank->event_id, ust, vblank->target_msc, vblank->pixmap);
                  return;
              }
+ 
 +++ b/dix/enterleave.c
 @@ -1540,6 +1540,8 @@ DeviceFocusEvents(DeviceIntPtr dev, WindowPtr from, WindowPtr to, int mode)
      }

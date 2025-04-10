@@ -640,12 +640,13 @@ __noreturn static void* rendererThread(void) {
             rendererRefreshContext();
 
         // Attach all pending buffers to GL.
+        pthread_spin_lock(&bufferLock);
         while((buf = LorieBufferList_first(&addedBuffers))) {
             LorieBuffer_attachToGL(buf);
-            LorieBuffer_removeFromList(buf); // remove from addedBuffers
             LorieBuffer_addToList(buf, &buffers);
             waitingForBuffers = false;
         }
+        pthread_spin_unlock(&bufferLock);
 
         pthread_cond_signal(&stateChangeFinishCond);
         pthread_mutex_unlock(&stateLock);

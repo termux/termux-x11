@@ -440,8 +440,10 @@ __LIBC_HIDDEN__ bool LorieBuffer_isRgba(LorieBuffer *buffer) {
 }
 
 __LIBC_HIDDEN__ void LorieBuffer_addToList(LorieBuffer* _Nullable buffer, struct xorg_list* _Nullable list) {
-    if (buffer && list)
+    if (buffer && list) {
+        xorg_list_del(&buffer->link);
         xorg_list_add(&buffer->link, list);
+    }
 }
 
 __LIBC_HIDDEN__ void LorieBuffer_removeFromList(LorieBuffer* _Nullable buffer) {

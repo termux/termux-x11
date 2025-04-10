@@ -7,8 +7,8 @@ else
     apply plugin: 'com.android.application'
 
 android.namespace 'com.termux.x11.shell_loader'
-android.defaultConfig.minSdkVersion 21
-android.compileSdkVersion 28
+android.defaultConfig.minSdkVersion 26
+android.compileSdkVersion 34
 android.buildTypes.debug.signingConfig null
 android.buildFeatures.buildConfig true
 android.compileOptions.sourceCompatibility JavaVersion.VERSION_1_8

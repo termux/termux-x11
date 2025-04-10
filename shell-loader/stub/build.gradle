@@ -1,29 +1,10 @@
-plugins {
-    id('com.android.library')
-}
+apply plugin: 'com.android.library'
 
-android {
-    namespace 'com.termux.x11.stub'
-    compileSdkVersion 30
-    defaultConfig {
-        minSdkVersion 24
-        //noinspection ExpiredTargetSdkVersion
-        targetSdkVersion 28
-    }
-    buildFeatures {
-        buildConfig false
-    }
-    buildTypes {
-        release {
-            minifyEnabled false
-        }
-    }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-}
-
-dependencies {
-    implementation 'androidx.annotation:annotation:1.9.1'
-}
+android.namespace 'com.termux.x11.stub'
+android.defaultConfig.minSdkVersion 26
+android.compileSdkVersion 34
+android.buildFeatures.buildConfig false
+android.buildTypes.release.minifyEnabled false
+android.compileOptions.sourceCompatibility JavaVersion.VERSION_1_8
+android.compileOptions.targetCompatibility JavaVersion.VERSION_1_8
+dependencies.implementation 'androidx.annotation:annotation:1.9.1'

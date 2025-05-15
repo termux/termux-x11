@@ -113,11 +113,9 @@ public class X11ToolbarViewPager {
 
     public static class OnPageChangeListener extends ViewPager.SimpleOnPageChangeListener {
         final MainActivity act;
-        final ViewPager mTerminalToolbarViewPager;
 
-        public OnPageChangeListener(MainActivity activity, ViewPager viewPager) {
+        public OnPageChangeListener(MainActivity activity) {
             this.act = activity;
-            this.mTerminalToolbarViewPager = viewPager;
         }
 
         @Override
@@ -125,7 +123,7 @@ public class X11ToolbarViewPager {
             if (position == 0) {
                 act.getLorieView().requestFocus();
             } else {
-                final EditText editText = mTerminalToolbarViewPager.findViewById(R.id.terminal_toolbar_text_input);
+                final EditText editText = act.getTerminalToolbarViewPager().findViewById(R.id.terminal_toolbar_text_input);
                 if (editText != null) editText.requestFocus();
             }
         }

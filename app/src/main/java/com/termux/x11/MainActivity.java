@@ -24,6 +24,7 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.hardware.display.DisplayManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
@@ -38,9 +39,11 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
 import android.view.DragEvent;
+import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.OrientationEventListener;
 import android.view.PointerIcon;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -86,6 +89,7 @@ public class MainActivity extends AppCompatActivity {
     private final int mNotificationId = 7892;
     NotificationManager mNotificationManager;
     static InputMethodManager inputMethodManager;
+    private static DisplayManager displayManager;
     private static boolean showIMEWhileExternalConnected = true;
     private static boolean externalKeyboardConnected = false;
     private View.OnKeyListener mLorieKeyListener;
@@ -97,6 +101,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static boolean oldFullscreen = false, oldHideCutout = false;
     private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> onPreferencesChanged(key);
+    private OrientationEventListener orientationListener;
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @SuppressLint("UnspecifiedRegisterReceiverFlag")
@@ -221,6 +226,17 @@ public class MainActivity extends AppCompatActivity {
         }}, SDK_INT >= VERSION_CODES.TIRAMISU ? RECEIVER_EXPORTED : 0);
 
         inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        displayManager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
+        orientationListener = new OrientationEventListener(this) {
+            @Override public void onOrientationChanged(int orientation) {
+                setTerminalToolbarViewLayout();
+            }
+        };
+        frm.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            String pos = prefs.ekbarPosition.get();
+            if (pos.equals("left") || pos.equals("right"))
+                setTerminalToolbarViewLayout();
+        });
 
         // Taken from Stackoverflow answer https://stackoverflow.com/questions/7417123/android-how-to-adjust-layout-in-full-screen-mode-when-softkeyboard-is-visible/7509285#
         FullscreenWorkaround.assistActivity(this);
@@ -620,6 +636,7 @@ public class MainActivity extends AppCompatActivity {
         mNotification = buildNotification();
         mNotificationManager.notify(mNotificationId, mNotification);
 
+        orientationListener.enable();
         setTerminalToolbarView();
         getLorieView().requestFocus();
     }
@@ -632,6 +649,7 @@ public class MainActivity extends AppCompatActivity {
             if (notification.getId() == mNotificationId)
                 mNotificationManager.cancel(mNotificationId);
 
+        orientationListener.disable();
         super.onPause();
     }
 
@@ -643,6 +661,10 @@ public class MainActivity extends AppCompatActivity {
         return findViewById(R.id.terminal_toolbar_view_pager);
     }
 
+    // We can not define function-static variables in Java, so we are defining them outside a function
+    private final X11ToolbarViewPager.PageAdapter mPageAdapter =
+            new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(e));
+    private final X11ToolbarViewPager.OnPageChangeListener mOnPageListener = new X11ToolbarViewPager.OnPageChangeListener(this);
     private void setTerminalToolbarView() {
         final ViewPager pager = getTerminalToolbarViewPager();
         ViewGroup parent = (ViewGroup) pager.getParent();
@@ -652,9 +674,9 @@ public class MainActivity extends AppCompatActivity {
         pager.setVisibility(showNow ? View.VISIBLE : View.INVISIBLE);
 
         if (showNow) {
-            pager.setAdapter(new X11ToolbarViewPager.PageAdapter(this, (v, k, e) -> mInputHandler.sendKeyEvent(e)));
+            pager.setAdapter(mPageAdapter);
             pager.clearOnPageChangeListeners();
-            pager.addOnPageChangeListener(new X11ToolbarViewPager.OnPageChangeListener(this, pager));
+            pager.addOnPageChangeListener(mOnPageListener);
             pager.bringToFront();
         } else {
             parent.removeView(pager);
@@ -663,13 +685,55 @@ public class MainActivity extends AppCompatActivity {
                 mExtraKeys.unsetSpecialKeys();
         }
 
-        ViewGroup.LayoutParams layoutParams = pager.getLayoutParams();
-        layoutParams.height = Math.round(37.5f * getResources().getDisplayMetrics().density *
-                (TermuxX11ExtraKeys.getExtraKeysInfo() == null ? 0 : TermuxX11ExtraKeys.getExtraKeysInfo().getMatrix().length));
-        pager.setLayoutParams(layoutParams);
-
-        frm.setPadding(0, 0, 0, prefs.adjustHeightForEK.get() && showNow ? layoutParams.height : 0);
+        setTerminalToolbarViewLayout();
         getLorieView().requestFocus();
+    }
+
+    @SuppressLint("RtlHardcoded")
+    private void setTerminalToolbarViewLayout() {
+        handler.post(() -> {
+            final ViewPager pager = getTerminalToolbarViewPager();
+            boolean showNow = pager.getVisibility() == View.VISIBLE;
+            // Keep in sync with Surface.ROTATION_*
+            final int TOP = 0, LEFT = 1, BOTTOM = 2, RIGHT = 3;
+            int padding;
+            FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) pager.getLayoutParams();
+            String _pos = prefs.ekbarPosition.get();
+            int pos = "top".equals(_pos) ? TOP : "left".equals(_pos) ? LEFT : "bottom".equals(_pos) ? BOTTOM : "right".equals(_pos) ? RIGHT : 0;
+            if (prefs.ekbarPositionIgnoreOrientation.get()) {
+                Display dpy = displayManager.getDisplay(Display.DEFAULT_DISPLAY);
+                if (dpy != null)
+                    pos = (pos + dpy.getRotation()) % 4;
+            }
+
+            layoutParams.width = (pos == LEFT || pos == RIGHT) ? frm.getHeight() : frm.getWidth();
+            layoutParams.height = Math.round(37.5f * getResources().getDisplayMetrics().density *
+                    (TermuxX11ExtraKeys.getExtraKeysInfo() == null ? 0 : TermuxX11ExtraKeys.getExtraKeysInfo().getMatrix().length));
+            padding = prefs.adjustHeightForEK.get() && showNow ? layoutParams.height : 0;
+
+            switch (pos) {
+                case TOP:
+                case BOTTOM:
+                    layoutParams.gravity = (pos == TOP ? Gravity.TOP : Gravity.BOTTOM) | Gravity.LEFT;
+                    // reset everything we set for "left" and "right"
+                    pager.setPivotX(layoutParams.width / 2f);
+                    pager.setPivotY(layoutParams.width / 2f);
+                    pager.setRotation(0f);
+                    pager.setTranslationX(0);
+                    break;
+                case LEFT:
+                case RIGHT:
+                    layoutParams.gravity = (pos == LEFT ? Gravity.LEFT : Gravity.RIGHT) | Gravity.TOP;
+                    pager.setPivotX(pos == LEFT ? 0 : layoutParams.width);
+                    pager.setPivotY(0f);
+                    pager.setRotation(90f * (pos == LEFT ? 1 : -1));
+                    pager.setTranslationX(pager.getHeight() * (pos == LEFT ? 1 : -1));
+                    break;
+            }
+            pager.setLayoutParams(layoutParams);
+
+            frm.setPadding(pos == LEFT ? padding : 0, pos == TOP ? padding : 0, pos == RIGHT ? padding : 0, pos == BOTTOM ? padding : 0);
+        });
     }
 
     public void toggleExtraKeys(boolean visible, boolean saveState) {
@@ -728,7 +792,7 @@ public class MainActivity extends AppCompatActivity {
             inputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
 
         orientation = newConfig.orientation;
-        setTerminalToolbarView();
+        setTerminalToolbarViewLayout();
     }
 
     @SuppressLint("WrongConstant")

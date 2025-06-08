@@ -206,11 +206,11 @@ public class MainActivity extends AppCompatActivity {
             mInputHandler.handleHostSizeChanged(surfaceWidth, surfaceHeight);
             mInputHandler.handleClientSizeChanged(screenWidth, screenHeight);
             if (lorieView.getDisplay() == null || lorieView.getDisplay().getDisplayId() == Display.DEFAULT_DISPLAY)
-                name = "Builtin Display";
+                name = "builtin";
             else if (SamsungDexUtils.checkDeXEnabled(this))
-                name = "Dex Display";
+                name = "dex";
             else
-                name = "External Display";
+                name = "external";
             LorieView.sendWindowChange(screenWidth, screenHeight, framerate, name);
         });
 

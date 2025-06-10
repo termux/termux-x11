@@ -98,6 +98,8 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="pref_adjustHeightForEK_summary">May cause screen flickering during toggling EK bar.</string>
     <string name="pref_useTermuxEKBarBehaviour">Deactivate special keys on additional key bar after each keypress</string>
     <string name="pref_useTermuxEKBarBehaviour_summary">Use long-tap to lock special keys</string>
+    <string name="pref_ekbarPosition">Position</string>
+    <string name="pref_ekbarPositionIgnoreOrientation">Keep position regardless of device orientation</string>
     <string name="pref_opacityEKBar">Opacity of extra keys bar, %</string>
     <string name="pref_extra_keys_config">Extra keys config</string>
 

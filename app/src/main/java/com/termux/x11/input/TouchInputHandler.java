@@ -262,8 +262,8 @@ public class TouchInputHandler {
     }
 
     boolean isDexEvent(MotionEvent event) {
-        int SOURCE_DEX = InputDevice.SOURCE_MOUSE | InputDevice.SOURCE_TOUCHSCREEN;
-        return ((event.getSource() & SOURCE_DEX) == SOURCE_DEX)
+        return ((event.getSource() & InputDevice.SOURCE_MOUSE) ==
+    InputDevice.SOURCE_MOUSE)
                 && ((event.getSource() & InputDevice.SOURCE_TOUCHPAD) != InputDevice.SOURCE_TOUCHPAD)
                 && (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER);
     }

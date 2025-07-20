@@ -10,6 +10,9 @@ import static com.termux.x11.LoriePreferences.ACTION_PREFERENCES_CHANGED;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import androidx.core.view.WindowCompat;
 import android.app.AppOpsManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -71,9 +74,52 @@ import com.termux.x11.utils.X11ToolbarViewPager;
 
 import java.util.Map;
 
+
+
 @SuppressLint("ApplySharedPref")
 @SuppressWarnings({"deprecation", "unused"})
 public class MainActivity extends AppCompatActivity {
+
+    private void hideBars() {
+        WindowInsetsController ctl =
+            WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (ctl != null) {
+            ctl.hide(WindowInsets.Type.systemBars());
+            ctl.setSystemBarsBehavior(
+                WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        }
+    }
+        
+    private void setupAutoRehide() {
+        final View root = getWindow().getDecorView();
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            boolean statusVisible = insets.isVisible(WindowInsets.Type.statusBars());
+            boolean navVisible    = insets.isVisible(WindowInsets.Type.navigationBars());
+            if (statusVisible || navVisible) {
+                v.postDelayed(this::hideBars, /* delay ms */ 50);   // pick any delay you like
+            }
+            return insets;
+        });
+    }
+
+    
+                
+            
+        
+
+
+    
+
+    
+
+
+
+
+
+
+
+
+    
     public static final String ACTION_STOP = "com.termux.x11.ACTION_STOP";
     public static final String ACTION_CUSTOM = "com.termux.x11.ACTION_CUSTOM";
 
@@ -165,6 +211,12 @@ public class MainActivity extends AppCompatActivity {
         getWindow().setFlags(FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS | FLAG_KEEP_SCREEN_ON | FLAG_TRANSLUCENT_STATUS, 0);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
+
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        hideBars();
+        setupAutoRehide(); 
+
+        
 
         frm = findViewById(R.id.frame);
         findViewById(R.id.preferences_button).setOnClickListener((l) -> startActivity(new Intent(this, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}));

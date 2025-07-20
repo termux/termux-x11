@@ -338,8 +338,17 @@ public class TouchInputHandler {
                     break;
 
                 case MotionEvent.ACTION_SCROLL:
-                    float scrollY = -100 * event.getAxisValue(MotionEvent.AXIS_VSCROLL);
-                    float scrollX = -100 * event.getAxisValue(MotionEvent.AXIS_HSCROLL);
+                    float scrollY = event.getAxisValue(MotionEvent.AXIS_VSCROLL);
+                    float scrollX = event.getAxisValue(MotionEvent.AXIS_HSCROLL);
+
+                    if (scrollY == 0 && scrollX == 0) {
+                        scrollY = -event.getAxisValue(MotionEvent.AXIS_RELATIVE_VSCROLL);
+                        scrollX = -event.getAxisValue(MotionEvent.AXIS_RELATIVE_HSCROLL);
+                    }
+
+                    scrollY *= -100;
+                    scrollX *= -100;
+
 
                     mInjector.sendMouseWheelEvent(scrollX, scrollY);
                     return true;
@@ -853,8 +862,17 @@ public class TouchInputHandler {
         @SuppressLint("ClickableViewAccessibility")
         boolean onTouch(View v, MotionEvent e) {
             if (e.getAction() == MotionEvent.ACTION_SCROLL) {
-                float scrollY = -100 * e.getAxisValue(MotionEvent.AXIS_VSCROLL);
-                float scrollX = -100 * e.getAxisValue(MotionEvent.AXIS_HSCROLL);
+                float scrollY = e.getAxisValue(MotionEvent.AXIS_VSCROLL);
+                float scrollX = e.getAxisValue(MotionEvent.AXIS_HSCROLL);
+
+                if (scrollY == 0 && scrollX == 0) {
+                    scrollY = -e.getAxisValue(MotionEvent.AXIS_RELATIVE_VSCROLL);
+                    scrollX = -e.getAxisValue(MotionEvent.AXIS_RELATIVE_HSCROLL);
+                }
+                
+                scrollY *= -100;
+                scrollX *= -100;
+            
 
                 mInjector.sendMouseWheelEvent(scrollX, scrollY);
                 return true;

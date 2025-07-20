@@ -1,0 +1,35 @@
+name: Android ‑ Debug build
+
+on:
+  push:            # build every commit to main (change if you like)
+    branches: [ main ]
+  workflow_dispatch:  # allows “Run workflow” button in the UI
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. check out your code
+    - uses: actions/checkout@v4
+
+    # 2. get a JDK + cache Gradle
+    - uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+        cache: 'gradle'
+
+    # 3. make the wrapper executable (Linux hosts need this)
+    - name: Make Gradle wrapper executable
+      run: chmod +x ./gradlew
+
+    # 4. compile the DEBUG variant
+    - name: Build debug APK
+      run: ./gradlew assembleDebug         # <‑‑ key line
+
+    # 5. upload whatever was produced as a run artifact
+    - uses: actions/upload-artifact@v4
+      with:
+        name: debug-apk
+        path: app/build/outputs/apk/debug/*.apk   # adjust “app” if your module name differs

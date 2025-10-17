@@ -1,4 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/sh
+# Set the correct XKB configuration root to fix keyboard mapping errors
+export XKB_CONFIG_ROOT=/data/data/com.termux/files/usr/share/X11/xkb
+
 [ -z "${LD_LIBRARY_PATH+x}" ] || export XSTARTUP_LD_LIBRARY_PATH="$LD_LIBRARY_PATH"
 [ -z "${LD_PRELOAD+x}" ] || export XSTARTUP_LD_PRELOAD="$LD_PRELOAD"
 [ -z "${CLASSPATH+x}" ] || export XSTARTUP_CLASSPATH="$CLASSPATH"

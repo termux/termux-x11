@@ -25,7 +25,7 @@ jobs:
         submodules: recursive
         fetch-depth: 1
     - name: Validation
-      uses: gradle/actions/wrapper-validation@v4
+      uses: gradle/actions/wrapper-validation@v5
       
     - name: Java setup
       uses: actions/setup-java@v5

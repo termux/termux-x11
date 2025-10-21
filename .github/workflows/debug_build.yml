@@ -39,9 +39,6 @@ jobs:
           echo "Version: ${{ github.event.inputs.version }}"
 
       
-    name: "Build"
-    runs-on: ubuntu-latest
-    steps:
     - name: Clone repository
       uses: actions/checkout@v5
       with:

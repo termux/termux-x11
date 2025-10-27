@@ -49,37 +49,37 @@ jobs:
     - name: Build companion package
       run: ./build_termux_package
     - name: Store app-arm64-v8a-debug
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: termux-x11-arm64-v8a-debug
         path: ./app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
     
     - name: Store app-armeabi-v7a-debug
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: termux-x11-armeabi-v7a-debug
         path: ./app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk
     
     - name: Store app-universal-debug
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: termux-x11-universal-debug
         path: ./app/build/outputs/apk/debug/app-universal-debug.apk
     
     - name: Store app-x86_64-debug
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: termux-x11-x86_64-debug
         path: ./app/build/outputs/apk/debug/app-x86_64-debug.apk
     
     - name: Store app-x86-debug
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: termux-x11-x86-debug
         path: ./app/build/outputs/apk/debug/app-x86-debug.apk
     
     - name: Store companion package
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: termux-companion packages
         path: |
@@ -87,7 +87,7 @@ jobs:
           ./app/build/outputs/apk/debug/termux-x11-*-any.pkg.tar.xz
         
     - name: Store unstripped libraries with debug symbols
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: termux-x11-unstripped-libraries-for-ndk-stack
         path: ./app/build/intermediates/cxx/Debug/*

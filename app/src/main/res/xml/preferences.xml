@@ -60,6 +60,8 @@
     <PreferenceScreen app:key="ekbar">
         <SwitchPreferenceCompat app:key="adjustHeightForEK" app:defaultValue="false" />
         <SwitchPreferenceCompat app:key="useTermuxEKBarBehaviour" app:defaultValue="false" />
+        <ListPreference app:key="ekbarPosition" app:defaultValue="bottom" app:entries="@array/ekbarPositionValues" app:entryValues="@array/ekbarPositionValues" />
+        <SwitchPreferenceCompat app:key="ekbarPositionIgnoreOrientation" app:defaultValue="false" />
         <SeekBarPreference app:key="opacityEKBar" app:defaultValue="100" app:min="1" android:max="100" app:seekBarIncrement="1" app:showSeekBarValue="true" app:updatesContinuously="true" />
         <EditTextPreference app:key="extra_keys_config" />
     </PreferenceScreen>

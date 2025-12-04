@@ -659,7 +659,9 @@ public class LorieView extends SurfaceView implements InputStub {
         if (prefs.displayStretch.get()
               || "native".equals(prefs.displayResolutionMode.get())
               || "scaled".equals(prefs.displayResolutionMode.get())) {
-            getHolder().setSizeFromLayout();
+            if ("bilinear".equals(prefs.displayFilteringMode.get())) {
+                getHolder().setSizeFromLayout();
+            }
             return;
         }
 
@@ -680,7 +682,9 @@ public class LorieView extends SurfaceView implements InputStub {
         else
             height = width * p.y / p.x;
 
-        getHolder().setFixedSize(p.x, p.y);
+        if ("bilinear".equals(prefs.displayFilteringMode.get())) {
+            getHolder().setFixedSize(p.x, p.y);
+        }
         setMeasuredDimension(width, height);
     }
 

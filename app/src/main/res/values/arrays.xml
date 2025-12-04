@@ -56,6 +56,10 @@
         <item>3840x2160</item>
         <item>7680x4320</item>
     </string-array>
+    <string-array name="displayFilteringVariants">
+        <item>bilinear</item>
+        <item>nearest</item>
+    </string-array>
     <string-array name="userActionsValues">
         <item>no action</item>
         <item>toggle soft keyboard</item>

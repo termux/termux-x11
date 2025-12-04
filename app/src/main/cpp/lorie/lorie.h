@@ -37,6 +37,7 @@ void lorieUnregisterBuffer(LorieBuffer* buffer);
 bool lorieConnectionAlive(void);
 
 __unused void rendererInit(JNIEnv* env);
+__unused void rendererSetFiltering(JNIEnv* env, jobject self, jint filtering);
 __unused void rendererTestCapabilities(int* legacy_drawing, uint8_t* flip);
 __unused void rendererSetWindow(ANativeWindow* newWin);
 __unused void rendererSetSharedState(struct lorie_shared_server_state* newState);

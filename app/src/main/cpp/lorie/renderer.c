@@ -114,6 +114,7 @@ static EGLSurface defaultSfc = EGL_NO_SURFACE, sfc = EGL_NO_SURFACE;
 static EGLConfig cfg = 0;
 static ANativeWindow *defaultWin = NULL, *win = NULL;
 static volatile struct xorg_list addedBuffers, buffers, removedBuffers;
+volatile jint filtering = GL_NEAREST;
 
 static JNIEnv* renderEnv = NULL;
 static volatile bool stateChanged = false, windowChanged = false;
@@ -139,10 +140,10 @@ static void pthreadCondVarProxyInit(void);
 static void* pthreadCondVarProxyThread(void* cookie);
 static void pthreadCondVarProxyListenOtherCondVar(pthread_cond_t* var);
 
-static inline __always_inline void bindLinearTexture(GLuint id) {
+static inline __always_inline void bindTexture(GLuint id) {
     glBindTexture(GL_TEXTURE_2D, id);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filtering);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filtering);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
@@ -257,6 +258,9 @@ void rendererInit(JNIEnv* env) {
 
     pthread_create(&t, NULL, (void*(*)(void*)) rendererInitThread, vm);
 }
+void rendererSetFiltering(JNIEnv* env, jobject self, jint f) {
+    filtering = f;
+}
 
 void rendererTestCapabilities(int* legacy_drawing, uint8_t* flip) {
     // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
@@ -346,7 +350,7 @@ void rendererTestCapabilities(int* legacy_drawing, uint8_t* flip) {
 
         glActiveTexture(GL_TEXTURE0); checkGlError();
         glGenTextures(1, &texture); checkGlError();
-        bindLinearTexture(texture);
+        bindTexture(texture);
         glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, img); checkGlError();
         glGenFramebuffers(1, &fbo); checkGlError();
         glBindFramebuffer(GL_FRAMEBUFFER, fbo); checkGlError();
@@ -546,7 +550,7 @@ void rendererRedrawLocked(bool* waitingForBuffers) {
         log("Xlorie: updating cursor\n");
         lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid);
         state->cursor.updated = false;
-        bindLinearTexture(cursor.id);
+        bindTexture(cursor.id);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
         lorie_mutex_unlock(&state->cursor.lock, &state->cursor.lockingPid);
     }
@@ -732,6 +736,8 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1, float xfacto
     if (id)
         glBindTexture(GL_TEXTURE_2D, id);
 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filtering);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filtering);
     glVertexAttribPointer(p, 2, GL_FLOAT, GL_FALSE, 16, coords);
     glVertexAttribPointer(c, 2, GL_FLOAT, GL_FALSE, 16, &coords[2]);
     glEnableVertexAttribArray(p);

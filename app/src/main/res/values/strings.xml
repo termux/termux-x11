@@ -39,6 +39,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_displayScale">Display scale, %</string>
     <string name="lorie_pref_displayResolutionExact">Display resolution</string>
     <string name="lorie_pref_displayResolutionCustom">Display resolution</string>
+    <string name="lorie_pref_displayFilteringMode">Display filtering mode</string>
     <string name="lorie_pref_adjustResolution">Adjust the set resolution to fit screen orientation</string>
     <string name="lorie_pref_displayStretch">Stretch to fit display</string>
     <string name="lorie_pref_Reseed">Reseed screen while soft keyboard is open</string>

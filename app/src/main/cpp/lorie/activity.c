@@ -387,6 +387,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
     static JNINativeMethod methods[] = {
             {"nativeInit", "()V", (void *)&nativeInit},
             {"surfaceChanged", "(Landroid/view/Surface;)V", (void *)&surfaceChanged},
+            {"setFiltering", "(I)V", (void *)&rendererSetFiltering},
             {"connect", "(I)V", (void *)&connect_},
             {"connected", "()Z", (void *)&connected},
             {"startLogcat", "(I)V", (void *)&startLogcat},

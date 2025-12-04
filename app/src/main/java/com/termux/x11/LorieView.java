@@ -12,6 +12,7 @@ import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.drawable.ColorDrawable;
+import android.opengl.GLES20;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CancellationSignal;
@@ -659,7 +660,8 @@ public class LorieView extends SurfaceView implements InputStub {
         if (prefs.displayStretch.get()
               || "native".equals(prefs.displayResolutionMode.get())
               || "scaled".equals(prefs.displayResolutionMode.get())) {
-            getHolder().setSizeFromLayout();
+            if ("bilinear".equals(prefs.displayFilteringMode.get()))
+                getHolder().setSizeFromLayout();
             return;
         }
 
@@ -680,7 +682,10 @@ public class LorieView extends SurfaceView implements InputStub {
         else
             height = width * p.y / p.x;
 
-        getHolder().setFixedSize(p.x, p.y);
+        if ("bilinear".equals(prefs.displayFilteringMode.get()))
+            getHolder().setFixedSize(p.x, p.y);
+        else
+            getHolder().setSizeFromLayout();
         setMeasuredDimension(width, height);
     }
 
@@ -736,6 +741,8 @@ public class LorieView extends SurfaceView implements InputStub {
     ClipboardManager.OnPrimaryClipChangedListener clipboardListener = this::handleClipboardChange;
 
     public void reloadPreferences(Prefs p) {
+        String filtering = p.displayFilteringMode.get();
+        setFiltering("nearest".equals(filtering) ? GLES20.GL_NEAREST : GLES20.GL_LINEAR);
         hardwareKbdScancodesWorkaround = p.hardwareKbdScancodesWorkaround.get();
         clipboardSyncEnabled = p.clipboardEnable.get();
         setClipboardSyncEnabled(clipboardSyncEnabled, clipboardSyncEnabled);
@@ -832,6 +839,7 @@ public class LorieView extends SurfaceView implements InputStub {
 
     @FastNative private native void nativeInit();
     @FastNative private native void surfaceChanged(Surface surface);
+    @FastNative private native void setFiltering(int filtering);
     @FastNative static native void connect(int fd);
     @CriticalNative static native boolean connected();
     @FastNative static native void startLogcat(int fd);

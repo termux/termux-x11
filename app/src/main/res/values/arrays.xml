@@ -85,4 +85,10 @@
         <item>reverse portrait</item>
         <item>reverse landscape</item>
     </string-array>
+    <string-array name="ekbarPositionValues">
+        <item>top</item>
+        <item>bottom</item>
+        <item>left</item>
+        <item>right</item>
+    </string-array>
 </resources>

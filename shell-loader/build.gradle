@@ -10,6 +10,8 @@ android.namespace 'com.termux.x11.shell_loader'
 android.defaultConfig.minSdkVersion 26
 android.compileSdkVersion 34
 android.buildTypes.debug.signingConfig null
+android.buildTypes.debug.minifyEnabled true
+android.buildTypes.debug.shrinkResources true
 android.buildFeatures.buildConfig true
 android.compileOptions.sourceCompatibility JavaVersion.VERSION_1_8
 android.compileOptions.targetCompatibility JavaVersion.VERSION_1_8

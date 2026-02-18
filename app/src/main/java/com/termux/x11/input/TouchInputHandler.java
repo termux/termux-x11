@@ -523,7 +523,7 @@ public class TouchInputHandler {
             return null;
 
         String key = pref.asList().get().replace(' ', '_');
-        int id = mActivity.getResources().getIdentifier("notification_" + key, "string", mActivity.getPackageName());
+        int id = mActivity.getResources().getIdentifier("lorie_notification_" + key, "string", mActivity.getPackageName());
         return id == 0 ? null : mActivity.getResources().getString(id);
     }
 

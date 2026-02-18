@@ -233,7 +233,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
         @SuppressLint("DiscouragedApi")
         int findId(String name) {
             //noinspection DataFlowIssue
-            return getResources().getIdentifier("pref_" + name, "string", getContext().getPackageName());
+            return getResources().getIdentifier("lorie_pref_" + name, "string", getContext().getPackageName());
         }
 
         /** @noinspection DataFlowIssue*/
@@ -272,10 +272,10 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             with("showAdditionalKbd", p -> p.setLayoutResource(R.layout.preference));
             with("version", p -> p.setSummary(BuildConfig.VERSION_NAME));
 
-            setSummary("displayStretch", R.string.pref_summary_requiresExactOrCustom);
-            setSummary("adjustResolution", R.string.pref_summary_requiresExactOrCustom);
-            setSummary("pauseKeyInterceptingWithEsc", R.string.pref_summary_requiresIntercepting);
-            setSummary("scaleTouchpad", R.string.pref_summary_requiresTrackpadAndNative);
+            setSummary("displayStretch", R.string.lorie_pref_summary_requiresExactOrCustom);
+            setSummary("adjustResolution", R.string.lorie_pref_summary_requiresExactOrCustom);
+            setSummary("pauseKeyInterceptingWithEsc", R.string.lorie_pref_summary_requiresIntercepting);
+            setSummary("scaleTouchpad", R.string.lorie_pref_summary_requiresTrackpadAndNative);
 
             if (!SamsungDexUtils.available())
                 setVisible("dexMetaKeyCapture", false);

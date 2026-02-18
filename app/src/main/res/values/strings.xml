@@ -39,6 +39,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="pref_displayScale">Display scale, %</string>
     <string name="pref_displayResolutionExact">Display resolution</string>
     <string name="pref_displayResolutionCustom">Display resolution</string>
+    <string name="pref_displayFilteringMode">Display filtering mode</string>
     <string name="pref_adjustResolution">Adjust the set resolution to fit screen orientation</string>
     <string name="pref_displayStretch">Stretch to fit display</string>
     <string name="pref_Reseed">Reseed screen while soft keyboard is open</string>

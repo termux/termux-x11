@@ -191,8 +191,8 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
         private static final Method onSetInitialValue;
         static {
             try {
-                //noinspection JavaReflectionMemberAccess
-                onSetInitialValue = Preference.class.getMethod("onSetInitialValue", boolean.class, Object.class);
+                onSetInitialValue = Preference.class.getDeclaredMethod("onSetInitialValue", boolean.class, Object.class);
+                onSetInitialValue.setAccessible(true);
             } catch (NoSuchMethodException e) {
                 throw new RuntimeException(e);
             }

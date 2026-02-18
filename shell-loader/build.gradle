@@ -12,6 +12,7 @@ android.compileSdkVersion 34
 android.buildTypes.debug.signingConfig null
 android.buildTypes.debug.minifyEnabled true
 android.buildTypes.debug.shrinkResources true
+android.buildTypes.debug.proguardFiles 'proguard-rules.pro'
 android.buildFeatures.buildConfig true
 android.compileOptions.sourceCompatibility JavaVersion.VERSION_1_8
 android.compileOptions.targetCompatibility JavaVersion.VERSION_1_8
@@ -19,6 +20,8 @@ dependencies.compileOnly project(':shell-loader:stub')
 
 if (!gradle.startParameter.taskNames.isEmpty())
     androidComponents { onVariants(selector().all()) { outputs.forEach { it.outputFileName.set("shell-loader-debug.apk") } } }
+
+configurations.configureEach { exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib" }
 
 def signingConfig = project(':app').android.signingConfigs.debug
 def keyStore = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())

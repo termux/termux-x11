@@ -16,7 +16,7 @@ android.compileOptions.targetCompatibility JavaVersion.VERSION_1_8
 dependencies.compileOnly project(':shell-loader:stub')
 
 if (!gradle.startParameter.taskNames.isEmpty())
-    android.applicationVariants.configureEach { outputs.configureEach { outputFileName = "shell-loader-debug.apk" } }
+    androidComponents { onVariants(selector().all()) { outputs.forEach { it.outputFileName.set("shell-loader-debug.apk") } } }
 
 def signingConfig = project(':app').android.signingConfigs.debug
 def keyStore = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())

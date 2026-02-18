@@ -38,12 +38,9 @@ android {
     buildFeatures.buildConfig true
     buildTypes.debug {
         signingConfig signingConfigs.debug
-        postprocessing {
-            removeUnusedCode true
-            removeUnusedResources true
-            obfuscate false
-            optimizeCode true
-        }
+        minifyEnabled true
+        shrinkResources true
+        proguardFiles 'proguard-rules.pro'
     }
 }
 

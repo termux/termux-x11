@@ -1,13 +1,17 @@
-apply plugin: 'com.android.application'
+import com.android.build.api.artifact.SingleArtifact
+
+plugins {
+    id("com.android.application")
+}
 
 android {
-    namespace 'com.termux.x11'
+    namespace = 'com.termux.x11'
     //noinspection GrDeprecatedAPIUsage
-    compileSdkVersion 34
+    compileSdkVersion 36
     defaultConfig {
         applicationId "com.termux.x11"
         minSdkVersion 26
-        targetSdkVersion 34
+        targetSdkVersion 36
         versionCode 15
         def commit= 'git rev-parse --verify --short HEAD'.execute().text.trim()
         def version = "1.03.01"
@@ -23,27 +27,25 @@ android {
     }
 
     splits.abi {
-        enable true
+        enable = true
         reset()
 
         include "x86", "x86_64", "armeabi-v7a", "arm64-v8a"
-        universalApk true
+        universalApk = true
     }
 
-    compileOptions.sourceCompatibility JavaVersion.VERSION_1_9
-    compileOptions.targetCompatibility JavaVersion.VERSION_1_9
+    compileOptions.sourceCompatibility JavaVersion.VERSION_17
+    compileOptions.targetCompatibility JavaVersion.VERSION_17
     externalNativeBuild.cmake.path "src/main/cpp/CMakeLists.txt"
-    packagingOptions.jniLibs.useLegacyPackaging false
-    buildFeatures.aidl true
-    buildFeatures.buildConfig true
+    packagingOptions.jniLibs.useLegacyPackaging = false
+    buildFeatures.aidl = true
+    buildFeatures.buildConfig = true
     buildTypes.debug {
-        signingConfig signingConfigs.debug
-        postprocessing {
-            removeUnusedCode true
-            removeUnusedResources true
-            obfuscate false
-            optimizeCode true
-        }
+        signingConfig = signingConfigs.debug
+
+        minifyEnabled = true
+        shrinkResources = true
+        proguardFiles 'proguard-rules.pro'
     }
 }
 

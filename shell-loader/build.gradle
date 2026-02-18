@@ -1,3 +1,5 @@
+import com.android.build.api.artifact.SingleArtifact
+
 //file:noinspection UnnecessaryQualifiedReference, GrDeprecatedAPIUsage
 
 // Detect android studio sync and disable generating run/debug configuration for shell-loader
@@ -6,17 +8,33 @@ if (gradle.startParameter.taskNames.isEmpty())
 else
     apply plugin: 'com.android.application'
 
-android.namespace 'com.termux.x11.shell_loader'
+android.namespace = 'com.termux.x11.shell_loader'
 android.defaultConfig.minSdkVersion 26
-android.compileSdkVersion 34
-android.buildTypes.debug.signingConfig null
-android.buildFeatures.buildConfig true
-android.compileOptions.sourceCompatibility JavaVersion.VERSION_1_8
-android.compileOptions.targetCompatibility JavaVersion.VERSION_1_8
+android.compileSdkVersion 36
+android.buildTypes.debug.signingConfig = null
+android.buildFeatures.buildConfig = true
+android.compileOptions.sourceCompatibility JavaVersion.VERSION_17
+android.compileOptions.targetCompatibility JavaVersion.VERSION_17
 dependencies.compileOnly project(':shell-loader:stub')
 
 if (!gradle.startParameter.taskNames.isEmpty())
-    android.applicationVariants.configureEach { outputs.configureEach { outputFileName = "shell-loader-debug.apk" } }
+    androidComponents {
+        onVariants(selector().all()) { variant ->
+            def taskProvider = project.tasks.register("rename${variant.name}Apks", RenameApkTask) {
+                it.getNewFileName().set("shell-loader-debug.apk")
+            }
+
+            def transformationRequest = variant.getArtifacts().use(taskProvider)
+                    .wiredWithDirectories(
+                            RenameApkTask.&getApkFolder,
+                            RenameApkTask.&getOutFolder
+                    ).toTransformMany(SingleArtifact.APK.INSTANCE)
+
+            taskProvider.configure {
+                it.getTransformationRequest().set(transformationRequest)
+        }
+    }
+}
 
 def signingConfig = project(':app').android.signingConfigs.debug
 def keyStore = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
@@ -33,3 +51,4 @@ android.defaultConfig.buildConfigField "String", "packageNotInstalledErrorText",
 android.defaultConfig.buildConfigField "String", "packageSignatureMismatchErrorText",
         "\"Signature verification of target application " + android.namespace + " failed.\\nPlease, reinstall both termux-x11 package and Termux:X11 application from the same source\""
 android.defaultConfig.buildConfigField "String", "COMMIT", "\"" + ("git rev-parse HEAD\n".execute().getText().trim() ?: (System.getenv('CURRENT_COMMIT') ?: "NO_COMMIT")) + "\""
+

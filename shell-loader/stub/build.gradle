@@ -1,10 +1,11 @@
 apply plugin: 'com.android.library'
 
-android.namespace 'com.termux.x11.stub'
+android.namespace = 'com.termux.x11.stub'
 android.defaultConfig.minSdkVersion 26
-android.compileSdkVersion 34
-android.buildFeatures.buildConfig false
+android.compileSdkVersion 36
+android.buildFeatures.buildConfig = false
 android.buildTypes.release.minifyEnabled false
-android.compileOptions.sourceCompatibility JavaVersion.VERSION_1_8
-android.compileOptions.targetCompatibility JavaVersion.VERSION_1_8
+android.compileOptions.sourceCompatibility JavaVersion.VERSION_17
+android.compileOptions.targetCompatibility JavaVersion.VERSION_17
 dependencies.implementation 'androidx.annotation:annotation:1.9.1'
+

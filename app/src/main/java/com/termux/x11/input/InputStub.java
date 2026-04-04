@@ -18,6 +18,8 @@ public interface InputStub {
     int BUTTON_MIDDLE = 2;
     int BUTTON_RIGHT = 3;
     int BUTTON_SCROLL = 4;
+    int BUTTON_BACK = 5;
+    int BUTTON_FORWARD = 6;
 
     /** Sends a mouse event. */
     void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);

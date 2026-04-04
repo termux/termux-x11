@@ -23,6 +23,7 @@
 #include <linux/in.h>
 #include <arpa/inet.h>
 #include <poll.h>
+#include <stdbool.h>
 #include "lorie.h"
 
 #define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
@@ -300,8 +301,7 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 break;
             }
             case EVENT_STYLUS: {
-                static int buttons_prev = 0;
-                uint32_t released, pressed, diff;
+                static uint16_t buttons_prev = 0;
                 DeviceIntPtr device = e.stylus.mouse ? lorieMouse : (e.stylus.eraser ? lorieEraser : loriePen);
                 if (!device) {
                     __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "got stylus event but device is not requested\n");
@@ -320,21 +320,21 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 }
                 QueuePointerEvents(device, MotionNotify, 0, POINTER_ABSOLUTE | POINTER_DESKTOP | (device == lorieMouse ? POINTER_NORAW : 0), &mask);
 
-                diff = buttons_prev ^ e.stylus.buttons;
-                released = diff & ~e.stylus.buttons;
-                pressed = diff & e.stylus.buttons;
-
-                for (int i=0; i<3; i++) {
-                    if (released & 0x1) {
-                        QueuePointerEvents(device, ButtonRelease, i + 1, POINTER_RELATIVE, NULL);
-                        __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "sending %d press", i+1);
+                // Handle direct button numbers (bitmask where each bit represents a button)
+                // Buttons 1-8 are represented as individual bits in the buttons field
+                uint16_t current_buttons = e.stylus.buttons;
+                uint16_t changed = buttons_prev ^ current_buttons;
+                
+                // Send press/release events for each changed button
+                for (int i = 0; i < 16 && changed; i++) {
+                    if (changed & 0x1) {
+                        int button_num = i + 1;
+                        bool pressed = current_buttons & 0x1;
+                        QueuePointerEvents(device, pressed ? ButtonPress : ButtonRelease, button_num, POINTER_RELATIVE, NULL);
+                        __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "stylus button %d %s", button_num, pressed ? "press" : "release");
                     }
-                    if (pressed & 0x1) {
-                        QueuePointerEvents(device, ButtonPress, i + 1, POINTER_RELATIVE, NULL);
-                        __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "sending %d release", i+1);
-                    }
-                    released >>= 1;
-                    pressed >>= 1;
+                    changed >>= 1;
+                    current_buttons >>= 1;
                 }
                 buttons_prev = e.stylus.buttons;
 
@@ -360,6 +360,8 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                     case 1: // BUTTON_LEFT
                     case 2: // BUTTON_MIDDLE
                     case 3: // BUTTON_RIGHT
+                    case 5: // BUTTON_BACK
+                    case 6: // BUTTON_FORWARD
                         QueuePointerEvents(lorieMouse, e.mouse.down ? ButtonPress : ButtonRelease, e.mouse.detail, POINTER_RELATIVE, NULL);
                         break;
                     case 4: // BUTTON_SCROLL

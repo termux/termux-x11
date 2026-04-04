@@ -114,4 +114,24 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_summary_requiresExactOrCustom">Requires "display resolution mode" to be "exact" or "custom"</string>
     <string name="lorie_pref_summary_requiresIntercepting">Requires intercepting system shortcuts with Dex mode or with Accessibility service</string>
     <string name="lorie_pref_summary_requiresTrackpadAndNative">Requires "Touchscreen input mode" to be "Trackpad" and "Display resolution mode" to be not "native"</string>
+
+    <!-- Key remapping preferences -->
+    <string name="lorie_pref_key_remapping">Key remapping</string>
+    <string name="lorie_pref_key_remapping_info">Remap hardware keys to other keys. Enter Android keycode number to map to.</string>
+    <string name="lorie_pref_key_remap_volume_up">Remap Volume Up key</string>
+    <string name="lorie_pref_key_remap_volume_down">Remap Volume Down key</string>
+    <string name="lorie_pref_key_remap_back">Remap Back key</string>
+    <string name="lorie_pref_key_remap_power">Remap Power key</string>
+    <string name="lorie_pref_key_remap_scroll_lock">Remap Scroll Lock key</string>
+    <string name="lorie_pref_key_remap_caps_lock">Remap Caps Lock key</string>
+    <string name="lorie_pref_key_remapping_custom">Custom key remapping</string>
+    <string name="lorie_pref_key_remapping_custom_info">Define custom key remapping using JSON format. Example: {\"113\":\"66\",\"114\":\"67\"} maps volume up to Enter, volume down to Back.</string>
+    <string name="lorie_pref_key_remapping_custom_json">Custom key remapping JSON</string>
+
+    <!-- Stylus button mapping preferences -->
+    <string name="lorie_pref_stylus_button_mapping">Stylus button mapping</string>
+    <string name="lorie_pref_stylus_button_mapping_info">Map stylus buttons to mouse buttons. Primary button is usually the tip or side button.</string>
+    <string name="lorie_pref_stylus_button_primary">Primary stylus button (tip/contact)</string>
+    <string name="lorie_pref_stylus_button_secondary">Secondary stylus button (side button 1)</string>
+    <string name="lorie_pref_stylus_button_tertiary">Tertiary stylus button (side button 2)</string>
 </resources>

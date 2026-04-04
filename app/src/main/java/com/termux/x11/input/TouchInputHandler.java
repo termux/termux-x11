@@ -41,6 +41,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -451,6 +452,13 @@ public class TouchInputHandler {
                 capturedPointerTransformation = CapturedPointerTransformation.NONE;
         }
 
+        // Load key remapping
+        mInjector.keyRemap.clear();
+        loadKeyRemapping(mInjector.keyRemap, p);
+        
+        // Load stylus button mapping
+        loadStylusButtonMapping(mInjector.stylusButtonMap, p);
+
         MainActivity.getRealMetrics(mMetrics);
 
         if (!p.pointerCapture.get() && mActivity.getLorieView().hasPointerCapture())
@@ -468,6 +476,70 @@ public class TouchInputHandler {
 
         if(mTouchpadHandler != null)
             mTouchpadHandler.reloadPreferences(p);
+    }
+
+    private void loadKeyRemapping(HashMap<Integer, Integer> keyRemap, Prefs p) {
+        // Load predefined key remappings
+        String[] remapKeys = {"keyRemap_113", "keyRemap_114", "keyRemap_158", "keyRemap_26", "keyRemap_116", "keyRemap_115"};
+        int[] originalKeycodes = {113, 114, 158, 26, 116, 115}; // Volume Up, Volume Down, Back, Power, Scroll Lock, Caps Lock
+        
+        for (int i = 0; i < remapKeys.length; i++) {
+            LoriePreferences.PrefsProto.Preference pref = p.keys.get(remapKeys[i]);
+            if (pref != null) {
+                String value = pref.asList().get();
+                if (value != null && !value.isEmpty()) {
+                    try {
+                        int remappedKeycode = Integer.parseInt(value.trim());
+                        keyRemap.put(originalKeycodes[i], remappedKeycode);
+                    } catch (NumberFormatException e) {
+                        // Ignore invalid values
+                    }
+                }
+            }
+        }
+        
+        // Load custom key remapping from JSON
+        LoriePreferences.PrefsProto.Preference customPref = p.keys.get("keyRemappingCustomJson");
+        if (customPref != null) {
+            String json = customPref.asString().get();
+            if (json != null && !json.isEmpty() && !json.equals("{}")) {
+                try {
+                    org.json.JSONObject jsonObject = new org.json.JSONObject(json);
+                    java.util.Iterator<String> keys = jsonObject.keys();
+                    while (keys.hasNext()) {
+                        String key = keys.next();
+                        int originalKeycode = Integer.parseInt(key);
+                        int remappedKeycode = jsonObject.getInt(key);
+                        keyRemap.put(originalKeycode, remappedKeycode);
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("KeyRemapping", "Failed to parse custom key remapping JSON", e);
+                }
+            }
+        }
+    }
+
+    private void loadStylusButtonMapping(int[] stylusButtonMap, Prefs p) {
+        // Default mapping: primary=left(1), secondary=right(3), tertiary=middle(2)
+        stylusButtonMap[0] = 1; // Left click
+        stylusButtonMap[1] = 3; // Right click  
+        stylusButtonMap[2] = 2; // Middle click
+
+        // Load stylus button mappings
+        String[] buttonPrefs = {"stylusButtonPrimary", "stylusButtonSecondary", "stylusButtonTertiary"};
+        for (int i = 0; i < buttonPrefs.length; i++) {
+            LoriePreferences.PrefsProto.Preference pref = p.keys.get(buttonPrefs[i]);
+            if (pref != null) {
+                try {
+                    int buttonValue = Integer.parseInt(pref.asList().get());
+                    if (buttonValue >= 1 && buttonValue <= 6) {
+                        stylusButtonMap[i] = buttonValue;
+                    }
+                } catch (NumberFormatException e) {
+                    // Ignore invalid values
+                }
+            }
+        }
     }
 
     public BiConsumer<Integer, Boolean> extractUserActionFromPreferences(Prefs p, String name) {
@@ -920,20 +992,20 @@ public class TouchInputHandler {
             if (mInjector.stylusButtonContactModifierMode) {
                 if (e.getPressure() > 0) {
                     if (hasButton(e, MotionEvent.BUTTON_STYLUS_SECONDARY))
-                        return (1 << 1);
+                        return mInjector.stylusButtonMap[1];
                     if (hasButton(e, MotionEvent.BUTTON_STYLUS_PRIMARY))
-                        return (1 << 2);
+                        return mInjector.stylusButtonMap[2];
                     else
-                        return STYLUS_INPUT_HELPER_MODE;
+                        return mInjector.stylusButtonMap[0];
                 } else return 0;
             } else {
                 int buttons = 0;
                 if (e.getPressure() > 0)
-                    buttons = STYLUS_INPUT_HELPER_MODE;
+                    buttons = mInjector.stylusButtonMap[0];
                 if (hasButton(e, MotionEvent.BUTTON_STYLUS_SECONDARY))
-                    buttons |= (1 << 1);
+                    buttons |= mInjector.stylusButtonMap[1];
                 if (hasButton(e, MotionEvent.BUTTON_STYLUS_PRIMARY))
-                    buttons |= (1 << 2);
+                    buttons |= mInjector.stylusButtonMap[2];
 
                 return buttons;
             }

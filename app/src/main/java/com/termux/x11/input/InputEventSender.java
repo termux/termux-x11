@@ -16,6 +16,7 @@ import android.view.MotionEvent;
 
 import com.termux.x11.MainActivity;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.TreeSet;
 
@@ -39,6 +40,12 @@ public final class InputEventSender {
     public boolean pauseKeyInterceptingWithEsc = false;
     public boolean stylusIsMouse = false;
     public boolean stylusButtonContactModifierMode = false;
+    
+    /** Key remapping map: original keycode -> remapped keycode */
+    public HashMap<Integer, Integer> keyRemap = new HashMap<>();
+    
+    /** Stylus button mapping: stylus button index -> mouse button code */
+    public int[] stylusButtonMap = new int[]{1, 2, 3}; // Default: primary=left, secondary=middle, tertiary=right
 
     /** Set of pressed keys for which we've sent TextEvent. */
     private final TreeSet<Integer> mPressedTextKeys;
@@ -52,7 +59,7 @@ public final class InputEventSender {
         mPressedKeys = new TreeSet<>();
     }
 
-    private static final List<Integer> buttons = List.of(BUTTON_UNDEFINED, BUTTON_LEFT, BUTTON_MIDDLE, BUTTON_RIGHT);
+    private static final List<Integer> buttons = List.of(BUTTON_UNDEFINED, BUTTON_LEFT, BUTTON_MIDDLE, BUTTON_RIGHT, InputStub.BUTTON_BACK, InputStub.BUTTON_FORWARD);
     public void sendMouseEvent(PointF pos, int button, boolean down, boolean relative) {
         if (!buttons.contains(button))
             return;
@@ -147,6 +154,21 @@ public final class InputEventSender {
     public boolean sendKeyEvent(KeyEvent e) {
         int keyCode = e.getKeyCode();
         boolean pressed = e.getAction() == KeyEvent.ACTION_DOWN;
+
+        // Apply key remapping
+        if (keyRemap.containsKey(keyCode)) {
+            int remappedKeyCode = keyRemap.get(keyCode);
+            if (remappedKeyCode == 0) {
+                // Key is disabled (mapped to 0)
+                return true;
+            }
+            // Create a new KeyEvent with the remapped keycode
+            e = new KeyEvent(e.getDownTime(), e.getEventTime(), e.getAction(),
+                    remappedKeyCode, e.getRepeatCount(), e.getFlags(),
+                    e.getScanCode(), e.getDeviceId(), e.getUnicodeChar(),
+                    e.getSource());
+            keyCode = remappedKeyCode;
+        }
 
         if ((e.getFlags() & KeyEvent.FLAG_CANCELED) == KeyEvent.FLAG_CANCELED) {
             android.util.Log.d("KeyEvent", "We've got key event with FLAG_CANCELED, it will not be consumed. Details: " + e);

@@ -186,7 +186,7 @@ lorieTouchProc(DeviceIntPtr device, int what) {
 
 static int
 lorieStylusProc(DeviceIntPtr device, int what) {
-#define NBUTTONS 3
+#define NBUTTONS 8
 #define NAXES 6
     Atom btn_labels[NBUTTONS] = { 0 };
     Atom axes_labels[NAXES] = { 0 };

@@ -137,7 +137,7 @@ typedef union {
         uint16_t pressure;
         int8_t tilt_x, tilt_y;
         int16_t orientation;
-        uint8_t buttons, eraser, mouse;
+        uint16_t buttons, eraser, mouse;
     } stylus;
     struct {
         uint8_t t, enable;

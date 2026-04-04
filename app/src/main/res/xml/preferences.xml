@@ -34,6 +34,13 @@
         <ListPreference app:key="transformCapturedPointer" app:defaultValue="no" app:entries="@array/transformCapturedPointerEntries" app:entryValues="@array/transformCapturedPointerValues" />
         <SeekBarPreference app:key="capturedPointerSpeedFactor" app:defaultValue="100" app:min="1" android:max="300" app:seekBarIncrement="1" app:showSeekBarValue="true" app:updatesContinuously="true" />
         <SwitchPreferenceCompat app:key="tapToMove" app:defaultValue="false" />
+        <Preference app:key="stylusButtonMapping" app:fragment="stylusButtonMapping" app:title="@string/lorie_pref_stylus_button_mapping" />
+    </PreferenceScreen>
+    <PreferenceScreen app:key="stylusButtonMapping">
+        <Preference app:key="stylusButtonMappingInfo" app:title="@string/lorie_pref_stylus_button_mapping_info" app:selectable="false" />
+        <ListPreference app:key="stylusButtonPrimary" app:defaultValue="1" app:entries="@array/stylusButtonMappingEntries" app:entryValues="@array/stylusButtonMappingValues" app:title="@string/lorie_pref_stylus_button_primary" />
+        <ListPreference app:key="stylusButtonSecondary" app:defaultValue="3" app:entries="@array/stylusButtonMappingEntries" app:entryValues="@array/stylusButtonMappingValues" app:title="@string/lorie_pref_stylus_button_secondary" />
+        <ListPreference app:key="stylusButtonTertiary" app:defaultValue="2" app:entries="@array/stylusButtonMappingEntries" app:entryValues="@array/stylusButtonMappingValues" app:title="@string/lorie_pref_stylus_button_tertiary" />
     </PreferenceScreen>
     <PreferenceScreen app:key="kbd">
         <SwitchPreferenceCompat app:key="showAdditionalKbd" app:defaultValue="true" />
@@ -50,6 +57,21 @@
         <SwitchPreferenceCompat app:key="pauseKeyInterceptingWithEsc" app:defaultValue="false" />
         <SwitchPreferenceCompat app:key="filterOutWinkey" app:defaultValue="false" />
         <SwitchPreferenceCompat app:key="enforceCharBasedInput" app:defaultValue="false" />
+        <Preference app:key="keyRemapping" app:fragment="keyRemapping" app:title="@string/lorie_pref_key_remapping" />
+    </PreferenceScreen>
+    <PreferenceScreen app:key="keyRemapping">
+        <Preference app:key="keyRemappingInfo" app:title="@string/lorie_pref_key_remapping_info" app:selectable="false" />
+        <EditTextPreference app:key="keyRemap_113" app:title="@string/lorie_pref_key_remap_volume_up" app:defaultValue="" app:useSimpleSummaryProvider="true" />
+        <EditTextPreference app:key="keyRemap_114" app:title="@string/lorie_pref_key_remap_volume_down" app:defaultValue="" app:useSimpleSummaryProvider="true" />
+        <EditTextPreference app:key="keyRemap_158" app:title="@string/lorie_pref_key_remap_back" app:defaultValue="" app:useSimpleSummaryProvider="true" />
+        <EditTextPreference app:key="keyRemap_26" app:title="@string/lorie_pref_key_remap_power" app:defaultValue="" app:useSimpleSummaryProvider="true" />
+        <EditTextPreference app:key="keyRemap_116" app:title="@string/lorie_pref_key_remap_scroll_lock" app:defaultValue="" app:useSimpleSummaryProvider="true" />
+        <EditTextPreference app:key="keyRemap_115" app:title="@string/lorie_pref_key_remap_caps_lock" app:defaultValue="" app:useSimpleSummaryProvider="true" />
+        <Preference app:key="keyRemappingCustom" app:fragment="keyRemappingCustom" app:title="@string/lorie_pref_key_remapping_custom" />
+    </PreferenceScreen>
+    <PreferenceScreen app:key="keyRemappingCustom">
+        <Preference app:key="keyRemappingCustomInfo" app:title="@string/lorie_pref_key_remapping_custom_info" app:selectable="false" />
+        <EditTextPreference app:key="keyRemappingCustomJson" app:title="@string/lorie_pref_key_remapping_custom_json" app:defaultValue="{}" app:useSimpleSummaryProvider="true" />
     </PreferenceScreen>
     <PreferenceScreen app:key="other">
         <SwitchPreferenceCompat app:key="clipboardEnable" app:defaultValue="true" />

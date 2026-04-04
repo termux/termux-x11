@@ -85,4 +85,20 @@
         <item>reverse portrait</item>
         <item>reverse landscape</item>
     </string-array>
+
+    <!-- Stylus button mapping arrays -->
+    <string-array name="stylusButtonMappingEntries">
+        <item>Left Click</item>
+        <item>Middle Click</item>
+        <item>Right Click</item>
+        <item>Back Button</item>
+        <item>Forward Button</item>
+    </string-array>
+    <string-array name="stylusButtonMappingValues">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>5</item>
+        <item>6</item>
+    </string-array>
 </resources>

@@ -985,14 +985,16 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
 }
 
 static int lorieGetFormats(__unused ScreenPtr screen, CARD32 *num_formats, CARD32 **formats) {
-    *num_formats = 0;
-    *formats = NULL;
+    static CARD32 format = DRM_FORMAT_ARGB8888;
+    *num_formats = 1;
+    *formats = &format;
     return TRUE;
 }
 
 static int lorieGetModifiers(__unused ScreenPtr screen, __unused uint32_t format, uint32_t *num_modifiers, uint64_t **modifiers) {
-    *num_modifiers = 0;
-    *modifiers = NULL;
+    static uint64_t modifier = 0; /* DRM_FORMAT_MOD_LINEAR */
+    *num_modifiers = 1;
+    *modifiers = &modifier;
     return TRUE;
 }
 

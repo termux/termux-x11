@@ -7,4 +7,4 @@ android.buildFeatures.buildConfig false
 android.buildTypes.release.minifyEnabled false
 android.compileOptions.sourceCompatibility JavaVersion.VERSION_1_8
 android.compileOptions.targetCompatibility JavaVersion.VERSION_1_8
-dependencies.implementation 'androidx.annotation:annotation:1.9.1'
+dependencies.implementation 'androidx.annotation:annotation:1.10.0'

@@ -16,6 +16,7 @@
 #include <GLES2/gl2ext.h>
 #include <android/native_window_jni.h>
 #include <android/log.h>
+#include <media/NdkImageReader.h>
 #include <dlfcn.h>
 #include <sys/mman.h>
 #include "list.h"
@@ -162,19 +163,23 @@ const EGLint ctxattribs[] = {
         EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE
 };
 
-int rendererInitThread(JavaVM *vm) {
-    JNIEnv* env;
+static void onImageAvailable(void* context, AImageReader* reader) {
+    AImage* image = NULL;
+    if (AImageReader_acquireLatestImage(reader, &image) == AMEDIA_OK && image)
+        AImage_delete(image);
+}
+
+int rendererInitThread(void) {
     EGLint major, minor;
     EGLint numConfigs;
     EGLint *const alphaAttrib = &configAttribs[11];
+    AImageReader* reader = NULL; // We will use this ImageReader each time surface is destroyed, zero reasons to clean it up
 
     pthread_setname_np(pthread_self(), "LorieRendererThread");
 
     xorg_list_init(&addedBuffers);
     xorg_list_init(&buffers);
     xorg_list_init(&removedBuffers);
-
-    (*vm)->AttachCurrentThread(vm, &env, NULL);
 
     egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (egl_display == EGL_NO_DISPLAY)
@@ -198,20 +203,24 @@ int rendererInitThread(JavaVM *vm) {
     // Weird devices without proper EGL_KHR_surfaceless_context support
     // We can not use pbuffer-based surfaces because it will require searching for configs supporting it
     // and I am not sure all devices have configs supporting both pbuffers and regular surfaces simultaneously
-    jclass surfaceTextureClass = (*env)->FindClass(env, "android/graphics/SurfaceTexture");
-    jclass surfaceClass = (*env)->FindClass(env, "android/view/Surface");
+    if (AImageReader_new(1, 1, AIMAGE_FORMAT_RGBA_8888, 2, &reader) != AMEDIA_OK) {
+        log("Failed to initialise ImageReader");
+        return 1;
+    }
 
-    jmethodID surfaceTextureConstructor = (*env)->GetMethodID(env, surfaceTextureClass, "<init>", "(Z)V");
-    jmethodID surfaceConstructor = (*env)->GetMethodID(env, surfaceClass, "<init>", "(Landroid/graphics/SurfaceTexture;)V");
+    if (AImageReader_setImageListener(reader, &(AImageReader_ImageListener) { .context = NULL, .onImageAvailable = onImageAvailable }) != AMEDIA_OK) {
+        log("Failed to set ImageReader listener");
+        AImageReader_delete(reader);
+        return 1;
+    }
 
-    jobject surfaceTextureObject = (*env)->NewObject(env, surfaceTextureClass, surfaceTextureConstructor, true);
-    jobject surfaceObject = (*env)->NewObject(env, surfaceClass, surfaceConstructor, surfaceTextureObject);
+    if (AImageReader_getWindow(reader, &defaultWin) != AMEDIA_OK) {
+        log("Failed to obtain ImageReader native window");
+        AImageReader_delete(reader);
+        return 1;
+    }
 
-    // We will use this surfacetexture each time surface is destroyed, zero reasons to clean it up
-    (*env)->NewGlobalRef(env, surfaceTextureObject);
-    (*env)->NewGlobalRef(env, surfaceObject);
-
-    win = defaultWin = ANativeWindow_fromSurface(env, surfaceObject);
+    win = defaultWin;
     ANativeWindow_acquire(defaultWin);
 
     sfc = defaultSfc = eglCreateWindowSurface(egl_display, cfg, win, NULL);
@@ -242,12 +251,9 @@ int rendererInitThread(JavaVM *vm) {
 
 void rendererInit(JNIEnv* env) {
     pthread_t t;
-    JavaVM *vm;
 
     if (ctx)
         return;
-
-    (*env)->GetJavaVM(env, &vm);
 
     pthreadCondVarProxyInit();
 
@@ -256,7 +262,7 @@ void rendererInit(JNIEnv* env) {
     pthread_cond_init(&stateChangeFinishCond, NULL);
     pthread_spin_init(&bufferLock, false);
 
-    pthread_create(&t, NULL, (void*(*)(void*)) rendererInitThread, vm);
+    pthread_create(&t, NULL, (void*(*)(void*)) rendererInitThread, NULL);
 }
 void rendererSetFiltering(JNIEnv* env, jobject self, jint f) {
     filtering = f;

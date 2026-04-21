@@ -144,6 +144,7 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
 
     {
         const char *root_dir = dirname(getenv("TMPDIR"));
+        bool is_termux = !strcmp("/data/data/com.termux/files/usr", root_dir);
         const char* pathes[] = {
                 "/etc/X11/fonts", "/usr/share/fonts/X11", "/share/fonts", NULL
         };
@@ -153,8 +154,9 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
             if (access(current_path, F_OK) == 0) {
                 char default_font_path[4096] = {0};
                 snprintf(default_font_path, sizeof(default_font_path),
-                         "%s/misc,%s/TTF,%s/OTF,%s/Type1,%s/100dpi,%s/75dpi",
-                         current_path, current_path, current_path, current_path, current_path, current_path);
+                         "%s%s,%s/TTF,%s/OTF,%s/Type1,%s/100dpi,%s/75dpi",
+                         current_path, is_termux ? "" : "/misc", /* Termux-specific: misc directory causes font initialization failure */
+                         current_path, current_path, current_path, current_path, current_path);
                 defaultFontPath = strdup(default_font_path);
                 break;
             }

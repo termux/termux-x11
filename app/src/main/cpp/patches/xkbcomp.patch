@@ -1,8 +1,8 @@
 diff --git a/alias.c b/alias.c
-index c914cbc..713067f 100644
+index 88e385d..d408238 100644
 --- a/alias.c
 +++ b/alias.c
-@@ -155,6 +155,52 @@ MergeAliases(AliasInfo ** into, AliasInfo ** merge, unsigned how_merge)
+@@ -156,6 +156,52 @@ MergeAliases(AliasInfo ** into, AliasInfo ** merge, unsigned how_merge)
      return True;
  }
  
@@ -56,10 +56,10 @@ index c914cbc..713067f 100644
  ApplyAliases(XkbDescPtr xkb, Bool toGeom, AliasInfo ** info_in)
  {
 diff --git a/compat.c b/compat.c
-index 26f4249..c1884b0 100644
+index 3ab8bd5..dfe4ba7 100644
 --- a/compat.c
 +++ b/compat.c
-@@ -571,7 +571,7 @@ SetInterpField(SymInterpInfo *si, XkbDescPtr xkb, const char *field,
+@@ -582,7 +582,7 @@ SetInterpField(SymInterpInfo *si, XkbDescPtr xkb, const char *field,
      return ok;
  }
  
@@ -94,7 +94,7 @@ index 470091e..215529d 100644
          led->groups = rtrn.uval;
          led->defs.defined |= _LED_Groups;
 diff --git a/xkbcomp.c b/xkbcomp.c
-index 6aedb67..12b0f27 100644
+index 65d1422..12b0f27 100644
 --- a/xkbcomp.c
 +++ b/xkbcomp.c
 @@ -24,6 +24,9 @@
@@ -162,7 +162,7 @@ index 6aedb67..12b0f27 100644
  static const char *preErrorMsg = NULL;
  static const char *postErrorMsg = NULL;
  static const char *errorPrefix = NULL;
-@@ -103,192 +78,24 @@ static unsigned int device_id = XkbUseCoreKbd;
+@@ -103,194 +78,24 @@ static unsigned int device_id = XkbUseCoreKbd;
  
  /***====================================================================***/
  
@@ -315,12 +315,14 @@ index 6aedb67..12b0f27 100644
 -                return False;
 -        }
 -        else if ((strcmp(argv[i], "-?") == 0)
--                 || (strcmp(argv[i], "-help") == 0))
+-                 || (strcmp(argv[i], "-help") == 0)
+-                 || (strcmp(argv[i], "--help") == 0))
 -        {
 -            Usage(argc, argv);
 -            exit(0);
 -        }
--        else if (strcmp(argv[i], "-version") == 0)
+-        else if ((strcmp(argv[i], "-version") == 0) ||
+-                 (strcmp(argv[i], "--version") == 0))
 -        {
 -            printf("xkbcomp %s\n", PACKAGE_VERSION);
 -            exit(0);
@@ -363,7 +365,7 @@ index 6aedb67..12b0f27 100644
          }
          else if (strcmp(argv[i], "-em1") == 0)
          {
-@@ -356,172 +163,6 @@ parseArgs(int argc, char *argv[])
+@@ -358,172 +163,6 @@ parseArgs(int argc, char *argv[])
              else
                  postErrorMsg = argv[i];
          }
@@ -536,7 +538,7 @@ index 6aedb67..12b0f27 100644
          else if (strncmp(argv[i], "-R", 2) == 0)
          {
              if (argv[i][2] == '\0')
-@@ -558,23 +199,6 @@ parseArgs(int argc, char *argv[])
+@@ -560,23 +199,6 @@ parseArgs(int argc, char *argv[])
                  }
              }
          }
@@ -560,7 +562,7 @@ index 6aedb67..12b0f27 100644
          else if (strncmp(argv[i], "-w", 2) == 0)
          {
              unsigned long utmp;
-@@ -605,57 +229,22 @@ parseArgs(int argc, char *argv[])
+@@ -607,57 +229,22 @@ parseArgs(int argc, char *argv[])
                  else
                  {
                      ERROR("Unknown flag \"%s\" on command line\n", argv[i]);
@@ -620,7 +622,7 @@ index 6aedb67..12b0f27 100644
  #ifndef WIN32
      else if (strchr(inputFile, ':') == NULL)
      {
-@@ -698,214 +287,26 @@ parseArgs(int argc, char *argv[])
+@@ -700,214 +287,26 @@ parseArgs(int argc, char *argv[])
                  return False;
              }
          }
@@ -837,7 +839,7 @@ index 6aedb67..12b0f27 100644
  
      scan_set_file(stdin);
  #ifdef DEBUG
-@@ -916,10 +317,6 @@ main(int argc, char *argv[])
+@@ -918,10 +317,6 @@ main(int argc, char *argv[])
      XkbInitIncludePath();
      if (!parseArgs(argc, argv))
          exit(1);
@@ -848,7 +850,7 @@ index 6aedb67..12b0f27 100644
      if (preErrorMsg)
          uSetPreErrorMessage(preErrorMsg);
      if (errorPrefix)
-@@ -929,14 +326,6 @@ main(int argc, char *argv[])
+@@ -931,14 +326,6 @@ main(int argc, char *argv[])
      file = NULL;
      XkbInitAtoms(NULL);
      XkbAddDefaultDirectoriesToPath();
@@ -863,7 +865,7 @@ index 6aedb67..12b0f27 100644
      if (inputFile != NULL)
      {
          if (strcmp(inputFile, "-") == 0)
-@@ -949,45 +338,11 @@ main(int argc, char *argv[])
+@@ -951,45 +338,11 @@ main(int argc, char *argv[])
              file = fopen(inputFile, "r");
          }
      }
@@ -910,7 +912,7 @@ index 6aedb67..12b0f27 100644
          {
              fclose(file);
              mapToUse = rtrn;
-@@ -1069,61 +424,12 @@ main(int argc, char *argv[])
+@@ -1071,61 +424,12 @@ main(int argc, char *argv[])
              }
              result.xkb->device_spec = device_id;
          }
@@ -972,7 +974,7 @@ index 6aedb67..12b0f27 100644
      else
      {
          fprintf(stderr, "Cannot open \"%s\" to compile\n", inputFile);
-@@ -1132,13 +438,6 @@ main(int argc, char *argv[])
+@@ -1134,13 +438,6 @@ main(int argc, char *argv[])
      if (ok)
      {
          FILE *out = stdout;
@@ -986,7 +988,7 @@ index 6aedb67..12b0f27 100644
          if (outputFile != NULL)
          {
              if (strcmp(outputFile, "-") == 0)
-@@ -1158,16 +457,8 @@ main(int argc, char *argv[])
+@@ -1160,16 +457,8 @@ main(int argc, char *argv[])
                  const char *openMode = "w";
                  unlink(outputFile);
  #ifdef O_BINARY
@@ -1005,7 +1007,7 @@ index 6aedb67..12b0f27 100644
  #endif
                  outputFileFd =
                      open(outputFile, O_WRONLY | O_CREAT | O_EXCL,
-@@ -1198,33 +489,7 @@ main(int argc, char *argv[])
+@@ -1200,33 +489,7 @@ main(int argc, char *argv[])
                  }
              }
          }
@@ -1040,7 +1042,7 @@ index 6aedb67..12b0f27 100644
          {
              if (fclose(out))
              {
-@@ -1244,11 +509,6 @@ main(int argc, char *argv[])
+@@ -1246,11 +509,6 @@ main(int argc, char *argv[])
              }
          }
      }

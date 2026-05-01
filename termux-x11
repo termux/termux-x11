@@ -1,4 +1,18 @@
 #!/data/data/com.termux/files/usr/bin/sh
+if [ ! -e /system/bin/getprop ] || [ ! -e /system/bin/app_process ]; then
+  echo "Headless system detected. Termux:X11 requires standard Android to work,"
+  echo "and depends on APKs and system properties."
+  echo "If you are using termux-docker, the 'vncserver' command"
+  echo "from 'pkg install tigervnc' is recommended instead."
+  exit 1
+fi
+if [ "$(getprop ro.build.version.sdk)" -lt "26" ]; then
+  echo "Termux:X11 requires at least Android 8 or newer."
+  echo "Please upgrade your Android device."
+  echo "If you cannot upgrade, the 'vncserver' command"
+  echo "from 'pkg install tigervnc' is recommended instead."
+  exit 1
+fi
 [ -z "${LD_LIBRARY_PATH+x}" ] || export XSTARTUP_LD_LIBRARY_PATH="$LD_LIBRARY_PATH"
 [ -z "${LD_PRELOAD+x}" ] || export XSTARTUP_LD_PRELOAD="$LD_PRELOAD"
 [ -z "${CLASSPATH+x}" ] || export XSTARTUP_CLASSPATH="$CLASSPATH"

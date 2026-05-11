@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/overlay_icon_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/overlay_icon_bg">
+
+    <ImageButton
+        android:id="@+id/overlay_icon"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/transparent"
+        android:padding="8dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_x11_icon" />
+
+</FrameLayout>

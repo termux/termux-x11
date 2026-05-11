@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/overlay_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F01E1E1E"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:focusable="true"
+    android:focusableInTouchMode="true">
+
+    <FrameLayout
+        android:id="@+id/overlay_content_host"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginLeft="6dp"
+        android:layout_marginTop="42dp"
+        android:layout_marginRight="6dp"
+        android:layout_marginBottom="6dp" />
+
+    <LinearLayout
+        android:id="@+id/overlay_title"
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:layout_marginLeft="6dp"
+        android:layout_marginRight="6dp"
+        android:layout_marginTop="6dp"
+        android:background="#464646"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/overlay_title_text"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:text="Termux:X11"
+            android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/overlay_minimize"
+            android:layout_width="48dp"
+            android:layout_height="match_parent"
+            android:text="_" />
+
+        <Button
+            android:id="@+id/overlay_close"
+            android:layout_width="48dp"
+            android:layout_height="match_parent"
+            android:text="X" />
+    </LinearLayout>
+
+    <View
+        android:id="@+id/resize_left"
+        android:layout_width="6dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="left" />
+
+    <View
+        android:id="@+id/resize_right"
+        android:layout_width="6dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="right" />
+
+    <View
+        android:id="@+id/resize_top"
+        android:layout_width="match_parent"
+        android:layout_height="6dp"
+        android:layout_gravity="top" />
+
+    <View
+        android:id="@+id/resize_bottom"
+        android:layout_width="match_parent"
+        android:layout_height="6dp"
+        android:layout_gravity="bottom" />
+
+    <View
+        android:id="@+id/resize_top_left"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="top|left" />
+
+    <View
+        android:id="@+id/resize_top_right"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="top|right" />
+
+    <View
+        android:id="@+id/resize_bottom_left"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="bottom|left" />
+
+    <View
+        android:id="@+id/resize_bottom_right"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="bottom|right" />
+
+</FrameLayout>

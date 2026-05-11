@@ -19,10 +19,16 @@
         <SwitchPreferenceCompat app:key="displayStretch" app:defaultValue="false" />
         <SwitchPreferenceCompat app:key="Reseed" app:defaultValue="true" />
         <SwitchPreferenceCompat app:key="PIP" app:defaultValue="false" />
+        <SwitchPreferenceCompat app:key="overlayMode" app:defaultValue="false" />
         <SwitchPreferenceCompat app:key="fullscreen" app:defaultValue="false" />
         <ListPreference app:key="forceOrientation" app:defaultValue="auto" app:entries="@array/forceOrientationVariants" app:entryValues="@array/forceOrientationVariants" />
         <SwitchPreferenceCompat app:key="hideCutout" app:defaultValue="false" />
         <SwitchPreferenceCompat app:defaultValue="true" app:key="keepScreenOn" />
+
+        <SeekBarPreference app:key="overlayWindowX" app:isPreferenceVisible="false" app:defaultValue="40" />
+        <SeekBarPreference app:key="overlayWindowY" app:isPreferenceVisible="false" app:defaultValue="80" />
+        <SeekBarPreference app:key="overlayWindowWidth" app:isPreferenceVisible="false" app:defaultValue="320" />
+        <SeekBarPreference app:key="overlayWindowHeight" app:isPreferenceVisible="false" app:defaultValue="240" />
     </PreferenceScreen>
     <PreferenceScreen app:key="pointer">
         <ListPreference app:key="touchMode" app:defaultValue="1" app:entries="@array/touchscreenInputModesEntries" app:entryValues="@array/touchscreenInputModesValues" />

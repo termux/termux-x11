@@ -24,6 +24,9 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.PixelFormat;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
@@ -33,11 +36,13 @@ import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.service.notification.StatusBarNotification;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
 import android.view.DragEvent;
+import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -45,14 +50,19 @@ import android.view.PointerIcon;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.view.ViewTreeObserver;
 import android.view.Window;
+import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -85,15 +95,23 @@ public class MainActivity extends AppCompatActivity {
     private Notification mNotification;
     private final int mNotificationId = 7892;
     NotificationManager mNotificationManager;
-    static InputMethodManager inputMethodManager;
+    static InputMethodManager mInputMethodManager;
+    WindowManager mWindowManager;
+    FrameLayout mContentView;
+    FrameLayout mOverlayStubView;
+    public final OverlayHelper mOverlayHelper = new OverlayHelper(this);
     private static boolean showIMEWhileExternalConnected = true;
     private static boolean externalKeyboardConnected = false;
-    private View.OnKeyListener mLorieKeyListener;
+    View.OnKeyListener mLorieKeyListener;
     private boolean filterOutWinKey = false;
     boolean useTermuxEKBarBehaviour = false;
     private boolean isInPictureInPictureMode = false;
 
     public static Prefs prefs = null;
+
+    private WindowManager.LayoutParams overlayLp;
+    private boolean overlayMode = false;
+    private LorieView overlayLorieView;
 
     private static boolean oldFullscreen = false, oldHideCutout = false;
     private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> onPreferencesChanged(key);
@@ -127,7 +145,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public boolean onPreDraw() {
             if (LorieView.connected())
-                handler.post(() -> findViewById(android.R.id.content).getViewTreeObserver().removeOnPreDrawListener(mOnPredrawListener));
+                handler.post(() -> mContentView.getViewTreeObserver().removeOnPreDrawListener(mOnPredrawListener));
             return false;
         }
     };
@@ -152,6 +170,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        mInputMethodManager = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        mWindowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+
         prefs = new Prefs(this);
         int modeValue = Integer.parseInt(prefs.touchMode.get()) - 1;
         if (modeValue > 2)
@@ -164,7 +186,11 @@ public class MainActivity extends AppCompatActivity {
 
         getWindow().setFlags(FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS | FLAG_KEEP_SCREEN_ON | FLAG_TRANSLUCENT_STATUS, 0);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
-        setContentView(R.layout.main_activity);
+        mContentView = (FrameLayout) getLayoutInflater().inflate(R.layout.main_activity, null, false);
+        mOverlayStubView = (FrameLayout) getLayoutInflater().inflate(R.layout.overlay_mode_stub_activity, null, false);
+        setContentView(mContentView);
+
+        overlayLorieView = mContentView.findViewById(R.id.lorieView);
 
         frm = findViewById(R.id.frame);
         findViewById(R.id.preferences_button).setOnClickListener((l) -> startActivity(new Intent(this, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}));
@@ -220,18 +246,14 @@ public class MainActivity extends AppCompatActivity {
             addAction(ACTION_CUSTOM);
         }}, SDK_INT >= VERSION_CODES.TIRAMISU ? RECEIVER_EXPORTED : 0);
 
-        inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-
         // Taken from Stackoverflow answer https://stackoverflow.com/questions/7417123/android-how-to-adjust-layout-in-full-screen-mode-when-softkeyboard-is-visible/7509285#
         FullscreenWorkaround.assistActivity(this);
-        mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         mNotification = buildNotification();
         mNotificationManager.notify(mNotificationId, mNotification);
 
         if (tryConnect()) {
-            final View content = findViewById(android.R.id.content);
-            content.getViewTreeObserver().addOnPreDrawListener(mOnPredrawListener);
-            handler.postDelayed(() -> content.getViewTreeObserver().removeOnPreDrawListener(mOnPredrawListener), 500);
+            mContentView.getViewTreeObserver().addOnPreDrawListener(mOnPredrawListener);
+            handler.postDelayed(() -> mContentView.getViewTreeObserver().removeOnPreDrawListener(mOnPredrawListener), 500);
         }
         onPreferencesChanged("");
 
@@ -247,7 +269,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         onReceiveConnection(getIntent());
-        findViewById(android.R.id.content).addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> makeSureHelpersAreVisibleAndInScreenBounds());
+        mContentView.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> makeSureHelpersAreVisibleAndInScreenBounds());
     }
 
     @Override
@@ -567,7 +589,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     void onPreferencesChanged(String key) {
-        if ("additionalKbdVisible".equals(key))
+        if ("additionalKbdVisible".equals(key) ||
+                "overlayWindowX".equals(key) ||
+                "overlayWindowY".equals(key) ||
+                "overlayWindowWidth".equals(key) ||
+                "overlayWindowHeight".equals(key))
+
             return;
 
         handler.removeCallbacks(this::onPreferencesChangedCallback);
@@ -577,6 +604,16 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("UnsafeIntentLaunch")
     void onPreferencesChangedCallback() {
         prefs.recheckStoringSecondaryDisplayPreferences();
+
+        if (prefs.overlayMode.get()) {
+            if (Settings.canDrawOverlays(this))
+                mOverlayHelper.show();
+            else
+                Toast.makeText(this, R.string.lorie_pref_overlayMode_not_granted, Toast.LENGTH_SHORT).show();
+        } else if (mOverlayHelper.isEnabled()) {
+            oldFullscreen = !oldFullscreen; // invalidate fullscreen mode
+            mOverlayHelper.hide();
+        }
 
         onWindowFocusChanged(hasWindowFocus());
         LorieView lorieView = getLorieView();
@@ -626,13 +663,26 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onPause() {
-        inputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
+        mInputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
 
         for (StatusBarNotification notification: mNotificationManager.getActiveNotifications())
             if (notification.getId() == mNotificationId)
                 mNotificationManager.cancel(mNotificationId);
 
         super.onPause();
+    }
+
+    @Override
+    public <T extends View> T findViewById(int id) {
+        T v = super.findViewById(id);
+        if (v != null) return v;
+
+        if (mContentView != null) {
+            v = mContentView.findViewById(id);
+            if (v != null) return v;
+        }
+
+        return null;
     }
 
     public LorieView getLorieView() {
@@ -725,7 +775,7 @@ public class MainActivity extends AppCompatActivity {
         super.onConfigurationChanged(newConfig);
 
         if (newConfig.orientation != orientation)
-            inputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
+            mInputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
 
         orientation = newConfig.orientation;
         setTerminalToolbarView();
@@ -802,7 +852,7 @@ public class MainActivity extends AppCompatActivity {
 
         window.setSoftInputMode(reseed ? SOFT_INPUT_ADJUST_RESIZE : SOFT_INPUT_ADJUST_PAN);
 
-        ((FrameLayout) findViewById(android.R.id.content)).getChildAt(0).setFitsSystemWindows(!fullscreen);
+        mContentView.setFitsSystemWindows(!fullscreen);
     }
 
     @Override
@@ -821,7 +871,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onUserLeaveHint() {
-        if (prefs.PIP.get() && hasPipPermission(this)) {
+        if (prefs.PIP.get() && !prefs.overlayMode.get() && hasPipPermission(this)) {
             enterPictureInPictureMode();
         }
     }
@@ -842,16 +892,15 @@ public class MainActivity extends AppCompatActivity {
      * @param context calling context
      */
     public static void toggleKeyboardVisibility(Context context) {
+        if (mInputMethodManager == null) return;
         Log.d("MainActivity", "Toggling keyboard visibility");
-        if(inputMethodManager != null) {
-            android.util.Log.d("toggleKeyboardVisibility", "externalKeyboardConnected " + externalKeyboardConnected + " showIMEWhileExternalConnected " + showIMEWhileExternalConnected);
-            if (!externalKeyboardConnected || showIMEWhileExternalConnected)
-                inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
-            else
-                inputMethodManager.hideSoftInputFromWindow(getInstance().getWindow().getDecorView().getRootView().getWindowToken(), 0);
+        android.util.Log.d("toggleKeyboardVisibility", "externalKeyboardConnected " + externalKeyboardConnected + " showIMEWhileExternalConnected " + showIMEWhileExternalConnected);
+        if (!externalKeyboardConnected || showIMEWhileExternalConnected)
+            mInputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+        else
+            mInputMethodManager.hideSoftInputFromWindow(getInstance().getWindow().getDecorView().getRootView().getWindowToken(), 0);
 
-            getInstance().getLorieView().requestFocus();
-        }
+        getInstance().getLorieView().requestFocus();
     }
 
     @SuppressWarnings("SameParameterValue")
@@ -908,7 +957,7 @@ public class MainActivity extends AppCompatActivity {
         if (textInput != null)
             textInput.setShowSoftInputOnFocus(!connected || showIMEWhileExternalConnected);
         if (connected && !showIMEWhileExternalConnected)
-            inputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
+            mInputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
         getLorieView().requestFocus();
     }
 }

@@ -7,6 +7,8 @@ import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.os.Build.VERSION.SDK_INT;
 import static android.system.Os.getuid;
 
+import static androidx.core.content.ContentProviderCompat.requireContext;
+
 import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
@@ -187,6 +189,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
     }
 
     public static class LoriePreferenceFragment extends PreferenceFragmentCompat implements OnPreferenceChangeListener {
+        private static boolean mPendingOverlayPermissionRequest = false;
         private final Runnable updateLayout = this::updatePreferencesLayout;
         private static final Method onSetInitialValue;
         static {
@@ -221,6 +224,13 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             super.onResume();
             //noinspection DataFlowIssue
             ((LoriePreferences) getActivity()).getSupportActionBar().setTitle(getPreferenceScreen().getTitle());
+
+            // ACTION_MANAGE_OVERLAY_PERMISSION does not give normal result, so we check it after
+            // user gets back to this activity.
+            if (mPendingOverlayPermissionRequest) {
+                mPendingOverlayPermissionRequest = false;
+                prefs.overlayMode.put(Settings.canDrawOverlays(requireContext()));
+            }
         }
 
         /** @noinspection SameParameterValue*/
@@ -444,6 +454,16 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                             .show();
                     return false;
                 }
+            }
+
+            if ("overlayMode".equals(key)) {
+                if (!((Boolean) newValue) || Settings.canDrawOverlays(requireContext()))
+                    return true;
+
+                mPendingOverlayPermissionRequest = true;
+                startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + requireContext().getPackageName())));
+
+                return false;
             }
             
             requireContext().sendBroadcast(new Intent(ACTION_PREFERENCES_CHANGED) {{
@@ -767,6 +787,10 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
             public int get() {
                 return preferences.getInt(key, (int) defValue);
+            }
+
+            public void put(int v) {
+                preferences.edit().putInt(key, v).commit();
             }
 
             public int defValue() {

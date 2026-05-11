@@ -7,6 +7,7 @@
     <string name="app_name">&TERMUX_X11_APP_NAME;</string>
 
     <string name="not_connected">Not connected</string>
+    <string name="overlay_mode_text">Running in overlay mode</string>
     <string name="preferences_button_text">   PREFERENCES   </string>
     <string name="help_button_text">   HELP   </string>
     <string name="exit_button_text">   EXIT   </string>
@@ -46,6 +47,9 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_Reseed_summary">The screen size will be adjusted while Soft Keyboard is open.</string>
     <string name="lorie_pref_PIP">PIP mode</string>
     <string name="lorie_pref_PIP_summary">Show app in picture-in-picture mode when home button or recents button is pressed</string>
+    <string name="lorie_pref_overlayMode">Overlay mode</string>
+    <string name="lorie_pref_overlayMode_summary">Show app in a movable and resizable overlay window</string>
+    <string name="lorie_pref_overlayMode_not_granted">Appear on top permission is not granted</string>
     <string name="lorie_pref_fullscreen">Fullscreen</string>
     <string name="lorie_pref_fullscreen_summary">Toggle immersive mode in your device display</string>
     <string name="lorie_pref_forceOrientation">Screen orientation</string>

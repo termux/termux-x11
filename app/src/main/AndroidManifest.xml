@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-feature android:name="android.hardware.usb.host" />
 
     <application
         android:allowBackup="false"
@@ -69,8 +70,20 @@
                 <action android:name="com.termux.x11.CHANGE_PREFERENCE" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".displaylink.DisplayLinkDebugReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.termux.x11.displaylink.START" />
+                <action android:name="com.termux.x11.displaylink.STOP" />
+                <action android:name="com.termux.x11.displaylink.MARK" />
+            </intent-filter>
+        </receiver>
     </application>
     <queries>
         <package android:name="com.termux" />
+        <package android:name="com.displaylink.presenter" />
     </queries>
 </manifest>

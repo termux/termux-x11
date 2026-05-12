@@ -839,6 +839,7 @@ public class LorieView extends SurfaceView implements InputStub {
 
     @FastNative private native void nativeInit();
     @FastNative private native void surfaceChanged(Surface surface);
+    @FastNative public native void requestRender();
     @FastNative private native void setFiltering(int filtering);
     @FastNative static native void connect(int fd);
     @CriticalNative static native boolean connected();

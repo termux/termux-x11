@@ -448,6 +448,40 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     return TRUE;
 }
 
+static Bool lorieForceRenderWork(__unused ClientPtr pClient, __unused void *closure) {
+    PixmapPtr root;
+    BoxRec box;
+    RegionRec region;
+
+    if (!pvfb->state || !pScreenPtr || !pScreenPtr->root) {
+        return TRUE;
+    }
+
+    root = pScreenPtr->GetWindowPixmap(pScreenPtr->root);
+    if (!root) {
+        return TRUE;
+    }
+
+    box = (BoxRec) { 0, 0, (short) root->drawable.width, (short) root->drawable.height };
+    log(INFO, "DisplayLink force render work queued for %dx%d", root->drawable.width, root->drawable.height);
+    RegionInit(&region, &box, 1);
+    DamageDamageRegion(&root->drawable, &region);
+    RegionUninit(&region);
+    pvfb->state->drawRequested = TRUE;
+    pthread_cond_signal(&pvfb->state->cond);
+    return TRUE;
+}
+
+void lorieRequestRender(void) {
+    if (!pvfb->state || !pScreenPtr) {
+        return;
+    }
+
+    log(INFO, "DisplayLink force render requested");
+    QueueWorkProc(lorieForceRenderWork, NULL, NULL);
+    lorieWakeServer();
+}
+
 static CARD32 lorieFramecounter(unused OsTimerPtr timer, unused CARD32 time, unused void *arg) {
     if (pvfb->state->renderedFrames)
         log(INFO, "%d frames in 5.0 seconds = %.1f FPS",
@@ -690,7 +724,7 @@ void lorieConfigureNotify(int width, int height, int framerate, size_t name_size
         CARD32 mmWidth, mmHeight;
         RRModePtr mode = lorieCvt(width, height, framerate);
         mmWidth = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
-        mmHeight = ((double) (mode->mode.width)) * 25.4 / monitorResolution;
+        mmHeight = ((double) (mode->mode.height)) * 25.4 / monitorResolution;
         RROutputSetModes(output, &mode, 1, 0);
         RRCrtcNotify(RRFirstEnabledCrtc(pScreen), mode, 0, 0, RR_Rotate_0, NULL, 1, &output);
         RRScreenSizeSet(pScreen, mode->mode.width, mode->mode.height, mmWidth, mmHeight);

@@ -382,11 +382,16 @@ static void surfaceChanged(JNIEnv *env, __unused jobject thiz, jobject sfc) {
     rendererSetWindow(win);
 }
 
+static void requestRender(__unused JNIEnv *env, __unused jobject thiz) {
+    lorieRequestRender();
+}
+
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
     JNIEnv* env;
     static JNINativeMethod methods[] = {
             {"nativeInit", "()V", (void *)&nativeInit},
             {"surfaceChanged", "(Landroid/view/Surface;)V", (void *)&surfaceChanged},
+            {"requestRender", "()V", (void *)&requestRender},
             {"setFiltering", "(I)V", (void *)&rendererSetFiltering},
             {"connect", "(I)V", (void *)&connect_},
             {"connected", "()Z", (void *)&connected},
@@ -407,6 +412,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
     jclass cls = (*env)->FindClass(env, "com/termux/x11/LorieView");
     (*env)->RegisterNatives(env, cls, methods, sizeof(methods)/sizeof(methods[0]));
 
+    rendererSetJavaVm(vm);
+    rendererInitDisplayLinkBridge(env);
     rendererInit(env);
 
     return JNI_VERSION_1_6;

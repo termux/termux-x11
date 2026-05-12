@@ -31,10 +31,16 @@ void lorieSetStylusEnabled(Bool enabled);
 void lorieWakeServer(void);
 void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d);
 void lorieActivityConnected(void);
+void lorieRequestRender(void);
 void lorieSendSharedServerState(int memfd);
 void lorieRegisterBuffer(LorieBuffer* buffer);
 void lorieUnregisterBuffer(LorieBuffer* buffer);
 bool lorieConnectionAlive(void);
+bool displaylinkSinkEnabled(void);
+bool displaylinkSinkFrame(const struct lorie_shared_server_state* state, LorieBuffer* buffer, const LorieBuffer_Desc* desc,
+                          bool drawRequested, bool cursorUpdated, bool cursorMoved);
+void rendererSetJavaVm(JavaVM* vm);
+void rendererInitDisplayLinkBridge(JNIEnv* env);
 
 __unused void rendererInit(JNIEnv* env);
 __unused void rendererSetFiltering(JNIEnv* env, jobject self, jint filtering);

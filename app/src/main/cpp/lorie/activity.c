@@ -374,19 +374,12 @@ static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
     }
 }
 
-static void surfaceChanged(JNIEnv *env, __unused jobject thiz, jobject sfc) {
-    ANativeWindow* win = sfc ? ANativeWindow_fromSurface(env, sfc) : NULL;
-    if (win)
-        ANativeWindow_acquire(win);
-
-    rendererSetWindow(win);
-}
-
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
     JNIEnv* env;
     static JNINativeMethod methods[] = {
             {"nativeInit", "()V", (void *)&nativeInit},
-            {"surfaceChanged", "(Landroid/view/Surface;)V", (void *)&surfaceChanged},
+            {"surfaceChanged", "(Landroid/view/Surface;)V", (void *)&rendererSetWindow},
+            {"setViewport", "(IIIIII)V", (void *)&rendererSetViewport},
             {"setFiltering", "(I)V", (void *)&rendererSetFiltering},
             {"connect", "(I)V", (void *)&connect_},
             {"connected", "()Z", (void *)&connected},

@@ -10,6 +10,8 @@
 #define EGL_EGLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES
 
+#define CVT_H_GRANULARITY 8
+
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
@@ -117,10 +119,10 @@ static ANativeWindow *defaultWin = NULL, *win = NULL;
 static volatile struct xorg_list addedBuffers, buffers, removedBuffers;
 volatile jint filtering = GL_NEAREST;
 
-static JNIEnv* renderEnv = NULL;
 static volatile bool stateChanged = false, windowChanged = false;
 static volatile struct lorie_shared_server_state* pendingState = NULL;
 static volatile ANativeWindow* pendingWin = NULL;
+static volatile int viewportX = 0, viewportY = 0, viewportW = 0, viewportH = 0, expectedW = 0, expectedH = 0;
 
 static pthread_mutex_t stateLock;
 static pthread_cond_t stateCond;
@@ -430,7 +432,11 @@ void rendererRemoveAllBuffers(void) {
     pthread_spin_unlock(&bufferLock);
 }
 
-void rendererSetWindow(ANativeWindow* newWin) {
+void rendererSetWindow(JNIEnv *env, __unused jobject thiz, jobject jsfc) {
+    ANativeWindow* newWin = jsfc ? ANativeWindow_fromSurface(env, jsfc) : NULL;
+    if (newWin)
+        ANativeWindow_acquire(newWin);
+
     pthread_mutex_lock(&stateLock);
     if (newWin && pendingWin == newWin) {
         ANativeWindow_release(newWin);
@@ -442,6 +448,7 @@ void rendererSetWindow(ANativeWindow* newWin) {
         ANativeWindow_release(pendingWin);
 
     pendingWin = newWin;
+    expectedW = expectedH = 0;
     windowChanged = TRUE;
 
     pthread_cond_signal(&stateCond);
@@ -472,6 +479,20 @@ static inline __always_inline void releaseWinAndSurface(ANativeWindow** anw, EGL
         ANativeWindow_release(*anw);
         *anw = defaultWin;
     }
+}
+
+void rendererSetViewport(__unused JNIEnv *env, __unused jclass clazz, int x, int y, int w, int h, int ew, int eh) {
+    pthread_mutex_lock(&stateLock);
+    viewportX = x;
+    viewportY = y;
+    viewportW = w;
+    viewportH = h;
+    expectedW = ew;
+    expectedH = eh;
+    if (state)
+        state->drawRequested = true;
+    pthread_cond_signal(&stateCond);
+    pthread_mutex_unlock(&stateLock);
 }
 
 void rendererRefreshContext(void) {
@@ -540,6 +561,19 @@ void rendererRedrawLocked(bool* waitingForBuffers) {
     }
 
     desc = LorieBuffer_description(buffer);
+
+    int alignedExpectedW = expectedW - (expectedW % CVT_H_GRANULARITY);
+
+    if (!expectedW || !expectedH || desc->height != expectedH ||
+        (desc->width != alignedExpectedW && desc->width != expectedW)) {
+        log("Buffer %llu is not of expected size, expecting %dx%d or %dx%d, got %dx%d",
+            state->rootWindowTextureID, alignedExpectedW, expectedH, expectedW, expectedH,
+            desc->width, desc->height);
+        return;
+    }
+
+    int surfaceH = ANativeWindow_getHeight(win);
+    glViewport(viewportX, surfaceH - viewportY - viewportH, viewportW, viewportH);
 
     // We should signal X server to not use root window while we actively copy it
     lorie_mutex_lock(&state->lock, &state->lockingPid);

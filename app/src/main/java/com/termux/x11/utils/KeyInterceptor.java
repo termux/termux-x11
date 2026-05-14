@@ -97,6 +97,22 @@ public class KeyInterceptor extends AccessibilityService {
         }
     }
 
+    private void releaseStaleModifiers(KeyEvent event, MainActivity instance) {
+        releaseStaleModifier(event, instance, KeyEvent.KEYCODE_META_LEFT, event.isMetaPressed());
+        releaseStaleModifier(event, instance, KeyEvent.KEYCODE_META_RIGHT, event.isMetaPressed());
+        releaseStaleModifier(event, instance, KeyEvent.KEYCODE_CTRL_LEFT, event.isCtrlPressed());
+        releaseStaleModifier(event, instance, KeyEvent.KEYCODE_CTRL_RIGHT, event.isCtrlPressed());
+        releaseStaleModifier(event, instance, KeyEvent.KEYCODE_ALT_LEFT, event.isAltPressed());
+        releaseStaleModifier(event, instance, KeyEvent.KEYCODE_ALT_RIGHT, event.isAltPressed());
+        releaseStaleModifier(event, instance, KeyEvent.KEYCODE_SHIFT_LEFT, event.isShiftPressed());
+        releaseStaleModifier(event, instance, KeyEvent.KEYCODE_SHIFT_RIGHT, event.isShiftPressed());
+    }
+
+    private void releaseStaleModifier(KeyEvent event, MainActivity instance, int keyCode, boolean stillPressed) {
+        if (!stillPressed && pressedKeys.remove(keyCode))
+            instance.handleKey(new KeyEvent(event.getDownTime(), event.getEventTime(), KeyEvent.ACTION_UP, keyCode, 0, event.getMetaState()));
+    }
+
     @Override
     public boolean onKeyEvent(KeyEvent event) {
         boolean ret = false;
@@ -117,6 +133,9 @@ public class KeyInterceptor extends AccessibilityService {
         // I.e. if user switched window with Win+Tab or if he was pressing Ctrl while switching activity.
         if (event.getAction() == KeyEvent.ACTION_UP)
             pressedKeys.remove(event.getKeyCode());
+
+        if (intercept)
+            releaseStaleModifiers(event, instance);
 
         recheck();
 

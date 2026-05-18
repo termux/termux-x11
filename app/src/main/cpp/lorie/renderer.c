@@ -270,7 +270,7 @@ void rendererSetFiltering(JNIEnv* env, jobject self, jint f) {
     filtering = f;
 }
 
-void rendererTestCapabilities(int* legacy_drawing, uint8_t* flip) {
+void rendererTestCapabilities(int* legacy_drawing) {
     // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     EGLint numConfigs;
@@ -320,14 +320,9 @@ void rendererTestCapabilities(int* legacy_drawing, uint8_t* flip) {
     }
 
     if (!(img = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes))) {
-        if (eglGetError() == EGL_BAD_PARAMETER) {
-            loge("Sampling from HAL_PIXEL_FORMAT_BGRA_8888 is not supported, forcing AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM");
-            *flip = 1;
-        } else {
-            loge("Failed to obtain EGLImageKHR from EGLClientBuffer");
-            loge("Forcing legacy drawing");
-            *legacy_drawing = 1;
-        }
+        loge("Failed to obtain EGLImageKHR from EGLClientBuffer");
+        loge("Forcing legacy drawing");
+        *legacy_drawing = 1;
         AHardwareBuffer_release(new);
     } else {
         // For some reason all devices I checked had no GL_EXT_texture_format_BGRA8888 support, but some of them still provided BGRA extension.
@@ -365,10 +360,7 @@ void rendererTestCapabilities(int* legacy_drawing, uint8_t* flip) {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0); checkGlError();
         uint32_t pixel[64*64];
         glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel); checkGlError();
-        if (pixel[0] == 0xAABBCCDD) {
-            log("Xlorie: GLES draws pixels unchanged, probably system does not support AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM. Forcing bgra.\n");
-            *flip = 1;
-        } else if (pixel[0] != 0xAADDCCBB) {
+        if (pixel[0] != 0xAADDCCBB) {
             log("Xlorie: GLES receives broken pixels. Forcing legacy drawing. 0x%X\n", pixel[0]);
             *legacy_drawing = 1;
         }

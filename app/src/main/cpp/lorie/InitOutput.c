@@ -71,7 +71,6 @@ typedef struct {
     struct lorie_shared_server_state* state;
     struct {
         Bool legacyDrawing;
-        uint8_t flip;
         uint32_t width, height;
         char name[1024];
         uint32_t framerate;
@@ -272,10 +271,8 @@ int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
         return 1;
     }
 
-    if (strcmp(argv[i], "-force-bgra") == 0) {
-        pvfb->root.flip = TRUE;
+    if (strcmp(argv[i], "-force-bgra") == 0)
         return 1;
-    }
 
     if (strcmp(argv[i], "-disable-dri3") == 0) {
         pvfb->dri3 = FALSE;
@@ -721,7 +718,7 @@ void InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     screen_info->bitmapBitOrder = BITMAP_BIT_ORDER;
     screen_info->numPixmapFormats = ARRAY_SIZE(depths);
 
-    rendererTestCapabilities(&pvfb->root.legacyDrawing, &pvfb->root.flip);
+    rendererTestCapabilities(&pvfb->root.legacyDrawing);
     xorgGlxCreateVendor();
     lorieInitClipboard();
 
@@ -792,8 +789,7 @@ Bool loriePresentFlip(__unused RRCrtcPtr crtc, __unused uint64_t event_id, __unu
     if (desc->type == LORIEBUFFER_REGULAR) {
         // Regular buffers can not be shared to activity, we must explicitly convert LorieBuffer to FD or AHardwareBuffer
         int8_t type = pvfb->root.legacyDrawing ? LORIEBUFFER_FD : LORIEBUFFER_AHARDWAREBUFFER;
-        int8_t format = pvfb->root.flip ? AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM : AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
-        LorieBuffer_convert(priv->buffer, type, format);
+        LorieBuffer_convert(priv->buffer, type, AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM);
         if (desc->type != LORIEBUFFER_REGULAR) {
             // LorieBuffer_convert does not report status but it does not let the type change in the case of error.
             pScreenPtr->ModifyPixmapHeader(pixmap, 0, 0, 0, 0, desc->stride * 4, NULL);
@@ -852,8 +848,7 @@ void *lorieCreatePixmap(__unused ScreenPtr pScreen, int width, int height, __unu
         return priv;
 
     uint8_t type = usage_hint != CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED ? LORIEBUFFER_REGULAR : pvfb->root.legacyDrawing ? LORIEBUFFER_FD : LORIEBUFFER_AHARDWAREBUFFER;
-    uint8_t format = pvfb->root.flip ? AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM : AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM;
-    priv->buffer = LorieBuffer_allocate(width, height, format, type);
+    priv->buffer = LorieBuffer_allocate(width, height, AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM, type);
     *new_fb_pitch = LorieBuffer_description(priv->buffer)->stride * 4;
 
     LorieBuffer_lock(priv->buffer, &priv->locked);

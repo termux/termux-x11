@@ -283,7 +283,7 @@ void rendererTestCapabilities(int* legacy_drawing) {
             .height = 64,
             .layers = 1,
             .usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
-            .format = AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM
+            .format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM
     };
 
     if (egl_display == EGL_NO_DISPLAY) {

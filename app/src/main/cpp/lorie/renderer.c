@@ -360,7 +360,7 @@ void rendererTestCapabilities(int* legacy_drawing) {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0); checkGlError();
         uint32_t pixel[64*64];
         glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel); checkGlError();
-        if (pixel[0] != 0xAADDCCBB) {
+        if (pixel[0] != 0xAABBCCDD && pixel[0] != 0xFFBBCCDD) {
             log("Xlorie: GLES receives broken pixels. Forcing legacy drawing. 0x%X\n", pixel[0]);
             *legacy_drawing = 1;
         }

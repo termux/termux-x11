@@ -269,6 +269,9 @@ public class TouchInputHandler {
     }
 
     public boolean handleTouchEvent(View view0, View view, MotionEvent event) {
+        if (event.getDeviceId() >= 0)
+            mInjector.releaseStuckModifiers(event.getMetaState());
+
         // Regular touchpads and Dex touchpad (in captured mode) send events as finger too,
         // but they should be handled as touchscreens with trackpad mode.
         if (mTouchpadHandler != null && ((event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER &&
@@ -788,6 +791,9 @@ public class TouchInputHandler {
 
             return false;
         }
+
+        if (e.getDeviceId() >= 0)
+            mInjector.releaseStuckModifiers(e.getMetaState());
 
         if (isMediaSessionKey(k)) {
             if (mediaKeysAction == noAction)

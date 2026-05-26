@@ -52,6 +52,34 @@ public final class InputEventSender {
         mPressedKeys = new TreeSet<>();
     }
 
+    private static final int[][] MODIFIER_KEYS = {
+        {META_SHIFT_ON, KEYCODE_SHIFT_LEFT, KEYCODE_SHIFT_RIGHT},
+        {META_CTRL_ON, KEYCODE_CTRL_LEFT, KEYCODE_CTRL_RIGHT},
+        {META_ALT_ON, KEYCODE_ALT_LEFT, KEYCODE_ALT_RIGHT},
+        {META_META_ON, KEYCODE_META_LEFT, KEYCODE_META_RIGHT},
+    };
+
+    /**
+     * Releases modifier keys that are tracked as pressed in mPressedKeys but are absent from
+     * the incoming event's metaState. Call this at the start of real (non-synthetic) event
+     * handling to clear modifiers that were "stuck" because their key-up events were swallowed
+     * by the system (e.g. after Alt+Tab app switching). Synthetic events and extra-key-bar events
+     * arrive with deviceId < 0 and must be filtered by the caller before invoking this method.
+     *
+     * Entries are removed from mPressedKeys before the corresponding sendKeyEvent call to prevent
+     * re-entrant invocations from attempting a double-release.
+     */
+    public void releaseStuckModifiers(int eventMetaState) {
+        for (int[] mod : MODIFIER_KEYS) {
+            if ((eventMetaState & mod[0]) == 0) {
+                for (int i = 1; i < mod.length; i++) {
+                    if (mPressedKeys.remove(mod[i]))
+                        mInjector.sendKeyEvent(0, mod[i], false);
+                }
+            }
+        }
+    }
+
     private static final List<Integer> buttons = List.of(BUTTON_UNDEFINED, BUTTON_LEFT, BUTTON_MIDDLE, BUTTON_RIGHT);
     public void sendMouseEvent(PointF pos, int button, boolean down, boolean relative) {
         if (!buttons.contains(button))

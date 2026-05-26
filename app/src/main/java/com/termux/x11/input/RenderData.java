@@ -16,9 +16,6 @@ public class RenderData {
 
     public int screenWidth;
     public int screenHeight;
-    public int imageWidth;
-    public int imageHeight;
-
     /**
      * Specifies the position, in image coordinates, at which the cursor image will be drawn.
      * This will normally be at the location of the most recently injected motion event.

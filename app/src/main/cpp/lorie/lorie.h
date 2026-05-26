@@ -41,6 +41,7 @@ __unused void rendererSetFiltering(JNIEnv* env, jobject self, jint filtering);
 __unused void rendererTestCapabilities(int* legacy_drawing);
 __unused void rendererSetWindow(JNIEnv *env, jobject thiz, jobject sfc);
 __unused void rendererSetViewport(JNIEnv *env, jclass clazz, int x, int y, int w, int h, int ew, int eh);
+__unused void rendererSetZoom(JNIEnv *env, jclass clazz, int percent);
 __unused void rendererSetSharedState(struct lorie_shared_server_state* newState);
 __unused void rendererAddBuffer(LorieBuffer* buf);
 __unused void rendererRemoveBuffer(uint64_t id);

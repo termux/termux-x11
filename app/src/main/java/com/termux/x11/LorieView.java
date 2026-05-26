@@ -26,6 +26,7 @@ import android.text.Selection;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.Display;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -52,6 +53,7 @@ import androidx.core.math.MathUtils;
 
 import com.termux.x11.input.InputStub;
 import com.termux.x11.input.TouchInputHandler;
+import com.termux.x11.utils.SamsungDexUtils;
 
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -332,8 +334,10 @@ class InputConnectionWrapper implements InputConnection {
 @Keep @SuppressLint("WrongConstant")
 @SuppressWarnings("deprecation")
 public class LorieView extends SurfaceView implements InputStub {
+    private static int rendererZoom = 100;
+
     public interface Callback {
-        void changed(int surfaceWidth, int surfaceHeight, int screenWidth, int screenHeight, Matrix inputTransform);
+        void inputTransformChanged(int screenWidth, int screenHeight, Matrix inputTransform);
     }
 
     interface PixelFormat {
@@ -349,7 +353,10 @@ public class LorieView extends SurfaceView implements InputStub {
     private final Point p = new Point();
     private final Rect contentInsets = new Rect();
     private final Rect viewport = new Rect();
+    private final Rect inputViewport = new Rect();
     private final Matrix inputTransform = new Matrix();
+    private float inputSourceLeft = 0.f, inputSourceTop = 0.f;
+    private float inputSourceWidth = 0.f, inputSourceHeight = 0.f;
     boolean commitedText = false;
     private final InputConnection mConnection = new InputConnectionWrapper(new BaseInputConnection(this, false) {
         private final MainActivity a = MainActivity.getInstance();
@@ -650,9 +657,48 @@ public class LorieView extends SurfaceView implements InputStub {
 
     private Matrix getInputTransform() {
         inputTransform.reset();
-        inputTransform.postTranslate(-viewport.left, -viewport.top);
-        inputTransform.postScale((float) p.x / (float) viewport.width(), (float) p.y / (float) viewport.height());
+        inputTransform.postTranslate(-inputViewport.left, -inputViewport.top);
+        inputTransform.postScale(inputSourceWidth / (float) inputViewport.width(), inputSourceHeight / (float) inputViewport.height());
+        inputTransform.postTranslate(inputSourceLeft, inputSourceTop);
         return new Matrix(inputTransform);
+    }
+
+    private void updateInputTransform() {
+        if (mCallback != null)
+            mCallback.inputTransformChanged(p.x, p.y, getInputTransform());
+    }
+
+    private void sendWindowChange() {
+        String name;
+        int framerate = (int) (getDisplay() != null ? getDisplay().getRefreshRate() : 30);
+
+        if (getDisplay() == null || getDisplay().getDisplayId() == Display.DEFAULT_DISPLAY)
+            name = "builtin";
+        else if (SamsungDexUtils.checkDeXEnabled(MainActivity.getInstance()))
+            name = "dex";
+        else
+            name = "external";
+
+        sendWindowChange(p.x, p.y, framerate, name);
+    }
+
+    @Keep
+    @SuppressWarnings("unused")
+    private static void setRendererViewport(int viewportLeft, int viewportTop, int viewportWidth, int viewportHeight,
+                                            float sourceLeft, float sourceTop, float sourceWidth, float sourceHeight) {
+        MainActivity.handler.post(() -> {
+            MainActivity activity = MainActivity.getInstance();
+            if (activity == null)
+                return;
+
+            LorieView view = activity.getLorieView();
+            view.inputViewport.set(viewportLeft, viewportTop, viewportLeft + viewportWidth, viewportTop + viewportHeight);
+            view.inputSourceLeft = sourceLeft;
+            view.inputSourceTop = sourceTop;
+            view.inputSourceWidth = sourceWidth;
+            view.inputSourceHeight = sourceHeight;
+            view.updateInputTransform();
+        });
     }
 
     public void setContentInsets(int left, int top, int right, int bottom) {
@@ -690,10 +736,16 @@ public class LorieView extends SurfaceView implements InputStub {
         int top = availableTop + (availableH - drawH) / 2;
 
         viewport.set(left, top, left + drawW, top + drawH);
+        if (rendererZoom == 100 || inputSourceWidth == 0.f || inputSourceHeight == 0.f) {
+            inputViewport.set(viewport);
+            inputSourceLeft = inputSourceTop = 0.f;
+            inputSourceWidth = p.x;
+            inputSourceHeight = p.y;
+        }
         setViewport(viewport.left, viewport.top, viewport.width(), viewport.height(), p.x, p.y);
 
-        if (mCallback != null)
-            mCallback.changed(availableW, availableH, p.x, p.y, getInputTransform());
+        updateInputTransform();
+        sendWindowChange();
     }
 
     @Override
@@ -863,6 +915,18 @@ public class LorieView extends SurfaceView implements InputStub {
     @FastNative public native void sendClipboardEvent(byte[] text);
     @FastNative static native void sendWindowChange(int width, int height, int framerate, String name);
     @FastNative static native void setViewport(int x, int y, int width, int height, int expectedWidth, int expectedHeight);
+    @FastNative private static native void setRendererZoom(int percent);
+
+    public void adjustRendererZoom(int delta) {
+        rendererZoom = MathUtils.clamp(rendererZoom + delta, 100, 400);
+        setRendererZoom(rendererZoom);
+    }
+
+    public void resetRendererZoom() {
+        rendererZoom = 100;
+        setRendererZoom(rendererZoom);
+    }
+
     @FastNative public native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
     @FastNative public native void sendTouchEvent(int action, int id, int x, int y);
     @FastNative public native void sendStylusEvent(float x, float y, int pressure, int tiltX, int tiltY, int orientation, int buttons, boolean eraser, boolean mouseMode);

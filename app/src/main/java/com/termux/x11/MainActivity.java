@@ -36,7 +36,6 @@ import android.os.SystemClock;
 import android.service.notification.StatusBarNotification;
 import android.util.DisplayMetrics;
 import android.util.Log;
-import android.view.Display;
 import android.view.DragEvent;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -65,7 +64,6 @@ import com.termux.x11.input.InputStub;
 import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.FullscreenWorkaround;
 import com.termux.x11.utils.KeyInterceptor;
-import com.termux.x11.utils.SamsungDexUtils;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
 
@@ -126,11 +124,19 @@ public class MainActivity extends AppCompatActivity {
     ViewTreeObserver.OnPreDrawListener mOnPredrawListener = new ViewTreeObserver.OnPreDrawListener() {
         @Override
         public boolean onPreDraw() {
-            if (LorieView.connected())
-                handler.post(() -> findViewById(android.R.id.content).getViewTreeObserver().removeOnPreDrawListener(mOnPredrawListener));
-            return false;
+            if (!LorieView.connected())
+                return false;
+
+            finishStartupDraw();
+            return true;
         }
     };
+
+    private void finishStartupDraw() {
+        View content = findViewById(android.R.id.content);
+        content.getViewTreeObserver().removeOnPreDrawListener(mOnPredrawListener);
+        content.invalidate();
+    }
 
     @SuppressLint("StaticFieldLeak")
     private static MainActivity instance;
@@ -199,21 +205,8 @@ public class MainActivity extends AppCompatActivity {
         lorieParent.setOnCapturedPointerListener((v, e) -> mInputHandler.handleTouchEvent(lorieView, lorieView, e));
         lorieView.setOnKeyListener(mLorieKeyListener);
 
-        lorieView.setCallback((surfaceWidth, surfaceHeight, screenWidth, screenHeight, inputTransform) -> {
-            String name;
-            int framerate = (int) ((lorieView.getDisplay() != null) ? lorieView.getDisplay().getRefreshRate() : 30);
-
-            mInputHandler.handleHostSizeChanged(surfaceWidth, surfaceHeight);
-            mInputHandler.handleClientSizeChanged(screenWidth, screenHeight);
-            mInputHandler.handleInputTransformChanged(inputTransform);
-            if (lorieView.getDisplay() == null || lorieView.getDisplay().getDisplayId() == Display.DEFAULT_DISPLAY)
-                name = "builtin";
-            else if (SamsungDexUtils.checkDeXEnabled(this))
-                name = "dex";
-            else
-                name = "external";
-            LorieView.sendWindowChange(screenWidth, screenHeight, framerate, name);
-        });
+        lorieView.setCallback((screenWidth, screenHeight, inputTransform) ->
+                mInputHandler.handleInputTransformChanged(screenWidth, screenHeight, inputTransform));
 
         registerReceiver(receiver, new IntentFilter(ACTION_START) {{
             addAction(ACTION_PREFERENCES_CHANGED);
@@ -232,7 +225,7 @@ public class MainActivity extends AppCompatActivity {
         if (tryConnect()) {
             final View content = findViewById(android.R.id.content);
             content.getViewTreeObserver().addOnPreDrawListener(mOnPredrawListener);
-            handler.postDelayed(() -> content.getViewTreeObserver().removeOnPreDrawListener(mOnPredrawListener), 500);
+            handler.postDelayed(this::finishStartupDraw, 500);
         }
         onPreferencesChanged("");
 
@@ -553,6 +546,7 @@ public class MainActivity extends AppCompatActivity {
             if (fd != null) {
                 Log.v("MainActivity", "Extracting X connection socket.");
                 LorieView.connect(fd.detachFd());
+                finishStartupDraw();
                 getLorieView().triggerCallback();
                 clientConnectedStateChanged();
                 getLorieView().reloadPreferences(prefs);

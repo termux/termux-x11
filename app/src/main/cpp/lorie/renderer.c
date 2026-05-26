@@ -20,6 +20,7 @@
 #include <android/log.h>
 #include <media/NdkImageReader.h>
 #include <dlfcn.h>
+#include <math.h>
 #include <sys/mman.h>
 #include "list.h"
 #include "lorie.h"
@@ -123,6 +124,13 @@ static volatile bool stateChanged = false, windowChanged = false;
 static volatile struct lorie_shared_server_state* pendingState = NULL;
 static volatile ANativeWindow* pendingWin = NULL;
 static volatile int viewportX = 0, viewportY = 0, viewportW = 0, viewportH = 0, expectedW = 0, expectedH = 0;
+static volatile int zoomPercent = 100;
+static float zoomSourceLeft = 0.f, zoomSourceTop = 0.f;
+static JNIEnv* rendererEnv = NULL;
+static jclass lorieViewClass = NULL;
+static jmethodID setRendererViewportMethod = NULL;
+static int reportedViewportX = -1, reportedViewportY = -1, reportedViewportW = -1, reportedViewportH = -1;
+static float reportedSourceLeft = -1.f, reportedSourceTop = -1.f, reportedSourceWidth = -1.f, reportedSourceHeight = -1.f;
 
 static pthread_mutex_t stateLock;
 static pthread_cond_t stateCond;
@@ -151,6 +159,33 @@ static inline __always_inline void bindTexture(GLuint id) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
 
+static void reportRendererViewport(int dstX, int dstY, int dstW, int dstH, float left, float top, float width, float height) {
+    JNIEnv* env = rendererEnv;
+    if (!env || !lorieViewClass || !setRendererViewportMethod)
+        return;
+
+    if (reportedViewportX == dstX && reportedViewportY == dstY &&
+        reportedViewportW == dstW && reportedViewportH == dstH &&
+        reportedSourceLeft == left && reportedSourceTop == top &&
+        reportedSourceWidth == width && reportedSourceHeight == height)
+        return;
+
+    (*env)->CallStaticVoidMethod(env, lorieViewClass, setRendererViewportMethod, dstX, dstY, dstW, dstH, left, top, width, height);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionDescribe(env);
+        (*env)->ExceptionClear(env);
+    } else {
+        reportedViewportX = dstX;
+        reportedViewportY = dstY;
+        reportedViewportW = dstW;
+        reportedViewportH = dstH;
+        reportedSourceLeft = left;
+        reportedSourceTop = top;
+        reportedSourceWidth = width;
+        reportedSourceHeight = height;
+    }
+}
+
 static EGLint configAttribs[] = {
         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
         EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
@@ -171,7 +206,13 @@ static void onImageAvailable(void* context, AImageReader* reader) {
         AImage_delete(image);
 }
 
-int rendererInitThread(void) {
+int rendererInitThread(void* cookie) {
+    JavaVM* vm = cookie;
+    if ((*vm)->AttachCurrentThread(vm, &rendererEnv, NULL) != JNI_OK) {
+        log("Failed to attach renderer thread to JVM");
+        return 0;
+    }
+
     EGLint major, minor;
     EGLint numConfigs;
     EGLint *const alphaAttrib = &configAttribs[11];
@@ -253,9 +294,15 @@ int rendererInitThread(void) {
 
 void rendererInit(JNIEnv* env) {
     pthread_t t;
+    JavaVM* vm;
 
     if (ctx)
         return;
+
+    (*env)->GetJavaVM(env, &vm);
+    jclass clazz = (*env)->FindClass(env, "com/termux/x11/LorieView");
+    lorieViewClass = (*env)->NewGlobalRef(env, clazz);
+    setRendererViewportMethod = (*env)->GetStaticMethodID(env, lorieViewClass, "setRendererViewport", "(IIIIFFFF)V");
 
     pthreadCondVarProxyInit();
 
@@ -264,7 +311,7 @@ void rendererInit(JNIEnv* env) {
     pthread_cond_init(&stateChangeFinishCond, NULL);
     pthread_spin_init(&bufferLock, false);
 
-    pthread_create(&t, NULL, (void*(*)(void*)) rendererInitThread, NULL);
+    pthread_create(&t, NULL, (void*(*)(void*)) rendererInitThread, vm);
 }
 void rendererSetFiltering(JNIEnv* env, jobject self, jint f) {
     filtering = f;
@@ -481,6 +528,21 @@ void rendererSetViewport(__unused JNIEnv *env, __unused jclass clazz, int x, int
     viewportH = h;
     expectedW = ew;
     expectedH = eh;
+    reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
+    reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
+    if (state)
+        state->drawRequested = true;
+    pthread_cond_signal(&stateCond);
+    pthread_mutex_unlock(&stateLock);
+}
+
+void rendererSetZoom(__unused JNIEnv *env, __unused jclass clazz, int percent) {
+    pthread_mutex_lock(&stateLock);
+    zoomPercent = percent < 100 ? 100 : (percent > 400 ? 400 : percent);
+    reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
+    reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
+    if (zoomPercent == 100)
+        zoomSourceLeft = zoomSourceTop = 0.f;
     if (state)
         state->drawRequested = true;
     pthread_cond_signal(&stateCond);
@@ -531,8 +593,8 @@ void rendererRefreshContext(void) {
     log("Xlorie: new surface applied: %p\n", sfc);
 }
 
-static void draw(GLuint id, float x0, float y0, float x1, float y1, float xfactor, uint8_t flip);
-static void drawCursor(float displayWidth, float displayHeight);
+static void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip);
+static void drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop);
 
 void rendererRedrawLocked(bool* waitingForBuffers) {
     float xfactor = 1.f;
@@ -565,7 +627,76 @@ void rendererRedrawLocked(bool* waitingForBuffers) {
     }
 
     int surfaceH = ANativeWindow_getHeight(win);
-    glViewport(viewportX, surfaceH - viewportY - viewportH, viewportW, viewportH);
+    int surfaceW = ANativeWindow_getWidth(win);
+    int renderViewportX = viewportX, renderViewportY = viewportY, renderViewportW = viewportW, renderViewportH = viewportH;
+    float destinationScaleX = 1.f, destinationScaleY = 1.f;
+    if (zoomPercent > 100 && viewportW > 0 && viewportH > 0) {
+        float requestedScale = (float) zoomPercent / 100.f;
+        float centerX = (float) viewportX + (float) viewportW / 2.f;
+        float centerY = (float) viewportY + (float) viewportH / 2.f;
+        float maxW = 2.f * fminf(centerX, (float) surfaceW - centerX);
+        float maxH = 2.f * fminf(centerY, (float) surfaceH - centerY);
+        destinationScaleX = fminf(requestedScale, maxW / (float) viewportW);
+        destinationScaleY = fminf(requestedScale, maxH / (float) viewportH);
+        if (destinationScaleX < 1.f)
+            destinationScaleX = 1.f;
+        if (destinationScaleY < 1.f)
+            destinationScaleY = 1.f;
+
+        renderViewportW = (int) ((float) viewportW * destinationScaleX + 0.5f);
+        renderViewportH = (int) ((float) viewportH * destinationScaleY + 0.5f);
+        renderViewportX = (int) (centerX - (float) renderViewportW / 2.f + 0.5f);
+        renderViewportY = (int) (centerY - (float) renderViewportH / 2.f + 0.5f);
+    }
+
+    glDisable(GL_SCISSOR_TEST);
+    glViewport(0, 0, surfaceW, surfaceH);
+    glClearColor(0.f, 0.f, 0.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glViewport(renderViewportX, surfaceH - renderViewportY - renderViewportH, renderViewportW, renderViewportH);
+    float sourceLeft = 0.f, sourceTop = 0.f;
+    float sourceWidth = (float) desc->width, sourceHeight = (float) desc->height;
+    float logicalSourceWidth = (float) expectedW, logicalSourceHeight = (float) expectedH;
+    if (zoomPercent > 100) {
+        float requestedScale = (float) zoomPercent / 100.f;
+        sourceWidth = (float) expectedW * destinationScaleX / requestedScale;
+        sourceHeight = (float) expectedH * destinationScaleY / requestedScale;
+        logicalSourceWidth = sourceWidth;
+        logicalSourceHeight = sourceHeight;
+        // Keep the zoomed region stable while the cursor stays inside the central 90%.
+        // Only pan when the cursor enters this 5% edge band near any side.
+        float edgeX = sourceWidth * 0.05f;
+        float edgeY = sourceHeight * 0.05f;
+        float cursorX = (float) state->cursor.x;
+        float cursorY = (float) state->cursor.y;
+
+        if (cursorX < zoomSourceLeft + edgeX)
+            zoomSourceLeft = cursorX - edgeX;
+        else if (cursorX > zoomSourceLeft + sourceWidth - edgeX)
+            zoomSourceLeft = cursorX - sourceWidth + edgeX;
+
+        if (cursorY < zoomSourceTop + edgeY)
+            zoomSourceTop = cursorY - edgeY;
+        else if (cursorY > zoomSourceTop + sourceHeight - edgeY)
+            zoomSourceTop = cursorY - sourceHeight + edgeY;
+
+        if (zoomSourceLeft < 0.f)
+            zoomSourceLeft = 0.f;
+        else if (zoomSourceLeft + sourceWidth > (float) expectedW)
+            zoomSourceLeft = (float) expectedW - sourceWidth;
+
+        if (zoomSourceTop < 0.f)
+            zoomSourceTop = 0.f;
+        else if (zoomSourceTop + sourceHeight > (float) expectedH)
+            zoomSourceTop = (float) expectedH - sourceHeight;
+
+        sourceLeft = zoomSourceLeft;
+        sourceTop = zoomSourceTop;
+    } else
+        zoomSourceLeft = zoomSourceTop = 0.f;
+
+    reportRendererViewport(renderViewportX, renderViewportY, renderViewportW, renderViewportH,
+                           sourceLeft, sourceTop, logicalSourceWidth, logicalSourceHeight);
 
     // We should signal X server to not use root window while we actively copy it
     lorie_mutex_lock(&state->lock, &state->lockingPid);
@@ -574,7 +705,11 @@ void rendererRedrawLocked(bool* waitingForBuffers) {
     LorieBuffer_bindTexture(buffer);
     if (desc->type == LORIEBUFFER_FD)
         xfactor = (float) desc->width/(float) desc->stride;
-    draw(0, -1.f, -1.f, 1.f, 1.f, xfactor, LorieBuffer_isRgba(buffer));
+    drawRegion(0, -1.f, -1.f, 1.f, 1.f,
+               sourceLeft / (float) desc->width * xfactor, sourceTop / (float) desc->height,
+               (sourceLeft + sourceWidth) / (float) desc->width * xfactor,
+               (sourceTop + sourceHeight) / (float) desc->height,
+               LorieBuffer_isRgba(buffer));
     fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, NULL);
     glFlush();
 
@@ -588,7 +723,7 @@ void rendererRedrawLocked(bool* waitingForBuffers) {
     }
 
     state->cursor.moved = FALSE;
-    drawCursor((float) (LorieBuffer_getWidth(buffer)), (float) (LorieBuffer_getHeight(buffer)));
+    drawCursor(sourceWidth, sourceHeight, sourceLeft, sourceTop);
     glFlush();
 
     // Wait until root window drawing is finished before giving control back to X server
@@ -753,12 +888,12 @@ static GLuint createProgram(const char* p_vertex_source, const char* p_fragment_
     return 0;
 }
 
-static void draw(GLuint id, float x0, float y0, float x1, float y1, float xfactor, uint8_t flip) {
+static void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip) {
     float coords[16] = {
-        x0, -y0, 0.f, 0.f,
-        x1, -y0, xfactor, 0.f,
-        x0, -y1, 0.f, 1.f,
-        x1, -y1, xfactor, 1.f,
+        x0, -y0, u0, v0,
+        x1, -y0, u1, v0,
+        x0, -y1, u0, v1,
+        x1, -y1, u1, v1,
     };
 
     GLuint p = flip ? gv_pos_bgra : gv_pos, c = flip ? gv_coords_bgra : gv_coords;
@@ -777,19 +912,19 @@ static void draw(GLuint id, float x0, float y0, float x1, float y1, float xfacto
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); checkGlError();
 }
 
-__unused static void drawCursor(float displayWidth, float displayHeight) {
+__unused static void drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop) {
     float x, y, w, h;
 
     if (!state->cursor.width || !state->cursor.height)
         return;
 
-    x = 2.f * ((float) state->cursor.x - (float) state->cursor.xhot) / displayWidth - 1.f;
-    y = 2.f * ((float) state->cursor.y - (float) state->cursor.yhot) / displayHeight - 1.f;
+    x = 2.f * ((float) state->cursor.x - sourceLeft - (float) state->cursor.xhot) / displayWidth - 1.f;
+    y = 2.f * ((float) state->cursor.y - sourceTop - (float) state->cursor.yhot) / displayHeight - 1.f;
     w = 2.f * (float) state->cursor.width / displayWidth;
     h = 2.f * (float) state->cursor.height / displayHeight;
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    draw(cursor.id, x, y, x + w, y + h, 1.f, false);
+    drawRegion(cursor.id, x, y, x + w, y + h, 0.f, 0.f, 1.f, 1.f, false);
     glDisable(GL_BLEND);
 }
 

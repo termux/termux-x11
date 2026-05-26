@@ -94,6 +94,7 @@ public class TouchInputHandler {
     private final MainActivity mActivity;
     private final DisplayMetrics mMetrics = new DisplayMetrics();
     private final float[] mappedPoint = new float[2];
+    private final float[] matrixValues = new float[9];
 
     private final BiConsumer<Integer, Boolean> noAction = (key, down) -> {};
     private BiConsumer<Integer, Boolean> swipeUpAction = noAction, swipeDownAction = noAction,
@@ -362,39 +363,16 @@ public class TouchInputHandler {
         return false;
     }
 
-    private void resetTransformation() {
-        float sx = (float) mRenderData.screenWidth / (float) mRenderData.imageWidth;
-        float sy = (float) mRenderData.screenHeight / (float) mRenderData.imageHeight;
-        mRenderData.scale.set(sx, sy);
-
-        Matrix fallbackTransform = new Matrix();
-        fallbackTransform.postScale(sx, sy);
-        mRenderData.setInputTransform(fallbackTransform);
-    }
-
-    public void handleInputTransformChanged(Matrix inputTransform) {
+    public void handleInputTransformChanged(int screenWidth, int screenHeight, Matrix inputTransform) {
+        inputTransform.getValues(matrixValues);
+        mRenderData.scale.set(matrixValues[Matrix.MSCALE_X], matrixValues[Matrix.MSCALE_Y]);
+        mRenderData.screenWidth = screenWidth;
+        mRenderData.screenHeight = screenHeight;
         mRenderData.setInputTransform(inputTransform);
-    }
-
-    public void handleClientSizeChanged(int w, int h) {
-        mRenderData.screenWidth = w;
-        mRenderData.screenHeight = h;
-
-        if (mTouchpadHandler != null)
-            mTouchpadHandler.handleClientSizeChanged(w, h);
-
-        resetTransformation();
-    }
-
-    public void handleHostSizeChanged(int w, int h) {
-        mRenderData.imageWidth = w;
-        mRenderData.imageHeight = h;
-
-        if (mTouchpadHandler != null)
-            mTouchpadHandler.handleHostSizeChanged(w, h);
-
-        resetTransformation();
         MainActivity.getRealMetrics(mMetrics);
+
+        if (mTouchpadHandler != null)
+            mTouchpadHandler.handleInputTransformChanged(screenWidth, screenHeight, inputTransform);
     }
 
     public void setInputMode(@InputMode int inputMode) {
@@ -967,13 +945,12 @@ public class TouchInputHandler {
 
             if (MainActivity.getInstance().getLorieView().hasPointerCapture() &&
                     isExternal(dev) && rangeX != null && rangeY != null) {
-                newX *= mRenderData.imageWidth / rangeX.getMax();
-                newY *= mRenderData.imageHeight / rangeY.getMax();
-            } else {
-                mRenderData.mapScreenPoint(newX, newY, mappedPoint);
-                newX = mappedPoint[0];
-                newY = mappedPoint[1];
+                newX *= (float) mMetrics.widthPixels / rangeX.getMax();
+                newY *= (float) mMetrics.heightPixels / rangeY.getMax();
             }
+            mRenderData.mapScreenPoint(newX, newY, mappedPoint);
+            newX = mappedPoint[0];
+            newY = mappedPoint[1];
 
             if (x == newX && y == newY && pressure == e.getPressure() && tilt == e.getAxisValue(MotionEvent.AXIS_TILT) &&
                     orientation == e.getAxisValue(MotionEvent.AXIS_ORIENTATION) && buttons == newButtons)

@@ -8,6 +8,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -332,7 +333,7 @@ class InputConnectionWrapper implements InputConnection {
 @SuppressWarnings("deprecation")
 public class LorieView extends SurfaceView implements InputStub {
     public interface Callback {
-        void changed(int surfaceWidth, int surfaceHeight, int screenWidth, int screenHeight);
+        void changed(int surfaceWidth, int surfaceHeight, int screenWidth, int screenHeight, Matrix inputTransform);
     }
 
     interface PixelFormat {
@@ -348,6 +349,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private final Point p = new Point();
     private final Rect contentInsets = new Rect();
     private final Rect viewport = new Rect();
+    private final Matrix inputTransform = new Matrix();
     boolean commitedText = false;
     private final InputConnection mConnection = new InputConnectionWrapper(new BaseInputConnection(this, false) {
         private final MainActivity a = MainActivity.getInstance();
@@ -644,6 +646,13 @@ public class LorieView extends SurfaceView implements InputStub {
             p.set(w, h);
     }
 
+    private Matrix getInputTransform() {
+        inputTransform.reset();
+        inputTransform.postTranslate(-viewport.left, -viewport.top);
+        inputTransform.postScale((float) p.x / (float) viewport.width(), (float) p.y / (float) viewport.height());
+        return new Matrix(inputTransform);
+    }
+
     public void setContentInsets(int left, int top, int right, int bottom) {
         if (contentInsets.left == left && contentInsets.top == top && contentInsets.right == right && contentInsets.bottom == bottom)
             return;
@@ -682,7 +691,7 @@ public class LorieView extends SurfaceView implements InputStub {
         setViewport(viewport.left, viewport.top, viewport.width(), viewport.height(), p.x, p.y);
 
         if (mCallback != null)
-            mCallback.changed(availableW, availableH, p.x, p.y);
+            mCallback.changed(availableW, availableH, p.x, p.y, getInputTransform());
     }
 
     @Override

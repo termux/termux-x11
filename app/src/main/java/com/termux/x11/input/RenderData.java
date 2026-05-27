@@ -12,6 +12,7 @@ import android.graphics.PointF;
  */
 public class RenderData {
     public PointF scale = new PointF();
+    private final Matrix inputTransform = new Matrix();
 
     public int screenWidth;
     public int screenHeight;
@@ -23,6 +24,22 @@ public class RenderData {
      * This will normally be at the location of the most recently injected motion event.
      */
     private final PointF mCursorPosition = new PointF();
+
+    public void setInputTransform(Matrix transform) {
+        inputTransform.set(transform);
+    }
+
+    public void mapScreenPoint(float x, float y, float[] out) {
+        out[0] = x;
+        out[1] = y;
+        inputTransform.mapPoints(out);
+    }
+
+    public PointF mapScreenPoint(float x, float y) {
+        float[] point = {x, y};
+        inputTransform.mapPoints(point);
+        return new PointF(point[0], point[1]);
+    }
 
     /**
      * Returns the position of the rendered cursor.

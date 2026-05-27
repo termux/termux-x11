@@ -29,6 +29,7 @@ public final class InputEventSender {
     private static final int XI_TouchEnd = 20;
 
     private final InputStub mInjector;
+    private final float[] mappedPoint = new float[2];
 
     public boolean tapToMove = false;
     public boolean preferScancodes = false;
@@ -141,8 +142,9 @@ public final class InputEventSender {
                 pointers[event.getPointerId(p)] = false;
 
             for (int p = 0; p < pointerCount; p++) {
-                int x = clamp((int) (event.getX(p) * renderData.scale.x), 0, renderData.screenWidth);
-                int y = clamp((int) (event.getY(p) * renderData.scale.y), 0, renderData.screenHeight);
+                renderData.mapScreenPoint(event.getX(p), event.getY(p), mappedPoint);
+                int x = clamp((int) mappedPoint[0], 0, renderData.screenWidth);
+                int y = clamp((int) mappedPoint[1], 0, renderData.screenHeight);
                 pointers[event.getPointerId(p)] = true;
                 mInjector.sendTouchEvent(XI_TouchUpdate, event.getPointerId(p), x, y);
             }
@@ -158,8 +160,9 @@ public final class InputEventSender {
             // cause confusion on the remote OS side and result in broken touch gestures.
             int activePointerIndex = event.getActionIndex();
             int id = event.getPointerId(activePointerIndex);
-            int x =  clamp((int) (event.getX(activePointerIndex) * renderData.scale.x), 0, renderData.screenWidth);
-            int y =  clamp((int) (event.getY(activePointerIndex) * renderData.scale.y), 0, renderData.screenHeight);
+            renderData.mapScreenPoint(event.getX(activePointerIndex), event.getY(activePointerIndex), mappedPoint);
+            int x =  clamp((int) mappedPoint[0], 0, renderData.screenWidth);
+            int y =  clamp((int) mappedPoint[1], 0, renderData.screenHeight);
             int a = (action == MotionEvent.ACTION_DOWN || action == ACTION_POINTER_DOWN) ? XI_TouchBegin : XI_TouchEnd;
             if (a == XI_TouchEnd)
                 mInjector.sendTouchEvent(XI_TouchUpdate, id, x, y);

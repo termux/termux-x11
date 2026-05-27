@@ -842,10 +842,12 @@ public class LorieView extends SurfaceView implements InputStub {
         if (!commitedText)
             return;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-            mIMM.invalidateInput(this);
-        else
-            mIMM.restartInput(this);
+        postDelayed(() -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                mIMM.invalidateInput(this);
+            else
+                mIMM.restartInput(this);
+        }, 10);
     }
 
     @FastNative private native void nativeInit();

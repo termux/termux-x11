@@ -419,8 +419,10 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                 String value = (String) newValue;
                 try {
                     String[] resolution = value.split("x");
-                    Integer.parseInt(resolution[0]);
-                    Integer.parseInt(resolution[1]);
+                    int width = Integer.parseInt(resolution[0]);
+                    int height = Integer.parseInt(resolution[1]);
+                    if (width <= 0 || height <= 0)
+                        throw new NumberFormatException();
                 } catch (NumberFormatException | PatternSyntaxException ignored) {
                     Toast.makeText(getActivity(), "Wrong resolution format", Toast.LENGTH_SHORT).show();
                     return false;
@@ -542,8 +544,10 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                             case "displayResolutionCustom": {
                                 try {
                                     String[] resolution = newValue.split("x");
-                                    Integer.parseInt(resolution[0]);
-                                    Integer.parseInt(resolution[1]);
+                                    int width = Integer.parseInt(resolution[0]);
+                                    int height = Integer.parseInt(resolution[1]);
+                                    if (width <= 0 || height <= 0)
+                                        throw new NumberFormatException();
                                 } catch (NumberFormatException | PatternSyntaxException ignored) {
                                     sendResponse(remote, 1, 1, "displayResolutionCustom: Wrong resolution format.");
                                     return;

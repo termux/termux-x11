@@ -632,6 +632,8 @@ public class LorieView extends SurfaceView implements InputStub {
                     String[] resolution = prefs.displayResolutionCustom.get().split("x");
                     w = Integer.parseInt(resolution[0]);
                     h = Integer.parseInt(resolution[1]);
+                    if (w <= 0 || h <= 0)
+                        throw new NumberFormatException();
                 } catch (NumberFormatException | PatternSyntaxException ignored) {
                     w = 1280;
                     h = 1024;

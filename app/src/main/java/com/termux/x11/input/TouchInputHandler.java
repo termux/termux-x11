@@ -293,6 +293,9 @@ public class TouchInputHandler {
             event.offsetLocation(-offsetX, -offsetY);
         }
 
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN && mActivity.mOverlayHelper.isEnabled())
+            mActivity.mOverlayHelper.setFocusable(true);
+
         if (!view.isFocused() && event.getAction() == MotionEvent.ACTION_DOWN)
             view.requestFocus();
 

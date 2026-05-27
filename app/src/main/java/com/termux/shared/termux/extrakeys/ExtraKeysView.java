@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -21,6 +22,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -34,6 +36,7 @@ import android.widget.PopupWindow;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.termux.x11.R;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 
 /**
@@ -317,7 +320,8 @@ public final class ExtraKeysView extends GridLayout {
                         return true;
                     }
                 });
-                button.setText(buttonInfo.display);
+                if (!setIcon(button, buttonInfo.key))
+                    button.setText(buttonInfo.display);
                 button.setTextColor(mButtonTextColor);
                 button.setAllCaps(true);
                 button.setPadding(0, 0, 0, 0);
@@ -494,7 +498,8 @@ public final class ExtraKeysView extends GridLayout {
             button = new Button(getContext(), null, android.R.attr.buttonBarButtonStyle);
             button.setTextColor(mButtonTextColor);
         }
-        button.setText(extraButton.display);
+        if (!setIcon(button, extraButton.key))
+            button.setText(extraButton.display);
         button.setAllCaps(true);
         button.setPadding(0, 0, 0, 0);
         button.setMinHeight(0);
@@ -559,6 +564,48 @@ public final class ExtraKeysView extends GridLayout {
             state.buttons.add(button);
         }
         return button;
+    }
+
+    private boolean setIcon(Button button, String key) {
+        int id;
+        switch (key) {
+            case "LEFT":
+                id = R.drawable.ic_extra_key_arrow_left;
+                break;
+            case "RIGHT":
+                id = R.drawable.ic_extra_key_arrow_right;
+                break;
+            case "UP":
+                id = R.drawable.ic_extra_key_arrow_up;
+                break;
+            case "DOWN":
+                id = R.drawable.ic_extra_key_arrow_down;
+                break;
+            case "PREFERENCES":
+                id = R.drawable.ic_extra_key_settings;
+                break;
+            case "KEYBOARD":
+                id = R.drawable.ic_extra_key_keyboard;
+                break;
+            case "ZOOM_IN":
+                id = R.drawable.ic_zoom_in;
+                break;
+            case "ZOOM_OUT":
+                id = R.drawable.ic_zoom_out;
+                break;
+            case "ZOOM_RESET":
+                id = R.drawable.ic_zoom_reset;
+                break;
+            default:
+                return false;
+        }
+
+        Drawable icon = getResources().getDrawable(id, getContext().getTheme());
+        button.setText(null);
+        button.setForeground(icon);
+        button.setForegroundGravity(Gravity.CENTER);
+        button.setContentDescription(key);
+        return true;
     }
 
     /**

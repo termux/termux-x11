@@ -265,7 +265,14 @@ public class TouchInputHandler {
     }
 
     boolean isDexEvent(MotionEvent event) {
-        int SOURCE_DEX = InputDevice.SOURCE_MOUSE | InputDevice.SOURCE_TOUCHSCREEN;
+        // Besides Samsung DeX, several external pointing devices (e.g. some
+        // Bluetooth keyboard+touchpad combos, see #1011) report their taps as
+        // SOURCE_MOUSE + TOOL_TYPE_FINGER (but not SOURCE_TOUCHPAD). Match those
+        // too so they go through the touchpad gesture path and tap-to-click /
+        // multi-finger taps work, instead of the hardware-mouse path which only
+        // forwards physical button state. Real mice use TOOL_TYPE_MOUSE and real
+        // touchpads report SOURCE_TOUCHPAD, so neither is affected.
+        int SOURCE_DEX = InputDevice.SOURCE_MOUSE;
         return ((event.getSource() & SOURCE_DEX) == SOURCE_DEX)
                 && ((event.getSource() & InputDevice.SOURCE_TOUCHPAD) != InputDevice.SOURCE_TOUCHPAD)
                 && (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER);

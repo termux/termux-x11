@@ -35,6 +35,7 @@
         <ListPreference app:key="transformCapturedPointer" app:defaultValue="no" app:entries="@array/transformCapturedPointerEntries" app:entryValues="@array/transformCapturedPointerValues" />
         <SeekBarPreference app:key="capturedPointerSpeedFactor" app:defaultValue="100" app:min="1" android:max="300" app:seekBarIncrement="1" app:showSeekBarValue="true" app:updatesContinuously="true" />
         <SwitchPreferenceCompat app:key="tapToMove" app:defaultValue="false" />
+        <SwitchPreferenceCompat app:key="ignoreGamepadEvents" app:defaultValue="false" />
     </PreferenceScreen>
     <PreferenceScreen app:key="kbd">
         <SwitchPreferenceCompat app:key="showAdditionalKbd" app:defaultValue="true" />

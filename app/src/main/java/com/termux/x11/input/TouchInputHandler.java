@@ -104,6 +104,7 @@ public class TouchInputHandler {
     private static final int KEY_BACK = 158;
 
     private boolean keyIntercepting = false;
+    private boolean ignoreGamepadEvents = false;
 
     /**
      * Used for tracking swipe gestures. Only the Y-direction is needed for responding to swipe-up
@@ -279,6 +280,9 @@ public class TouchInputHandler {
     }
 
     public boolean handleTouchEvent(View view0, View view, MotionEvent event) {
+        if (ignoreGamepadEvents && (event.isFromSource(InputDevice.SOURCE_GAMEPAD) || event.isFromSource(InputDevice.SOURCE_JOYSTICK)))
+            return true;
+
         if (event.getDeviceId() >= 0)
             mInjector.releaseStuckModifiers(event.getMetaState());
 
@@ -463,6 +467,8 @@ public class TouchInputHandler {
         volumeDownAction = extractUserActionFromPreferences(p, "volumeDown");
         backButtonAction = extractUserActionFromPreferences(p, "backButton");
         mediaKeysAction = extractUserActionFromPreferences(p, "mediaKeys");
+
+        ignoreGamepadEvents = p.ignoreGamepadEvents.get();
 
         if(mTouchpadHandler != null)
             mTouchpadHandler.reloadPreferences(p);
@@ -776,6 +782,9 @@ public class TouchInputHandler {
     }
 
     public boolean sendKeyEvent(KeyEvent e) {
+        if (ignoreGamepadEvents && (e.isFromSource(InputDevice.SOURCE_GAMEPAD) || e.isFromSource(InputDevice.SOURCE_JOYSTICK)))
+            return true;
+
         int k = e.getKeyCode();
 
         if (!MainActivity.isConnected()) {

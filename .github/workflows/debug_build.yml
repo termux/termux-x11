@@ -26,27 +26,30 @@ jobs:
     - name: Clone repository
       uses: actions/checkout@v7
       with:
-        submodules: recursive
+        submodules: false
         fetch-depth: 1
     - name: Validation
       uses: gradle/actions/wrapper-validation@v6
-      
+
     - name: Java setup
       uses: actions/setup-java@v5
       with:
         distribution: 'temurin'
         java-version: '17'
-        
+
     - name: Restore cache
       uses: actions/cache@v5
       with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-
+            .git/modules
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '.gitmodules') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
+
+    - name: Fetch submodules
+      run: git submodule update --init --recursive --jobs 8 --depth 1
 
     - name: Build
       run: ./gradlew assembleDebug

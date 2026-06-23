@@ -323,6 +323,7 @@ void rendererTestCapabilities(int* legacy_drawing) {
     EGLint numConfigs;
     EGLClientBuffer clientBuffer;
     EGLImageKHR img;
+    EGLint major, minor;
     AHardwareBuffer *new = NULL;
     int status;
     AHardwareBuffer_Desc d0 = {
@@ -338,6 +339,12 @@ void rendererTestCapabilities(int* legacy_drawing) {
         if (egl_display == EGL_NO_DISPLAY)
             return vprintEglError("Got no EGL display", __LINE__);
     }
+
+    if (eglInitialize(egl_display, &major, &minor) != EGL_TRUE)
+        return vprintEglError("Unable to initialize EGL", __LINE__);
+
+    loge("Xlorie: Initialized EGL version %d.%d\n", major, minor);
+    eglBindAPI(EGL_OPENGL_ES_API);
 
     status = AHardwareBuffer_allocate(&d0, &new);
     if (status != 0 || new == NULL) {

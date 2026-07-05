@@ -382,7 +382,7 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 break;
             case EVENT_UNICODE: {
                 int ks = ucs2keysym((long) e.unicode.code);
-                __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d\n", ks);
+                __android_log_print(ANDROID_LOG_ERROR, "LorieNative", "IME_DEBUG_NATIVE EVENT_UNICODE: code=U+%X keysym=0x%x\n", e.unicode.code, ks);
                 lorieKeysymKeyboardEvent(ks, TRUE);
                 lorieKeysymKeyboardEvent(ks, FALSE);
                 break;

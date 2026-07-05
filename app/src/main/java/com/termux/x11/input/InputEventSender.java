@@ -192,6 +192,7 @@ public final class InputEventSender {
         // correspond to what user sees on the screen, while physical keyboard
         // acts as if it is connected to the remote host.
         if (e.getAction() == ACTION_MULTIPLE) {
+            android.util.Log.e("IME_DEBUG", "[sendKeyEvent ACTION_MULTIPLE] characters=\"" + e.getCharacters() + "\" unicode=" + e.getUnicodeChar() + " keyCode=" + keyCode + " flags=" + e.getFlags() + " source=" + e.getSource() + " deviceId=" + e.getDeviceId());
             if (e.getCharacters() != null)
                 mInjector.sendTextEvent(e.getCharacters().getBytes(UTF_8));
             else if (e.getUnicodeChar() != 0)
@@ -208,6 +209,7 @@ public final class InputEventSender {
 
         if (!preferScancodes) {
             if (pressed && unicode != 0 && no_modifiers) {
+                android.util.Log.e("IME_DEBUG", "[sendKeyEvent textEvent] unicode=" + unicode + " (0x" + Integer.toHexString(unicode) + ") keyCode=" + keyCode + " characters=\"" + e.getCharacters() + "\" flags=" + e.getFlags() + " source=" + e.getSource() + " deviceId=" + e.getDeviceId());
                 mPressedTextKeys.add(keyCode);
                 if ((e.getMetaState() & META_ALT_RIGHT_ON) != 0)
                     mInjector.sendKeyEvent(0, KEYCODE_ALT_RIGHT, false); // For layouts with AltGr

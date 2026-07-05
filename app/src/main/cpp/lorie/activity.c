@@ -349,7 +349,7 @@ static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
         if (!length)
             return;
 
-        log(DEBUG, "Parsing text: %.*s", length, str);
+        log(ERROR, "IME_DEBUG_NATIVE sendTextEvent: text=\"%.*s\" len=%d", length, str, length);
 
         while (*p) {
             wchar_t wc;

@@ -265,6 +265,7 @@ public final class InputEventSender {
             MainActivity.setCapturingEnabled(false);
 
         // We try to send all other key codes to the host directly.
+        android.util.Log.e("IME_DEBUG", "[sendKeyEvent RAW_KEY] keyCode=" + keyCode + " scancode=" + e.getScanCode() + " source=0x" + Integer.toHexString(e.getSource()) + " deviceId=" + e.getDeviceId() + " device=" + (e.getDevice() != null ? e.getDevice().getName() : "null") + " pressed=" + pressed + " unicode=" + (int)unicode + " repeat=" + e.getRepeatCount() + " flags=" + e.getFlags());
         return mInjector.sendKeyEvent(scancode, keyCode, pressed);
     }
 }

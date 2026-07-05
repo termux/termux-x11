@@ -89,6 +89,8 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_filterOutWinkey_summary">Allows you to use Dex shortcuts while intercepting. Requires Accessibility service to work.</string>
     <string name="lorie_pref_enforceCharBasedInput">Enforce char based input</string>
     <string name="lorie_pref_enforceCharBasedInput_summary">Suppresses suggestions, predictive typing and CJK languages</string>
+    <string name="lorie_pref_filterTouchscreenKeyEvents">Filter touchscreen key events</string>
+    <string name="lorie_pref_filterTouchscreenKeyEvents_summary">Ignore keyboard events from touchscreen hardware (fixes spurious F-keys on some devices)</string>
 
     <string name="lorie_pref_clipboardEnable">Clipboard sharing</string>
     <string name="lorie_pref_requestNotificationPermission">Request notification permission</string>

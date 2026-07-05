@@ -436,6 +436,7 @@ public class TouchInputHandler {
         mInjector.stylusIsMouse = p.stylusIsMouse.get();
         mInjector.stylusButtonContactModifierMode = p.stylusButtonContactModifierMode.get();
         mInjector.pauseKeyInterceptingWithEsc = p.pauseKeyInterceptingWithEsc.get();
+        mInjector.filterTouchscreenKeyEvents = p.filterTouchscreenKeyEvents.get();
         switch (p.transformCapturedPointer.get()) {
             case "c":
                 capturedPointerTransformation = CapturedPointerTransformation.CLOCKWISE;

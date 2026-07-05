@@ -476,14 +476,6 @@ public class LorieView extends SurfaceView implements InputStub {
         boolean replaceText(CharSequence newText, boolean reuse) {
             int oldLen = currentComposingText != null ? currentComposingText.length() : 0;
             int newLen = newText != null ? newText.length() : 0;
-            // DEBUG: trace IME text source
-            if (newText != null && newText.length() > 0) {
-                StringBuilder sb = new StringBuilder();
-                for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
-                    sb.append("  ").append(ste.toString()).append("\n");
-                }
-                Log.e("IME_DEBUG", "[replaceText] text=\"" + newText + "\" reuse=" + reuse + " oldLen=" + oldLen + " newLen=" + newLen + " mBatchEditNesting=" + mBatchEditNesting + "\n" + sb);
-            }
             if (oldLen > 0 && newLen > 0 && (currentComposingText.toString().startsWith(newText.toString())
                     || newText.toString().startsWith(currentComposingText.toString()))) {
                 for (int i=0; i < oldLen - newLen; i++)

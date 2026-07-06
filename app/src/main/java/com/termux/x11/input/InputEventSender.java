@@ -40,6 +40,7 @@ public final class InputEventSender {
     public boolean pauseKeyInterceptingWithEsc = false;
     public boolean stylusIsMouse = false;
     public boolean stylusButtonContactModifierMode = false;
+    public boolean filterTouchscreenKeyEvents = true;
 
     /** Set of pressed keys for which we've sent TextEvent. */
     private final TreeSet<Integer> mPressedTextKeys;
@@ -178,6 +179,12 @@ public final class InputEventSender {
     public boolean sendKeyEvent(KeyEvent e) {
         int keyCode = e.getKeyCode();
         boolean pressed = e.getAction() == KeyEvent.ACTION_DOWN;
+
+        // Filter spurious key events from touchscreen hardware (e.g. Oplus/OnePlus
+        // touchpanel firmware injecting F-keys during touch/mouse operations).
+        if (filterTouchscreenKeyEvents && TouchInputHandler.sTouchpanelDeviceIds.contains(e.getDeviceId())) {
+            return true;
+        }
 
         if ((e.getFlags() & KeyEvent.FLAG_CANCELED) == KeyEvent.FLAG_CANCELED) {
             android.util.Log.d("KeyEvent", "We've got key event with FLAG_CANCELED, it will not be consumed. Details: " + e);

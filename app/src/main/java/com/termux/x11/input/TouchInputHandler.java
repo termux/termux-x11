@@ -42,7 +42,9 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
@@ -137,6 +139,7 @@ public class TouchInputHandler {
     private boolean mIsDragging;
     private static DisplayManager mDisplayManager;
     private static int mDisplayRotation;
+    static final Set<Integer> sTouchpanelDeviceIds = new HashSet<>();
     private static final DisplayManager.DisplayListener mDisplayListener = new DisplayManager.DisplayListener() {
         @Override
         public void onDisplayAdded(int displayId) {
@@ -242,13 +245,15 @@ public class TouchInputHandler {
     static public void refreshInputDevices() {
         AtomicBoolean stylusAvailable = new AtomicBoolean(false);
         AtomicBoolean externalKeyboardAvailable = new AtomicBoolean(false);
+        sTouchpanelDeviceIds.clear();
         android.util.Log.d("DEVICES", "external keyboard connected " + stylusAvailable.get());
         Arrays.stream(InputDevice.getDeviceIds())
                 .mapToObj(InputDevice::getDevice)
                 .filter(Objects::nonNull)
                 .forEach((device) -> {
                     //noinspection DataFlowIssue
-                    android.util.Log.d("DEVICES", "found device \"" + device.getName() + "\" " +
+                    String name = device.getName();
+                    android.util.Log.d("DEVICES", "found device \"" + name + "\" " +
                             (device.supportsSource(InputDevice.SOURCE_STYLUS) ? ((isExternal(device) ? "external " : "") + "stylus ") : "") +
                             ((device.supportsSource(InputDevice.SOURCE_KEYBOARD) && device.getKeyboardType() == InputDevice.KEYBOARD_TYPE_ALPHABETIC) ? ((isExternal(device) ? "external " : "") + "keyboard ") : "") +
                             "sources " + String.format("0x%08X", device.getSources()));
@@ -258,6 +263,9 @@ public class TouchInputHandler {
 
                     if (device.supportsSource(InputDevice.SOURCE_KEYBOARD) && device.getKeyboardType() == InputDevice.KEYBOARD_TYPE_ALPHABETIC && isExternal(device))
                         externalKeyboardAvailable.set(true);
+
+                    if (name != null && name.toLowerCase().contains("touchpanel"))
+                        sTouchpanelDeviceIds.add(device.getId());
                 });
         android.util.Log.d("DEVICES", "requesting stylus " + stylusAvailable.get());
         android.util.Log.d("DEVICES", "external keyboard connected " + externalKeyboardAvailable.get());
@@ -436,6 +444,7 @@ public class TouchInputHandler {
         mInjector.stylusIsMouse = p.stylusIsMouse.get();
         mInjector.stylusButtonContactModifierMode = p.stylusButtonContactModifierMode.get();
         mInjector.pauseKeyInterceptingWithEsc = p.pauseKeyInterceptingWithEsc.get();
+        mInjector.filterTouchscreenKeyEvents = p.filterTouchscreenKeyEvents.get();
         switch (p.transformCapturedPointer.get()) {
             case "c":
                 capturedPointerTransformation = CapturedPointerTransformation.CLOCKWISE;

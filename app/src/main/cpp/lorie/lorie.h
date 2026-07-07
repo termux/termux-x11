@@ -35,6 +35,8 @@ void lorieSendSharedServerState(int memfd);
 void lorieRegisterBuffer(LorieBuffer* buffer);
 void lorieUnregisterBuffer(LorieBuffer* buffer);
 bool lorieConnectionAlive(void);
+void lorieSetRendererWakeupCond(int fd);
+int rendererGetWakeupCondFd(void);
 
 __unused void rendererInit(JNIEnv* env);
 __unused void rendererSetFiltering(JNIEnv* env, jobject self, jint filtering);
@@ -106,6 +108,7 @@ typedef enum {
     EVENT_CLIPBOARD_REQUEST,
     EVENT_CLIPBOARD_SEND,
     EVENT_WINDOW_FOCUS_CHANGED,
+    EVENT_RENDERER_WAKEUP_COND,
 } eventType;
 
 typedef union {
@@ -168,11 +171,6 @@ struct lorie_shared_server_state {
      */
     pthread_mutex_t lock; // initialized at X server side.
     pid_t lockingPid;
-
-    /*
-     * Renderer thread sleeps when it is idle so we must explicitly wake it up.
-     */
-    pthread_cond_t cond; // initialized at X server side.
 
     /* ID of root window texture to be drawn. */
     uint64_t rootWindowTextureID;

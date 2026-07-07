@@ -232,6 +232,12 @@ static void connect_(__unused JNIEnv* env, __unused jobject cls, jint fd) {
 
     if ((conn_fd = fd) != -1) {
         ALooper_addFd(ALooper_forThread(), fd, 0, ALOOPER_EVENT_INPUT | ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP, xcallback, NULL);
+
+        // Give the X server our renderer wakeup cond var fd, resent on every reconnect.
+        lorieEvent e = { .type = EVENT_RENDERER_WAKEUP_COND };
+        write(conn_fd, &e, sizeof(e));
+        ancil_send_fd(conn_fd, rendererGetWakeupCondFd());
+
         log(DEBUG, "XCB connection is successfull");
     }
 }

@@ -400,6 +400,13 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 data[e.clipboardSend.count] = 0;
                 QueueWorkProc(handleClipboardData, NULL, data);
                 lorieWakeServer();
+                break;
+            }
+            case EVENT_RENDERER_WAKEUP_COND: {
+                int wakeupFd = ancil_recv_fd(fd);
+                if (wakeupFd >= 0)
+                    lorieSetRendererWakeupCond(wakeupFd);
+                break;
             }
         }
 

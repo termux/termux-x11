@@ -95,6 +95,11 @@ static lorieScreenInfo lorieScreen = {
 }, *pvfb = &lorieScreen;
 static char *xstartup = NULL;
 
+// Owned by the activity process, handed to us over the connection socket. Points at a placeholder until
+// the first connection so callers don't need a NULL check.
+static pthread_cond_t rendererCondPlaceholder = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t* volatile rendererCond = &rendererCondPlaceholder;
+
 typedef struct {
     LorieBuffer *buffer;
     bool flipped, wasLocked, imported;
@@ -107,7 +112,6 @@ typedef struct {
 
 void OsVendorInit(void) {
     pthread_mutexattr_t mutex_attr;
-    pthread_condattr_t cond_attr;
 
     if (lorieScreen.stateFd != -1) // already initialized
         return;
@@ -127,10 +131,33 @@ void OsVendorInit(void) {
     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&lorieScreen.state->lock, &mutex_attr);
     pthread_mutex_init(&lorieScreen.state->cursor.lock, &mutex_attr);
+}
 
-    pthread_condattr_init(&cond_attr);
-    pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
-    pthread_cond_init(&lorieScreen.state->cond, &cond_attr);
+// Queued from handleLorieEvents (input thread) to run on the main thread, i.e. the same thread that
+// signals rendererCond from lorieRedraw/lorieMoveCursor - so the swap and the unmap below can never race
+// a signal.
+static Bool lorieSetRendererWakeupCondWorkProc(__unused ClientPtr client, void* closure) {
+    int fd = (int) (intptr_t) closure;
+    pthread_cond_t* newCond = mmap(NULL, sizeof(pthread_cond_t), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+    close(fd); // mmap already keeps the region alive.
+    if (newCond == MAP_FAILED) {
+        log(ERROR, "Failed to map renderer wakeup cond var, keeping the old one");
+        return TRUE;
+    }
+
+    pthread_cond_t* old = rendererCond;
+    rendererCond = newCond;
+    pthread_cond_signal(newCond); // in case a signal was sent to `old` right before this swap
+
+    if (old != &rendererCondPlaceholder)
+        munmap(old, sizeof(pthread_cond_t));
+
+    return TRUE;
+}
+
+void lorieSetRendererWakeupCond(int fd) {
+    QueueWorkProc(lorieSetRendererWakeupCondWorkProc, NULL, (void*) (intptr_t) fd);
+    lorieWakeServer();
 }
 
 void lorieActivityConnected(void) {
@@ -325,7 +352,7 @@ static void lorieMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int
     pvfb->state->cursor.moved = TRUE;
     // No need to explicitly lock the mutex, it will cause waiting for rendering to be finished.
     // We are simply signaling the renderer in the case if it sleeps.
-    pthread_cond_signal(&pvfb->state->cond);
+    pthread_cond_signal(rendererCond);
 }
 
 static void lorieConvertCursor(CursorPtr pCurs, uint32_t *data) {
@@ -439,7 +466,7 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
         // We do not explicitly lock the pvfb->state->lock here because we do not want to wait
         // for all drawing operations to be finished.
         // Renderer thread will check the `drawRequested` flag right before going to sleep.
-        pthread_cond_signal(&pvfb->state->cond);
+        pthread_cond_signal(rendererCond);
     }
 
     return TRUE;

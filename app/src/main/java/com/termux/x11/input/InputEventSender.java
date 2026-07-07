@@ -11,12 +11,14 @@ import static com.termux.x11.input.InputStub.*;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import android.graphics.PointF;
+import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 
 import com.termux.x11.MainActivity;
 
 import java.util.List;
+import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -27,6 +29,12 @@ public final class InputEventSender {
     private static final int XI_TouchBegin = 18;
     private static final int XI_TouchUpdate = 19;
     private static final int XI_TouchEnd = 20;
+
+    private static final Set<Integer> TOUCH_NAV_KEYCODES = Set.of(
+        KEYCODE_BACK,
+        KEYCODE_HOME,
+        KEYCODE_APP_SWITCH
+    );
 
     private final InputStub mInjector;
     private final float[] mappedPoint = new float[2];
@@ -184,6 +192,9 @@ public final class InputEventSender {
             return true;
         }
 
+        if (shouldBlockKeyEvent(e))
+            return true;
+
         // Events received from software keyboards generate TextEvent in two
         // cases:
         //   1. This is an ACTION_MULTIPLE event.
@@ -264,5 +275,19 @@ public final class InputEventSender {
 
         // We try to send all other key codes to the host directly.
         return mInjector.sendKeyEvent(scancode, keyCode, pressed);
+    }
+
+    // Some touchpanel/touchpad hardware occasionally reports spurious key
+    // events (e.g. unexpected function keys) alongside its normal touch
+    // input, likely due to a firmware or driver quirk in the underlying
+    // input device. Filter these out to avoid having them misinterpreted
+    // as real keyboard input.
+    private boolean shouldBlockKeyEvent(KeyEvent event) {
+        InputDevice device = event.getDevice();
+        int sources = device != null ? device.getSources() : 0;
+        return (sources & InputDevice.SOURCE_KEYBOARD) != 0
+                && (sources & (InputDevice.SOURCE_TOUCHSCREEN | InputDevice.SOURCE_TOUCHPAD)) != 0
+                && (sources & InputDevice.SOURCE_STYLUS) == 0
+                && !TOUCH_NAV_KEYCODES.contains(event.getKeyCode());
     }
 }

@@ -1,7 +1,7 @@
 +++ ./Xtranssock.c
-@@ -215,20 +215,28 @@ is_numeric (const char *str)
- 
- 
+@@ -233,20 +233,28 @@
+
+
  #if defined(X11_t)
 -#define UNIX_PATH "/tmp/.X11-unix/X"
 -#define UNIX_DIR "/tmp/.X11-unix"
@@ -34,10 +34,10 @@
 +#define UNIX_PATH xtrans_unix_path_ice
 +#define UNIX_DIR xtrans_unix_dir_ice
  #endif /* ICE_t */
- 
- 
+
+
 +++ ./Xtransutil.c
-@@ -468,7 +468,7 @@ trans_mkdir(const char *path, int mode)
+@@ -478,7 +478,7 @@
  	 * certain security implications. If effective user ID
  	 * is != 0: fail as we may not be able to meet them.
  	 */
@@ -46,11 +46,11 @@
  	    if (mode & 01000) {
  		prmsg(1, "mkdir: ERROR: euid != 0,"
  		      "directory %s will not be created.\n",
-@@ -543,6 +543,7 @@ trans_mkdir(const char *path, int mode)
+@@ -553,6 +553,7 @@
  		    updateMode = 1;
  		}
  	    }
 +	    updateOwner = updateMode = 0;
- 
+
  #ifdef HAS_FCHOWN
  	    /*

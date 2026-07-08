@@ -20,7 +20,6 @@ add_library(Xfont2 STATIC
         "libxfont/src/fontfile/fileio.c"
         "libxfont/src/fontfile/filewr.c"
         "libxfont/src/fontfile/fontdir.c"
-        "libxfont/src/fontfile/fontencc.c"
         "libxfont/src/fontfile/fontfile.c"
         "libxfont/src/fontfile/fontscale.c"
         "libxfont/src/fontfile/gunzip.c"

@@ -1,5 +1,7 @@
 package com.termux.shared.termux.extrakeys;
 
+import static com.termux.x11.MainActivity.*;
+
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Color;
@@ -36,6 +38,7 @@ import android.widget.PopupWindow;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.termux.x11.MainActivity;
 import com.termux.x11.R;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 
@@ -294,15 +297,20 @@ public final class ExtraKeysView extends GridLayout {
             state.buttons = new ArrayList<>();
 
         removeAllViews();
+        if (mPopupWindow != null)
+            dismissPopup();
 
         ExtraKeyButton[][] buttons = extraKeysInfo.getMatrix();
 
         setRowCount(buttons.length);
         setColumnCount(maximumLength(buttons));
 
+        boolean reverseRows = MainActivity.getInstance().getPagerPosition() == PAGER_POSITION_TOP;
+
         for (int row = 0; row < buttons.length; row++) {
-            for (int col = 0; col < buttons[row].length; col++) {
-                final ExtraKeyButton buttonInfo = buttons[row][col];
+            int actualRow = reverseRows ? buttons.length - 1 - row : row;
+            for (int col = 0; col < buttons[actualRow].length; col++) {
+                final ExtraKeyButton buttonInfo = buttons[actualRow][col];
 
                 Button button;
                 if (isSpecialButton(buttonInfo)) {
@@ -342,12 +350,12 @@ public final class ExtraKeysView extends GridLayout {
                         case MotionEvent.ACTION_MOVE:
                             if (buttonInfo.popup != null) {
                                 // Show popup on swipe up
-                                if (mPopupWindow == null && event.getY() < 0) {
+                                if (mPopupWindow == null && (reverseRows ? (event.getY() > 0) : (event.getY() < 0))) {
                                     stopScheduledExecutors();
                                     view.setBackgroundColor(mButtonBackgroundColor);
                                     showPopup(view, buttonInfo.popup);
                                 }
-                                if (mPopupWindow != null && event.getY() > 0) {
+                                if (mPopupWindow != null && (reverseRows ? (event.getY() < 0) : (event.getY() > 0))) {
                                     view.setBackgroundColor(mButtonActiveBackgroundColor);
                                     dismissPopup();
                                 }
@@ -488,8 +496,9 @@ public final class ExtraKeysView extends GridLayout {
     }
 
     void showPopup(View view, ExtraKeyButton extraButton) {
-        int width = view.getMeasuredWidth();
-        int height = view.getMeasuredHeight();
+        int pos = MainActivity.getInstance().getPagerPosition();
+        int width = pos == PAGER_POSITION_TOP || pos == PAGER_POSITION_BOTTOM ? view.getMeasuredWidth() : view.getMeasuredHeight();
+        int height = pos == PAGER_POSITION_TOP || pos == PAGER_POSITION_BOTTOM ? view.getMeasuredHeight() : view.getMeasuredWidth();
         Button button;
         if (isSpecialButton(extraButton)) {
             button = createSpecialButton(extraButton.key, false);
@@ -515,7 +524,12 @@ public final class ExtraKeysView extends GridLayout {
         mPopupWindow.setContentView(button);
         mPopupWindow.setOutsideTouchable(true);
         mPopupWindow.setFocusable(false);
-        mPopupWindow.showAsDropDown(view, 0, -2 * height);
+        switch (pos) {
+            case PAGER_POSITION_TOP: mPopupWindow.showAsDropDown(view, 0, 0); break;
+            case PAGER_POSITION_BOTTOM: mPopupWindow.showAsDropDown(view, 0, -2 * height); break;
+            case PAGER_POSITION_LEFT: mPopupWindow.showAsDropDown(view, 0, -width); break;
+            case PAGER_POSITION_RIGHT: mPopupWindow.showAsDropDown(view, -width, -height -width); break;
+        }
     }
 
     public void dismissPopup() {

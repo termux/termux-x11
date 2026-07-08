@@ -23,6 +23,7 @@
 #define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
 
 extern volatile int conn_fd; // The only variable from shared with X server code.
+bool lorieDebugEnabled = false;
 
 static struct {
     jclass self;
@@ -248,6 +249,7 @@ static jboolean connected(__unused JNIEnv* env,__unused jclass clazz) {
 
 static void startLogcat(JNIEnv *env, __unused jobject cls, jint fd) {
     log(DEBUG, "Starting logcat with output to given fd");
+    lorieDebugEnabled = true;
 
     switch(fork()) {
         case -1:

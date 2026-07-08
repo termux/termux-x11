@@ -223,6 +223,12 @@ static Bool handleClipboardAnnounce(__unused ClientPtr pClient, __unused void *c
     return TRUE;
 }
 
+static Bool handleGpuCopyDoneEvent(__unused ClientPtr pClient, __unused void *closure) {
+    // This must be done only on X server thread (touches present's internal vblank queue).
+    lorieRecheckGpuCopies();
+    return TRUE;
+}
+
 static Bool handleClipboardData(__unused ClientPtr pClient, void *closure) {
     // This must be done only on X server thread.
     lorieHandleClipboardData(closure);
@@ -408,6 +414,10 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                     lorieSetRendererWakeupCond(wakeupFd);
                 break;
             }
+            case EVENT_GPU_COPY_DONE:
+                QueueWorkProc(handleGpuCopyDoneEvent, NULL, NULL);
+                lorieWakeServer();
+                break;
         }
 
         int n;

@@ -164,6 +164,15 @@ void LorieBuffer_attachToGL(LorieBuffer* _Nullable buffer);
 void LorieBuffer_bindTexture(LorieBuffer* _Nullable buffer);
 
 /**
+ * Get the GL texture id the buffer is attached to (see LorieBuffer_attachToGL).
+ * Returns 0 if the buffer was not attached to GL yet.
+ *
+ * @param buffer
+ * @return
+ */
+unsigned int LorieBuffer_getGLTextureId(LorieBuffer* _Nullable buffer);
+
+/**
  * Get width of the buffer.
  *
  * @param buffer

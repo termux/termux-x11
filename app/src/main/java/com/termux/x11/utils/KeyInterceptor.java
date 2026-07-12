@@ -84,17 +84,21 @@ public class KeyInterceptor extends AccessibilityService {
     public static void recheck() {
         MainActivity a = MainActivity.getInstance();
         boolean shouldBeEnabled = (a != null && self != null) && (a.hasWindowFocus() || !self.pressedKeys.isEmpty());
-        if (self != null && shouldBeEnabled != self.enabled) {
-            if (shouldBeEnabled) {
-                handler.removeCallbacks(disableImmediatelyCallback);
+        if (self == null)
+            return;
+
+        handler.removeCallbacks(disableImmediatelyCallback);
+
+        if (shouldBeEnabled) {
+            if (!self.enabled) {
                 android.util.Log.d("KeyInterceptor", "enabling interception service");
                 self.setServiceInfo(new AccessibilityServiceInfo() {{ flags = FLAG_REQUEST_FILTER_KEY_EVENTS; }});
                 self.enabled = true;
-            } else
-                // In the case if service info is changed Android current dragging processes
-                // so it is impossible to pull notification bar or call recents screen by swiping activity up.
-                handler.postDelayed(disableImmediatelyCallback, 120000);
-        }
+            }
+        } else if (self.enabled)
+            // In the case if service info is changed Android current dragging processes
+            // so it is impossible to pull notification bar or call recents screen by swiping activity up.
+            handler.postDelayed(disableImmediatelyCallback, 120000);
     }
 
     @Override

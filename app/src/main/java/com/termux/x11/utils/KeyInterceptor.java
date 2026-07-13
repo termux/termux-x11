@@ -102,6 +102,11 @@ public class KeyInterceptor extends AccessibilityService {
     }
 
     @Override
+    protected void onServiceConnected() {
+        recheck();
+    }
+
+    @Override
     public boolean onKeyEvent(KeyEvent event) {
         boolean ret = false;
         MainActivity instance = MainActivity.getInstance();

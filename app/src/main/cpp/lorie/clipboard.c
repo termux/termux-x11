@@ -288,7 +288,7 @@ static int lorieProcSendEvent(ClientPtr client) {
 static void lorieSelectionCallback(__unused CallbackListPtr *callbacks, __unused void * data, void * args) {
     SelectionInfoRec *info = (SelectionInfoRec *) args;
 
-    if (clipboardEnabled && info->selection->selection == xaCLIPBOARD && info->kind == SelectionSetOwner)
+    if (clipboardEnabled && info->selection->selection == xaCLIPBOARD && info->kind == SelectionSetOwner && info->selection->client != serverClient)
         lorieSelectionRequest(xaCLIPBOARD, xaTARGETS);
 }
 

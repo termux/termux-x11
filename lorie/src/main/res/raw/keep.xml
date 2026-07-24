@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Resolved at runtime via Resources.getIdentifier(), not statically visible to the shrinker. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@string/lorie_pref_*,@string/lorie_notification_*" />

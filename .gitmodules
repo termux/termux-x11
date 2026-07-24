@@ -1,63 +1,63 @@
 [submodule "app/src/main/cpp/libtirpc"]
-	path = app/src/main/cpp/libtirpc
+	path = lorie/src/main/cpp/libtirpc
 	url = https://github.com/alisw/libtirpc
 	ignore = dirty
 [submodule "app/src/main/cpp/pixman"]
-	path = app/src/main/cpp/pixman
+	path = lorie/src/main/cpp/pixman
 	url = https://gitlab.freedesktop.org/pixman/pixman.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libfontenc"]
-	path = app/src/main/cpp/libfontenc
+	path = lorie/src/main/cpp/libfontenc
 	url = https://gitlab.freedesktop.org/xorg/lib/libfontenc.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libxau"]
-	path = app/src/main/cpp/libxau
+	path = lorie/src/main/cpp/libxau
 	url = https://gitlab.freedesktop.org/xorg/lib/libxau.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libxdmcp"]
-	path = app/src/main/cpp/libxdmcp
+	path = lorie/src/main/cpp/libxdmcp
 	url = https://gitlab.freedesktop.org/xorg/lib/libxdmcp.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libxfont"]
-	path = app/src/main/cpp/libxfont
+	path = lorie/src/main/cpp/libxfont
 	url = https://gitlab.freedesktop.org/xorg/lib/libxfont.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libxkbfile"]
-	path = app/src/main/cpp/libxkbfile
+	path = lorie/src/main/cpp/libxkbfile
 	url = https://gitlab.freedesktop.org/xorg/lib/libxkbfile.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libxshmfence"]
-	path = app/src/main/cpp/libxshmfence
+	path = lorie/src/main/cpp/libxshmfence
 	url = https://gitlab.freedesktop.org/xorg/lib/libxshmfence.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libxtrans"]
-	path = app/src/main/cpp/libxtrans
+	path = lorie/src/main/cpp/libxtrans
 	url = https://gitlab.freedesktop.org/xorg/lib/libxtrans.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libepoxy"]
-	path = app/src/main/cpp/libepoxy
+	path = lorie/src/main/cpp/libepoxy
 	url = https://github.com/anholt/libepoxy
 	ignore = dirty
 [submodule "app/src/main/cpp/libxcvt"]
-	path = app/src/main/cpp/libxcvt
+	path = lorie/src/main/cpp/libxcvt
 	url = https://gitlab.freedesktop.org/xorg/lib/libxcvt.git
 	ignore = dirty
 [submodule "app/src/main/cpp/libx11"]
-	path = app/src/main/cpp/libx11
+	path = lorie/src/main/cpp/libx11
 	url = https://gitlab.freedesktop.org/xorg/lib/libx11.git
 	ignore = dirty
 [submodule "app/src/main/cpp/xorgproto"]
-	path = app/src/main/cpp/xorgproto
+	path = lorie/src/main/cpp/xorgproto
 	url = https://gitlab.freedesktop.org/xorg/proto/xorgproto.git
 	ignore = dirty
 [submodule "app/src/main/cpp/xkbcomp"]
-	path = app/src/main/cpp/xkbcomp
+	path = lorie/src/main/cpp/xkbcomp
 	url = https://gitlab.freedesktop.org/xorg/app/xkbcomp.git
 	ignore = dirty
 [submodule "app/src/main/cpp/xserver"]
-	path = app/src/main/cpp/xserver
+	path = lorie/src/main/cpp/xserver
 	url = https://gitlab.freedesktop.org/xorg/xserver.git
 	ignore = dirty
 [submodule "app/src/main/cpp/bzip2"]
-	path = app/src/main/cpp/bzip2
+	path = lorie/src/main/cpp/bzip2
 	url = https://gitlab.com/bzip2/bzip2.git

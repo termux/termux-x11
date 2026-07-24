@@ -1,0 +1,71 @@
+diff --git a/app/build.gradle b/app/build.gradle
+index b3168f09..04d4a309 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -29,6 +29,7 @@ android {
+ 
+         implementation project(":terminal-view")
+         implementation project(":termux-shared")
++        implementation project(':lorie')
+     }
+ 
+     defaultConfig {
+@@ -39,6 +40,7 @@ android {
+ 
+         if (appVersionName) versionName = appVersionName
+         validateVersionName(versionName)
++        versionName = versionName + "+x11"
+ 
+         manifestPlaceholders.TERMUX_PACKAGE_NAME = "com.termux"
+         manifestPlaceholders.TERMUX_APP_NAME = "Termux"
+@@ -110,7 +112,7 @@ android {
+ 
+     packagingOptions {
+         jniLibs {
+-            useLegacyPackaging true
++            useLegacyPackaging false
+         }
+     }
+ 
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 6332c49a..228d4a59 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -39,7 +39,6 @@
+         android:name=".app.TermuxApplication"
+         android:allowBackup="false"
+         android:banner="@drawable/banner"
+-        android:extractNativeLibs="true"
+         android:icon="@mipmap/ic_launcher"
+         android:label="@string/application_name"
+         android:roundIcon="@mipmap/ic_launcher_round"
+diff --git a/gradle.properties b/gradle.properties
+index 866a43aa..d5352fc3 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -19,8 +19,9 @@ org.gradle.jvmargs=-Xmx2048M \
+ --add-opens=java.base/java.io=ALL-UNNAMED \
+ --add-exports=jdk.unsupported/sun.misc=ALL-UNNAMED
+ android.useAndroidX=true
++android.nonTransitiveRClass=false
+ 
+-minSdkVersion=24
++minSdkVersion=26
+ targetSdkVersion=28
+ ndkVersion=29.0.14206865
+ compileSdkVersion=36
+diff --git a/settings.gradle b/settings.gradle
+index b8045c24..2ba6d091 100644
+--- a/settings.gradle
++++ b/settings.gradle
+@@ -1 +1,10 @@
+ include ':app', ':termux-shared', ':terminal-emulator', ':terminal-view'
++
++include ':lorie'
++project(':lorie').projectDir = new File(rootDir, '../lorie')
++include ':shell-loader:stub'
++// shell-loader itself only makes sense when Termux:X11 is a separate app; skip
++// its real build.gradle here (it hard-depends on :lorie-app) and only pull in
++// the stub project :lorie needs to compile against.
++project(':shell-loader').projectDir = new File(rootDir, '.integration-placeholders/shell-loader-parent')
++project(':shell-loader:stub').projectDir = new File(rootDir, '../shell-loader/stub')

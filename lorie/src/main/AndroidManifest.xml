@@ -31,7 +31,7 @@
             <intent-filter>
                 <category android:name="android.intent.category.SECONDARY_HOME" />
             </intent-filter>
-            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/lorie_shortcuts" />
         </activity>
         <activity
             android:theme="@style/Theme.AppCompat.DayNight"

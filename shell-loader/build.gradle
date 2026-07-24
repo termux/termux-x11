@@ -28,6 +28,7 @@ def keyStore = java.security.KeyStore.getInstance(java.security.KeyStore.getDefa
 keyStore.load(new FileInputStream(signingConfig.storeFile), signingConfig.keyPassword.toCharArray())
 
 android.defaultConfig.buildConfigField "String", "APPLICATION_ID", "\"com.termux.x11\""
+android.defaultConfig.buildConfigField "String", "EMBEDDED_APPLICATION_ID", "\"com.termux\""
 android.defaultConfig.buildConfigField "String", "logTag", "\"Termux:X11 loader\""
 android.defaultConfig.buildConfigField "int", "SIGNATURE", String.valueOf(Arrays.hashCode(keyStore.getCertificate(signingConfig.keyAlias).getEncoded()))
 android.defaultConfig.buildConfigField "String", "CLASS_ID", "\"com.termux.x11.CmdEntryPoint\""

@@ -5,7 +5,7 @@ public class Loader {
     /**
      * Command-line entry point.
      * It is pretty simple.
-     * 1. Check if application is installed.
+     * 1. Check if a trusted target application is installed, preferring one with Termux:X11 embedded.
      * 2. Check if target apk's signature matches stored hash to prevent running code of potentially replaced malicious apk.
      * 3. Load target apk code with `PathClassLoader` and start target's main function.
      * <p>
@@ -17,13 +17,22 @@ public class Loader {
         String cls = System.getenv("TERMUX_X11_LOADER_OVERRIDE_CMDENTRYPOINT_CLASS");
         cls = cls != null ? cls : BuildConfig.CLASS_ID;
         try {
-            android.content.pm.PackageInfo targetInfo = (android.os.Build.VERSION.SDK_INT <= 32) ?
-                    android.app.ActivityThread.getPackageManager().getPackageInfo(BuildConfig.APPLICATION_ID, android.content.pm.PackageManager.GET_SIGNATURES, 0) :
-                    android.app.ActivityThread.getPackageManager().getPackageInfo(BuildConfig.APPLICATION_ID, (long) android.content.pm.PackageManager.GET_SIGNATURES, 0);
+            android.content.pm.PackageInfo targetInfo = null;
+            for (String pkg : new String[]{ BuildConfig.EMBEDDED_APPLICATION_ID, BuildConfig.APPLICATION_ID }) {
+                android.content.pm.PackageInfo info = (android.os.Build.VERSION.SDK_INT <= 32) ?
+                        android.app.ActivityThread.getPackageManager().getPackageInfo(pkg, android.content.pm.PackageManager.GET_SIGNATURES, 0) :
+                        android.app.ActivityThread.getPackageManager().getPackageInfo(pkg, (long) android.content.pm.PackageManager.GET_SIGNATURES, 0);
+                if (info == null || (pkg.equals(BuildConfig.EMBEDDED_APPLICATION_ID) && (info.versionName == null || !info.versionName.contains("+x11"))))
+                    continue;
+                if (info.applicationInfo.uid != android.os.Process.myUid()
+                        && (info.signatures.length != 1 || BuildConfig.SIGNATURE != info.signatures[0].hashCode()))
+                    continue;
+                targetInfo = info;
+                break;
+            }
             assert targetInfo != null : BuildConfig.packageNotInstalledErrorText.replace("ARCH", android.os.Build.SUPPORTED_ABIS[0]);
-            assert targetInfo.signatures.length == 1 && BuildConfig.SIGNATURE == targetInfo.signatures[0].hashCode() : BuildConfig.packageSignatureMismatchErrorText;
 
-            android.util.Log.i(BuildConfig.logTag, "loading " + targetInfo.applicationInfo.sourceDir + "::" + BuildConfig.CLASS_ID + "::main of " + BuildConfig.APPLICATION_ID + " application (commit " + BuildConfig.COMMIT + ")");
+            android.util.Log.i(BuildConfig.logTag, "loading " + targetInfo.applicationInfo.sourceDir + "::" + cls + "::main of " + targetInfo.packageName + " application (commit " + BuildConfig.COMMIT + ")");
             Class<?> targetClass = Class.forName(cls, true,
                     new dalvik.system.PathClassLoader(targetInfo.applicationInfo.sourceDir, null, ClassLoader.getSystemClassLoader()));
             targetClass.getMethod("main", String[].class).invoke(null, (Object) args);

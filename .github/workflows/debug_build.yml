@@ -28,6 +28,13 @@ jobs:
       with:
         submodules: false
         fetch-depth: 1
+    - name: Checkout termux-app
+      uses: actions/checkout@v7
+      with:
+        repository: termux/termux-app
+        ref: v0.118.3
+        path: termux-app
+        fetch-depth: 1
     - name: Validation
       uses: gradle/actions/wrapper-validation@v6
 
@@ -74,6 +81,27 @@ jobs:
       with:
         name: termux-x11-unstripped-libraries-for-ndk-stack
         path: ./lorie/build/intermediates/cxx/Debug/*
+
+    - name: Apply termux-app integration patch
+      working-directory: termux-app
+      run: |
+        git apply ../.github/termux-app-integration/agp-upgrade.patch
+        git apply ../.github/termux-app-integration/termux-app.patch
+        mkdir -p .integration-placeholders/shell-loader-parent
+        cp -r ../gradle/wrapper/. gradle/wrapper/
+        cp ../gradlew gradlew
+        cp ../gradlew.bat gradlew.bat
+        chmod +x gradlew
+
+    - name: Build termux-app with :lorie integrated
+      working-directory: termux-app
+      run: ./gradlew :app:assembleDebug
+
+    - name: Store termux-app+termux-x11 integrated debug APK
+      uses: actions/upload-artifact@v7
+      with:
+        name: termux-app-x11-integrated-debug
+        path: termux-app/app/build/outputs/apk/debug/termux-app_debug_universal.apk
 
     - name: Update Nightly Release
       uses: andelf/nightly-release@main

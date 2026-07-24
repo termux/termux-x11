@@ -1,4 +1,4 @@
-package com.termux.shared.termux.extrakeys;
+package com.termux.x11.extrakeys;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -47,7 +47,7 @@ import com.termux.x11.utils.TermuxX11ExtraKeys;
  * it with a {@link androidx.viewpager.widget.ViewPager}.:
  * {@code
  * <?xml version="1.0" encoding="utf-8"?>
- * <com.termux.shared.termux.extrakeys.ExtraKeysView xmlns:android="http://schemas.android.com/apk/res/android"
+ * <com.termux.x11.extrakeys.ExtraKeysView xmlns:android="http://schemas.android.com/apk/res/android"
  *     android:id="@+id/extra_keys"
  *     style="?android:attr/buttonBarStyle"
  *     android:layout_width="match_parent"

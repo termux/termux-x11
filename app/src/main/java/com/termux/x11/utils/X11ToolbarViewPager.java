@@ -17,7 +17,7 @@ import androidx.annotation.NonNull;
 import androidx.viewpager.widget.PagerAdapter;
 import androidx.viewpager.widget.ViewPager;
 
-import com.termux.shared.termux.extrakeys.ExtraKeysView;
+import com.termux.x11.extrakeys.ExtraKeysView;
 import com.termux.x11.MainActivity;
 import com.termux.x11.R;
 

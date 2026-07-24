@@ -1,6 +1,6 @@
 package com.termux.x11.utils;
 
-import static com.termux.shared.termux.extrakeys.ExtraKeysConstants.PRIMARY_KEY_CODES_FOR_STRINGS;
+import static com.termux.x11.extrakeys.ExtraKeysConstants.PRIMARY_KEY_CODES_FOR_STRINGS;
 import static com.termux.x11.MainActivity.toggleKeyboardVisibility;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -19,7 +19,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 
-import com.termux.shared.termux.extrakeys.*;
+import com.termux.x11.extrakeys.*;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.MainActivity;
 

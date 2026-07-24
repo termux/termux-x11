@@ -1,10 +1,10 @@
-package com.termux.shared.termux.extrakeys;
+package com.termux.x11.extrakeys;
 
 import android.view.View;
 
 import androidx.annotation.NonNull;
 
-import com.termux.shared.termux.extrakeys.ExtraKeysConstants.EXTRA_KEY_DISPLAY_MAPS;
+import com.termux.x11.extrakeys.ExtraKeysConstants.EXTRA_KEY_DISPLAY_MAPS;
 
 import org.json.JSONArray;
 import org.json.JSONException;

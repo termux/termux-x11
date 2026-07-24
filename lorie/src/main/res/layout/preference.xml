@@ -69,7 +69,7 @@
             android:layout_height="match_parent"
             android:layout_alignParentEnd="true"
             android:layout_centerVertical="true"
-            android:src="@drawable/ic_settings"
+            android:src="@drawable/lorie_ic_settings"
             android:clickable="false"
             android:background="@android:color/transparent" />
 

@@ -19,14 +19,6 @@ android {
         keyPassword 'xrj45yWGLbsO7W0v'
     }
 
-    splits.abi {
-        enable true
-        reset()
-
-        include "x86", "x86_64", "armeabi-v7a", "arm64-v8a"
-        universalApk true
-    }
-
     compileOptions.sourceCompatibility JavaVersion.VERSION_1_9
     compileOptions.targetCompatibility JavaVersion.VERSION_1_9
     buildTypes.debug {

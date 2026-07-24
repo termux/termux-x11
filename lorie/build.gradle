@@ -19,6 +19,7 @@ if (hostProjects.isEmpty())
 if (hostProjects.size() > 1)
     throw new GradleException("Multiple application modules depend on :${project.name} (${hostProjects.collect { it.path }}); cannot determine which one is the real host")
 def hostProject = hostProjects[0]
+def hostApplicationId = hostProject.android.defaultConfig.applicationId ?: hostProject.android.namespace
 
 android {
     namespace 'com.termux.x11'
@@ -29,7 +30,7 @@ android {
         targetSdkVersion 34
         buildConfigField "String", "VERSION_NAME", "\"${termuxX11VersionName}\""
         buildConfigField "String", "COMMIT", "\"" + ("git rev-parse HEAD\n".execute().getText().trim() ?: (System.getenv('CURRENT_COMMIT') ?: "NO_COMMIT")) + "\""
-        buildConfigField "String", "APPLICATION_ID", "\"${hostProject.android.defaultConfig.applicationId}\""
+        buildConfigField "String", "APPLICATION_ID", "\"${hostApplicationId}\""
 
         consumerProguardFiles 'proguard-rules.pro'
     }
@@ -110,7 +111,7 @@ afterEvaluate {
         def out = file('build/generated/templateRes/xml/shortcuts.xml')
         out.getParentFile().exists() || out.getParentFile().mkdirs()
         out.text = file('src/main/templates/xml/shortcuts.xml').text
-                .replace('@@APPLICATION_ID@@', hostProject.android.defaultConfig.applicationId)
+                .replace('@@APPLICATION_ID@@', hostApplicationId)
     }
     android.sourceSets.main.res.srcDirs += 'build/generated/templateRes'
     preBuild.dependsOn generateShortcuts

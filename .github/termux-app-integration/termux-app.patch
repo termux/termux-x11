@@ -1,0 +1,80 @@
+diff --git a/app/build.gradle b/app/build.gradle
+index b3168f09..d172a129 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -29,6 +29,7 @@ android {
+ 
+         implementation project(":terminal-view")
+         implementation project(":termux-shared")
++        implementation project(':lorie')
+     }
+ 
+     defaultConfig {
+@@ -110,7 +111,7 @@ android {
+ 
+     packagingOptions {
+         jniLibs {
+-            useLegacyPackaging true
++            useLegacyPackaging false
+         }
+     }
+ 
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 6332c49a..d753c613 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -39,12 +39,12 @@
+         android:name=".app.TermuxApplication"
+         android:allowBackup="false"
+         android:banner="@drawable/banner"
+-        android:extractNativeLibs="true"
+         android:icon="@mipmap/ic_launcher"
+         android:label="@string/application_name"
+         android:roundIcon="@mipmap/ic_launcher_round"
+         android:supportsRtl="false"
+-        android:theme="@style/Theme.Termux">
++        android:theme="@style/Theme.Termux"
++        tools:replace="android:label,android:supportsRtl,android:theme">
+ 
+         <activity
+             android:name=".app.TermuxActivity"
+@@ -193,7 +193,8 @@
+         <!-- Version >= 3.0. DeX Dual Mode support -->
+         <meta-data
+             android:name="com.samsung.android.multidisplay.keep_process_alive"
+-            android:value="true" />
++            android:value="true"
++            tools:replace="android:value" />
+ 
+         <meta-data
+             android:name="com.sec.android.support.multiwindow"
+diff --git a/gradle.properties b/gradle.properties
+index 866a43aa..d5352fc3 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -19,8 +19,9 @@ org.gradle.jvmargs=-Xmx2048M \
+ --add-opens=java.base/java.io=ALL-UNNAMED \
+ --add-exports=jdk.unsupported/sun.misc=ALL-UNNAMED
+ android.useAndroidX=true
++android.nonTransitiveRClass=false
+ 
+-minSdkVersion=24
++minSdkVersion=26
+ targetSdkVersion=28
+ ndkVersion=29.0.14206865
+ compileSdkVersion=36
+diff --git a/settings.gradle b/settings.gradle
+index b8045c24..2ba6d091 100644
+--- a/settings.gradle
++++ b/settings.gradle
+@@ -1 +1,10 @@
+ include ':app', ':termux-shared', ':terminal-emulator', ':terminal-view'
++
++include ':lorie'
++project(':lorie').projectDir = new File(rootDir, '../lorie')
++include ':shell-loader:stub'
++// shell-loader itself only makes sense when Termux:X11 is a separate app; skip
++// its real build.gradle here (it hard-depends on :lorie-app) and only pull in
++// the stub project :lorie needs to compile against.
++project(':shell-loader').projectDir = new File(rootDir, '.integration-placeholders/shell-loader-parent')
++project(':shell-loader:stub').projectDir = new File(rootDir, '../shell-loader/stub')

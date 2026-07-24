@@ -10,16 +10,14 @@
 
     <application
         android:allowBackup="false"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/AppTheme"
-        android:hardwareAccelerated="true"
         tools:ignore="DataExtractionRules,GoogleAppIndexingWarning">
         <activity
             android:name=".MainActivity"
             android:taskAffinity=".MainActivity"
+            android:icon="@mipmap/lorie_ic_launcher"
+            android:roundIcon="@mipmap/lorie_ic_launcher_round"
+            android:label="@string/lorie_app_name"
+            android:theme="@style/LorieAppTheme"
             android:launchMode="singleInstance"
             android:supportsPictureInPicture="true"
             android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density"
@@ -48,7 +46,6 @@
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </activity>
-	    <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="false"/>
 	    <meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />
 
         <service android:name=".utils.KeyInterceptor"

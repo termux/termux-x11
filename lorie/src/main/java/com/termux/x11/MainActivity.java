@@ -702,8 +702,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String getNotificationChannel(NotificationManager notificationManager){
-        String channelId = getResources().getString(R.string.app_name);
-        String channelName = getResources().getString(R.string.app_name);
+        String channelId = getResources().getString(R.string.lorie_app_name);
+        String channelName = getResources().getString(R.string.lorie_app_name);
         NotificationChannel channel = new NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_HIGH);
         channel.setImportance(NotificationManager.IMPORTANCE_HIGH);
         channel.setLockscreenVisibility(Notification.VISIBILITY_SECRET);

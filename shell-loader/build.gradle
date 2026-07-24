@@ -23,7 +23,7 @@ if (!gradle.startParameter.taskNames.isEmpty())
 
 configurations.configureEach { exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib" }
 
-def signingConfig = project(':lorie').android.signingConfigs.debug
+def signingConfig = project(':lorie-app').android.signingConfigs.debug
 def keyStore = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
 keyStore.load(new FileInputStream(signingConfig.storeFile), signingConfig.keyPassword.toCharArray())
 

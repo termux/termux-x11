@@ -1,0 +1,5 @@
+ext.termuxX11VersionName = {
+    def commit = 'git rev-parse --verify --short HEAD'.execute().text.trim()
+    def version = "1.03.01"
+    "${version}-${commit.length() == 1 ? "nongit" : commit}-${(new Date()).format("dd.MM.yy")}"
+}()

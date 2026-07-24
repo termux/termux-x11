@@ -59,39 +59,39 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: termux-x11-arm64-v8a-debug
-        path: ./lorie/build/outputs/apk/debug/lorie-arm64-v8a-debug.apk
+        path: ./lorie-app/build/outputs/apk/debug/lorie-app-arm64-v8a-debug.apk
     
     - name: Store app-armeabi-v7a-debug
       uses: actions/upload-artifact@v7
       with:
         name: termux-x11-armeabi-v7a-debug
-        path: ./lorie/build/outputs/apk/debug/lorie-armeabi-v7a-debug.apk
+        path: ./lorie-app/build/outputs/apk/debug/lorie-app-armeabi-v7a-debug.apk
     
     - name: Store app-universal-debug
       uses: actions/upload-artifact@v7
       with:
         name: termux-x11-universal-debug
-        path: ./lorie/build/outputs/apk/debug/lorie-universal-debug.apk
+        path: ./lorie-app/build/outputs/apk/debug/lorie-app-universal-debug.apk
     
     - name: Store app-x86_64-debug
       uses: actions/upload-artifact@v7
       with:
         name: termux-x11-x86_64-debug
-        path: ./lorie/build/outputs/apk/debug/lorie-x86_64-debug.apk
+        path: ./lorie-app/build/outputs/apk/debug/lorie-app-x86_64-debug.apk
     
     - name: Store app-x86-debug
       uses: actions/upload-artifact@v7
       with:
         name: termux-x11-x86-debug
-        path: ./lorie/build/outputs/apk/debug/lorie-x86-debug.apk
+        path: ./lorie-app/build/outputs/apk/debug/lorie-app-x86-debug.apk
     
     - name: Store companion package
       uses: actions/upload-artifact@v7
       with:
         name: termux-companion packages
         path: |
-          ./lorie/build/outputs/apk/debug/termux-x11-*-all.deb
-          ./lorie/build/outputs/apk/debug/termux-x11-*-any.pkg.tar.xz
+          ./lorie-app/build/outputs/apk/debug/termux-x11-*-all.deb
+          ./lorie-app/build/outputs/apk/debug/termux-x11-*-any.pkg.tar.xz
         
     - name: Store unstripped libraries with debug symbols
       uses: actions/upload-artifact@v7
@@ -113,6 +113,6 @@ jobs:
           This is a nightly release of the termux-x11 app.
           Based on ${{ github.sha }}
         files: |
-          ./lorie/build/outputs/apk/debug/lorie-*-debug.apk
-          ./lorie/build/outputs/apk/debug/termux-x11-*-all.deb
-          ./lorie/build/outputs/apk/debug/termux-x11-*-any.pkg.tar.xz
+          ./lorie-app/build/outputs/apk/debug/lorie-app-*-debug.apk
+          ./lorie-app/build/outputs/apk/debug/termux-x11-*-all.deb
+          ./lorie-app/build/outputs/apk/debug/termux-x11-*-any.pkg.tar.xz

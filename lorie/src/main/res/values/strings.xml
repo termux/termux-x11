@@ -4,7 +4,7 @@
     <!ENTITY TERMUX_X11_APP_NAME "Termux:X11">
     ]>
 <resources>
-    <string name="app_name">&TERMUX_X11_APP_NAME;</string>
+    <string name="lorie_app_name">&TERMUX_X11_APP_NAME;</string>
 
     <string name="not_connected">Not connected</string>
     <string name="preferences_button_text">   PREFERENCES   </string>

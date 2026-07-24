@@ -1,1 +1,11 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:icon="@mipmap/lorie_ic_launcher"
+        android:label="@string/lorie_app_name"
+        android:roundIcon="@mipmap/lorie_ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/LorieAppTheme"
+        android:hardwareAccelerated="true">
+        <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="false" />
+    </application>
+</manifest>

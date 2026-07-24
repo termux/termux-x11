@@ -20,11 +20,15 @@ if (hostProjects.size() > 1)
     throw new GradleException("Multiple application modules depend on :${project.name} (${hostProjects.collect { it.path }}); cannot determine which one is the real host")
 def hostProject = hostProjects[0]
 def hostApplicationId = hostProject.android.defaultConfig.applicationId ?: hostProject.android.namespace
+// ndkVersion isn't inherited from the host module; use its value when set,
+// otherwise fall back to a known 16 KB-page-aligning NDK.
+def hostNdkVersion = hostProject.android.ndkVersion ?: "29.0.14206865"
 
 android {
     namespace 'com.termux.x11'
     //noinspection GrDeprecatedAPIUsage
     compileSdkVersion 34
+    ndkVersion hostNdkVersion
     defaultConfig {
         minSdkVersion 26
         targetSdkVersion 34

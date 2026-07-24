@@ -49,7 +49,7 @@ public class X11ToolbarViewPager {
             LayoutInflater inflater = LayoutInflater.from(mActivity);
             View layout;
             if (position == 0) {
-                layout = inflater.inflate(R.layout.view_terminal_toolbar_extra_keys, collection, false);
+                layout = inflater.inflate(R.layout.lorie_view_terminal_toolbar_extra_keys, collection, false);
                 ExtraKeysView extraKeysView = (ExtraKeysView) layout;
                 mActivity.mExtraKeys = new TermuxX11ExtraKeys(mEventListener, mActivity, extraKeysView);
                 extraKeysView.reload();
@@ -57,7 +57,7 @@ public class X11ToolbarViewPager {
                 extraKeysView.setOnHoverListener((v, e) -> true);
                 extraKeysView.setOnGenericMotionListener((v, e) -> true);
             } else {
-                layout = inflater.inflate(R.layout.view_terminal_toolbar_text_input, collection, false);
+                layout = inflater.inflate(R.layout.lorie_view_terminal_toolbar_text_input, collection, false);
                 final EditText editText = layout.findViewById(R.id.terminal_toolbar_text_input);
                 final Button back = layout.findViewById(R.id.terminal_toolbar_back_button);
 

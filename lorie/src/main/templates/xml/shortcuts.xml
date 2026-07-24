@@ -3,7 +3,7 @@
     xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
         android:enabled="true"
-        android:icon="@drawable/ic_settings"
+        android:icon="@drawable/lorie_ic_settings"
         android:shortcutId="preferences"
         android:shortcutShortLabel="@string/preferences_button_text"
         tools:ignore="UnusedAttribute">

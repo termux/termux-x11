@@ -32,7 +32,7 @@
 
 static GLuint createProgram(const char* p_vertex_source, const char* p_fragment_source);
 
-static int printEglError(char* msg, int line) {
+static void* printEglError(const char* msg, int line) {
     char descBuf[32] = {0};
     char* desc;
     int err = eglGetError();
@@ -62,10 +62,10 @@ static int printEglError(char* msg, int line) {
     if (desc)
         log("renderer: %s: %s (%s:%d)\n", msg, desc, __FILE__, line);
 
-    return 0;
+    return nullptr;
 }
 
-static inline __always_inline void vprintEglError(char* msg, int line) {
+static inline __always_inline void vprintEglError(const char* msg, int line) {
     printEglError(msg, line);
 }
 
@@ -114,45 +114,9 @@ static const char vertexShaderSrc[] =
 static const char fragmentShaderSrc[] = FRAGMENT_SHADER();
 static const char fragmentShaderBgraSrc[] = FRAGMENT_SHADER(".bgra");
 
-static EGLDisplay egl_display = EGL_NO_DISPLAY;
-static EGLContext ctx = EGL_NO_CONTEXT;
-static EGLSurface defaultSfc = EGL_NO_SURFACE, sfc = EGL_NO_SURFACE;
-static EGLConfig cfg = 0;
-static ANativeWindow *defaultWin = NULL, *win = NULL;
-static volatile struct xorg_list addedBuffers, buffers, removedBuffers;
-volatile jint filtering = GL_NEAREST;
-
-static volatile bool stateChanged = false, windowChanged = false;
-static volatile struct lorie_shared_server_state* pendingState = NULL;
-static volatile ANativeWindow* pendingWin = NULL;
-static volatile int viewportX = 0, viewportY = 0, viewportW = 0, viewportH = 0, expectedW = 0, expectedH = 0;
-static volatile int zoomPercent = 100;
-static float zoomSourceLeft = 0.f, zoomSourceTop = 0.f;
-static JNIEnv* rendererEnv = NULL;
-static jclass lorieViewClass = NULL;
-static jmethodID setRendererViewportMethod = NULL;
-static int reportedViewportX = -1, reportedViewportY = -1, reportedViewportW = -1, reportedViewportH = -1;
-static float reportedSourceLeft = -1.f, reportedSourceTop = -1.f, reportedSourceWidth = -1.f, reportedSourceHeight = -1.f;
-
-static pthread_mutex_t stateLock;
-// Shared with the X server so it can signal us directly. Only this thread ever waits on it, so stateLock
-// (the companion mutex) doesn't need to be shared too.
-static pthread_cond_t* stateCond;
-static pthread_cond_t stateChangeFinishCond;
-static pthread_spinlock_t bufferLock;
-static int stateCondFd = -1;
-static volatile struct lorie_shared_server_state* state = NULL;
-static struct {
-    GLuint id;
-    bool cursorChanged;
-} cursor;
-
-// FBO used to blit deferred Present "copy" entries (see lorieTryScheduleGpuCopy) into the root texture.
-static GLuint gpuCopyFbo = 0;
-
 // The renderer's end of activity.c's socket to the X server; used to notify it immediately when a
 // GPU copy batch finishes instead of it waiting for the next vblank-tick poll.
-extern volatile int conn_fd;
+extern "C" volatile int conn_fd;
 
 static void notifyGpuCopyDone(void) {
     if (conn_fd != -1) {
@@ -161,12 +125,11 @@ static void notifyGpuCopyDone(void) {
     }
 }
 
-GLuint g_texture_program = 0, gv_pos = 0, gv_coords = 0;
-GLuint g_texture_program_bgra = 0, gv_pos_bgra = 0, gv_coords_bgra = 0;
+// Renderer itself is declared in lorie.h so activity.cpp will be able to hold an instance
+// directly once it's converted too. For now there is still exactly one instance (g_renderer).
+static Renderer g_renderer;
 
-static void* rendererThread(void);
-
-static inline __always_inline void bindTexture(GLuint id) {
+void Renderer::bindTexture(GLuint id) {
     glBindTexture(GL_TEXTURE_2D, id);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filtering);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filtering);
@@ -174,7 +137,7 @@ static inline __always_inline void bindTexture(GLuint id) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
 
-static void reportRendererViewport(int dstX, int dstY, int dstW, int dstH, float left, float top, float width, float height) {
+void Renderer::reportViewport(int dstX, int dstY, int dstW, int dstH, float left, float top, float width, float height) {
     JNIEnv* env = rendererEnv;
     if (!env || !lorieViewClass || !setRendererViewportMethod)
         return;
@@ -185,10 +148,10 @@ static void reportRendererViewport(int dstX, int dstY, int dstW, int dstH, float
         reportedSourceWidth == width && reportedSourceHeight == height)
         return;
 
-    (*env)->CallStaticVoidMethod(env, lorieViewClass, setRendererViewportMethod, dstX, dstY, dstW, dstH, left, top, width, height);
-    if ((*env)->ExceptionCheck(env)) {
-        (*env)->ExceptionDescribe(env);
-        (*env)->ExceptionClear(env);
+    env->CallStaticVoidMethod(lorieViewClass, setRendererViewportMethod, dstX, dstY, dstW, dstH, left, top, width, height);
+    if (env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
     } else {
         reportedViewportX = dstX;
         reportedViewportY = dstY;
@@ -201,31 +164,14 @@ static void reportRendererViewport(int dstX, int dstY, int dstW, int dstH, float
     }
 }
 
-static EGLint configAttribs[] = {
-        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-        EGL_RED_SIZE, 8,
-        EGL_GREEN_SIZE, 8,
-        EGL_BLUE_SIZE, 8,
-        EGL_ALPHA_SIZE, 0,
-        EGL_NONE
-};
-
-const EGLint ctxattribs[] = {
+static const EGLint ctxattribs[] = {
         EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE
 };
 
-static void onImageAvailable(void* context, AImageReader* reader) {
-    AImage* image = NULL;
-    if (AImageReader_acquireLatestImage(reader, &image) == AMEDIA_OK && image)
-        AImage_delete(image);
-}
-
-int rendererInitThread(void* cookie) {
-    JavaVM* vm = cookie;
-    if ((*vm)->AttachCurrentThread(vm, &rendererEnv, NULL) != JNI_OK) {
+void* Renderer::initThread(JavaVM* vm) {
+    if (vm->AttachCurrentThread(&rendererEnv, NULL) != JNI_OK) {
         log("Failed to attach renderer thread to JVM");
-        return 0;
+        return nullptr;
     }
 
     EGLint major, minor;
@@ -263,19 +209,24 @@ int rendererInitThread(void* cookie) {
     // and I am not sure all devices have configs supporting both pbuffers and regular surfaces simultaneously
     if (AImageReader_new(1, 1, AIMAGE_FORMAT_RGBA_8888, 2, &reader) != AMEDIA_OK) {
         log("Failed to initialise ImageReader");
-        return 1;
+        return nullptr;
     }
 
-    if (AImageReader_setImageListener(reader, &(AImageReader_ImageListener) { .context = NULL, .onImageAvailable = onImageAvailable }) != AMEDIA_OK) {
+    AImageReader_ImageListener listener = { .context = NULL, .onImageAvailable = [](void* context, AImageReader* reader) {
+        AImage* image = NULL;
+        if (AImageReader_acquireLatestImage(reader, &image) == AMEDIA_OK && image)
+            AImage_delete(image);
+    } };
+    if (AImageReader_setImageListener(reader, &listener) != AMEDIA_OK) {
         log("Failed to set ImageReader listener");
         AImageReader_delete(reader);
-        return 1;
+        return nullptr;
     }
 
     if (AImageReader_getWindow(reader, &defaultWin) != AMEDIA_OK) {
         log("Failed to obtain ImageReader native window");
         AImageReader_delete(reader);
-        return 1;
+        return nullptr;
     }
 
     win = defaultWin;
@@ -303,21 +254,21 @@ int rendererInitThread(void* cookie) {
     glActiveTexture(GL_TEXTURE0);
     glGenTextures(1, &cursor.id);
 
-    rendererThread();
-    return 1;
+    threadLoop();
+    return nullptr;
 }
 
-void rendererInit(JNIEnv* env) {
+void Renderer::init(JNIEnv* env) {
     pthread_t t;
     JavaVM* vm;
 
     if (ctx)
         return;
 
-    (*env)->GetJavaVM(env, &vm);
-    jclass clazz = (*env)->FindClass(env, "com/termux/x11/LorieView");
-    lorieViewClass = (*env)->NewGlobalRef(env, clazz);
-    setRendererViewportMethod = (*env)->GetStaticMethodID(env, lorieViewClass, "setRendererViewport", "(IIIIFFFF)V");
+    env->GetJavaVM(&vm);
+    jclass clazz = env->FindClass("com/termux/x11/LorieView");
+    lorieViewClass = (jclass) env->NewGlobalRef(clazz);
+    setRendererViewportMethod = env->GetStaticMethodID(lorieViewClass, "setRendererViewport", "(IIIIFFFF)V");
 
     pthread_mutex_init(&stateLock, NULL);
 
@@ -326,7 +277,7 @@ void rendererInit(JNIEnv* env) {
     pthread_condattr_init(&cond_attr);
     pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
     stateCondFd = LorieBuffer_createRegion("renderer-cond", sizeof(pthread_cond_t));
-    stateCond = stateCondFd == -1 ? MAP_FAILED : mmap(NULL, sizeof(pthread_cond_t), PROT_READ|PROT_WRITE, MAP_SHARED, stateCondFd, 0);
+    stateCond = stateCondFd == -1 ? (pthread_cond_t*) MAP_FAILED : (pthread_cond_t*) mmap(NULL, sizeof(pthread_cond_t), PROT_READ|PROT_WRITE, MAP_SHARED, stateCondFd, 0);
     if (stateCond == MAP_FAILED) {
         loge("Failed to allocate renderer wakeup cond var, aborting");
         abort();
@@ -336,25 +287,27 @@ void rendererInit(JNIEnv* env) {
     pthread_cond_init(&stateChangeFinishCond, NULL);
     pthread_spin_init(&bufferLock, false);
 
-    pthread_create(&t, NULL, (void*(*)(void*)) rendererInitThread, vm);
+    pthread_create(&t, NULL, +[](void* cookie) -> void* {
+        return g_renderer.initThread((JavaVM*) cookie);
+    }, vm);
 }
 
-int rendererGetWakeupCondFd(void) {
+int Renderer::getWakeupCondFd() {
     return stateCondFd;
 }
 
-void rendererSetFiltering(JNIEnv* env, jobject self, jint f) {
+void Renderer::setFiltering(jint f) {
     filtering = f;
 }
 
-void rendererTestCapabilities(int* legacy_drawing) {
+void Renderer::testCapabilities(int* legacy_drawing) {
     // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     EGLint numConfigs;
     EGLClientBuffer clientBuffer;
     EGLImageKHR img;
     EGLint major, minor;
-    AHardwareBuffer *new = NULL;
+    AHardwareBuffer *new_ = NULL;
     int status;
     AHardwareBuffer_Desc d0 = {
             .width = 64,
@@ -376,30 +329,30 @@ void rendererTestCapabilities(int* legacy_drawing) {
     loge("Xlorie: Initialized EGL version %d.%d\n", major, minor);
     eglBindAPI(EGL_OPENGL_ES_API);
 
-    status = AHardwareBuffer_allocate(&d0, &new);
-    if (status != 0 || new == NULL) {
-        loge("Failed to allocate native buffer (%p, error %d)", new, status);
+    status = AHardwareBuffer_allocate(&d0, &new_);
+    if (status != 0 || new_ == NULL) {
+        loge("Failed to allocate native buffer (%p, error %d)", new_, status);
         loge("Forcing legacy drawing");
         *legacy_drawing = 1;
         return;
     }
 
     uint32_t *pixels;
-    if (AHardwareBuffer_lock(new, AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, (void **) &pixels) == 0) {
+    if (AHardwareBuffer_lock(new_, AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, (void **) &pixels) == 0) {
         pixels[0] = 0xAABBCCDD;
-        AHardwareBuffer_unlock(new, NULL);
+        AHardwareBuffer_unlock(new_, NULL);
     } else {
-        loge("Failed to lock native buffer (%p, error %d)", new, status);
+        loge("Failed to lock native buffer (%p, error %d)", new_, status);
         loge("Forcing legacy drawing");
         *legacy_drawing = 1;
-        AHardwareBuffer_release(new);
+        AHardwareBuffer_release(new_);
         return;
     }
 
-    clientBuffer = eglGetNativeClientBufferANDROID(new);
+    clientBuffer = eglGetNativeClientBufferANDROID(new_);
     if (!clientBuffer) {
         *legacy_drawing = 1;
-        AHardwareBuffer_release(new);
+        AHardwareBuffer_release(new_);
         return vprintEglError("Failed to obtain EGLClientBuffer from AHardwareBuffer, forcing legacy drawing", __LINE__);
     }
 
@@ -407,7 +360,7 @@ void rendererTestCapabilities(int* legacy_drawing) {
         loge("Failed to obtain EGLImageKHR from EGLClientBuffer");
         loge("Forcing legacy drawing");
         *legacy_drawing = 1;
-        AHardwareBuffer_release(new);
+        AHardwareBuffer_release(new_);
     } else {
         // For some reason all devices I checked had no GL_EXT_texture_format_BGRA8888 support, but some of them still provided BGRA extension.
         // EGL does not provide functions to query texture format in runtime.
@@ -452,11 +405,11 @@ void rendererTestCapabilities(int* legacy_drawing) {
         eglDestroyContext(egl_display, testctx);
         eglDestroyImageKHR(egl_display, img);
         eglDestroySurface(egl_display, checksfc);
-        AHardwareBuffer_release(new);
+        AHardwareBuffer_release(new_);
     }
 }
 
-__unused void rendererSetSharedState(struct lorie_shared_server_state* newState) {
+void Renderer::setSharedState(struct lorie_shared_server_state* newState) {
     pthread_mutex_lock(&stateLock);
     pendingState = newState;
     stateChanged = true;
@@ -468,14 +421,14 @@ __unused void rendererSetSharedState(struct lorie_shared_server_state* newState)
     pthread_mutex_unlock(&stateLock);
 }
 
-void rendererAddBuffer(LorieBuffer* buf) {
+void Renderer::addBuffer(LorieBuffer* buf) {
     pthread_spin_lock(&bufferLock);
     LorieBuffer_addToList(buf, &addedBuffers);
     pthread_cond_signal(stateCond);
     pthread_spin_unlock(&bufferLock);
 }
 
-void rendererRemoveBuffer(uint64_t id) {
+void Renderer::removeBuffer(uint64_t id) {
     pthread_spin_lock(&bufferLock);
     LorieBuffer* buf = LorieBufferList_findById(&addedBuffers, id);
     if (buf)
@@ -492,7 +445,7 @@ void rendererRemoveBuffer(uint64_t id) {
     pthread_spin_unlock(&bufferLock);
 }
 
-void rendererRemoveAllBuffers(void) {
+void Renderer::removeAllBuffers() {
     LorieBuffer *buf = NULL;
 
     pthread_spin_lock(&bufferLock);
@@ -508,7 +461,7 @@ void rendererRemoveAllBuffers(void) {
     pthread_spin_unlock(&bufferLock);
 }
 
-void rendererSetWindow(JNIEnv *env, __unused jobject thiz, jobject jsfc) {
+void Renderer::setWindow(JNIEnv *env, jobject jsfc) {
     ANativeWindow* newWin = jsfc ? ANativeWindow_fromSurface(env, jsfc) : NULL;
     if (newWin)
         ANativeWindow_acquire(newWin);
@@ -540,7 +493,7 @@ void rendererSetWindow(JNIEnv *env, __unused jobject thiz, jobject jsfc) {
     pthread_mutex_unlock(&stateLock);
 }
 
-static inline __always_inline void releaseWinAndSurface(ANativeWindow** anw, EGLSurface *esfc) {
+void Renderer::releaseWinAndSurface(ANativeWindow** anw, EGLSurface *esfc) {
     if (esfc && *esfc && *esfc != defaultSfc) {
         // Requeue the dequeued buffer, causes flickering during window reconfiguring
         eglSwapBuffers(egl_display, *esfc);
@@ -557,7 +510,7 @@ static inline __always_inline void releaseWinAndSurface(ANativeWindow** anw, EGL
     }
 }
 
-void rendererSetViewport(__unused JNIEnv *env, __unused jclass clazz, int x, int y, int w, int h, int ew, int eh) {
+void Renderer::setViewport(int x, int y, int w, int h, int ew, int eh) {
     pthread_mutex_lock(&stateLock);
     viewportX = x;
     viewportY = y;
@@ -573,7 +526,7 @@ void rendererSetViewport(__unused JNIEnv *env, __unused jclass clazz, int x, int
     pthread_mutex_unlock(&stateLock);
 }
 
-void rendererSetZoom(__unused JNIEnv *env, __unused jclass clazz, int percent) {
+void Renderer::setZoom(int percent) {
     pthread_mutex_lock(&stateLock);
     zoomPercent = percent < 100 ? 100 : (percent > 400 ? 400 : percent);
     reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
@@ -586,7 +539,7 @@ void rendererSetZoom(__unused JNIEnv *env, __unused jclass clazz, int percent) {
     pthread_mutex_unlock(&stateLock);
 }
 
-void rendererRefreshContext(void) {
+void Renderer::refreshContext() {
     int width = pendingWin ? ANativeWindow_getWidth(pendingWin) : 0;
     int height = pendingWin ? ANativeWindow_getHeight(pendingWin) : 0;
     log("rendererSetWindow %p %d %d", pendingWin, width, height);
@@ -630,9 +583,6 @@ void rendererRefreshContext(void) {
     log("Xlorie: new surface applied: %p\n", sfc);
 }
 
-static void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip);
-static void drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop);
-
 // Drains the deferred GPU copy queue (filled by present_execute_copy) into the root texture via
 // an FBO. Assumes the caller holds state->lock and will flush/fence before unlocking - returns
 // the highest drained serial WITHOUT publishing it to completedSerial, since the caller must only
@@ -640,7 +590,7 @@ static void drawCursor(float displayWidth, float displayHeight, float sourceLeft
 // publishing early would let the client's next write race our still-in-flight read.
 // Looks up a registered buffer by id, waiting briefly (bounded) if it hasn't arrived over the
 // async registration socket yet instead of busy-spinning the outer loop.
-static LorieBuffer *rendererFindBufferWithRetry(uint64_t id) {
+LorieBuffer *Renderer::findBufferWithRetry(uint64_t id) {
     LorieBuffer *buf;
     int attempt;
 
@@ -665,7 +615,7 @@ static LorieBuffer *rendererFindBufferWithRetry(uint64_t id) {
     return buf;
 }
 
-static uint64_t rendererApplyPendingGpuCopiesLocked(void) {
+uint64_t Renderer::applyPendingGpuCopiesLocked() {
     bool fboSetUp = false;
     uint64_t lastSerial = 0;
     uint64_t boundDstId = 0;
@@ -676,8 +626,8 @@ static uint64_t rendererApplyPendingGpuCopiesLocked(void) {
 
     while (state->gpuCopyQueue.readIndex != state->gpuCopyQueue.writeIndex) {
         LorieGpuCopyEntry entry = state->gpuCopyQueue.entries[state->gpuCopyQueue.readIndex % LORIE_GPU_COPY_QUEUE_CAPACITY];
-        LorieBuffer *src = rendererFindBufferWithRetry(entry.srcBufferId);
-        LorieBuffer *dst = rendererFindBufferWithRetry(entry.dstBufferId);
+        LorieBuffer *src = findBufferWithRetry(entry.srcBufferId);
+        LorieBuffer *dst = findBufferWithRetry(entry.dstBufferId);
 
         if (!src)
             log("rendererApplyPendingGpuCopies: source buffer %llu not found after waiting, skipping\n", (unsigned long long) entry.srcBufferId);
@@ -706,7 +656,6 @@ static uint64_t rendererApplyPendingGpuCopiesLocked(void) {
                 // Diagnostic: GLES2 has no glGetTexLevelParameteriv, so ask the AHardwareBuffer
                 // itself what it was actually allocated as, instead of trusting our own desc.
                 {
-                    static uint64_t dstSizeLogCount = 0;
                     if (lorieDebugEnabled && (dstSizeLogCount++ & 15) == 0 && dstDesc->buffer) {
                         AHardwareBuffer_Desc realDstDesc;
                         AHardwareBuffer_describe(dstDesc->buffer, &realDstDesc);
@@ -719,7 +668,6 @@ static uint64_t rendererApplyPendingGpuCopiesLocked(void) {
 
             LorieBuffer_bindTexture(src);
             {
-                static uint64_t srcSizeLogCount = 0;
                 if (lorieDebugEnabled && (srcSizeLogCount++ & 15) == 0 && srcDesc->buffer) {
                     AHardwareBuffer_Desc realSrcDesc;
                     AHardwareBuffer_describe(srcDesc->buffer, &realSrcDesc);
@@ -765,12 +713,12 @@ static uint64_t rendererApplyPendingGpuCopiesLocked(void) {
 // Standalone entry point used by the renderer thread's main loop. Used when no redraw is going to
 // happen on this tick (rare for GPU copies in practice, since scheduling one also marks damage
 // non-empty - see lorieTryScheduleGpuCopy), so it has to take the lock and fence/unlock itself.
-static void rendererApplyPendingGpuCopies(void) {
+void Renderer::applyPendingGpuCopies() {
     uint64_t serial;
     if (!state || state->gpuCopyQueue.readIndex == state->gpuCopyQueue.writeIndex)
         return;
     lorie_mutex_lock(&state->lock, &state->lockingPid);
-    serial = rendererApplyPendingGpuCopiesLocked();
+    serial = applyPendingGpuCopiesLocked();
     if (serial) {
         EGLSync fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, NULL);
         glFlush();
@@ -784,9 +732,9 @@ static void rendererApplyPendingGpuCopies(void) {
     lorie_mutex_unlock(&state->lock, &state->lockingPid);
 }
 
-void rendererRedrawLocked(bool* waitingForBuffers) {
+void Renderer::redrawLocked(bool* waitingForBuffers) {
     float xfactor = 1.f;
-    LorieBuffer_Desc *desc = NULL;
+    const LorieBuffer_Desc *desc = NULL;
     EGLSync fence;
     // The buffer will not be released until this function ends, but main thread can modify buffer list
     pthread_spin_lock(&bufferLock);
@@ -886,13 +834,13 @@ void rendererRedrawLocked(bool* waitingForBuffers) {
     } else
         zoomSourceLeft = zoomSourceTop = 0.f;
 
-    reportRendererViewport(renderViewportX, renderViewportY, renderViewportW, renderViewportH,
-                           sourceLeft, sourceTop, logicalSourceWidth, logicalSourceHeight);
+    reportViewport(renderViewportX, renderViewportY, renderViewportW, renderViewportH,
+                   sourceLeft, sourceTop, logicalSourceWidth, logicalSourceHeight);
 
     // We should signal X server to not use root window while we actively copy it
     lorie_mutex_lock(&state->lock, &state->lockingPid);
     // Share this draw's flush+fence below instead of a separate round trip per frame.
-    uint64_t gpuCopySerial = rendererApplyPendingGpuCopiesLocked();
+    uint64_t gpuCopySerial = applyPendingGpuCopiesLocked();
     state->drawRequested = FALSE;
 
     LorieBuffer_bindTexture(buffer);
@@ -945,8 +893,7 @@ void rendererRedrawLocked(bool* waitingForBuffers) {
     state->renderedFrames++;
 }
 
-static inline __always_inline bool rendererShouldWait(bool *waitingForBuffers) {
-    static uint64_t lastRequestedBufferId = 0;
+bool Renderer::shouldWait(bool *waitingForBuffers) {
     bool buffersChanged, gpuCopyPending;
     pthread_spin_lock(&bufferLock);
     buffersChanged = !xorg_list_is_empty(&addedBuffers) || !xorg_list_is_empty(&removedBuffers);
@@ -974,11 +921,11 @@ static inline __always_inline bool rendererShouldWait(bool *waitingForBuffers) {
     return true;
 }
 
-__noreturn static void* rendererThread(void) {
+void Renderer::threadLoop() {
     LorieBuffer* buf;
     bool waitingForBuffers = false;
     while (true) {
-        while (rendererShouldWait(&waitingForBuffers))
+        while (shouldWait(&waitingForBuffers))
             pthread_cond_wait(stateCond, &stateLock);
 
         if (stateChanged) {
@@ -1004,7 +951,7 @@ __noreturn static void* rendererThread(void) {
         }
 
         if (windowChanged)
-            rendererRefreshContext();
+            refreshContext();
 
         // Attach all pending buffers to GL.
         pthread_spin_lock(&bufferLock);
@@ -1023,9 +970,9 @@ __noreturn static void* rendererThread(void) {
         bool gpuCopyPending = state && state->gpuCopyQueue.readIndex != state->gpuCopyQueue.writeIndex;
         if (state && state->surfaceAvailable && !state->waitForNextFrame &&
             (state->drawRequested || state->cursor.moved || state->cursor.updated || gpuCopyPending))
-            rendererRedrawLocked(&waitingForBuffers);
+            redrawLocked(&waitingForBuffers);
         else if (gpuCopyPending)
-            rendererApplyPendingGpuCopies();
+            applyPendingGpuCopies();
 
         pthread_spin_lock(&bufferLock);
         // Remove all buffers which were attached to GL.
@@ -1090,7 +1037,7 @@ static GLuint createProgram(const char* p_vertex_source, const char* p_fragment_
     return 0;
 }
 
-static void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip) {
+void Renderer::drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip) {
     float coords[16] = {
         x0, -y0, u0, v0,
         x1, -y0, u1, v0,
@@ -1114,7 +1061,7 @@ static void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float 
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); checkGlError();
 }
 
-__unused static void drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop) {
+void Renderer::drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop) {
     float x, y, w, h;
 
     if (!state->cursor.width || !state->cursor.height)
@@ -1130,3 +1077,15 @@ __unused static void drawCursor(float displayWidth, float displayHeight, float s
     glDisable(GL_BLEND);
 }
 
+// JNI-facing entry points; these are the only places g_renderer is referenced by name.
+void rendererInit(JNIEnv* env) { g_renderer.init(env); }
+int rendererGetWakeupCondFd(void) { return g_renderer.getWakeupCondFd(); }
+void rendererSetFiltering(JNIEnv* env, jobject self, jint filtering) { g_renderer.setFiltering(filtering); }
+void rendererTestCapabilities(int* legacy_drawing) { g_renderer.testCapabilities(legacy_drawing); }
+void rendererSetSharedState(struct lorie_shared_server_state* newState) { g_renderer.setSharedState(newState); }
+void rendererAddBuffer(LorieBuffer* buf) { g_renderer.addBuffer(buf); }
+void rendererRemoveBuffer(uint64_t id) { g_renderer.removeBuffer(id); }
+void rendererRemoveAllBuffers(void) { g_renderer.removeAllBuffers(); }
+void rendererSetWindow(JNIEnv *env, jobject thiz, jobject sfc) { g_renderer.setWindow(env, sfc); }
+void rendererSetViewport(JNIEnv *env, jclass clazz, int x, int y, int w, int h, int ew, int eh) { g_renderer.setViewport(x, y, w, h, ew, eh); }
+void rendererSetZoom(JNIEnv *env, jclass clazz, int percent) { g_renderer.setZoom(percent); }

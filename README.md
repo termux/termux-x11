@@ -27,9 +27,14 @@ Just like any other X server.
 ## Setup Instructions
 Termux:X11 requires Android 8 or later. It consists of an Android app and a companion termux package, and you must install both.
 
-The Android app is available via the [nightly release tag](https://github.com/termux/termux-x11/releases/tag/nightly) of this repository. Download and install the `app-$ARCHITECTURE-debug.apk` matching your device's CPU architecture. (You can choose `app-universal-debug.apk` if you are not sure which architecture to pick, and it'll use a few extra MB of storage.) 
+The Android app is available via the [nightly release tag](https://github.com/termux/termux-x11/releases/tag/nightly) of this repository. Download and install `lorie-app-debug.apk`.
 
 The companion termux package is available from the termux graphical repository. You can ensure it's enabled and install this package with `pkg i x11-repo && pkg i termux-x11-nightly`. If you need to, you can also download a `.deb` or `*.tar.xz` from the same nightly release tag as above.
+
+### Termux with Termux:X11 embedded
+On some devices (e.g. Samsung OneUI), native processes spawned in the background instead of by the visible foreground app get throttled by the `cpuset` scheduler, making Termux:X11 slow or unresponsive. To work around this, Termux:X11 can be built directly into Termux itself, so its process is always spawned as part of Termux's own foreground app.
+
+Such an integrated build is available as `termux-app_debug_universal.apk` from the [nightly release tag](https://github.com/termux/termux-x11/releases/tag/nightly). Install it in place of your regular Termux app; `termux-x11` and `shell-loader` will automatically detect and prefer it over a standalone Termux:X11 installation, so no further setup is required.
 
 Finally, most people will want to use a desktop environment with Termux:X11. If you don't know what that means or don't know which one to pick, run `pkg i xfce` (also from `x11-repo`) to install a good one to start with. The rest of these instructions will assume that your goal is to run an XFCE desktop, or that you can modify the instructions as you follow them for your actual goal.
 
@@ -58,7 +63,7 @@ termux-x11 :1
 In this case you can save TERMUX_X11_XSTARTUP somewhere in `.bashrc` or other script and not type it every time you invoke termux-x11.  
 
 
-If you're done using Termux:X11 just simply exit it through it's notification drawer by expanding the Termux:X11 notification then "Exit"
+If you're done using Termux:X11 just simply exit it through its notification drawer by expanding the Termux:X11 notification then "Exit"
 But you should pay attention that `termux-x11` command is still running and can not be killed this way.
 
 For some reason some devices output only black screen with cursor instead of normal output so you should pass `-legacy-drawing` option.
@@ -78,8 +83,19 @@ If passing this option is not possible, set the TMPDIR environment variable to p
 
 If you are using proot-distro you should know that it is possible to start `termux-x11` command from inside proot container.
 
+Example, run in a Termux shell (not inside the proot container):
+```
+termux-x11 :1 &
+proot-distro login ubuntu --shared-tmp
+```
+Then, inside the container:
+```
+export DISPLAY=:1
+dbus-launch --exit-with-session xfce4-session
+```
+
 ## Using with chroot environment
-If you plan to use the program with chroot or unshare, you must to run it as root and set the TMPDIR environment variable to point to the directory that corresponds to /tmp in the target container.
+If you plan to use the program with chroot or unshare, you must run it as root and set the TMPDIR environment variable to point to the directory that corresponds to /tmp in the target container.
 
 This directory must be accessible from the shell from which you launch termux-x11, i.e. it must be in the same SELinux context, same mount namespace, and so on.
 
@@ -108,6 +124,18 @@ pkill termux-x11
 am broadcast -a com.termux.x11.ACTION_STOP -p com.termux.x11
 ```
 
+### Opening Termux:X11 activity from command line
+
+If you're using the standalone Termux:X11 app:
+```
+am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity
+```
+
+If Termux:X11 is embedded into another app (see [Termux with Termux:X11 embedded](#termux-with-termuxx11-embedded)), replace `com.termux.x11` with that app's package name, e.g. for Termux itself:
+```
+am start --user 0 -n com.termux/com.termux.x11.MainActivity
+```
+
 ### Logs
 If you need to obtain logs from the `com.termux.x11` application,
 set the `TERMUX_X11_DEBUG` environment variable to 1, like this:
@@ -117,7 +145,7 @@ The log obtained in this way can be quite long.
 It's better to redirect the output of the command to a file right away.
 
 ### Notification
-In Android 13 post notifications was restricted so you should explicitly let Termux:X11 show you notifications.
+In Android 13, posting notifications was restricted so you should explicitly let Termux:X11 show you notifications.
 <details>
 <summary>Video</summary>
 
@@ -187,7 +215,7 @@ termux-x11 :1 -xstartup "xfce4-session" -dpi 120
 It is possible to change preferences of termux-x11 from command line.
 `termux-x11-nightly` package contains `termux-x11-preference` tool which can be used like 
 ```shell
-termux-x11-preference [list] {key:value} [{key2:value2}]..."
+termux-x11-preference [list] {key:value} [{key2:value2}]...
 ```
 
 Use `termux-x11-preference list` to dump current preferences.

@@ -120,3 +120,4 @@ jobs:
           ./lorie-app/build/outputs/apk/debug/lorie-app-debug.apk
           ./lorie-app/build/outputs/apk/debug/termux-x11-*-all.deb
           ./lorie-app/build/outputs/apk/debug/termux-x11-*-any.pkg.tar.xz
+          ./termux-app/app/build/outputs/apk/debug/termux-app_debug_universal.apk

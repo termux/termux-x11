@@ -18,6 +18,10 @@
 #define PORT 7892
 #define MAGIC "0xDEADBEEF"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct lorie_shared_server_state;
 
 void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name);
@@ -241,6 +245,101 @@ struct lorie_shared_server_state {
     } cursor;
 };
 
+#ifdef __cplusplus
+}
+#endif
+
+#ifdef __cplusplus
+#include <EGL/egl.h>
+#include <GLES2/gl2.h>
+#include "list.h"
+
+struct Renderer {
+    EGLDisplay egl_display = EGL_NO_DISPLAY;
+    EGLContext ctx = EGL_NO_CONTEXT;
+    EGLSurface defaultSfc = EGL_NO_SURFACE, sfc = EGL_NO_SURFACE;
+    EGLConfig cfg = 0;
+    ANativeWindow *defaultWin = nullptr, *win = nullptr;
+    struct xorg_list addedBuffers, buffers, removedBuffers;
+    volatile jint filtering = GL_NEAREST;
+
+    volatile bool stateChanged = false, windowChanged = false;
+    struct lorie_shared_server_state* pendingState = nullptr;
+    ANativeWindow* pendingWin = nullptr;
+    volatile int viewportX = 0, viewportY = 0, viewportW = 0, viewportH = 0, expectedW = 0, expectedH = 0;
+    volatile int zoomPercent = 100;
+    float zoomSourceLeft = 0.f, zoomSourceTop = 0.f;
+    JNIEnv* rendererEnv = nullptr;
+    jclass lorieViewClass = nullptr;
+    jmethodID setRendererViewportMethod = nullptr;
+    int reportedViewportX = -1, reportedViewportY = -1, reportedViewportW = -1, reportedViewportH = -1;
+    float reportedSourceLeft = -1.f, reportedSourceTop = -1.f, reportedSourceWidth = -1.f, reportedSourceHeight = -1.f;
+
+    pthread_mutex_t stateLock;
+    // Shared with the X server so it can signal us directly. Only this thread ever waits on it, so stateLock
+    // (the companion mutex) doesn't need to be shared too.
+    pthread_cond_t* stateCond = nullptr;
+    pthread_cond_t stateChangeFinishCond;
+    pthread_spinlock_t bufferLock;
+    int stateCondFd = -1;
+    struct lorie_shared_server_state* state = nullptr;
+    struct {
+        GLuint id;
+        bool cursorChanged;
+    } cursor{};
+
+    // FBO used to blit deferred Present "copy" entries (see lorieTryScheduleGpuCopy) into the root texture.
+    GLuint gpuCopyFbo = 0;
+
+    GLuint g_texture_program = 0, gv_pos = 0, gv_coords = 0;
+    GLuint g_texture_program_bgra = 0, gv_pos_bgra = 0, gv_coords_bgra = 0;
+
+    EGLint configAttribs[13] = {
+        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+        EGL_RED_SIZE, 8,
+        EGL_GREEN_SIZE, 8,
+        EGL_BLUE_SIZE, 8,
+        EGL_ALPHA_SIZE, 0,
+        EGL_NONE
+    };
+
+    // Formerly function-local statics; moved here for the same reason as everything else above -
+    // they are per-instance state, not per-process.
+    uint64_t dstSizeLogCount = 0, srcSizeLogCount = 0;
+    uint64_t lastRequestedBufferId = 0;
+
+    void init(JNIEnv* env);
+    void* initThread(JavaVM* vm);
+    int getWakeupCondFd();
+    void setFiltering(jint f);
+    void testCapabilities(int* legacy_drawing);
+    void setSharedState(struct lorie_shared_server_state* newState);
+    void addBuffer(LorieBuffer* buf);
+    void removeBuffer(uint64_t id);
+    void removeAllBuffers();
+    void setWindow(JNIEnv* env, jobject jsfc);
+    void setViewport(int x, int y, int w, int h, int ew, int eh);
+    void setZoom(int percent);
+    void releaseWinAndSurface(ANativeWindow** anw, EGLSurface* esfc);
+    void refreshContext();
+    LorieBuffer* findBufferWithRetry(uint64_t id);
+    uint64_t applyPendingGpuCopiesLocked();
+    void applyPendingGpuCopies();
+    void redrawLocked(bool* waitingForBuffers);
+    bool shouldWait(bool* waitingForBuffers);
+    void threadLoop();
+    void bindTexture(GLuint id);
+    void reportViewport(int dstX, int dstY, int dstW, int dstH, float left, float top, float width, float height);
+    void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip);
+    void drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop);
+};
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static int android_to_linux_keycode[304] = {
         [ 4   /* ANDROID_KEYCODE_BACK */] = KEY_ESC,
         [ 7   /* ANDROID_KEYCODE_0 */] = KEY_0,
@@ -385,3 +484,7 @@ static int android_to_linux_keycode[304] = {
         [ 208  /* ANDROID_KEYCODE_CALENDAR */] = KEY_CALENDAR,
         [ 210  /* ANDROID_KEYCODE_CALCULATOR */] = KEY_CALC,
 };
+
+#ifdef __cplusplus
+}
+#endif

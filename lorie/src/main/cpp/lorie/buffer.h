@@ -3,6 +3,10 @@
 #include <linux/ashmem.h>
 #include <android/hardware_buffer.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define STATIC_INLINE static inline __always_inline
 
 #define AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM 5 // Stands to HAL_PIXEL_FORMAT_BGRA_8888
@@ -234,3 +238,7 @@ LorieBuffer* _Nullable LorieBufferList_findById(struct xorg_list* _Nullable list
 
 int ancil_send_fd(int sock, int fd);
 int ancil_recv_fd(int sock);
+
+#ifdef __cplusplus
+}
+#endif

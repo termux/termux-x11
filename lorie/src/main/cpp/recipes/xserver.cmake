@@ -58,9 +58,16 @@ set(inc "${CMAKE_CURRENT_BINARY_DIR}"
         "xserver/glx"
         "xserver/exa")
 
-set(compile_options
+# C-only: common_compile_options is built from check_c_compiler_flag, and several of its
+# flags (-Wstrict-prototypes, -Wmissing-prototypes, -Wnested-externs, -Wbad-function-cast,
+# -Wold-style-definition) are meaningless or invalid for C++; -std=gnu99 is a C standard version.
+set(c_only_compile_options
         ${common_compile_options}
-        "-std=gnu99"
+        "-std=gnu99")
+
+# Applies to both languages: macros and flags that affect header/struct-layout consistency or
+# code generation, not C-vs-C++ syntax.
+set(compile_options
         "-DHAVE_DIX_CONFIG_H"
         "-fno-strict-aliasing"
         "-fvisibility=hidden"
@@ -83,12 +90,12 @@ set(DIX_SOURCES
 list(TRANSFORM DIX_SOURCES PREPEND "xserver/dix/")
 add_library(xserver_dix STATIC ${DIX_SOURCES})
 target_include_directories(xserver_dix PRIVATE ${inc})
-target_compile_options(xserver_dix PRIVATE ${compile_options})
+target_compile_options(xserver_dix PRIVATE ${c_only_compile_options} ${compile_options})
 
 add_library(xserver_main STATIC
         "xserver/dix/stubmain.c")
 target_include_directories(xserver_main PRIVATE ${inc})
-target_compile_options(xserver_main PRIVATE ${compile_options})
+target_compile_options(xserver_main PRIVATE ${c_only_compile_options} ${compile_options})
 
 file(GENERATE
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/drm_fourcc.h"
@@ -106,7 +113,7 @@ add_library(xserver_dri3 STATIC
         "xserver/dri3/dri3_request.c"
         "xserver/dri3/dri3_screen.c")
 target_include_directories(xserver_dri3 PRIVATE ${inc})
-target_compile_options(xserver_dri3 PRIVATE ${compile_options})
+target_compile_options(xserver_dri3 PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(FB_SOURCES
         fballpriv.c fbarc.c fbbits.c fbblt.c fbbltone.c fbcmap_mi.c fbcopy.c fbfill.c fbfillrect.c
@@ -115,7 +122,7 @@ set(FB_SOURCES
 list(TRANSFORM FB_SOURCES PREPEND "xserver/fb/")
 add_library(xserver_fb STATIC ${FB_SOURCES})
 target_include_directories(xserver_fb PRIVATE ${inc})
-target_compile_options(xserver_fb PRIVATE ${compile_options})
+target_compile_options(xserver_fb PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(MI_SOURCES
         miarc.c mibitblt.c micmap.c micopy.c midash.c midispcur.c mieq.c miexpose.c mifillarc.c
@@ -125,7 +132,7 @@ set(MI_SOURCES
 list(TRANSFORM MI_SOURCES PREPEND "xserver/mi/")
 add_library(xserver_mi STATIC ${MI_SOURCES})
 target_include_directories(xserver_mi PRIVATE ${inc})
-target_compile_options(xserver_mi PRIVATE ${compile_options})
+target_compile_options(xserver_mi PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(OS_SOURCES
         WaitFor.c access.c auth.c backtrace.c client.c connection.c inputthread.c io.c mitauth.c
@@ -135,31 +142,31 @@ list(TRANSFORM OS_SOURCES PREPEND "xserver/os/")
 add_library(xserver_os STATIC ${OS_SOURCES})
 target_include_directories(xserver_os PRIVATE ${inc})
 target_link_libraries(xserver_os PRIVATE md Xdmcp Xau tirpc)
-target_compile_options(xserver_os PRIVATE ${compile_options} "-DCLIENTIDS")
+target_compile_options(xserver_os PRIVATE ${c_only_compile_options} ${compile_options} "-DCLIENTIDS")
 
 set(COMPOSITE_SOURCES compalloc.c compext.c compinit.c compoverlay.c compwindow.c)
 list(TRANSFORM COMPOSITE_SOURCES PREPEND "xserver/composite/")
 add_library(xserver_composite STATIC ${COMPOSITE_SOURCES})
 target_include_directories(xserver_composite PRIVATE ${inc})
-target_compile_options(xserver_composite PRIVATE ${compile_options})
+target_compile_options(xserver_composite PRIVATE ${c_only_compile_options} ${compile_options})
 
 add_library(xserver_damageext STATIC "xserver/damageext/damageext.c")
 target_include_directories(xserver_damageext PRIVATE ${inc})
-target_compile_options(xserver_damageext PRIVATE ${compile_options})
+target_compile_options(xserver_damageext PRIVATE ${c_only_compile_options} ${compile_options})
 
 add_library(xserver_dbe STATIC "xserver/dbe/dbe.c" "xserver/dbe/midbe.c")
 target_include_directories(xserver_dbe PRIVATE ${inc})
-target_compile_options(xserver_dbe PRIVATE ${compile_options})
+target_compile_options(xserver_dbe PRIVATE ${c_only_compile_options} ${compile_options})
 
 add_library(xserver_miext_damage STATIC "xserver/miext/damage/damage.c")
 target_include_directories(xserver_miext_damage PRIVATE ${inc})
-target_compile_options(xserver_miext_damage PRIVATE ${compile_options})
+target_compile_options(xserver_miext_damage PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(MIEXT_SYNC_SOURCES misync.c misyncfd.c misyncshm.c)
 list(TRANSFORM MIEXT_SYNC_SOURCES PREPEND "xserver/miext/sync/")
 add_library(xserver_miext_sync STATIC ${MIEXT_SYNC_SOURCES})
 target_include_directories(xserver_miext_sync PRIVATE ${inc})
-target_compile_options(xserver_miext_sync PRIVATE ${compile_options})
+target_compile_options(xserver_miext_sync PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(PRESENT_SOURCES
         present.c present_event.c present_execute.c present_fake.c present_fence.c present_notify.c
@@ -167,7 +174,7 @@ set(PRESENT_SOURCES
 list(TRANSFORM PRESENT_SOURCES PREPEND "xserver/present/")
 add_library(xserver_present STATIC ${PRESENT_SOURCES})
 target_include_directories(xserver_present PRIVATE ${inc})
-target_compile_options(xserver_present PRIVATE ${compile_options})
+target_compile_options(xserver_present PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(RANDR_SOURCES
         randr.c rrcrtc.c rrdispatch.c rrinfo.c rrlease.c rrmode.c rrmonitor.c rroutput.c rrpointer.c
@@ -176,11 +183,11 @@ set(RANDR_SOURCES
 list(TRANSFORM RANDR_SOURCES PREPEND "xserver/randr/")
 add_library(xserver_randr STATIC ${RANDR_SOURCES})
 target_include_directories(xserver_randr PRIVATE ${inc})
-target_compile_options(xserver_randr PRIVATE ${compile_options})
+target_compile_options(xserver_randr PRIVATE ${c_only_compile_options} ${compile_options})
 
 add_library(xserver_record STATIC xserver/record/record.c xserver/record/set.c)
 target_include_directories(xserver_record PRIVATE ${inc})
-target_compile_options(xserver_record PRIVATE ${compile_options})
+target_compile_options(xserver_record PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(RENDER_SOURCES
         animcur.c filter.c glyph.c matrix.c miindex.c mipict.c mirect.c mitrap.c mitri.c picture.c
@@ -188,13 +195,13 @@ set(RENDER_SOURCES
 list(TRANSFORM RENDER_SOURCES PREPEND "xserver/render/")
 add_library(xserver_render STATIC ${RENDER_SOURCES})
 target_include_directories(xserver_render PRIVATE ${inc})
-target_compile_options(xserver_render PRIVATE ${compile_options})
+target_compile_options(xserver_render PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(XFIXES_SOURCES cursor.c disconnect.c region.c saveset.c select.c xfixes.c)
 list(TRANSFORM XFIXES_SOURCES PREPEND "xserver/xfixes/")
 add_library(xserver_xfixes STATIC ${XFIXES_SOURCES})
 target_include_directories(xserver_xfixes PRIVATE ${inc})
-target_compile_options(xserver_xfixes PRIVATE ${compile_options})
+target_compile_options(xserver_xfixes PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(XKB_SOURCES
         ddxBeep.c ddxCtrls.c ddxLEDs.c ddxLoad.c maprules.c xkmread.c xkbtext.c xkbfmisc.c xkbout.c
@@ -203,13 +210,13 @@ set(XKB_SOURCES
 list(TRANSFORM XKB_SOURCES PREPEND "xserver/xkb/")
 add_library(xserver_xkb STATIC ${XKB_SOURCES})
 target_include_directories(xserver_xkb PRIVATE ${inc})
-target_compile_options(xserver_xkb PRIVATE ${compile_options} "-DXkbFreeGeomOverlayKeys=XkbFreeGeomOverlayKeysInternal")
+target_compile_options(xserver_xkb PRIVATE ${c_only_compile_options} ${compile_options} "-DXkbFreeGeomOverlayKeys=XkbFreeGeomOverlayKeysInternal")
 
 set(XKB_STUBS_SOURCES ddxKillSrv.c ddxPrivate.c ddxVT.c)
 list(TRANSFORM XKB_STUBS_SOURCES PREPEND "xserver/xkb/")
 add_library(xserver_xkb_stubs STATIC ${XKB_STUBS_SOURCES})
 target_include_directories(xserver_xkb_stubs PRIVATE ${inc})
-target_compile_options(xserver_xkb_stubs PRIVATE ${compile_options})
+target_compile_options(xserver_xkb_stubs PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(XEXT_SOURCES
         bigreq.c geext.c shape.c sleepuntil.c sync.c xcmisc.c xtest.c dpms.c shm.c hashtable.c
@@ -218,7 +225,7 @@ set(XEXT_SOURCES
 list(TRANSFORM XEXT_SOURCES PREPEND "xserver/Xext/")
 add_library(xserver_xext STATIC ${XEXT_SOURCES})
 target_include_directories(xserver_xext PRIVATE ${inc})
-target_compile_options(xserver_xext PRIVATE ${compile_options})
+target_compile_options(xserver_xext PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(XI_SOURCES
         allowev.c chgdctl.c chgfctl.c chgkbd.c chgkmap.c chgprop.c chgptr.c closedev.c devbell.c
@@ -231,11 +238,11 @@ set(XI_SOURCES
 list(TRANSFORM XI_SOURCES PREPEND "xserver/Xi/")
 add_library(xserver_xi STATIC ${XI_SOURCES})
 target_include_directories(xserver_xi PRIVATE ${inc})
-target_compile_options(xserver_xi PRIVATE ${compile_options})
+target_compile_options(xserver_xi PRIVATE ${c_only_compile_options} ${compile_options})
 
 add_library(xserver_xi_stubs STATIC "xserver/Xi/stubs.c")
 target_include_directories(xserver_xi_stubs PRIVATE ${inc})
-target_compile_options(xserver_xi_stubs PRIVATE ${compile_options})
+target_compile_options(xserver_xi_stubs PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(GLX_SOURCES
         glxext.c indirect_dispatch.c indirect_dispatch_swap.c indirect_reqsize.c indirect_size_get.c
@@ -246,7 +253,7 @@ set(GLX_SOURCES
 list(TRANSFORM GLX_SOURCES PREPEND "xserver/glx/")
 add_library(xserver_glx STATIC ${GLX_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/xserver/GL/gl.h")
 target_include_directories(xserver_glx PRIVATE ${inc})
-target_compile_options(xserver_glx PRIVATE ${compile_options})
+target_compile_options(xserver_glx PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(EXA_SOURCES
         exa.c exa_classic.c exa_migration_classic.c exa_driver.c exa_mixed.c exa_migration_mixed.c
@@ -254,14 +261,14 @@ set(EXA_SOURCES
 list(TRANSFORM EXA_SOURCES PREPEND "xserver/exa/")
 add_library(xserver_exa STATIC ${EXA_SOURCES})
 target_include_directories(xserver_exa PRIVATE ${inc})
-target_compile_options(xserver_exa PRIVATE ${compile_options})
+target_compile_options(xserver_exa PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(GLXVND_SOURCES
         vndcmds.c vndext.c vndservermapping.c vndservervendor.c)
 list(TRANSFORM GLXVND_SOURCES PREPEND "xserver/glx/")
 add_library(xserver_glxvnd STATIC ${GLXVND_SOURCES})
 target_include_directories(xserver_glxvnd PRIVATE ${inc})
-target_compile_options(xserver_glxvnd PRIVATE ${compile_options})
+target_compile_options(xserver_glxvnd PRIVATE ${c_only_compile_options} ${compile_options})
 
 set(XSERVER_LIBS tirpc Xdmcp Xau pixman Xfont2 fontenc GLESv2 xshmfence xkbcomp)
 foreach (part glx glxvnd fb mi dix composite damageext dbe randr miext_damage render present xext
@@ -279,12 +286,14 @@ add_library(Xlorie SHARED
         "lorie/InitOutput.c"
         "lorie/InitInput.c"
         "lorie/InputXKB.c"
-        "lorie/renderer.c"
+        "lorie/renderer.cpp"
         "lorie/buffer.c"
         "lorie/activity.c")
 target_include_directories(Xlorie PRIVATE ${inc} "libxcvt/include")
-target_link_options(Xlorie PRIVATE "-Wl,--as-needed" "-Wl,--no-undefined" "-fvisibility=hidden")
+# -nostdlib++ keeps this shared object free of any libc++ dependency; renderer.cpp is restricted
+# to a runtime-free subset of C++ (no exceptions, no RTTI, no STL) to make that possible.
+target_link_options(Xlorie PRIVATE "-Wl,--as-needed" "-Wl,--no-undefined" "-fvisibility=hidden" "-nostdlib++")
 target_link_libraries(Xlorie "-Wl,--whole-archive" ${XSERVER_LIBS} "-Wl,--no-whole-archive" android mediandk log m z EGL GLESv2)
-target_compile_options(Xlorie PRIVATE ${compile_options})
+target_compile_options(Xlorie PRIVATE ${compile_options} "$<$<COMPILE_LANGUAGE:C>:${c_only_compile_options}>" "$<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions;-fno-rtti>")
 target_apply_patch(Xlorie "${CMAKE_CURRENT_SOURCE_DIR}/xserver" "${CMAKE_CURRENT_SOURCE_DIR}/patches/xserver.patch")
 target_apply_patch(Xlorie "${CMAKE_CURRENT_SOURCE_DIR}/libepoxy" "${CMAKE_CURRENT_SOURCE_DIR}/patches/libepoxy.patch")

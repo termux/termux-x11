@@ -57,6 +57,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
 import androidx.core.math.MathUtils;
+import androidx.core.view.ViewCompat;
 import androidx.viewpager.widget.ViewPager;
 
 import com.termux.x11.input.InputEventSender;
@@ -798,7 +799,9 @@ public class MainActivity extends AppCompatActivity {
 
         window.setSoftInputMode(reseed ? SOFT_INPUT_ADJUST_RESIZE : SOFT_INPUT_ADJUST_PAN);
 
-        ((FrameLayout) findViewById(android.R.id.content)).getChildAt(0).setFitsSystemWindows(!fullscreen);
+        View contentChild = ((FrameLayout) findViewById(android.R.id.content)).getChildAt(0);
+        contentChild.setFitsSystemWindows(!fullscreen);
+        ViewCompat.requestApplyInsets(contentChild);
     }
 
     @Override

@@ -45,26 +45,25 @@ static JNIEnv *guienv = NULL; // Must be used only in GUI thread.
 static jobject globalThiz = NULL;
 
 static jclass FindClassOrDie(JNIEnv *env, const char* name) {
-    jclass clazz = (*env)->FindClass(env, name);
+    jclass clazz = env->FindClass(name);
     if (!clazz) {
         char buffer[1024] = {0};
         sprintf(buffer, "class %s not found", name);
         log(ERROR, "%s", buffer);
-        (*env)->FatalError(env, buffer);
+        env->FatalError(buffer);
         return NULL;
     }
 
-    return (*env)->NewGlobalRef(env, clazz);
+    return (jclass) env->NewGlobalRef(clazz);
 }
 
-static jclass FindMethodOrDie(JNIEnv *env, jclass clazz, const char* name, const char* signature, jboolean isStatic) {
-    __typeof__((*env)->GetMethodID) getMethodID = isStatic ? (*env)->GetStaticMethodID : (*env)->GetMethodID;
-    jmethodID method = getMethodID(env, clazz, name, signature);
+static jmethodID FindMethodOrDie(JNIEnv *env, jclass clazz, const char* name, const char* signature, jboolean isStatic) {
+    jmethodID method = isStatic ? env->GetStaticMethodID(clazz, name, signature) : env->GetMethodID(clazz, name, signature);
     if (!method) {
         char buffer[1024] = {0};
         sprintf(buffer, "method %s %s not found", name, signature);
         log(ERROR, "%s", buffer);
-        (*env)->FatalError(env, buffer);
+        env->FatalError(buffer);
         return NULL;
     }
 
@@ -75,11 +74,13 @@ static jboolean requestConnection(__unused JNIEnv *env, __unused jclass clazz) {
 #define check(cond, fmt, ...) if ((cond)) do { __android_log_print(ANDROID_LOG_ERROR, "requestConnection", fmt, ## __VA_ARGS__); goto end; } while (0)
     bool sent = JNI_FALSE;
     // We do not want to block GUI thread for a long time so we will set timeout to 20 msec.
-    struct sockaddr_in server = { .sin_family = AF_INET, .sin_port = htons(PORT), .sin_addr.s_addr = inet_addr("127.0.0.1") };
+    struct sockaddr_in server = { .sin_family = AF_INET, .sin_port = htons(PORT) };
+    server.sin_addr.s_addr = inet_addr("127.0.0.1");
     int so_error, sock = socket(AF_INET, SOCK_STREAM, 0);
     check(sock < 0, "Could not create socket: %s", strerror(errno));
     check(fcntl(sock, F_SETFL, O_NONBLOCK) < 0, "failed to set socket non-block: %s", strerror(errno));
-    int r = connect(sock, (struct sockaddr *)&server, sizeof(server));
+    int r;
+    r = connect(sock, (struct sockaddr *)&server, sizeof(server));
     check(r < 0 && errno != EINPROGRESS, "failed to connect socket: %s", strerror(errno));
     if (r < 0 && errno == EINPROGRESS) {
         // Connection is in progress; use poll to wait for it
@@ -120,14 +121,14 @@ static void nativeInit(JNIEnv *env, jobject thiz) {
         MainActivity.self = FindClassOrDie(env,  "com/termux/x11/MainActivity");
         MainActivity.getInstance = FindMethodOrDie(env, MainActivity.self, "getInstance", "()Lcom/termux/x11/MainActivity;", JNI_TRUE);
         MainActivity.clientConnectedStateChanged = FindMethodOrDie(env, MainActivity.self, "clientConnectedStateChanged", "()V", JNI_FALSE);
-        MainActivity.resetIme = FindMethodOrDie(env, (*env)->GetObjectClass(env, thiz), "resetIme", "()V", JNI_FALSE);
+        MainActivity.resetIme = FindMethodOrDie(env, env->GetObjectClass(thiz), "resetIme", "()V", JNI_FALSE);
     }
 
     rendererInit(env);
 
-    (*env)->GetJavaVM(env, &vm);
-    (*vm)->AttachCurrentThread(vm, &guienv, NULL);
-    globalThiz = (*guienv)->NewGlobalRef(env, thiz);
+    env->GetJavaVM(&vm);
+    vm->AttachCurrentThread(&guienv, NULL);
+    globalThiz = guienv->NewGlobalRef(thiz);
     connect_(NULL, NULL, -1);
 }
 
@@ -136,9 +137,9 @@ static int xcallback(int fd, int events, __unused void* data) {
     jobject thiz = globalThiz;
 
     if (events & (ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP)) {
-        jobject instance = (*env)->CallStaticObjectMethod(env, MainActivity.self, MainActivity.getInstance);
+        jobject instance = env->CallStaticObjectMethod(MainActivity.self, MainActivity.getInstance);
         if (instance)
-            (*env)->CallVoidMethod(env, instance, MainActivity.clientConnectedStateChanged);
+            env->CallVoidMethod(instance, MainActivity.clientConnectedStateChanged);
 
         ALooper_removeFd(ALooper_forThread(), fd);
         close(conn_fd);
@@ -163,18 +164,18 @@ static int xcallback(int fd, int events, __unused void* data) {
                     read(conn_fd, clipboard, sizeof(clipboard));
                     clipboard[e.clipboardSend.count] = 0;
                     log(DEBUG, "Clipboard content (%zu symbols) is %s", strlen(clipboard), clipboard);
-                    jmethodID id = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, thiz), "setClipboardText","(Ljava/lang/String;)V");
-                    jobject bb = (*env)->NewDirectByteBuffer(env, clipboard, strlen(clipboard));
-                    jobject charset = (*env)->CallStaticObjectMethod(env, Charset.self, Charset.forName, (*env)->NewStringUTF(env, "UTF-8"));
-                    jobject cb = (*env)->CallObjectMethod(env, charset, Charset.decode, bb);
-                    (*env)->DeleteLocalRef(env, bb);
+                    jmethodID id = env->GetMethodID(env->GetObjectClass(thiz), "setClipboardText","(Ljava/lang/String;)V");
+                    jobject bb = env->NewDirectByteBuffer(clipboard, strlen(clipboard));
+                    jobject charset = env->CallStaticObjectMethod(Charset.self, Charset.forName, env->NewStringUTF("UTF-8"));
+                    jobject cb = env->CallObjectMethod(charset, Charset.decode, bb);
+                    env->DeleteLocalRef(bb);
 
-                    jstring str = (*env)->CallObjectMethod(env, cb, CharBuffer.toString);
-                    (*env)->CallVoidMethod(env, thiz, id, str);
+                    jstring str = (jstring) env->CallObjectMethod(cb, CharBuffer.toString);
+                    env->CallVoidMethod(thiz, id, str);
                     break;
                 }
                 case EVENT_CLIPBOARD_REQUEST: {
-                    (*env)->CallVoidMethod(env, thiz, (*env)->GetMethodID(env, (*env)->GetObjectClass(env, thiz), "requestClipboard", "()V"));
+                    env->CallVoidMethod(thiz, env->GetMethodID(env->GetObjectClass(thiz), "requestClipboard", "()V"));
                     break;
                 }
                 case EVENT_SHARED_SERVER_STATE: {
@@ -184,7 +185,7 @@ static int xcallback(int fd, int events, __unused void* data) {
                     if (stateFd < 0)
                         break;
 
-                    state = mmap(NULL, sizeof(*state), PROT_READ|PROT_WRITE, MAP_SHARED, stateFd, 0);
+                    state = (struct lorie_shared_server_state*) mmap(NULL, sizeof(*state), PROT_READ|PROT_WRITE, MAP_SHARED, stateFd, 0);
                     if (!state || state == MAP_FAILED) {
                         log(ERROR, "Failed to map server state: %s", strerror(errno));
                         state = NULL;
@@ -209,7 +210,7 @@ static int xcallback(int fd, int events, __unused void* data) {
                     break;
                 }
                 case EVENT_WINDOW_FOCUS_CHANGED: {
-                    (*env)->CallVoidMethod(env, thiz, MainActivity.resetIme);
+                    env->CallVoidMethod(thiz, MainActivity.resetIme);
                 }
             }
         }
@@ -263,7 +264,7 @@ static void startLogcat(JNIEnv *env, __unused jobject cls, jint fd) {
             sprintf(buf, "--pid=%d", getppid());
             execl("/system/bin/logcat", "logcat", buf, NULL);
             log(ERROR, "exec logcat: %s", strerror(errno));
-            (*env)->FatalError(env, "Exiting");
+            env->FatalError("Exiting");
     }
 }
 
@@ -283,23 +284,23 @@ static void sendClipboardAnnounce(__unused JNIEnv *env, __unused jobject thiz) {
 
 static void sendClipboardEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
     if (conn_fd != -1 && text) {
-        jsize length = (*env)->GetArrayLength(env, text);
-        jbyte* str = (*env)->GetByteArrayElements(env, text, NULL);
-        lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = length } };
+        jsize length = env->GetArrayLength(text);
+        jbyte* str = env->GetByteArrayElements(text, NULL);
+        lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = (uint32_t) length } };
         write(conn_fd, &e, sizeof(e));
         write(conn_fd, str, length);
-        (*env)->ReleaseByteArrayElements(env, text, str, JNI_ABORT);
+        env->ReleaseByteArrayElements(text, str, JNI_ABORT);
     }
 }
 
 static void sendWindowChange(__unused JNIEnv* env, __unused jobject cls, jint width, jint height, jint framerate, jstring jname) {
     if (conn_fd != -1) {
-        const char *name = (!jname || width <= 0 || height <= 0) ? NULL : (*env)->GetStringUTFChars(env, jname, JNI_FALSE);
-        lorieEvent e = { .screenSize = { .t = EVENT_SCREEN_SIZE, .width = width, .height = height, .framerate = framerate, .name_size = (name ? strlen(name) : 0) } };
+        const char *name = (!jname || width <= 0 || height <= 0) ? NULL : env->GetStringUTFChars(jname, JNI_FALSE);
+        lorieEvent e = { .screenSize = { .t = EVENT_SCREEN_SIZE, .width = (uint16_t) width, .height = (uint16_t) height, .framerate = (uint16_t) framerate, .name_size = (name ? strlen(name) : 0) } };
         write(conn_fd, &e, sizeof(e));
         if (name) {
             write(conn_fd, name, strlen(name));
-            (*env)->ReleaseStringUTFChars(env, jname, name);
+            env->ReleaseStringUTFChars(jname, name);
         }
     }
 }
@@ -307,15 +308,15 @@ static void sendWindowChange(__unused JNIEnv* env, __unused jobject cls, jint wi
 static void sendMouseEvent(__unused JNIEnv* env, __unused jobject cls, jfloat x, jfloat y, jint which_button, jboolean button_down, jboolean relative) {
     if (conn_fd != -1) {
         if (which_button > 0)
-            (*env)->CallVoidMethod(env, globalThiz, MainActivity.resetIme);
-        lorieEvent e = { .mouse = { .t = EVENT_MOUSE, .x = x, .y = y, .detail = which_button, .down = button_down, .relative = relative } };
+            env->CallVoidMethod(globalThiz, MainActivity.resetIme);
+        lorieEvent e = { .mouse = { .t = EVENT_MOUSE, .x = x, .y = y, .detail = (uint8_t) which_button, .down = button_down, .relative = relative } };
         write(conn_fd, &e, sizeof(e));
     }
 }
 
 static void sendTouchEvent(__unused JNIEnv* env, __unused jobject cls, jint action, jint id, jint x, jint y) {
     if (conn_fd != -1 && action != -1) {
-        lorieEvent e = { .touch = { .t = EVENT_TOUCH, .type = action, .id = id, .x = x, .y = y } };
+        lorieEvent e = { .touch = { .t = EVENT_TOUCH, .type = (uint16_t) action, .id = (uint16_t) id, .x = (uint16_t) x, .y = (uint16_t) y } };
         write(conn_fd, &e, sizeof(e));
     }
 }
@@ -324,8 +325,8 @@ static void sendStylusEvent(__unused JNIEnv *env, __unused jobject thiz, jfloat 
                             jint pressure, jint tilt_x, jint tilt_y,
                             jint orientation, jint buttons, jboolean eraser, jboolean mouse) {
     if (conn_fd != -1) {
-        (*env)->CallVoidMethod(env, globalThiz, MainActivity.resetIme);
-        lorieEvent e = { .stylus = { .t = EVENT_STYLUS, .x = x, .y = y, .pressure = pressure, .tilt_x = tilt_x, .tilt_y = tilt_y, .orientation = orientation, .buttons = buttons, .eraser = eraser, .mouse = mouse } };
+        env->CallVoidMethod(globalThiz, MainActivity.resetIme);
+        lorieEvent e = { .stylus = { .t = EVENT_STYLUS, .x = x, .y = y, .pressure = (uint16_t) pressure, .tilt_x = (int8_t) tilt_x, .tilt_y = (int8_t) tilt_y, .orientation = (int16_t) orientation, .buttons = (uint8_t) buttons, .eraser = eraser, .mouse = mouse } };
         write(conn_fd, &e, sizeof(e));
     }
 }
@@ -341,7 +342,7 @@ static jboolean sendKeyEvent(__unused JNIEnv* env, __unused jobject cls, jint sc
     if (conn_fd != -1) {
         int code = (scan_code) ?: android_to_linux_keycode[key_code];
         log(DEBUG, "Sending key: %d (%d %d %d)", code + 8, scan_code, key_code, key_down);
-        lorieEvent e = { .key = { .t = EVENT_KEY, .key = code + 8, .state = key_down } };
+        lorieEvent e = { .key = { .t = EVENT_KEY, .key = (uint16_t) (code + 8), .state = key_down } };
         write(conn_fd, &e, sizeof(e));
     }
 
@@ -350,8 +351,8 @@ static jboolean sendKeyEvent(__unused JNIEnv* env, __unused jobject cls, jint sc
 
 static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
     if (conn_fd != -1 && text) {
-        jsize length = (*env)->GetArrayLength(env, text);
-        jbyte *str = (*env)->GetByteArrayElements(env, text, NULL);
+        jsize length = env->GetArrayLength(text);
+        jbyte *str = env->GetByteArrayElements(text, NULL);
         char *p = (char*) str;
         mbstate_t mbstate = { 0 };
         if (!length)
@@ -372,7 +373,7 @@ static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
                 break;
 
             log(DEBUG, "Sending unicode event: %lc (U+%X)", wc, wc);
-            lorieEvent e = { .unicode = { .t = EVENT_UNICODE, .code = wc } };
+            lorieEvent e = { .unicode = { .t = EVENT_UNICODE, .code = (uint32_t) wc } };
             write(conn_fd, &e, sizeof(e));
             p += len;
             if (p - (char*) str >= length)
@@ -380,7 +381,7 @@ static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
             usleep(2500);
         }
 
-        (*env)->ReleaseByteArrayElements(env, text, str, JNI_ABORT);
+        env->ReleaseByteArrayElements(text, str, JNI_ABORT);
     }
 }
 
@@ -407,9 +408,9 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
             {"sendTextEvent", "([B)V", (void *)&sendTextEvent},
             {"requestConnection", "()Z", (void *)&requestConnection},
     };
-    (*vm)->AttachCurrentThread(vm, &env, NULL);
-    jclass cls = (*env)->FindClass(env, "com/termux/x11/LorieView");
-    (*env)->RegisterNatives(env, cls, methods, sizeof(methods)/sizeof(methods[0]));
+    vm->AttachCurrentThread(&env, NULL);
+    jclass cls = env->FindClass("com/termux/x11/LorieView");
+    env->RegisterNatives(cls, methods, sizeof(methods)/sizeof(methods[0]));
 
     return JNI_VERSION_1_6;
 }

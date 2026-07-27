@@ -866,6 +866,13 @@ static void loriePerformVblanks(void) {
     }
 }
 
+// Whether the renderer currently has a surface to draw into (e.g. false while the activity is
+// backgrounded). Unlike lorieConnectionAlive(), this can go false without the socket connection
+// itself dropping - the renderer process/thread stays up, it just has nothing to render into.
+bool lorieRendererAvailable(void) {
+    return pvfb->state->surfaceAvailable;
+}
+
 // Tries to offload a Present "copy" operation (present_execute_copy) to the renderer's GPU
 // context instead of doing a CPU CopyArea here. dst is whatever GetWindowPixmap(window) is - root
 // for a plain window, or a Composite-redirected window's own backing pixmap. Returns FALSE
@@ -887,7 +894,7 @@ Bool lorieTryScheduleGpuCopy(PixmapPtr pixmap, PixmapPtr dst, RegionPtr update, 
         return FALSE;
     }
 
-    if (!lorieConnectionAlive()) {
+    if (!lorieConnectionAlive() || !lorieRendererAvailable()) {
         // No renderer to drain the queue, so fall back to CPU copy.
         gpuCopyAttempts++;
         return FALSE;

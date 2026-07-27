@@ -270,7 +270,7 @@
      present_check_flip2_ptr             check_flip2;
  
 +++ ./present/present_execute.c
-@@ -67,6 +67,11 @@
+@@ -67,6 +67,14 @@
      WindowPtr                   window = vblank->window;
      ScreenPtr                   screen = window->drawable.pScreen;
      present_screen_priv_ptr screen_priv = present_screen_priv(screen);
@@ -279,18 +279,20 @@
 +    PixmapPtr                   gpuCopyDst = screen->GetWindowPixmap(window);
 +    int16_t                     gpuCopyXOff = (int16_t) (vblank->x_off + window->drawable.x - gpuCopyDst->screen_x);
 +    int16_t                     gpuCopyYOff = (int16_t) (vblank->y_off + window->drawable.y - gpuCopyDst->screen_y);
++    /* lorie: renderer can be connected but still unable to ever finish a pending GPU copy
++     * (e.g. activity backgrounded, no surface) - completedSerial won't advance either way. */
++    Bool                         gpuCopyStalled = !lorieConnectionAlive() || !lorieRendererAvailable();
  
      /* If present_flip failed, we may have to requeue for the next MSC */
      if (vblank->exec_msc == crtc_msc + 1 &&
-@@ -79,12 +84,53 @@
+@@ -79,12 +87,59 @@
          return;
      }
  
 -    present_copy_region(&window->drawable, vblank->pixmap, vblank->update, vblank->x_off, vblank->y_off);
-+    /* lorie: a GPU copy was already scheduled; poll for completion instead of blocking. Give up
-+     * and treat it as done if the renderer connection died (completedSerial would never advance). */
++    /* lorie: a GPU copy was already scheduled; poll for completion instead of blocking. */
 +    if (vblank->gpu_copy_pending && !lorieGpuCopyIsDone(vblank->gpu_copy_serial) &&
-+        lorieConnectionAlive() &&
++        !gpuCopyStalled &&
 +        Success == screen_priv->queue_vblank(screen, window, vblank->crtc, vblank->event_id, crtc_msc + 1)) {
 +        vblank->queued = TRUE;
 +        return;
@@ -299,6 +301,13 @@
 +    if (vblank->gpu_copy_pending) {
 +        lorieGpuCopyAck(vblank->pixmap, vblank->gpu_copy_dst_buffer);
 +        vblank->gpu_copy_pending = FALSE;
++        if (gpuCopyStalled && !lorieGpuCopyIsDone(vblank->gpu_copy_serial)) {
++            /* lorie: the renderer never actually finished this copy - tell the client it was
++             * skipped instead of falsely reporting it as presented. */
++            present_vblank_scrap(vblank);
++            screen_priv->flush(window);
++            return;
++        }
 +    } else if (lorieTryScheduleGpuCopy(vblank->pixmap, gpuCopyDst, vblank->update, gpuCopyXOff, gpuCopyYOff,
 +                                        &vblank->gpu_copy_serial, &vblank->gpu_copy_dst_buffer)) {
 +        /* lorie: our GPU blit writes the destination pixmap directly, bypassing the normal GC
@@ -350,7 +359,7 @@
  #include <X11/X.h>
  #include "scrnintstr.h"
  #include "misc.h"
-@@ -90,8 +91,27 @@
+@@ -90,8 +91,31 @@
      Bool                abort_flip;     /* aborting this flip */
      PresentFlipReason   reason;         /* reason for which flip is not possible */
      Bool                has_suboptimal; /* whether client can support SuboptimalCopy mode */
@@ -371,6 +380,10 @@
 +extern void lorieGpuCopyAck(PixmapPtr pixmap, void *dst_buffer);
 +/* lorie: implemented in lorie/cmdentrypoint.c. Avoids waiting forever on a GPU copy that a dead renderer will never finish. */
 +extern bool lorieConnectionAlive(void);
++/* lorie: implemented in lorie/InitOutput.c. Renderer can be connected but still unable to
++ * draw (e.g. activity backgrounded, no surface) - same "give up on this GPU copy" cases as
++ * lorieConnectionAlive() need to check this too. */
++extern bool lorieRendererAvailable(void);
 +
 +/* lorie: implemented in present_scmd.c; re-executes any vblank whose GPU copy has finished. */
 +extern void lorieRecheckGpuCopies(void);
@@ -379,19 +392,21 @@
  typedef struct present_window_priv present_window_priv_rec, *present_window_priv_ptr;
  
 +++ ./present/present_scmd.c
-@@ -252,6 +252,19 @@
+@@ -252,6 +252,21 @@
      }
  }
  
-+/* lorie: called when the renderer notifies that a GPU copy batch finished, instead of waiting
-+ * for the next vblank poll. _safe iteration since present_re_execute() may destroy the vblank. */
++/* lorie: called when the renderer notifies that a GPU copy batch finished, or that it just lost
++ * its surface, instead of waiting for the next vblank poll. _safe iteration since
++ * present_re_execute() may destroy the vblank. */
 +void
 +lorieRecheckGpuCopies(void)
 +{
 +    present_vblank_ptr vblank, tmp;
++    Bool gpuCopyStalled = !lorieConnectionAlive() || !lorieRendererAvailable();
 +
 +    xorg_list_for_each_entry_safe(vblank, tmp, &present_exec_queue, event_queue) {
-+        if (vblank->gpu_copy_pending && lorieGpuCopyIsDone(vblank->gpu_copy_serial))
++        if (vblank->gpu_copy_pending && (lorieGpuCopyIsDone(vblank->gpu_copy_serial) || gpuCopyStalled))
 +            present_re_execute(vblank);
 +    }
 +}
@@ -399,7 +414,7 @@
  static void
  present_flip_idle(ScreenPtr screen)
  {
-@@ -599,6 +612,8 @@
+@@ -599,6 +614,8 @@
                      damage = &window->clipList;
  
                  DamageDamageRegion(&vblank->window->drawable, damage);

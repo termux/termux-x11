@@ -45,6 +45,10 @@ termux-x11 :1 -xstartup "dbus-launch --exit-with-session xfce4-session"
 ```
 or
 ```
+termux-x11 :1 -- dbus-launch --exit-with-session xfce4-session
+```
+or
+```
 termux-x11 :1 &
 env DISPLAY=:1 dbus-launch --exit-with-session xfce4-session
 ```

@@ -97,6 +97,7 @@ static lorieScreenInfo lorieScreen = {
         .vblank_queue = { &lorieScreen.vblank_queue, &lorieScreen.vblank_queue },
 }, *pvfb = &lorieScreen;
 static char *xstartup = NULL;
+static char **xstartupArgv = NULL;
 
 // Owned by the activity process, handed to us over the connection socket. Points at a placeholder until
 // the first connection so callers don't need a NULL check.
@@ -209,7 +210,7 @@ void ddxGiveUp(unused enum ExitCode error) {
 }
 
 static void* ddxReadyThread(unused void* cookie) {
-    if (xstartup && serverGeneration == 1) {
+    if ((xstartup || xstartupArgv) && serverGeneration == 1) {
         pid_t pid = fork();
 
         if (!pid) {
@@ -222,6 +223,12 @@ static void* ddxReadyThread(unused void* cookie) {
             INHERIT_VAR(LD_LIBRARY_PATH)
             INHERIT_VAR(LD_PRELOAD)
 #undef INHERIT_VAR
+
+            if (xstartupArgv) {
+                execvp(xstartupArgv[0], xstartupArgv);
+                dprintf(2, "Failed to start command `%s`: %s\n", xstartupArgv[0], strerror(errno));
+                abort();
+            }
 
             execlp(xstartup, xstartup, NULL);
             execlp("sh", "sh", "-c", xstartup, NULL);
@@ -278,12 +285,14 @@ void ddxReady(void) {
     pScreenPtr->DisplayCursor(lorieMouse, pScreenPtr, rootCursor);
     if (NoListenAll)
         return;
-    if (xstartup && !strlen(xstartup)) // allow overriding $TERMUX_X11_XSTARTUP with empty xstartup arg
-        return;
-    if (!xstartup || !strlen(xstartup))
-        xstartup = getenv("TERMUX_X11_XSTARTUP");
-    if (!xstartup || !strlen(xstartup))
-        return;
+    if (!xstartupArgv) {
+        if (xstartup && !strlen(xstartup)) // allow overriding $TERMUX_X11_XSTARTUP with empty xstartup arg
+            return;
+        if (!xstartup || !strlen(xstartup))
+            xstartup = getenv("TERMUX_X11_XSTARTUP");
+        if (!xstartup || !strlen(xstartup))
+            return;
+    }
 
     pthread_t t;
     pthread_create(&t, NULL, ddxReadyThread, NULL);
@@ -304,7 +313,8 @@ void ddxInputThreadInit(void) {}
 #endif
 
 void ddxUseMsg(void) {
-    ErrorF("-xstartup \"command\"    start `command` after server startup\n");
+    ErrorF("-xstartup \"command\"\n");
+    ErrorF("-- command args...     start `command` after server startup\n");
     ErrorF("-legacy-drawing        use legacy drawing, without using AHardwareBuffers\n");
     ErrorF("-force-bgra            force flipping colours (RGBA->BGRA)\n");
     ErrorF("-disable-dri3          disabling DRI3 support (to let lavapipe work)\n");
@@ -316,8 +326,24 @@ void ddxUseMsg(void) {
 int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
     if (strcmp(argv[i], "-xstartup") == 0) {  /* -xstartup "command" */
         CHECK_FOR_REQUIRED_ARGUMENTS(1);
+        if (xstartupArgv) {
+            UseMsg();
+            FatalError("-xstartup and -- are mutually exclusive\n");
+        }
         xstartup = argv[++i];
         return 2;
+    }
+
+    if (strcmp(argv[i], "--") == 0) {  /* -- command args...: everything after goes verbatim into xstartupArgv */
+        CHECK_FOR_REQUIRED_ARGUMENTS(1);
+        if (xstartup) {
+            UseMsg();
+            FatalError("-xstartup and -- are mutually exclusive\n");
+        }
+        int n = argc - i - 1;
+        xstartupArgv = calloc(n + 1, sizeof(char*)); /* argv passed to us isn't guaranteed NULL-terminated past argc */
+        memcpy(xstartupArgv, &argv[i + 1], n * sizeof(char*));
+        return argc - i;
     }
 
     if (strcmp(argv[i], "-legacy-drawing") == 0) {

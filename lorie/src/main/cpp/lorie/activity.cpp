@@ -21,6 +21,7 @@
 #pragma ide diagnostic ignored "cppcoreguidelines-narrowing-conversions"
 #pragma ide diagnostic ignored "ConstantFunctionResult"
 #define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
+#define sendEvent(...) do { if (conn_fd != -1) { lorieEvent e = { __VA_ARGS__ }; write(conn_fd, &e, sizeof(e)); } } while (0)
 
 extern volatile int conn_fd; // The only variable from shared with X server code.
 bool lorieDebugEnabled = false;
@@ -43,6 +44,7 @@ static struct {
 
 static JNIEnv *guienv = NULL; // Must be used only in GUI thread.
 static jobject globalThiz = NULL;
+static Renderer g_renderer;
 
 static jclass FindClassOrDie(JNIEnv *env, const char* name) {
     jclass clazz = env->FindClass(name);
@@ -124,7 +126,7 @@ static void nativeInit(JNIEnv *env, jobject thiz) {
         MainActivity.resetIme = FindMethodOrDie(env, env->GetObjectClass(thiz), "resetIme", "()V", JNI_FALSE);
     }
 
-    rendererInit(env);
+    g_renderer.init(env);
 
     env->GetJavaVM(&vm);
     vm->AttachCurrentThread(&guienv, NULL);
@@ -144,8 +146,8 @@ static int xcallback(int fd, int events, __unused void* data) {
         ALooper_removeFd(ALooper_forThread(), fd);
         close(conn_fd);
         conn_fd = -1;
-        rendererSetSharedState(NULL);
-        rendererRemoveAllBuffers();
+        g_renderer.setSharedState(NULL);
+        g_renderer.removeAllBuffers();
         log(DEBUG, "disconnected");
         return 1;
     }
@@ -191,7 +193,7 @@ static int xcallback(int fd, int events, __unused void* data) {
                         state = NULL;
                     }
 
-                    rendererSetSharedState(state);
+                    g_renderer.setSharedState(state);
 
                     close(stateFd); // Closing file descriptor does not unmmap shared memory fragment.
                     break;
@@ -202,11 +204,11 @@ static int xcallback(int fd, int events, __unused void* data) {
                     LorieBuffer_recvHandleFromUnixSocket(conn_fd, &buffer);
                     desc = LorieBuffer_description(buffer);
                     log(INFO, "Received shared buffer width %d stride %d height %d format %d type %d id %llu", desc->width, desc->stride, desc->height, desc->format, desc->type, desc->id);
-                    rendererAddBuffer(buffer);
+                    g_renderer.addBuffer(buffer);
                     break;
                 }
                 case EVENT_REMOVE_BUFFER: {
-                    rendererRemoveBuffer(e.removeBuffer.id);
+                    g_renderer.removeBuffer(e.removeBuffer.id);
                     break;
                 }
                 case EVENT_WINDOW_FOCUS_CHANGED: {
@@ -227,8 +229,8 @@ static void connect_(__unused JNIEnv* env, __unused jobject cls, jint fd) {
     if (conn_fd != -1) {
         ALooper_removeFd(ALooper_forThread(), conn_fd);
         close(conn_fd);
-        rendererSetSharedState(NULL);
-        rendererRemoveAllBuffers();
+        g_renderer.setSharedState(NULL);
+        g_renderer.removeAllBuffers();
         log(DEBUG, "disconnected");
     }
 
@@ -238,14 +240,10 @@ static void connect_(__unused JNIEnv* env, __unused jobject cls, jint fd) {
         // Give the X server our renderer wakeup cond var fd, resent on every reconnect.
         lorieEvent e = { .type = EVENT_RENDERER_WAKEUP_COND };
         write(conn_fd, &e, sizeof(e));
-        ancil_send_fd(conn_fd, rendererGetWakeupCondFd());
+        ancil_send_fd(conn_fd, g_renderer.getWakeupCondFd());
 
         log(DEBUG, "XCB connection is successfull");
     }
-}
-
-static jboolean connected(__unused JNIEnv* env,__unused jclass clazz) {
-    return conn_fd != -1;
 }
 
 static void startLogcat(JNIEnv *env, __unused jobject cls, jint fd) {
@@ -266,87 +264,6 @@ static void startLogcat(JNIEnv *env, __unused jobject cls, jint fd) {
             log(ERROR, "exec logcat: %s", strerror(errno));
             env->FatalError("Exiting");
     }
-}
-
-static void setClipboardSyncEnabled(__unused JNIEnv* env, __unused jobject cls, jboolean enable, __unused jboolean ignored) {
-    if (conn_fd != -1) {
-        lorieEvent e = { .clipboardEnable = { .t = EVENT_CLIPBOARD_ENABLE, .enable = enable } };
-        write(conn_fd, &e, sizeof(e));
-    }
-}
-
-static void sendClipboardAnnounce(__unused JNIEnv *env, __unused jobject thiz) {
-    if (conn_fd != -1) {
-        lorieEvent e = { .type = EVENT_CLIPBOARD_ANNOUNCE };
-        write(conn_fd, &e, sizeof(e));
-    }
-}
-
-static void sendClipboardEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
-    if (conn_fd != -1 && text) {
-        jsize length = env->GetArrayLength(text);
-        jbyte* str = env->GetByteArrayElements(text, NULL);
-        lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = (uint32_t) length } };
-        write(conn_fd, &e, sizeof(e));
-        write(conn_fd, str, length);
-        env->ReleaseByteArrayElements(text, str, JNI_ABORT);
-    }
-}
-
-static void sendWindowChange(__unused JNIEnv* env, __unused jobject cls, jint width, jint height, jint framerate, jstring jname) {
-    if (conn_fd != -1) {
-        const char *name = (!jname || width <= 0 || height <= 0) ? NULL : env->GetStringUTFChars(jname, JNI_FALSE);
-        lorieEvent e = { .screenSize = { .t = EVENT_SCREEN_SIZE, .width = (uint16_t) width, .height = (uint16_t) height, .framerate = (uint16_t) framerate, .name_size = (name ? strlen(name) : 0) } };
-        write(conn_fd, &e, sizeof(e));
-        if (name) {
-            write(conn_fd, name, strlen(name));
-            env->ReleaseStringUTFChars(jname, name);
-        }
-    }
-}
-
-static void sendMouseEvent(__unused JNIEnv* env, __unused jobject cls, jfloat x, jfloat y, jint which_button, jboolean button_down, jboolean relative) {
-    if (conn_fd != -1) {
-        if (which_button > 0)
-            env->CallVoidMethod(globalThiz, MainActivity.resetIme);
-        lorieEvent e = { .mouse = { .t = EVENT_MOUSE, .x = x, .y = y, .detail = (uint8_t) which_button, .down = button_down, .relative = relative } };
-        write(conn_fd, &e, sizeof(e));
-    }
-}
-
-static void sendTouchEvent(__unused JNIEnv* env, __unused jobject cls, jint action, jint id, jint x, jint y) {
-    if (conn_fd != -1 && action != -1) {
-        lorieEvent e = { .touch = { .t = EVENT_TOUCH, .type = (uint16_t) action, .id = (uint16_t) id, .x = (uint16_t) x, .y = (uint16_t) y } };
-        write(conn_fd, &e, sizeof(e));
-    }
-}
-
-static void sendStylusEvent(__unused JNIEnv *env, __unused jobject thiz, jfloat x, jfloat y,
-                            jint pressure, jint tilt_x, jint tilt_y,
-                            jint orientation, jint buttons, jboolean eraser, jboolean mouse) {
-    if (conn_fd != -1) {
-        env->CallVoidMethod(globalThiz, MainActivity.resetIme);
-        lorieEvent e = { .stylus = { .t = EVENT_STYLUS, .x = x, .y = y, .pressure = (uint16_t) pressure, .tilt_x = (int8_t) tilt_x, .tilt_y = (int8_t) tilt_y, .orientation = (int16_t) orientation, .buttons = (uint8_t) buttons, .eraser = eraser, .mouse = mouse } };
-        write(conn_fd, &e, sizeof(e));
-    }
-}
-
-static void requestStylusEnabled(__unused JNIEnv *env, __unused jclass clazz, jboolean enabled) {
-    if (conn_fd != -1) {
-        lorieEvent e = { .stylusEnable = { .t = EVENT_STYLUS_ENABLE, .enable = enabled } };
-        write(conn_fd, &e, sizeof(e));
-    }
-}
-
-static jboolean sendKeyEvent(__unused JNIEnv* env, __unused jobject cls, jint scan_code, jint key_code, jboolean key_down) {
-    if (conn_fd != -1) {
-        int code = (scan_code) ?: android_to_linux_keycode[key_code];
-        log(DEBUG, "Sending key: %d (%d %d %d)", code + 8, scan_code, key_code, key_down);
-        lorieEvent e = { .key = { .t = EVENT_KEY, .key = (uint16_t) (code + 8), .state = key_down } };
-        write(conn_fd, &e, sizeof(e));
-    }
-
-    return true;
 }
 
 static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
@@ -389,22 +306,76 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
     JNIEnv* env;
     static JNINativeMethod methods[] = {
             {"nativeInit", "()V", (void *)&nativeInit},
-            {"surfaceChanged", "(Landroid/view/Surface;)V", (void *)&rendererSetWindow},
-            {"setViewport", "(IIIIII)V", (void *)&rendererSetViewport},
-            {"setRendererZoom", "(I)V", (void *)&rendererSetZoom},
-            {"setFiltering", "(I)V", (void *)&rendererSetFiltering},
+            {"surfaceChanged", "(Landroid/view/Surface;)V", (void *) +[](JNIEnv *env, __unused jobject thiz, jobject sfc) {
+                g_renderer.setWindow(env, sfc);
+            }},
+            {"setViewport", "(IIIIII)V", (void *) +[](__unused JNIEnv *env, __unused jclass clazz, jint x, jint y, jint w, jint h, jint ew, jint eh) {
+                g_renderer.setViewport(x, y, w, h, ew, eh);
+            }},
+            {"setRendererZoom", "(I)V", (void *) +[](__unused JNIEnv *env, __unused jclass clazz, jint percent) {
+                g_renderer.setZoom(percent);
+            }},
+            {"setFiltering", "(I)V", (void *) +[](__unused JNIEnv* env, __unused jobject self, jint filtering) {
+                g_renderer.setFiltering(filtering);
+            }},
             {"connect", "(I)V", (void *)&connect_},
-            {"connected", "()Z", (void *)&connected},
+            {"connected", "()Z", (void *) +[](__unused JNIEnv* env, __unused jclass clazz) -> jboolean {
+                return conn_fd != -1;
+            }},
             {"startLogcat", "(I)V", (void *)&startLogcat},
-            {"setClipboardSyncEnabled", "(ZZ)V", (void *)&setClipboardSyncEnabled},
-            {"sendClipboardAnnounce", "()V", (void *)&sendClipboardAnnounce},
-            {"sendClipboardEvent", "([B)V", (void *)&sendClipboardEvent},
-            {"sendWindowChange", "(IIILjava/lang/String;)V", (void *)&sendWindowChange},
-            {"sendMouseEvent", "(FFIZZ)V", (void *)&sendMouseEvent},
-            {"sendTouchEvent", "(IIII)V", (void *)&sendTouchEvent},
-            {"sendStylusEvent", "(FFIIIIIZZ)V", (void *)&sendStylusEvent},
-            {"requestStylusEnabled", "(Z)V", (void *)&requestStylusEnabled},
-            {"sendKeyEvent", "(IIZI)Z", (void *)&sendKeyEvent},
+            {"setClipboardSyncEnabled", "(ZZ)V", (void *) +[](__unused JNIEnv* env, __unused jobject cls, jboolean enable, __unused jboolean ignored) {
+                sendEvent(.clipboardEnable = { .t = EVENT_CLIPBOARD_ENABLE, .enable = enable });
+            }},
+            {"sendClipboardAnnounce", "()V", (void *) +[](__unused JNIEnv *env, __unused jobject thiz) {
+                sendEvent(.type = EVENT_CLIPBOARD_ANNOUNCE);
+            }},
+            {"sendClipboardEvent", "([B)V", (void *) +[](JNIEnv *env, __unused jobject thiz, jbyteArray text) {
+                if (conn_fd != -1 && text) {
+                    jsize length = env->GetArrayLength(text);
+                    jbyte* str = env->GetByteArrayElements(text, NULL);
+                    sendEvent(.clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = (uint32_t) length });
+                    write(conn_fd, str, length);
+                    env->ReleaseByteArrayElements(text, str, JNI_ABORT);
+                }
+            }},
+            {"sendWindowChange", "(IIILjava/lang/String;)V", (void *) +[](__unused JNIEnv* env, __unused jobject cls, jint width, jint height, jint framerate, jstring jname) {
+                if (conn_fd != -1) {
+                    const char *name = (!jname || width <= 0 || height <= 0) ? NULL : env->GetStringUTFChars(jname, JNI_FALSE);
+                    sendEvent(.screenSize = { .t = EVENT_SCREEN_SIZE, .width = (uint16_t) width, .height = (uint16_t) height, .framerate = (uint16_t) framerate, .name_size = (name ? strlen(name) : 0) });
+                    if (name) {
+                        write(conn_fd, name, strlen(name));
+                        env->ReleaseStringUTFChars(jname, name);
+                    }
+                }
+            }},
+            {"sendMouseEvent", "(FFIZZ)V", (void *) +[](__unused JNIEnv* env, __unused jobject cls, jfloat x, jfloat y, jint which_button, jboolean button_down, jboolean relative) {
+                if (conn_fd != -1) {
+                    if (which_button > 0)
+                        env->CallVoidMethod(globalThiz, MainActivity.resetIme);
+                    sendEvent(.mouse = { .t = EVENT_MOUSE, .x = x, .y = y, .detail = (uint8_t) which_button, .down = button_down, .relative = relative });
+                }
+            }},
+            {"sendTouchEvent", "(IIII)V", (void *) +[](__unused JNIEnv* env, __unused jobject cls, jint action, jint id, jint x, jint y) {
+                if (action != -1)
+                    sendEvent(.touch = { .t = EVENT_TOUCH, .type = (uint16_t) action, .id = (uint16_t) id, .x = (uint16_t) x, .y = (uint16_t) y });
+            }},
+            {"sendStylusEvent", "(FFIIIIIZZ)V", (void *) +[](__unused JNIEnv *env, __unused jobject thiz, jfloat x, jfloat y, jint pressure, jint tilt_x, jint tilt_y, jint orientation, jint buttons, jboolean eraser, jboolean mouse) {
+                if (conn_fd != -1) {
+                    env->CallVoidMethod(globalThiz, MainActivity.resetIme);
+                    sendEvent(.stylus = { .t = EVENT_STYLUS, .x = x, .y = y, .pressure = (uint16_t) pressure, .tilt_x = (int8_t) tilt_x, .tilt_y = (int8_t) tilt_y, .orientation = (int16_t) orientation, .buttons = (uint8_t) buttons, .eraser = eraser, .mouse = mouse });
+                }
+            }},
+            {"requestStylusEnabled", "(Z)V", (void *) +[](__unused JNIEnv *env, __unused jclass clazz, jboolean enabled) {
+                sendEvent(.stylusEnable = { .t = EVENT_STYLUS_ENABLE, .enable = enabled });
+            }},
+            {"sendKeyEvent", "(IIZI)Z", (void *) +[](__unused JNIEnv* env, __unused jobject cls, jint scan_code, jint key_code, jboolean key_down) -> jboolean {
+                if (conn_fd != -1) {
+                    int code = (scan_code) ?: android_to_linux_keycode[key_code];
+                    log(DEBUG, "Sending key: %d (%d %d %d)", code + 8, scan_code, key_code, key_down);
+                    sendEvent(.key = { .t = EVENT_KEY, .key = (uint16_t) (code + 8), .state = key_down });
+                }
+                return true;
+            }},
             {"sendTextEvent", "([B)V", (void *)&sendTextEvent},
             {"requestConnection", "()Z", (void *)&requestConnection},
     };

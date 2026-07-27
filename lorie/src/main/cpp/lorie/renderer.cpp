@@ -125,10 +125,6 @@ static void notifyGpuCopyDone(void) {
     }
 }
 
-// Renderer itself is declared in lorie.h so activity.cpp will be able to hold an instance
-// directly once it's converted too. For now there is still exactly one instance (g_renderer).
-static Renderer g_renderer;
-
 void Renderer::bindTexture(GLuint id) {
     glBindTexture(GL_TEXTURE_2D, id);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filtering);
@@ -168,8 +164,8 @@ static const EGLint ctxattribs[] = {
         EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE
 };
 
-void* Renderer::initThread(JavaVM* vm) {
-    if (vm->AttachCurrentThread(&rendererEnv, NULL) != JNI_OK) {
+void* Renderer::initThread() {
+    if (jvm->AttachCurrentThread(&rendererEnv, NULL) != JNI_OK) {
         log("Failed to attach renderer thread to JVM");
         return nullptr;
     }
@@ -260,12 +256,11 @@ void* Renderer::initThread(JavaVM* vm) {
 
 void Renderer::init(JNIEnv* env) {
     pthread_t t;
-    JavaVM* vm;
 
     if (ctx)
         return;
 
-    env->GetJavaVM(&vm);
+    env->GetJavaVM(&jvm);
     jclass clazz = env->FindClass("com/termux/x11/LorieView");
     lorieViewClass = (jclass) env->NewGlobalRef(clazz);
     setRendererViewportMethod = env->GetStaticMethodID(lorieViewClass, "setRendererViewport", "(IIIIFFFF)V");
@@ -288,8 +283,8 @@ void Renderer::init(JNIEnv* env) {
     pthread_spin_init(&bufferLock, false);
 
     pthread_create(&t, NULL, +[](void* cookie) -> void* {
-        return g_renderer.initThread((JavaVM*) cookie);
-    }, vm);
+        return ((Renderer*) cookie)->initThread();
+    }, this);
 }
 
 int Renderer::getWakeupCondFd() {
@@ -407,6 +402,11 @@ void Renderer::testCapabilities(int* legacy_drawing) {
         eglDestroySurface(egl_display, checksfc);
         AHardwareBuffer_release(new_);
     }
+}
+
+void rendererTestCapabilities(int* legacy_drawing) {
+    Renderer scratch;
+    scratch.testCapabilities(legacy_drawing);
 }
 
 void Renderer::setSharedState(struct lorie_shared_server_state* newState) {
@@ -1076,16 +1076,3 @@ void Renderer::drawCursor(float displayWidth, float displayHeight, float sourceL
     drawRegion(cursor.id, x, y, x + w, y + h, 0.f, 0.f, 1.f, 1.f, false);
     glDisable(GL_BLEND);
 }
-
-// JNI-facing entry points; these are the only places g_renderer is referenced by name.
-void rendererInit(JNIEnv* env) { g_renderer.init(env); }
-int rendererGetWakeupCondFd(void) { return g_renderer.getWakeupCondFd(); }
-void rendererSetFiltering(JNIEnv* env, jobject self, jint filtering) { g_renderer.setFiltering(filtering); }
-void rendererTestCapabilities(int* legacy_drawing) { g_renderer.testCapabilities(legacy_drawing); }
-void rendererSetSharedState(struct lorie_shared_server_state* newState) { g_renderer.setSharedState(newState); }
-void rendererAddBuffer(LorieBuffer* buf) { g_renderer.addBuffer(buf); }
-void rendererRemoveBuffer(uint64_t id) { g_renderer.removeBuffer(id); }
-void rendererRemoveAllBuffers(void) { g_renderer.removeAllBuffers(); }
-void rendererSetWindow(JNIEnv *env, jobject thiz, jobject sfc) { g_renderer.setWindow(env, sfc); }
-void rendererSetViewport(JNIEnv *env, jclass clazz, int x, int y, int w, int h, int ew, int eh) { g_renderer.setViewport(x, y, w, h, ew, eh); }
-void rendererSetZoom(JNIEnv *env, jclass clazz, int percent) { g_renderer.setZoom(percent); }

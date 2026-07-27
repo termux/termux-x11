@@ -40,20 +40,10 @@ void lorieSendSharedServerState(int memfd);
 void lorieRegisterBuffer(LorieBuffer* buffer);
 void lorieUnregisterBuffer(LorieBuffer* buffer);
 bool lorieConnectionAlive(void);
-extern bool lorieDebugEnabled; // Set in activity.c's startLogcat, only called when TERMUX_X11_DEBUG=1.
+extern bool lorieDebugEnabled; // Set in activity.cpp's startLogcat, only called when TERMUX_X11_DEBUG=1.
 void lorieSetRendererWakeupCond(int fd);
-int rendererGetWakeupCondFd(void);
 
-__unused void rendererInit(JNIEnv* env);
-__unused void rendererSetFiltering(JNIEnv* env, jobject self, jint filtering);
 __unused void rendererTestCapabilities(int* legacy_drawing);
-__unused void rendererSetWindow(JNIEnv *env, jobject thiz, jobject sfc);
-__unused void rendererSetViewport(JNIEnv *env, jclass clazz, int x, int y, int w, int h, int ew, int eh);
-__unused void rendererSetZoom(JNIEnv *env, jclass clazz, int percent);
-__unused void rendererSetSharedState(struct lorie_shared_server_state* newState);
-__unused void rendererAddBuffer(LorieBuffer* buf);
-__unused void rendererRemoveBuffer(uint64_t id);
-__unused void rendererRemoveAllBuffers(void);
 
 static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_t* lockingPid) {
     // Unfortunately there is no robust mutexes in bionic.
@@ -270,6 +260,7 @@ struct Renderer {
     volatile int zoomPercent = 100;
     float zoomSourceLeft = 0.f, zoomSourceTop = 0.f;
     JNIEnv* rendererEnv = nullptr;
+    JavaVM* jvm = nullptr; // Stashed by init() so initThread() can be reached via `this` from a plain (non-capturing) pthread_create callback.
     jclass lorieViewClass = nullptr;
     jmethodID setRendererViewportMethod = nullptr;
     int reportedViewportX = -1, reportedViewportY = -1, reportedViewportW = -1, reportedViewportH = -1;
@@ -310,7 +301,7 @@ struct Renderer {
     uint64_t lastRequestedBufferId = 0;
 
     void init(JNIEnv* env);
-    void* initThread(JavaVM* vm);
+    void* initThread();
     int getWakeupCondFd();
     void setFiltering(jint f);
     void testCapabilities(int* legacy_drawing);

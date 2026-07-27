@@ -767,7 +767,7 @@ public class MainActivity extends AppCompatActivity {
                             LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS :
                             LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
                 else
-                    getWindow().getAttributes().layoutInDisplayCutoutMode = LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT;
+                    getWindow().getAttributes().layoutInDisplayCutoutMode = LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER;
             }
 
             window.setStatusBarColor(Color.BLACK);

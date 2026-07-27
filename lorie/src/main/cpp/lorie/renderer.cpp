@@ -761,9 +761,10 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
         log("Buffer %llu is not of expected size, expecting %dx%d or %dx%d, got %dx%d",
             state->rootWindowTextureID, alignedExpectedW, expectedH, expectedW, expectedH,
             desc->width, desc->height);
-        // Otherwise rendererShouldWait sees drawRequested still set and busy-spins retrying this
-        // same mismatch instead of waiting for the next real trigger (e.g. the pending resize).
+        // Otherwise rendererShouldWait sees drawRequested or a pending cursor update and busy-spins
+        // retrying this same mismatch instead of waiting for the buffer of the requested size.
         state->drawRequested = FALSE;
+        *waitingForBuffers = true;
         return;
     }
 

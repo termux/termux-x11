@@ -1,16 +1,32 @@
 diff --git a/app/build.gradle b/app/build.gradle
-index b3168f09..04d4a309 100644
+index b3168f09..9bfa11b0 100644
 --- a/app/build.gradle
 +++ b/app/build.gradle
-@@ -29,6 +29,7 @@ android {
+@@ -3,12 +3,13 @@ plugins {
+ }
+ 
+ def apkVersionTag = System.getenv("TERMUX_APK_VERSION_TAG") ?: ""
++apply from: new File(rootDir, "../lorie/version.gradle")
+ 
+ android {
+     namespace "com.termux"
+ 
+     compileSdkVersion project.properties.compileSdkVersion.toInteger()
+-    ndkVersion = System.getenv("JITPACK_NDK_VERSION") ?: project.properties.ndkVersion
++    ndkVersion = System.getenv("JITPACK_NDK_VERSION") ?: termuxX11NdkVersion
+     def appVersionName = System.getenv("TERMUX_APP_VERSION_NAME") ?: ""
+     def splitAPKsForDebugBuilds = System.getenv("TERMUX_SPLIT_APKS_FOR_DEBUG_BUILDS") ?: "1"
+     def splitAPKsForReleaseBuilds = System.getenv("TERMUX_SPLIT_APKS_FOR_RELEASE_BUILDS") ?: "0" // F-Droid does not support split APKs #1904
+@@ -29,6 +30,8 @@ android {
  
          implementation project(":terminal-view")
          implementation project(":termux-shared")
++        rootProject.ext.prebuiltJniLibsDir = new File(rootDir, "../lorie/build/intermediates/stripped_native_libs/debug/stripDebugDebugSymbols/out/lib")
 +        implementation project(':lorie')
      }
  
      defaultConfig {
-@@ -39,6 +40,7 @@ android {
+@@ -39,6 +42,7 @@ android {
  
          if (appVersionName) versionName = appVersionName
          validateVersionName(versionName)
@@ -18,7 +34,7 @@ index b3168f09..04d4a309 100644
  
          manifestPlaceholders.TERMUX_PACKAGE_NAME = "com.termux"
          manifestPlaceholders.TERMUX_APP_NAME = "Termux"
-@@ -110,7 +112,7 @@ android {
+@@ -110,7 +114,7 @@ android {
  
      packagingOptions {
          jniLibs {

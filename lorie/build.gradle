@@ -20,15 +20,12 @@ if (hostProjects.size() > 1)
     throw new GradleException("Multiple application modules depend on :${project.name} (${hostProjects.collect { it.path }}); cannot determine which one is the real host")
 def hostProject = hostProjects[0]
 def hostApplicationId = hostProject.android.defaultConfig.applicationId ?: hostProject.android.namespace
-// ndkVersion isn't inherited from the host module; use its value when set,
-// otherwise fall back to a known 16 KB-page-aligning NDK.
-def hostNdkVersion = hostProject.android.ndkVersion ?: "29.0.14206865"
 
 android {
     namespace 'com.termux.x11'
     //noinspection GrDeprecatedAPIUsage
     compileSdkVersion 34
-    ndkVersion hostNdkVersion
+    ndkVersion termuxX11NdkVersion
     defaultConfig {
         minSdkVersion 26
         targetSdkVersion 34
@@ -41,7 +38,16 @@ android {
 
     compileOptions.sourceCompatibility JavaVersion.VERSION_1_9
     compileOptions.targetCompatibility JavaVersion.VERSION_1_9
-    externalNativeBuild.cmake.path "src/main/cpp/CMakeLists.txt"
+    if (rootProject.ext.has('prebuiltJniLibsDir')) {
+        // Consumer already built us once and pointed us at those .so's, so we don't have to run
+        // CMake (and its own separate CMake config/cache) a second time for the same source.
+        def libsDir = file(rootProject.ext.prebuiltJniLibsDir)
+        if (!libsDir.directory || !libsDir.list())
+            throw new GradleException("prebuiltJniLibsDir '${libsDir}' doesn't exist or is empty; was :lorie-app built first?")
+        sourceSets.main.jniLibs.srcDirs += libsDir
+    } else {
+        externalNativeBuild.cmake.path "src/main/cpp/CMakeLists.txt"
+    }
     packagingOptions.jniLibs.useLegacyPackaging false
     buildFeatures.aidl true
     buildFeatures.buildConfig true

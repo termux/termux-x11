@@ -3,3 +3,9 @@ ext.termuxX11VersionName = {
     def version = "1.03.01"
     "${version}-${commit.length() == 1 ? "nongit" : commit}-${(new Date()).format("dd.MM.yy")}"
 }()
+
+// Single source of truth for the NDK version. Anything building :lorie (this repo's own
+// lorie-app, or a host app integrating it) should read this instead of letting AGP pick its
+// own default, otherwise :lorie's CMake config differs between them and its native code gets
+// compiled twice.
+ext.termuxX11NdkVersion = "29.0.14206865"

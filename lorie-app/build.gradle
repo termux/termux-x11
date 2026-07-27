@@ -4,6 +4,7 @@ apply from: '../lorie/version.gradle'
 android {
     namespace 'com.termux.x11.app'
     compileSdkVersion 34
+    ndkVersion termuxX11NdkVersion
     defaultConfig {
         applicationId "com.termux.x11"
         minSdkVersion 26

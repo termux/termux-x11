@@ -750,7 +750,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         int requestedOrientation;
-        switch (prefs.forceOrientation.get()) {
+        switch (isInMultiWindowMode() ? "auto" : prefs.forceOrientation.get()) {
             case "portrait": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT; break;
             case "landscape": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE; break;
             case "reverse portrait": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT; break;

@@ -580,6 +580,12 @@ public class MainActivity extends AppCompatActivity {
     void onPreferencesChangedCallback() {
         prefs.recheckStoringSecondaryDisplayPreferences();
 
+        // There is no way back to the normal size from picture-in-picture, so the window is closed.
+        if (isInPictureInPictureMode && !prefs.PIP.get()) {
+            finish();
+            return;
+        }
+
         applyWindowSettings();
         LorieView lorieView = getLorieView();
 

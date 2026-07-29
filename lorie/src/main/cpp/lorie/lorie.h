@@ -253,7 +253,7 @@ struct Renderer {
     struct xorg_list addedBuffers, buffers, removedBuffers;
     volatile jint filtering = GL_NEAREST;
 
-    volatile bool stateChanged = false, windowChanged = false;
+    volatile bool stateChanged = false, windowChanged = false, viewportChanged = false;
     struct lorie_shared_server_state* pendingState = nullptr;
     ANativeWindow* pendingWin = nullptr;
     volatile int viewportX = 0, viewportY = 0, viewportW = 0, viewportH = 0, expectedW = 0, expectedH = 0;

@@ -518,6 +518,7 @@ void Renderer::setViewport(int x, int y, int w, int h, int ew, int eh) {
     viewportH = h;
     expectedW = ew;
     expectedH = eh;
+    viewportChanged = true;
     reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
     reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
     if (state)
@@ -898,6 +899,12 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
 
 bool Renderer::shouldWait(bool *waitingForBuffers) {
     bool buffersChanged, gpuCopyPending;
+    if (viewportChanged) {
+        // setWindow drops the expected size, so the buffer rejected right after it fits again
+        // as soon as the viewport is reapplied, and no new buffer is going to arrive.
+        viewportChanged = false;
+        *waitingForBuffers = false;
+    }
     pthread_spin_lock(&bufferLock);
     buffersChanged = !xorg_list_is_empty(&addedBuffers) || !xorg_list_is_empty(&removedBuffers);
     pthread_spin_unlock(&bufferLock);

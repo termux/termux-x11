@@ -25,6 +25,7 @@ import android.text.InputType;
 import android.text.Selection;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.Rational;
 import android.view.KeyEvent;
 import android.view.Display;
 import android.view.Surface;
@@ -70,6 +71,7 @@ import dalvik.annotation.optimization.FastNative;
 @SuppressWarnings("deprecation")
 public class LorieView extends SurfaceView implements InputStub {
     private static int rendererZoom = 100;
+    private static final Rect NO_INSETS = new Rect();
 
     public interface Callback {
         void inputTransformChanged(int screenWidth, int screenHeight, Matrix inputTransform);
@@ -92,6 +94,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private final Matrix inputTransform = new Matrix();
     private float inputSourceLeft = 0.f, inputSourceTop = 0.f;
     private float inputSourceWidth = 0.f, inputSourceHeight = 0.f;
+    private boolean dimensionsFrozen = false;
     boolean commitedText = false;
     private final InputConnection mConnection = new BaseInputConnection(this, false) {
         private final MainActivity a = MainActivity.getInstance();
@@ -433,6 +436,21 @@ public class LorieView extends SurfaceView implements InputStub {
         });
     }
 
+    /** Keeps the X screen size while the window is being resized, the picture is scaled instead. */
+    public void freezeDimensions(boolean freeze) {
+        if (dimensionsFrozen == freeze || (freeze && (p.x == 0 || p.y == 0)))
+            return;
+
+        dimensionsFrozen = freeze;
+        if (!freeze)
+            requestLayout(); // measuring is what reapplies the dimensions, and the window may still be resizing
+    }
+
+    /** Aspect ratio of the area the X screen is drawn in, null if the view is not laid out yet. */
+    public Rational getViewportAspectRatio() {
+        return viewport.isEmpty() ? null : new Rational(viewport.width(), viewport.height());
+    }
+
     public void setContentInsets(int left, int top, int right, int bottom) {
         if (contentInsets.left == left && contentInsets.top == top && contentInsets.right == right && contentInsets.bottom == bottom)
             return;
@@ -445,14 +463,17 @@ public class LorieView extends SurfaceView implements InputStub {
         Prefs prefs = MainActivity.getPrefs();
 
         int surfaceW = getMeasuredWidth(), surfaceH = getMeasuredHeight();
-        int availableLeft = contentInsets.left, availableTop = contentInsets.top;
-        int availableW = Math.max(0, surfaceW - contentInsets.left - contentInsets.right);
-        int availableH = Math.max(0, surfaceH - contentInsets.top - contentInsets.bottom);
+        // Views the insets reserve room for are hidden while the dimensions are frozen.
+        Rect insets = dimensionsFrozen ? NO_INSETS : contentInsets;
+        int availableLeft = insets.left, availableTop = insets.top;
+        int availableW = Math.max(0, surfaceW - insets.left - insets.right);
+        int availableH = Math.max(0, surfaceH - insets.top - insets.bottom);
 
         if (availableW == 0 || availableH == 0)
             return;
 
-        getDimensionsFromSettings(availableW, availableH);
+        if (!dimensionsFrozen)
+            getDimensionsFromSettings(availableW, availableH);
 
         int drawW = availableW;
         int drawH = availableH;
@@ -477,7 +498,8 @@ public class LorieView extends SurfaceView implements InputStub {
         setViewport(viewport.left, viewport.top, viewport.width(), viewport.height(), p.x, p.y);
 
         updateInputTransform();
-        sendWindowChange();
+        if (!dimensionsFrozen)
+            sendWindowChange();
     }
 
     @Override

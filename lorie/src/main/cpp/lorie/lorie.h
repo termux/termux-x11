@@ -257,8 +257,9 @@ struct Renderer {
     struct lorie_shared_server_state* pendingState = nullptr;
     ANativeWindow* pendingWin = nullptr;
     volatile int viewportX = 0, viewportY = 0, viewportW = 0, viewportH = 0, expectedW = 0, expectedH = 0;
+    volatile int hiddenBottom = 0;
     volatile int zoomPercent = 100;
-    float zoomSourceLeft = 0.f, zoomSourceTop = 0.f;
+    float panSourceLeft = 0.f, panSourceTop = 0.f;
     JNIEnv* rendererEnv = nullptr;
     JavaVM* jvm = nullptr; // Stashed by init() so initThread() can be reached via `this` from a plain (non-capturing) pthread_create callback.
     jclass lorieViewClass = nullptr;
@@ -310,7 +311,7 @@ struct Renderer {
     void removeBuffer(uint64_t id);
     void removeAllBuffers();
     void setWindow(JNIEnv* env, jobject jsfc);
-    void setViewport(int x, int y, int w, int h, int ew, int eh);
+    void setViewport(int x, int y, int w, int h, int ew, int eh, int hidden);
     void setZoom(int percent);
     void releaseWinAndSurface(ANativeWindow** anw, EGLSurface* esfc);
     void refreshContext();

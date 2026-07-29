@@ -691,6 +691,7 @@ public class MainActivity extends AppCompatActivity {
     private void applyContentInsets() {
         int imeContentInset = prefs.Reseed.get() ? imeHeight : 0;
         getLorieView().setContentInsets(0, captionHeight, 0, ekbarContentInset + imeContentInset);
+        getLorieView().setObscuredBottom(imeHeight - imeContentInset);
 
         ViewPager pager = getTerminalToolbarViewPager();
         ViewGroup.MarginLayoutParams pagerParams = (ViewGroup.MarginLayoutParams) pager.getLayoutParams();

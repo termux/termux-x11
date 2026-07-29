@@ -27,7 +27,9 @@ def signingConfig = project(':lorie-app').android.signingConfigs.debug
 def keyStore = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
 keyStore.load(new FileInputStream(signingConfig.storeFile), signingConfig.keyPassword.toCharArray())
 
-android.defaultConfig.buildConfigField "String", "APPLICATION_ID", "\"com.termux.x11\""
+def targetApplicationId = "com.termux.x11"
+
+android.defaultConfig.buildConfigField "String", "APPLICATION_ID", "\"$targetApplicationId\""
 android.defaultConfig.buildConfigField "String", "EMBEDDED_APPLICATION_ID", "\"com.termux\""
 android.defaultConfig.buildConfigField "String", "logTag", "\"Termux:X11 loader\""
 android.defaultConfig.buildConfigField "int", "SIGNATURE", String.valueOf(Arrays.hashCode(keyStore.getCertificate(signingConfig.keyAlias).getEncoded()))
@@ -37,5 +39,5 @@ android.defaultConfig.buildConfigField "String", "packageNotInstalledErrorText",
         \"You should choose latest release here: \\n https://github.com/termux/termux-x11/releases/tag/nightly\\n\" +
         \"After this you should download \\"termux-x11-universal-debug.apk\\" and install it.\\n\""""
 android.defaultConfig.buildConfigField "String", "packageSignatureMismatchErrorText",
-        "\"Signature verification of target application " + android.namespace + " failed.\\nPlease, reinstall both termux-x11 package and Termux:X11 application from the same source\""
+        "\"Signature verification of target application $targetApplicationId failed.\\nPlease, reinstall both termux-x11 package and Termux:X11 application from the same source\""
 android.defaultConfig.buildConfigField "String", "COMMIT", "\"" + ("git rev-parse HEAD\n".execute().getText().trim() ?: (System.getenv('CURRENT_COMMIT') ?: "NO_COMMIT")) + "\""

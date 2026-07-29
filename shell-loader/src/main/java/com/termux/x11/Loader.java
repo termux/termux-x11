@@ -18,6 +18,7 @@ public class Loader {
         cls = cls != null ? cls : BuildConfig.CLASS_ID;
         try {
             android.content.pm.PackageInfo targetInfo = null;
+            boolean signatureMismatch = false;
             for (String pkg : new String[]{ BuildConfig.EMBEDDED_APPLICATION_ID, BuildConfig.APPLICATION_ID }) {
                 android.content.pm.PackageInfo info = (android.os.Build.VERSION.SDK_INT <= 32) ?
                         android.app.ActivityThread.getPackageManager().getPackageInfo(pkg, android.content.pm.PackageManager.GET_SIGNATURES, 0) :
@@ -25,12 +26,14 @@ public class Loader {
                 if (info == null || (pkg.equals(BuildConfig.EMBEDDED_APPLICATION_ID) && (info.versionName == null || !info.versionName.contains("+x11"))))
                     continue;
                 if (info.applicationInfo.uid != android.os.Process.myUid()
-                        && (info.signatures.length != 1 || BuildConfig.SIGNATURE != info.signatures[0].hashCode()))
+                        && (info.signatures.length != 1 || BuildConfig.SIGNATURE != info.signatures[0].hashCode())) {
+                    signatureMismatch = true;
                     continue;
+                }
                 targetInfo = info;
                 break;
             }
-            assert targetInfo != null : BuildConfig.packageNotInstalledErrorText.replace("ARCH", android.os.Build.SUPPORTED_ABIS[0]);
+            assert targetInfo != null : signatureMismatch ? BuildConfig.packageSignatureMismatchErrorText : BuildConfig.packageNotInstalledErrorText;
 
             android.util.Log.i(BuildConfig.logTag, "loading " + targetInfo.applicationInfo.sourceDir + "::" + cls + "::main of " + targetInfo.packageName + " application (commit " + BuildConfig.COMMIT + ")");
             Class<?> targetClass = Class.forName(cls, true,

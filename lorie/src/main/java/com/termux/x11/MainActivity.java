@@ -23,7 +23,6 @@ import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
@@ -169,7 +168,6 @@ public class MainActivity extends AppCompatActivity {
 
         prefs.get().registerOnSharedPreferenceChangeListener(preferencesChangedListener);
 
-        getWindow().setFlags(FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS | FLAG_KEEP_SCREEN_ON | FLAG_TRANSLUCENT_STATUS, 0);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
 
@@ -703,7 +701,6 @@ public class MainActivity extends AppCompatActivity {
             prefs.additionalKbdVisible.put(visible);
 
         setTerminalToolbarView();
-        getWindow().setSoftInputMode(SOFT_INPUT_ADJUST_NOTHING);
     }
 
     public void toggleExtraKeys() {
@@ -797,12 +794,8 @@ public class MainActivity extends AppCompatActivity {
                 else
                     getWindow().getAttributes().layoutInDisplayCutoutMode = LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER;
             }
-
-            window.setStatusBarColor(Color.BLACK);
-            window.setNavigationBarColor(Color.BLACK);
         }
 
-        window.setFlags(FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS | FLAG_KEEP_SCREEN_ON | FLAG_TRANSLUCENT_STATUS, 0);
         if (hasFocus) {
             if (fullscreen) {
                 window.addFlags(FLAG_FULLSCREEN);
@@ -823,8 +816,6 @@ public class MainActivity extends AppCompatActivity {
             window.addFlags(FLAG_KEEP_SCREEN_ON);
         else
             window.clearFlags(FLAG_KEEP_SCREEN_ON);
-
-        window.setSoftInputMode(SOFT_INPUT_ADJUST_NOTHING);
 
         View contentChild = ((FrameLayout) findViewById(android.R.id.content)).getChildAt(0);
         contentChild.setFitsSystemWindows(!fullscreen);

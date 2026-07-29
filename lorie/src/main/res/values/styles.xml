@@ -2,8 +2,9 @@
     <style name="LorieAppTheme" parent="@style/Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>
-        <item name="android:windowTranslucentStatus">true</item>
-        <item name="android:windowTranslucentNavigation">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
     </style>
     <style name="Preference.Category.Material">
         <item name="android:layout">@layout/preference_category_material</item>

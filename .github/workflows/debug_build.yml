@@ -62,11 +62,11 @@ jobs:
       run: ./gradlew assembleDebug
     - name: Build companion package
       run: ./build_termux_package
-    - name: Store app-debug
+    - name: Store app-universal-debug
       uses: actions/upload-artifact@v7
       with:
-        name: termux-x11-debug
-        path: ./lorie-app/build/outputs/apk/debug/lorie-app-debug.apk
+        name: termux-x11-universal-debug
+        path: ./lorie-app/build/outputs/apk/debug/app-universal-debug.apk
 
     - name: Store companion package
       uses: actions/upload-artifact@v7
@@ -117,7 +117,7 @@ jobs:
           This is a nightly release of the termux-x11 app.
           Based on ${{ github.sha }}
         files: |
-          ./lorie-app/build/outputs/apk/debug/lorie-app-debug.apk
+          ./lorie-app/build/outputs/apk/debug/app-universal-debug.apk
           ./lorie-app/build/outputs/apk/debug/termux-x11-*-all.deb
           ./lorie-app/build/outputs/apk/debug/termux-x11-*-any.pkg.tar.xz
           ./termux-app/app/build/outputs/apk/debug/termux-app_debug_universal.apk

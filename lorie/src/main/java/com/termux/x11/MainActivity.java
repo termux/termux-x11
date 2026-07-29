@@ -670,10 +670,11 @@ public class MainActivity extends AppCompatActivity {
 
     private int ekbarContentInset = 0;
     private int imeHeight = 0;
+    private int captionHeight = 0;
 
     private void applyContentInsets() {
         int imeContentInset = prefs.Reseed.get() ? imeHeight : 0;
-        getLorieView().setContentInsets(0, 0, 0, ekbarContentInset + imeContentInset);
+        getLorieView().setContentInsets(0, captionHeight, 0, ekbarContentInset + imeContentInset);
 
         ViewPager pager = getTerminalToolbarViewPager();
         ViewGroup.MarginLayoutParams pagerParams = (ViewGroup.MarginLayoutParams) pager.getLayoutParams();
@@ -685,6 +686,13 @@ public class MainActivity extends AppCompatActivity {
 
     public void setImeHeight(int height) {
         imeHeight = height;
+        applyContentInsets();
+    }
+
+    // The window header of desktop windowing can not be hidden, so its space has to be given up even
+    // in fullscreen mode, where fitsSystemWindows does not apply system insets.
+    public void setCaptionHeight(int height) {
+        captionHeight = height;
         applyContentInsets();
     }
 

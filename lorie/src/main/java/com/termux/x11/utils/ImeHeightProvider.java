@@ -67,9 +67,14 @@ public class ImeHeightProvider {
     // Both sources measure from the bottom of the screen, so they include the navigation bar
     // whenever it is shown below the keyboard - that space is already handled by fitsSystemWindows.
     private static void report(Activity activity, FrameLayout content, int bottom, WindowInsetsCompat insets) {
+        View child = content.getChildAt(0);
+        // Whatever part of the caption bar is left here is the one the window was not laid out below.
+        MainActivity.getInstance().setCaptionHeight((insets != null && !child.getFitsSystemWindows())
+                ? insets.getInsets(WindowInsetsCompat.Type.captionBar()).top : 0);
+
         int imeHeight = 0;
         if (activity.hasWindowFocus() && !SamsungDexUtils.checkDeXEnabled(activity) && !activity.isInPictureInPictureMode()) {
-            int navBottom = (insets != null && content.getChildAt(0).getFitsSystemWindows())
+            int navBottom = (insets != null && child.getFitsSystemWindows())
                     ? insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom : 0;
             imeHeight = Math.max(0, bottom - navBottom);
         }

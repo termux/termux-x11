@@ -97,8 +97,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_storeSecondaryDisplayPreferencesSeparately">Store preferences for secondary displays separately</string>
     <string name="lorie_pref_storeSecondaryDisplayPreferencesSeparately_summary">Open this screen on display you want to configure</string>
 
-    <string name="lorie_pref_adjustHeightForEK">Adjust display height for extra keys bar</string>
-    <string name="lorie_pref_adjustHeightForEK_summary">May cause screen flickering during toggling EK bar.</string>
+    <string name="lorie_pref_adjustHeightForEK">Prevent extra keys bar from covering the display</string>
     <string name="lorie_pref_useTermuxEKBarBehaviour">Deactivate special keys on additional key bar after each keypress</string>
     <string name="lorie_pref_useTermuxEKBarBehaviour_summary">Use long-tap to lock special keys</string>
     <string name="lorie_pref_opacityEKBar">Opacity of extra keys bar, %</string>

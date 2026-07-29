@@ -30,11 +30,11 @@ android {
     }
 }
 
-// The module was renamed long after the APK name got into release links and instructions.
+// Release links and instructions point at this name, it does not follow the module.
 androidComponents {
     onVariants(selector().all()) { variant ->
         variant.outputs.each { output ->
-            output.outputFileName.set("app-universal-${variant.name}.apk")
+            output.outputFileName.set("termux-x11-universal-${variant.name}.apk")
         }
     }
 }

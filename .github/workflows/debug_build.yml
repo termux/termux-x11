@@ -66,7 +66,7 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: termux-x11-universal-debug
-        path: ./lorie-app/build/outputs/apk/debug/app-universal-debug.apk
+        path: ./lorie-app/build/outputs/apk/debug/termux-x11-universal-debug.apk
 
     - name: Store companion package
       uses: actions/upload-artifact@v7
@@ -102,9 +102,6 @@ jobs:
       with:
         name: termux-app-x11-integrated-debug
         path: termux-app/app/build/outputs/apk/debug/termux-app_debug_universal.apk
-
-    - name: Name the release APK after its artifact
-      run: cp ./lorie-app/build/outputs/apk/debug/app-universal-debug.apk ./lorie-app/build/outputs/apk/debug/termux-x11-universal-debug.apk
 
     - name: Update Nightly Release
       uses: andelf/nightly-release@main

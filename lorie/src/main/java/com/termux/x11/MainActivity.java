@@ -14,6 +14,7 @@ import android.app.AppOpsManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PictureInPictureParams;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.Context;
@@ -22,6 +23,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
+import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.net.Uri;
 import android.os.Build;
@@ -35,6 +37,8 @@ import android.os.SystemClock;
 import android.service.notification.StatusBarNotification;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.Rational;
+import android.util.TypedValue;
 import android.view.DragEvent;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -91,6 +95,9 @@ public class MainActivity extends AppCompatActivity {
     private boolean filterOutWinKey = false;
     boolean useTermuxEKBarBehaviour = false;
     private boolean isInPictureInPictureMode = false;
+    /** Aspect ratios outside of the range the device is configured with are rejected by the system. */
+    private static final float MIN_PIP_ASPECT_RATIO = getSystemDimenFloat("config_pictureInPictureMinAspectRatio", 1.f / 2.39f);
+    private static final float MAX_PIP_ASPECT_RATIO = getSystemDimenFloat("config_pictureInPictureMaxAspectRatio", 2.39f);
 
     public static Prefs prefs = null;
 
@@ -837,6 +844,15 @@ public class MainActivity extends AppCompatActivity {
     public void onBackPressed() {
     }
 
+    private static float getSystemDimenFloat(String name, float fallback) {
+        Resources resources = Resources.getSystem();
+        TypedValue value = new TypedValue();
+        int id = resources.getIdentifier(name, "dimen", "android");
+        if (id != 0)
+            resources.getValue(id, value, true);
+        return value.type == TypedValue.TYPE_FLOAT ? value.getFloat() : fallback;
+    }
+
     public static boolean hasPipPermission(@NonNull Context context) {
         AppOpsManager appOpsManager = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
         if (appOpsManager == null)
@@ -849,14 +865,28 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onUserLeaveHint() {
-        if (prefs.PIP.get() && hasPipPermission(this)) {
-            enterPictureInPictureMode();
+        if (!prefs.PIP.get() || !hasPipPermission(this))
+            return;
+
+        PictureInPictureParams.Builder params = new PictureInPictureParams.Builder();
+        Rational aspectRatio = getLorieView().getViewportAspectRatio();
+        if (aspectRatio != null) {
+            float clamped = MathUtils.clamp(aspectRatio.floatValue(), MIN_PIP_ASPECT_RATIO, MAX_PIP_ASPECT_RATIO);
+            if (clamped != aspectRatio.floatValue())
+                // Truncating instead of rounding keeps the ratio from landing back outside of the range.
+                aspectRatio = clamped > 1 ? new Rational((int) (clamped * 1000), 1000) : new Rational(1000, (int) (1000 / clamped));
+            params.setAspectRatio(aspectRatio);
         }
+
+        getLorieView().freezeDimensions(true);
+        if (!enterPictureInPictureMode(params.build()))
+            getLorieView().freezeDimensions(false);
     }
 
     @Override
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, @NonNull Configuration newConfig) {
         this.isInPictureInPictureMode = isInPictureInPictureMode;
+        getLorieView().freezeDimensions(isInPictureInPictureMode);
         final ViewPager pager = getTerminalToolbarViewPager();
         pager.setAlpha(isInPictureInPictureMode ? 0.f : ((float) prefs.opacityEKBar.get())/100);
         findViewById(R.id.mouse_buttons).setAlpha(isInPictureInPictureMode ? 0.f : 0.7f);

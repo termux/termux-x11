@@ -103,6 +103,9 @@ jobs:
         name: termux-app-x11-integrated-debug
         path: termux-app/app/build/outputs/apk/debug/termux-app_debug_universal.apk
 
+    - name: Name the release APK after its artifact
+      run: cp ./lorie-app/build/outputs/apk/debug/app-universal-debug.apk ./lorie-app/build/outputs/apk/debug/termux-x11-universal-debug.apk
+
     - name: Update Nightly Release
       uses: andelf/nightly-release@main
       if: github.repository == 'termux/termux-x11' && github.ref == 'refs/heads/master'
@@ -117,7 +120,7 @@ jobs:
           This is a nightly release of the termux-x11 app.
           Based on ${{ github.sha }}
         files: |
-          ./lorie-app/build/outputs/apk/debug/app-universal-debug.apk
+          ./lorie-app/build/outputs/apk/debug/termux-x11-universal-debug.apk
           ./lorie-app/build/outputs/apk/debug/termux-x11-*-all.deb
           ./lorie-app/build/outputs/apk/debug/termux-x11-*-any.pkg.tar.xz
           ./termux-app/app/build/outputs/apk/debug/termux-app_debug_universal.apk

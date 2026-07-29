@@ -510,7 +510,7 @@ void Renderer::releaseWinAndSurface(ANativeWindow** anw, EGLSurface *esfc) {
     }
 }
 
-void Renderer::setViewport(int x, int y, int w, int h, int ew, int eh) {
+void Renderer::setViewport(int x, int y, int w, int h, int ew, int eh, int hidden) {
     pthread_mutex_lock(&stateLock);
     viewportX = x;
     viewportY = y;
@@ -518,6 +518,7 @@ void Renderer::setViewport(int x, int y, int w, int h, int ew, int eh) {
     viewportH = h;
     expectedW = ew;
     expectedH = eh;
+    hiddenBottom = hidden;
     viewportChanged = true;
     reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
     reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
@@ -533,7 +534,7 @@ void Renderer::setZoom(int percent) {
     reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
     reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
     if (zoomPercent == 100)
-        zoomSourceLeft = zoomSourceTop = 0.f;
+        panSourceLeft = panSourceTop = 0.f;
     if (state)
         state->drawRequested = true;
     pthread_cond_signal(stateCond);
@@ -735,6 +736,17 @@ void Renderer::applyPendingGpuCopies() {
     lorie_mutex_unlock(&state->lock, &state->lockingPid);
 }
 
+// Keeps the shown region still while the cursor stays inside it, panning only when the cursor
+// enters the 5% band near an edge.
+static float panToCursor(float offset, float cursor, float shown, float total) {
+    float edge = shown * 0.05f;
+    if (cursor < offset + edge)
+        offset = cursor - edge;
+    else if (cursor > offset + shown - edge)
+        offset = cursor - shown + edge;
+    return fmaxf(0.f, fminf(offset, total - shown));
+}
+
 void Renderer::redrawLocked(bool* waitingForBuffers) {
     float xfactor = 1.f;
     const LorieBuffer_Desc *desc = NULL;
@@ -792,12 +804,6 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
         renderViewportY = (int) (centerY - (float) renderViewportH / 2.f + 0.5f);
     }
 
-    glDisable(GL_SCISSOR_TEST);
-    glViewport(0, 0, surfaceW, surfaceH);
-    glClearColor(0.f, 0.f, 0.f, 1.f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glViewport(renderViewportX, surfaceH - renderViewportY - renderViewportH, renderViewportW, renderViewportH);
-    float sourceLeft = 0.f, sourceTop = 0.f;
     float sourceWidth = (float) desc->width, sourceHeight = (float) desc->height;
     float logicalSourceWidth = (float) expectedW, logicalSourceHeight = (float) expectedH;
     if (zoomPercent > 100) {
@@ -806,37 +812,31 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
         sourceHeight = (float) expectedH * destinationScaleY / requestedScale;
         logicalSourceWidth = sourceWidth;
         logicalSourceHeight = sourceHeight;
-        // Keep the zoomed region stable while the cursor stays inside the central 90%.
-        // Only pan when the cursor enters this 5% edge band near any side.
-        float edgeX = sourceWidth * 0.05f;
-        float edgeY = sourceHeight * 0.05f;
-        float cursorX = (float) state->cursor.x;
-        float cursorY = (float) state->cursor.y;
+    }
 
-        if (cursorX < zoomSourceLeft + edgeX)
-            zoomSourceLeft = cursorX - edgeX;
-        else if (cursorX > zoomSourceLeft + sourceWidth - edgeX)
-            zoomSourceLeft = cursorX - sourceWidth + edgeX;
+    // The soft keyboard hides the bottom of the picture instead of the picture shrinking for it,
+    // so only the part fitting above it is drawn, at the same scale as the whole picture.
+    int cut = renderViewportY + renderViewportH - (viewportY + viewportH - hiddenBottom);
+    if (hiddenBottom > 0 && cut > 0 && cut < renderViewportH) {
+        float shown = (float) (renderViewportH - cut) / (float) renderViewportH;
+        sourceHeight *= shown;
+        logicalSourceHeight *= shown;
+        renderViewportH -= cut;
+    }
 
-        if (cursorY < zoomSourceTop + edgeY)
-            zoomSourceTop = cursorY - edgeY;
-        else if (cursorY > zoomSourceTop + sourceHeight - edgeY)
-            zoomSourceTop = cursorY - sourceHeight + edgeY;
+    // The buffer can be a few pixels narrower than the screen because of the mode granularity,
+    // so panning horizontally only makes sense when zoomed in.
+    panSourceLeft = zoomPercent > 100
+                    ? panToCursor(panSourceLeft, (float) state->cursor.x, sourceWidth, (float) expectedW) : 0.f;
+    panSourceTop = sourceHeight < (float) expectedH
+                   ? panToCursor(panSourceTop, (float) state->cursor.y, sourceHeight, (float) expectedH) : 0.f;
+    float sourceLeft = panSourceLeft, sourceTop = panSourceTop;
 
-        if (zoomSourceLeft < 0.f)
-            zoomSourceLeft = 0.f;
-        else if (zoomSourceLeft + sourceWidth > (float) expectedW)
-            zoomSourceLeft = (float) expectedW - sourceWidth;
-
-        if (zoomSourceTop < 0.f)
-            zoomSourceTop = 0.f;
-        else if (zoomSourceTop + sourceHeight > (float) expectedH)
-            zoomSourceTop = (float) expectedH - sourceHeight;
-
-        sourceLeft = zoomSourceLeft;
-        sourceTop = zoomSourceTop;
-    } else
-        zoomSourceLeft = zoomSourceTop = 0.f;
+    glDisable(GL_SCISSOR_TEST);
+    glViewport(0, 0, surfaceW, surfaceH);
+    glClearColor(0.f, 0.f, 0.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glViewport(renderViewportX, surfaceH - renderViewportY - renderViewportH, renderViewportW, renderViewportH);
 
     reportViewport(renderViewportX, renderViewportY, renderViewportW, renderViewportH,
                    sourceLeft, sourceTop, logicalSourceWidth, logicalSourceHeight);

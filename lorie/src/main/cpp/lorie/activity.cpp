@@ -309,8 +309,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
             {"surfaceChanged", "(Landroid/view/Surface;)V", (void *) +[](JNIEnv *env, __unused jobject thiz, jobject sfc) {
                 g_renderer.setWindow(env, sfc);
             }},
-            {"setViewport", "(IIIIII)V", (void *) +[](__unused JNIEnv *env, __unused jclass clazz, jint x, jint y, jint w, jint h, jint ew, jint eh) {
-                g_renderer.setViewport(x, y, w, h, ew, eh);
+            {"setViewport", "(IIIIIII)V", (void *) +[](__unused JNIEnv *env, __unused jclass clazz, jint x, jint y, jint w, jint h, jint ew, jint eh, jint hidden) {
+                g_renderer.setViewport(x, y, w, h, ew, eh, hidden);
             }},
             {"setRendererZoom", "(I)V", (void *) +[](__unused JNIEnv *env, __unused jclass clazz, jint percent) {
                 g_renderer.setZoom(percent);

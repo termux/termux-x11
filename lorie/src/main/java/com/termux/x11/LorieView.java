@@ -436,7 +436,7 @@ public class LorieView extends SurfaceView implements InputStub {
         });
     }
 
-    /** Keeps the X screen size while the window is being resized, the picture is scaled instead. */
+    /** Keeps the X screen size while the window is floating, the picture is scaled instead. */
     public void freezeDimensions(boolean freeze) {
         if (dimensionsFrozen == freeze || (freeze && (p.x == 0 || p.y == 0)))
             return;
@@ -679,6 +679,12 @@ public class LorieView extends SurfaceView implements InputStub {
     public void resetRendererZoom() {
         rendererZoom = 100;
         setRendererZoom(rendererZoom);
+    }
+
+    public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode) {
+        freezeDimensions(isInPictureInPictureMode);
+        // Zooming a floating window makes no sense, but the zoom is restored along with the size.
+        setRendererZoom(isInPictureInPictureMode ? 100 : rendererZoom);
     }
 
     @FastNative public native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);

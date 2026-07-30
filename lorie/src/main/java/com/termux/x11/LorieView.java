@@ -385,9 +385,17 @@ public class LorieView extends SurfaceView implements InputStub {
         }
 
         if (prefs.adjustResolution.get() && ((width < height && w > h) || (width > height && w < h)))
-            p.set(h, w);
+            setCvtDimensions(h, w);
         else
-            p.set(w, h);
+            setCvtDimensions(w, h);
+    }
+
+    // The X screen ends up slightly smaller than requested, libxcvt rounds the mode width down.
+    private void setCvtDimensions(int width, int height) {
+        int granularity = 8; // horizontal granularity of a cvt mode
+        int rounded = Math.max(granularity, width - width % granularity);
+        // 1366 is not a multiple of it, and libxcvt makes an exception for exactly this size.
+        p.set(rounded == 1360 && height == 768 ? 1366 : rounded, height);
     }
 
     private Matrix getInputTransform() {

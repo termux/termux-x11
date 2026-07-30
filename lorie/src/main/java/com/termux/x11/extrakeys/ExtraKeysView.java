@@ -2,6 +2,7 @@ package com.termux.x11.extrakeys;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.ColorDrawable;
@@ -201,6 +202,7 @@ public final class ExtraKeysView extends GridLayout {
     private static final int FITTED_LABEL_LENGTH = 4;
 
     private final Paint mLabelPaint = new Paint();
+    private final Paint mHintPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     /** The text size the buttons come with from the theme, the upper bound for {@link #mTextSize}. */
     private float mBaseTextSize;
     /** The text size currently shared by every button, {@code 0} until it has been computed. */
@@ -318,12 +320,12 @@ public final class ExtraKeysView extends GridLayout {
             for (int col = 0; col < buttons[row].length; col++) {
                 final ExtraKeyButton buttonInfo = buttons[row][col];
 
-                Button button;
+                KeyButton button;
                 if (isSpecialButton(buttonInfo)) {
                     button = createSpecialButton(buttonInfo.key, true);
                     if (button == null) return;
                 } else {
-                    button = new Button(getContext(), null, android.R.attr.buttonBarButtonStyle);
+                    button = new KeyButton();
                 }
                 if (mBaseTextSize <= 0)
                     mBaseTextSize = button.getTextSize();
@@ -338,6 +340,8 @@ public final class ExtraKeysView extends GridLayout {
                 });
                 if (!setIcon(button, buttonInfo.key))
                     button.setText(buttonInfo.display);
+                if (buttonInfo.popup != null)
+                    button.setPopupHint(buttonInfo.popup);
                 button.setTextColor(mButtonTextColor);
                 button.setAllCaps(true);
                 button.setPadding(0, 0, 0, 0);
@@ -575,11 +579,11 @@ public final class ExtraKeysView extends GridLayout {
         return true;
     }
 
-    public Button createSpecialButton(String buttonKey, boolean needUpdate) {
+    public KeyButton createSpecialButton(String buttonKey, boolean needUpdate) {
         SpecialButtonState state = mSpecialButtons.get(SpecialButton.valueOf(buttonKey));
         if (state == null) return null;
         state.setIsCreated(true);
-        Button button = new Button(getContext(), null, android.R.attr.buttonBarButtonStyle);
+        KeyButton button = new KeyButton();
         button.setTextColor(state.isActive ? mButtonActiveTextColor : mButtonTextColor);
         if (needUpdate) {
             state.buttons.add(button);
@@ -588,6 +592,20 @@ public final class ExtraKeysView extends GridLayout {
     }
 
     private boolean setIcon(Button button, String key) {
+        int id = iconResource(key);
+        if (id == 0)
+            return false;
+
+        Drawable icon = getResources().getDrawable(id, getContext().getTheme());
+        button.setText(null);
+        button.setForeground(new ScaledIcon(icon, shrinkFactor()));
+        button.setForegroundGravity(Gravity.CENTER);
+        button.setContentDescription(key);
+        return true;
+    }
+
+    /** The icon a key is drawn with instead of its label, {@code 0} for the keys that have none. */
+    private static int iconResource(String key) {
         int id;
         switch (key) {
             case "LEFT":
@@ -618,15 +636,10 @@ public final class ExtraKeysView extends GridLayout {
                 id = R.drawable.ic_zoom_reset;
                 break;
             default:
-                return false;
+                return 0;
         }
 
-        Drawable icon = getResources().getDrawable(id, getContext().getTheme());
-        button.setText(null);
-        button.setForeground(new ScaledIcon(icon, shrinkFactor()));
-        button.setForegroundGravity(Gravity.CENTER);
-        button.setContentDescription(key);
-        return true;
+        return id;
     }
 
     @Override
@@ -670,9 +683,9 @@ public final class ExtraKeysView extends GridLayout {
         mTextSize = textSize;
         for (int i = 0; i < getChildCount(); i++) {
             Button button = (Button) getChildAt(i);
-            if (hasLabel(button))
-                button.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
-            else if (button.getForeground() instanceof ScaledIcon)
+            // A button drawing an icon keeps the text size too, its popup hint scales with it.
+            button.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
+            if (!hasLabel(button) && button.getForeground() instanceof ScaledIcon)
                 // A new instance, setForeground ignores the one it already holds.
                 button.setForeground(new ScaledIcon(((ScaledIcon) button.getForeground()).getDrawable(), shrinkFactor()));
         }
@@ -687,6 +700,61 @@ public final class ExtraKeysView extends GridLayout {
     /** How much smaller than the theme size the buttons currently draw, {@code 1} while they fit. */
     private float shrinkFactor() {
         return mTextSize > 0 && mBaseTextSize > 0 ? mTextSize / mBaseTextSize : 1f;
+    }
+
+    /**
+     * A button of the bar, drawing what its popup key is in the top right corner, the way a keycap
+     * hints at the symbols its key can also produce.
+     */
+    final class KeyButton extends Button {
+        /** How much smaller than the button label the hint draws. */
+        private static final float HINT_SCALE = 0.5f;
+        /** An icon pads itself, so it needs more room than a label to read as the same size. */
+        private static final float HINT_ICON_SCALE = 1.75f;
+
+        @Nullable
+        private Drawable mHintIcon;
+        @Nullable
+        private String mHintLabel;
+
+        KeyButton() {
+            super(ExtraKeysView.this.getContext(), null, android.R.attr.buttonBarButtonStyle);
+        }
+
+        /** Set the popup key to hint at, the same way {@link #setIcon(Button, String)} shows a key. */
+        void setPopupHint(@NonNull ExtraKeyButton popup) {
+            int id = iconResource(popup.key);
+            mHintIcon = id != 0 ? getResources().getDrawable(id, getContext().getTheme()).mutate() : null;
+            mHintLabel = popup.display.toUpperCase(Locale.ROOT);
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            if (mHintLabel == null)
+                return;
+
+            float size = getTextSize() * HINT_SCALE, padding = size / 4;
+            float right = getWidth() - padding;
+            int alpha = Color.alpha(getCurrentTextColor()) * 2 / 3;
+            if (mHintIcon != null) {
+                size *= HINT_ICON_SCALE;
+                mHintIcon.setAlpha(alpha);
+                mHintIcon.setBounds(Math.round(right - size), Math.round(padding),
+                        Math.round(right), Math.round(padding + size));
+                mHintIcon.draw(canvas);
+            } else {
+                mHintPaint.setTypeface(getTypeface());
+                mHintPaint.setTextSize(size);
+                mHintPaint.setTextAlign(Paint.Align.RIGHT);
+                mHintPaint.setColor(getCurrentTextColor());
+                mHintPaint.setAlpha(alpha);
+                // A macro label can be arbitrarily long, so it is cut to what the corner holds.
+                int fits = mHintPaint.breakText(mHintLabel, true, getWidth() - 2 * padding, null);
+                canvas.drawText(mHintLabel, 0, fits, right, padding - mHintPaint.ascent(), mHintPaint);
+            }
+        }
     }
 
     /**

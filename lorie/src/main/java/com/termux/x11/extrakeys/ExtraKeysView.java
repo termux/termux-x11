@@ -3,17 +3,21 @@ package com.termux.x11.extrakeys;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.DrawableWrapper;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.util.AttributeSet;
+import android.util.TypedValue;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -193,6 +197,15 @@ public final class ExtraKeysView extends GridLayout {
     private SpecialButtonsLongHoldRunnable mSpecialButtonsLongHoldRunnable;
     private int mLongPressCount;
 
+    /** How many characters of a label a button is expected to fit, most preset keys are this short. */
+    private static final int FITTED_LABEL_LENGTH = 4;
+
+    private final Paint mLabelPaint = new Paint();
+    /** The text size the buttons come with from the theme, the upper bound for {@link #mTextSize}. */
+    private float mBaseTextSize;
+    /** The text size currently shared by every button, {@code 0} until it has been computed. */
+    private float mTextSize;
+
 
     public ExtraKeysView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -294,6 +307,7 @@ public final class ExtraKeysView extends GridLayout {
             state.buttons = new ArrayList<>();
 
         removeAllViews();
+        mTextSize = 0;
 
         ExtraKeyButton[][] buttons = extraKeysInfo.getMatrix();
 
@@ -311,6 +325,8 @@ public final class ExtraKeysView extends GridLayout {
                 } else {
                     button = new Button(getContext(), null, android.R.attr.buttonBarButtonStyle);
                 }
+                if (mBaseTextSize <= 0)
+                    mBaseTextSize = button.getTextSize();
 
                 button.setBackground(new ColorDrawable(Color.BLACK) {
                     public boolean isStateful() {
@@ -392,6 +408,8 @@ public final class ExtraKeysView extends GridLayout {
                 addView(button);
             }
         }
+
+        fitLabels();
     }
 
     public void onExtraKeyButtonClick(View view, ExtraKeyButton buttonInfo, Button button) {
@@ -498,8 +516,11 @@ public final class ExtraKeysView extends GridLayout {
             button = new Button(getContext(), null, android.R.attr.buttonBarButtonStyle);
             button.setTextColor(mButtonTextColor);
         }
-        if (!setIcon(button, extraButton.key))
+        if (!setIcon(button, extraButton.key)) {
             button.setText(extraButton.display);
+            if (mTextSize > 0)
+                button.setTextSize(TypedValue.COMPLEX_UNIT_PX, mTextSize);
+        }
         button.setAllCaps(true);
         button.setPadding(0, 0, 0, 0);
         button.setMinHeight(0);
@@ -602,10 +623,93 @@ public final class ExtraKeysView extends GridLayout {
 
         Drawable icon = getResources().getDrawable(id, getContext().getTheme());
         button.setText(null);
-        button.setForeground(icon);
+        button.setForeground(new ScaledIcon(icon, shrinkFactor()));
         button.setForegroundGravity(Gravity.CENTER);
         button.setContentDescription(key);
         return true;
+    }
+
+    @Override
+    protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight);
+        fitLabels();
+    }
+
+    /**
+     * Shrinks every button by the same factor, the least one at which the widest label still fits
+     * its cell on a single line, scaling icons along with the labels. Labels longer than
+     * {@link #FITTED_LABEL_LENGTH} only count up to that length, so one long custom label can not
+     * shrink the whole bar.
+     */
+    private void fitLabels() {
+        int columns = getColumnCount();
+        if (getWidth() <= 0 || columns < 1 || getChildCount() < 1 || mBaseTextSize <= 0)
+            return;
+
+        // Every cell is the same width, and every button draws with the typeface of the same style.
+        float cellWidth = (float) (getWidth() - getPaddingLeft() - getPaddingRight()) / columns;
+        mLabelPaint.setTypeface(((Button) getChildAt(0)).getTypeface());
+        mLabelPaint.setTextSize(mBaseTextSize);
+
+        float widest = 0;
+        for (int i = 0; i < getChildCount(); i++) {
+            Button button = (Button) getChildAt(i);
+            if (!hasLabel(button))
+                continue;
+
+            // Buttons are all caps, and capitals are the wider ones, so measure the text as drawn.
+            CharSequence label = button.getText();
+            widest = Math.max(widest, mLabelPaint.measureText(
+                    label.subSequence(0, Math.min(label.length(), FITTED_LABEL_LENGTH))
+                            .toString().toUpperCase(Locale.ROOT)));
+        }
+
+        float textSize = widest > cellWidth ? mBaseTextSize * cellWidth / widest : mBaseTextSize;
+        if (textSize == mTextSize)
+            return;
+        mTextSize = textSize;
+        for (int i = 0; i < getChildCount(); i++) {
+            Button button = (Button) getChildAt(i);
+            if (hasLabel(button))
+                button.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
+            else if (button.getForeground() instanceof ScaledIcon)
+                // A new instance, setForeground ignores the one it already holds.
+                button.setForeground(new ScaledIcon(((ScaledIcon) button.getForeground()).getDrawable(), shrinkFactor()));
+        }
+    }
+
+    /** Whether a button draws a label rather than an icon set by {@link #setIcon(Button, String)}. */
+    private static boolean hasLabel(Button button) {
+        CharSequence label = button.getText();
+        return label != null && label.length() > 0;
+    }
+
+    /** How much smaller than the theme size the buttons currently draw, {@code 1} while they fit. */
+    private float shrinkFactor() {
+        return mTextSize > 0 && mBaseTextSize > 0 ? mTextSize / mBaseTextSize : 1f;
+    }
+
+    /**
+     * An icon reporting a scaled intrinsic size, because a foreground is drawn at that size and so
+     * would otherwise keep the size it has at the theme's text size.
+     */
+    private static final class ScaledIcon extends DrawableWrapper {
+        private final float mScale;
+
+        ScaledIcon(Drawable icon, float scale) {
+            super(icon);
+            mScale = scale;
+        }
+
+        @Override
+        public int getIntrinsicWidth() {
+            return Math.round(getDrawable().getIntrinsicWidth() * mScale);
+        }
+
+        @Override
+        public int getIntrinsicHeight() {
+            return Math.round(getDrawable().getIntrinsicHeight() * mScale);
+        }
     }
 
     /**

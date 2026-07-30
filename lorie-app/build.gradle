@@ -51,6 +51,8 @@ androidComponents {
     }
 }
 
+tasks.matching { it.name == 'assembleDebug' }.configureEach { dependsOn ':shell-loader:buildCompanionPackage' }
+
 dependencies {
     implementation project(':lorie')
 }

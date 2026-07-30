@@ -53,8 +53,6 @@ jobs:
 
     - name: Build
       run: ./gradlew assembleDebug
-    - name: Build companion package
-      run: ./build_termux_package
     - name: Store app-universal-debug
       uses: actions/upload-artifact@v7
       with:
@@ -72,9 +70,9 @@ jobs:
       with:
         name: termux-companion packages
         path: |
-          ./lorie-app/build/outputs/apk/standalone/debug/termux-x11-*-all.deb
-          ./lorie-app/build/outputs/apk/standalone/debug/termux-x11-*-any.pkg.tar.xz
-        
+          ./shell-loader/build/outputs/companion/termux-x11-*-all.deb
+          ./shell-loader/build/outputs/companion/termux-x11-*-any.pkg.tar.xz
+
     - name: Store unstripped libraries with debug symbols
       uses: actions/upload-artifact@v7
       with:
@@ -96,6 +94,6 @@ jobs:
           Based on ${{ github.sha }}
         files: |
           ./lorie-app/build/outputs/apk/standalone/debug/termux-x11-universal-debug.apk
-          ./lorie-app/build/outputs/apk/standalone/debug/termux-x11-*-all.deb
-          ./lorie-app/build/outputs/apk/standalone/debug/termux-x11-*-any.pkg.tar.xz
           ./lorie-app/build/outputs/apk/sharedUid/debug/termux-x11-universal-sharedUid-debug.apk
+          ./shell-loader/build/outputs/companion/termux-x11-*-all.deb
+          ./shell-loader/build/outputs/companion/termux-x11-*-any.pkg.tar.xz

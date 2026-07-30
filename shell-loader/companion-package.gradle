@@ -1,0 +1,186 @@
+// Builds the .deb and .pkg.tar.xz companion packages, which put termux-x11, termux-x11-preference
+// and the loader apk into a termux installation.
+
+buildscript {
+    repositories { mavenCentral() }
+    dependencies {
+        classpath 'org.apache.commons:commons-compress:1.26.2'
+        classpath 'org.tukaani:xz:1.9'
+    }
+}
+
+import org.apache.commons.compress.archivers.ar.ArArchiveEntry
+import org.apache.commons.compress.archivers.ar.ArArchiveOutputStream
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
+import org.apache.commons.compress.compressors.xz.XZCompressorOutputStream
+import org.apache.tools.ant.filters.ReplaceTokens
+
+import java.security.MessageDigest
+
+def pkgName = 'termux-x11-nightly'
+def pkgVersion = (file("$rootDir/lorie/version.gradle").text =~ /version = "([^"]+)"/)[0][1] + '-0'
+def pkgDescription = 'Companion package for termux-x11 app'
+def pkgHomepage = 'https://github.com/termux/termux-x11'
+def pkgMaintainer = 'Twaik Yont @twaik'
+def pkgDepends = 'xkeyboard-config'
+
+def outputDir = layout.buildDirectory.dir('outputs/companion').get().asFile
+def debFile = new File(outputDir, "$pkgName-$pkgVersion-all.deb")
+def pacmanFile = new File(outputDir, "$pkgName-$pkgVersion-any.pkg.tar.xz")
+
+tasks.register('generateWrapperScripts', Copy) {
+    from 'scripts'
+    include '*.in'
+    rename { it - '.in' }
+    into layout.buildDirectory.dir('generated/scripts')
+    filter(ReplaceTokens, tokens: [APPLICATION_ID: targetApplicationId, EMBEDDED_APPLICATION_ID: embeddedApplicationId])
+    filePermissions { unix(0755) }
+}
+
+tasks.register('buildCompanionPackage') {
+    dependsOn tasks.named('assembleDebug'), tasks.named('generateWrapperScripts')
+
+    def loaderApk = layout.buildDirectory.file('outputs/apk/debug/shell-loader-debug.apk')
+    def scriptsDir = layout.buildDirectory.dir('generated/scripts')
+    inputs.file(loaderApk)
+    inputs.dir(scriptsDir)
+    outputs.files(debFile, pacmanFile)
+
+    doLast {
+        // Fixed identity for every entry, so the archives do not depend on the builder's umask.
+        int uid = 1000, gid = 1000, dirMode = 040755, execMode = 0100755, fileMode = 0100644
+        int time = (System.currentTimeMillis() / 1000L) as int
+        def prefix = "data/data/$embeddedApplicationId/files/usr".toString()
+
+        def scripts = ['termux-x11', 'termux-x11-preference'].collectEntries {
+            ["$prefix/bin/$it".toString(), file("${scriptsDir.get()}/$it").bytes]
+        }
+        def content = scripts + [("$prefix/libexec/termux-x11/loader.apk".toString()): loaderApk.get().asFile.bytes]
+        // Every file plus the directories leading to it; sorting the whole set puts each directory
+        // right before its contents, which is the order both archives expect.
+        def paths = content.keySet().collectMany { path ->
+            def parts = path.split('/')
+            (1..parts.size()).collect { parts[0..<it].join('/') }
+        }.unique().sort()
+        def modeOf = { String path -> content[path] == null ? dirMode : (path in scripts.keySet() ? execMode : fileMode) }
+
+        def addEntry = { tar, String name, byte[] data, int mode ->
+            tar.putArchiveEntry(new TarArchiveEntry(data == null ? "$name/" : name).tap {
+                it.mode = mode; it.userId = uid; it.groupId = gid
+                it.modTime = new Date(time * 1000L); it.size = data == null ? 0 : data.length
+            })
+            if (data != null)
+                tar.write(data)
+            tar.closeArchiveEntry()
+        }
+
+        def controlText = """Package: $pkgName
+Architecture: all
+Maintainer: $pkgMaintainer
+Version: $pkgVersion
+Homepage: $pkgHomepage
+Depends: $pkgDepends
+Description: $pkgDescription
+"""
+        def chmodLoader = "chmod 400 /$prefix/libexec/termux-x11/loader.apk"
+
+        def controlTarGz = new ByteArrayOutputStream()
+        new TarArchiveOutputStream(new GzipCompressorOutputStream(controlTarGz)).withCloseable { tar ->
+            addEntry(tar, '.', null, dirMode)
+            addEntry(tar, './control', controlText.bytes, fileMode)
+            addEntry(tar, './postinst', "#!/$prefix/bin/sh\n$chmodLoader\n".bytes, execMode)
+            tar.finish()
+        }
+
+        def dataTarXz = new ByteArrayOutputStream()
+        new TarArchiveOutputStream(new XZCompressorOutputStream(dataTarXz)).withCloseable { tar ->
+            addEntry(tar, '.', null, dirMode)
+            paths.each { addEntry(tar, "./$it", content[it], modeOf(it)) }
+            tar.finish()
+        }
+
+        outputDir.mkdirs()
+        new ArArchiveOutputStream(new FileOutputStream(debFile)).withCloseable { ar ->
+            ['debian-binary': '2.0\n'.bytes, 'control.tar.gz': controlTarGz.toByteArray(),
+             'data.tar.xz'  : dataTarXz.toByteArray()].each { name, data ->
+                ar.putArchiveEntry(new ArArchiveEntry(name, data.length, uid, gid, fileMode, time))
+                ar.write(data)
+                ar.closeArchiveEntry()
+            }
+            ar.finish()
+        }
+
+        // Debian dependency syntax translated for pacman: "name (>= 1.2)" becomes "name>=1.2-0",
+        // and of "a | b" only the first alternative survives, pacman has no equivalent.
+        def pacmanDepends = pkgDepends.split(',').collect { spec ->
+            def token = spec.split(/\|/)[0].replaceAll(/[()\s]/, '').replace('>>', '>').replace('<<', '<')
+            'depend = ' + (token =~ /[<>=]/ && !token.contains('-') ? "$token-0" : token)
+        }
+        def meta = [
+                '.BUILDINFO': """format = 2
+pkgname = $pkgName
+pkgbase = $pkgName
+pkgver = $pkgVersion
+pkgarch = any
+packager = $pkgMaintainer
+builddate = $time
+""".bytes,
+                '.INSTALL'  : """post_install() {
+    $chmodLoader
+}
+post_upgrade() {
+    post_install
+}
+""".bytes,
+                '.PKGINFO'  : """pkgname = $pkgName
+pkgbase = $pkgName
+pkgver = $pkgVersion
+pkgdesc = $pkgDescription
+url = $pkgHomepage
+builddate = $time
+packager = $pkgMaintainer
+size = ${content.values().sum { it.length }}
+arch = any
+license = GPL-3.0
+replaces = termux-x11
+conflict = termux-x11
+provides = termux-x11
+${pacmanDepends.join('\n')}
+""".bytes,
+        ]
+
+        def entries = meta.collect { [it.key, fileMode, it.value] } + paths.collect { [it, modeOf(it), content[it]] }
+        def digest = { String algorithm, byte[] data ->
+            MessageDigest.getInstance(algorithm).digest(data).encodeHex().toString()
+        }
+        def octal = { int mode -> String.format('%o', mode & 07777) }
+        // Files are listed with their size and digests, directories only with their type; "/set"
+        // carries the mode shared by the entries that follow it.
+        def mtree = new StringBuilder("#mtree\n/set type=file uid=$uid gid=$gid mode=${octal(fileMode)}\n")
+        def setMode = octal(fileMode)
+        entries.each { name, mode, data ->
+            if (data == null && setMode != octal(dirMode))
+                mtree << "/set mode=${setMode = octal(dirMode)}\n"
+            mtree << "$name time=${time}.000000000"
+            if (data == null)
+                mtree << " type=dir"
+            else {
+                if (octal(mode) != setMode)
+                    mtree << " mode=${octal(mode)}"
+                mtree << " size=${data.length} md5digest=${digest('MD5', data)} sha256digest=${digest('SHA-256', data)}"
+            }
+            mtree << "\n"
+        }
+        def mtreeGz = new ByteArrayOutputStream()
+        new GzipCompressorOutputStream(mtreeGz).withCloseable { it.write(mtree.toString().bytes) }
+
+        new TarArchiveOutputStream(new XZCompressorOutputStream(new FileOutputStream(pacmanFile))).withCloseable { tar ->
+            entries.each { name, mode, data -> addEntry(tar, name, data, mode) }
+            addEntry(tar, '.MTREE', mtreeGz.toByteArray(), fileMode)
+            tar.finish()
+        }
+    }
+}
+

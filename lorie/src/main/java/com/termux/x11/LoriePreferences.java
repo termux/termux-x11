@@ -276,12 +276,17 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             setSummary("adjustResolution", R.string.lorie_pref_summary_requiresExactOrCustom);
             setSummary("pauseKeyInterceptingWithEsc", R.string.lorie_pref_summary_requiresIntercepting);
             setSummary("scaleTouchpad", R.string.lorie_pref_summary_requiresTrackpadAndNative);
+            setSummary("adjustHeightForEK", R.string.lorie_pref_summary_followsReseed);
 
             if (!SamsungDexUtils.available())
                 setVisible("dexMetaKeyCapture", false);
 
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P)
                 setVisible("hideCutout", false);
+
+            // Below R there is no way to tell the soft keyboard is shown but does not overlap us.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
+                setVisible("hideEKBarWithoutIme", false);
 
             boolean stylusAvailable = Arrays.stream(InputDevice.getDeviceIds())
                     .mapToObj(InputDevice::getDevice)
@@ -346,6 +351,8 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             boolean displayStretchEnabled = "exact".contentEquals(prefs.displayResolutionMode.get()) || "custom".contentEquals(prefs.displayResolutionMode.get());
             setEnabled("displayStretch", displayStretchEnabled);
             setEnabled("adjustResolution", displayStretchEnabled);
+
+            setEnabled("adjustHeightForEK", !prefs.hideEKBarWithoutIme.get());
 
             setEnabled("scaleTouchpad", "1".equals(prefs.touchMode.get()) && !"native".equals(prefs.displayResolutionMode.get()));
             setEnabled("showMouseHelper", "1".equals(prefs.touchMode.get()));

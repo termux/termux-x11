@@ -38,16 +38,7 @@ android {
 
     compileOptions.sourceCompatibility JavaVersion.VERSION_1_9
     compileOptions.targetCompatibility JavaVersion.VERSION_1_9
-    if (rootProject.ext.has('prebuiltJniLibsDir')) {
-        // Consumer already built us once and pointed us at those .so's, so we don't have to run
-        // CMake (and its own separate CMake config/cache) a second time for the same source.
-        def libsDir = file(rootProject.ext.prebuiltJniLibsDir)
-        if (!libsDir.directory || !libsDir.list())
-            throw new GradleException("prebuiltJniLibsDir '${libsDir}' doesn't exist or is empty; was :lorie-app built first?")
-        sourceSets.main.jniLibs.srcDirs += libsDir
-    } else {
-        externalNativeBuild.cmake.path "src/main/cpp/CMakeLists.txt"
-    }
+    externalNativeBuild.cmake.path "src/main/cpp/CMakeLists.txt"
     packagingOptions.jniLibs.useLegacyPackaging false
     buildFeatures.aidl true
     buildFeatures.buildConfig true

@@ -31,11 +31,6 @@ The Android app is available via the [nightly release tag](https://github.com/te
 
 The companion termux package is available from the termux graphical repository. You can ensure it's enabled and install this package with `pkg i x11-repo && pkg i termux-x11-nightly`. If you need to, you can also download a `.deb` or `*.tar.xz` from the same nightly release tag as above.
 
-### Termux with Termux:X11 embedded
-On some devices (e.g. Samsung OneUI), native processes spawned in the background instead of by the visible foreground app get throttled by the `cpuset` scheduler, making Termux:X11 slow or unresponsive. To work around this, Termux:X11 can be built directly into Termux itself, so its process is always spawned as part of Termux's own foreground app.
-
-Such an integrated build is available as `termux-app_debug_universal.apk` from the [nightly release tag](https://github.com/termux/termux-x11/releases/tag/nightly). Install it in place of your regular Termux app; `termux-x11` and `shell-loader` will automatically detect and prefer it over a standalone Termux:X11 installation, so no further setup is required.
-
 Finally, most people will want to use a desktop environment with Termux:X11. If you don't know what that means or don't know which one to pick, run `pkg i xfce` (also from `x11-repo`) to install a good one to start with. The rest of these instructions will assume that your goal is to run an XFCE desktop, or that you can modify the instructions as you follow them for your actual goal.
 
 ## Running Graphical Applications
@@ -130,14 +125,8 @@ am broadcast -a com.termux.x11.ACTION_STOP -p com.termux.x11
 
 ### Opening Termux:X11 activity from command line
 
-If you're using the standalone Termux:X11 app:
 ```
 am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity
-```
-
-If Termux:X11 is embedded into another app (see [Termux with Termux:X11 embedded](#termux-with-termuxx11-embedded)), replace `com.termux.x11` with that app's package name, e.g. for Termux itself:
-```
-am start --user 0 -n com.termux/com.termux.x11.MainActivity
 ```
 
 ### Logs

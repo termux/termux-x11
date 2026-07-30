@@ -876,7 +876,7 @@ public class MainActivity extends AppCompatActivity {
             return;
 
         PictureInPictureParams.Builder params = new PictureInPictureParams.Builder();
-        Rational aspectRatio = getLorieView().getViewportAspectRatio();
+        Rational aspectRatio = getLorieView().getScreenAspectRatio();
         if (aspectRatio != null) {
             float clamped = MathUtils.clamp(aspectRatio.floatValue(), MIN_PIP_ASPECT_RATIO, MAX_PIP_ASPECT_RATIO);
             if (clamped != aspectRatio.floatValue())

@@ -446,9 +446,9 @@ public class LorieView extends SurfaceView implements InputStub {
             requestLayout(); // measuring is what reapplies the dimensions, and the window may still be resizing
     }
 
-    /** Aspect ratio of the area the X screen is drawn in, null if the view is not laid out yet. */
-    public Rational getViewportAspectRatio() {
-        return viewport.isEmpty() ? null : new Rational(viewport.width(), viewport.height());
+    /** Aspect ratio of the X screen, null if its size is not known yet. */
+    public Rational getScreenAspectRatio() {
+        return p.x == 0 || p.y == 0 ? null : new Rational(p.x, p.y);
     }
 
     public void setContentInsets(int left, int top, int right, int bottom) {
@@ -478,7 +478,8 @@ public class LorieView extends SurfaceView implements InputStub {
         int drawW = availableW;
         int drawH = availableH;
 
-        if (!prefs.displayStretch.get()) {
+        // A floating window is given the aspect ratio of the picture, stretching it there is pointless.
+        if (dimensionsFrozen || !prefs.displayStretch.get()) {
             if (drawW > drawH * p.x / p.y)
                 drawW = drawH * p.x / p.y;
             else

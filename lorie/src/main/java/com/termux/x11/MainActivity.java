@@ -25,6 +25,7 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Canvas;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
@@ -95,6 +96,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean filterOutWinKey = false;
     boolean useTermuxEKBarBehaviour = false;
     private boolean isInPictureInPictureMode = false;
+    /** The display the system letterboxed us on instead of rotating, {@code null} until it does. */
+    private Rect orientationDeniedAt = null;
     /** Aspect ratios outside of the range the device is configured with are rejected by the system. */
     private static final float MIN_PIP_ASPECT_RATIO = getSystemDimenFloat("config_pictureInPictureMinAspectRatio", 1.f / 2.39f);
     private static final float MAX_PIP_ASPECT_RATIO = getSystemDimenFloat("config_pictureInPictureMaxAspectRatio", 2.39f);
@@ -754,7 +757,7 @@ public class MainActivity extends AppCompatActivity {
         return channelId;
     }
 
-    int orientation;
+    int orientation, densityDpi;
 
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
@@ -763,7 +766,11 @@ public class MainActivity extends AppCompatActivity {
         if (newConfig.orientation != orientation)
             inputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
 
+        if (newConfig.densityDpi != densityDpi)
+            orientationDeniedAt = null;
+
         orientation = newConfig.orientation;
+        densityDpi = newConfig.densityDpi;
         applyWindowSettings();
         setTerminalToolbarView();
     }
@@ -821,6 +828,18 @@ public class MainActivity extends AppCompatActivity {
             case "reverse portrait": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT; break;
             case "reverse landscape": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE; break;
             default: requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        }
+
+        // A display ignoring orientation requests letterboxes the window into the requested
+        // proportions instead of rotating, leaving the rest of the screen unusable. The request is
+        // retried once the display changes, the next one may well honour it.
+        if (SDK_INT >= VERSION_CODES.R) {
+            WindowManager wm = getWindowManager();
+            Rect display = wm.getMaximumWindowMetrics().getBounds();
+            if (requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED && !wm.getCurrentWindowMetrics().getBounds().equals(display))
+                orientationDeniedAt = display;
+            if (display.equals(orientationDeniedAt))
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
         }
 
         if (getRequestedOrientation() != requestedOrientation)

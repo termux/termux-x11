@@ -13,6 +13,17 @@ android {
         versionName termuxX11VersionName
     }
 
+    flavorDimensions "uid"
+    productFlavors {
+        standalone {
+            dimension "uid"
+        }
+        sharedUid {
+            dimension "uid"
+            targetSdkVersion 28
+        }
+    }
+
     signingConfigs.debug {
         storeFile file('testkey_untrusted.jks')
         keyAlias 'alias'
@@ -33,8 +44,9 @@ android {
 // Release links and instructions point at this name, it does not follow the module.
 androidComponents {
     onVariants(selector().all()) { variant ->
+        def name = variant.flavorName == 'standalone' ? variant.buildType : "${variant.flavorName}-${variant.buildType}"
         variant.outputs.each { output ->
-            output.outputFileName.set("termux-x11-universal-${variant.name}.apk")
+            output.outputFileName.set("termux-x11-universal-${name}.apk")
         }
     }
 }

@@ -59,15 +59,21 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: termux-x11-universal-debug
-        path: ./lorie-app/build/outputs/apk/debug/termux-x11-universal-debug.apk
+        path: ./lorie-app/build/outputs/apk/standalone/debug/termux-x11-universal-debug.apk
+
+    - name: Store sharedUid-debug APK
+      uses: actions/upload-artifact@v7
+      with:
+        name: termux-x11-sharedUid-debug
+        path: ./lorie-app/build/outputs/apk/sharedUid/debug/termux-x11-universal-sharedUid-debug.apk
 
     - name: Store companion package
       uses: actions/upload-artifact@v7
       with:
         name: termux-companion packages
         path: |
-          ./lorie-app/build/outputs/apk/debug/termux-x11-*-all.deb
-          ./lorie-app/build/outputs/apk/debug/termux-x11-*-any.pkg.tar.xz
+          ./lorie-app/build/outputs/apk/standalone/debug/termux-x11-*-all.deb
+          ./lorie-app/build/outputs/apk/standalone/debug/termux-x11-*-any.pkg.tar.xz
         
     - name: Store unstripped libraries with debug symbols
       uses: actions/upload-artifact@v7
@@ -89,6 +95,7 @@ jobs:
           This is a nightly release of the termux-x11 app.
           Based on ${{ github.sha }}
         files: |
-          ./lorie-app/build/outputs/apk/debug/termux-x11-universal-debug.apk
-          ./lorie-app/build/outputs/apk/debug/termux-x11-*-all.deb
-          ./lorie-app/build/outputs/apk/debug/termux-x11-*-any.pkg.tar.xz
+          ./lorie-app/build/outputs/apk/standalone/debug/termux-x11-universal-debug.apk
+          ./lorie-app/build/outputs/apk/standalone/debug/termux-x11-*-all.deb
+          ./lorie-app/build/outputs/apk/standalone/debug/termux-x11-*-any.pkg.tar.xz
+          ./lorie-app/build/outputs/apk/sharedUid/debug/termux-x11-universal-sharedUid-debug.apk

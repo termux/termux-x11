@@ -28,9 +28,9 @@ public class ImeHeightProvider {
         FrameLayout content = activity.findViewById(android.R.id.content);
 
         if (SDK_INT >= VERSION_CODES.R) {
-            ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
+            ViewCompat.setOnApplyWindowInsetsListener(activity.getWindow().getDecorView(), (v, insets) -> {
                 report(activity, content, insets.getInsets(WindowInsetsCompat.Type.ime()).bottom, insets);
-                return insets;
+                return ViewCompat.onApplyWindowInsets(v, insets);
             });
             return;
         }

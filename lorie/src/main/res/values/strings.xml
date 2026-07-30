@@ -101,6 +101,8 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_storeSecondaryDisplayPreferencesSeparately_summary">Open this screen on display you want to configure</string>
 
     <string name="lorie_pref_adjustHeightForEK">Prevent extra keys bar from covering the display</string>
+    <string name="lorie_pref_hideEKBarWithoutIme">Hide extra keys bar with the soft keyboard</string>
+    <string name="lorie_pref_hideEKBarWithoutIme_summary">Show it only while the soft keyboard is shown</string>
     <string name="lorie_pref_useTermuxEKBarBehaviour">Deactivate special keys on additional key bar after each keypress</string>
     <string name="lorie_pref_useTermuxEKBarBehaviour_summary">Use long-tap to lock special keys</string>
     <string name="lorie_pref_opacityEKBar">Opacity of extra keys bar, %</string>
@@ -119,4 +121,5 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_summary_requiresExactOrCustom">Requires "display resolution mode" to be "exact" or "custom"</string>
     <string name="lorie_pref_summary_requiresIntercepting">Requires intercepting system shortcuts with Dex mode or with Accessibility service</string>
     <string name="lorie_pref_summary_requiresTrackpadAndNative">Requires "Touchscreen input mode" to be "Trackpad" and "Display resolution mode" to be not "native"</string>
+    <string name="lorie_pref_summary_followsReseed">Follows "Reseed screen while soft keyboard is open" while the bar is shown with the soft keyboard</string>
 </resources>

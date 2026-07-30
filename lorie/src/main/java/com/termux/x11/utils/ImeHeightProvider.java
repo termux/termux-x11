@@ -73,11 +73,16 @@ public class ImeHeightProvider {
                 ? insets.getInsets(WindowInsetsCompat.Type.captionBar()).top : 0);
 
         int imeHeight = 0;
+        boolean imeShown = false;
         if (activity.hasWindowFocus() && !SamsungDexUtils.checkDeXEnabled(activity) && !activity.isInPictureInPictureMode()) {
             int navBottom = (insets != null && child.getFitsSystemWindows())
                     ? insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom : 0;
             imeHeight = Math.max(0, bottom - navBottom);
+            // A floating window the keyboard does not overlap gets no height out of it, but the
+            // visibility of the insets does not depend on how much of them reaches the window.
+            imeShown = SDK_INT >= VERSION_CODES.R && insets != null
+                    ? insets.isVisible(WindowInsetsCompat.Type.ime()) : imeHeight > 0;
         }
-        MainActivity.getInstance().setImeHeight(imeHeight);
+        MainActivity.getInstance().setIme(imeHeight, imeShown);
     }
 }

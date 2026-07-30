@@ -554,8 +554,9 @@ public class MainActivity extends AppCompatActivity {
                 Log.v("MainActivity", "Extracting X connection socket.");
                 LorieView.connect(fd.detachFd());
                 finishStartupDraw();
-                getLorieView().triggerCallback();
+                // The extra keys bar claims its space first, so that the size is reported once.
                 clientConnectedStateChanged();
+                getLorieView().triggerCallback();
                 getLorieView().reloadPreferences(prefs);
             } else
                 handler.postDelayed(this::tryConnect, 250);
@@ -655,7 +656,8 @@ public class MainActivity extends AppCompatActivity {
         final ViewPager pager = getTerminalToolbarViewPager();
         ViewGroup parent = (ViewGroup) pager.getParent();
 
-        boolean showNow = !isInPictureInPictureMode && LorieView.connected() && prefs.showAdditionalKbd.get() && prefs.additionalKbdVisible.get();
+        boolean showNow = !isInPictureInPictureMode && LorieView.connected() && prefs.showAdditionalKbd.get()
+                && prefs.additionalKbdVisible.get() && (imeShown || !prefs.hideEKBarWithoutIme.get());
 
         pager.setVisibility(showNow ? View.VISIBLE : View.INVISIBLE);
 
@@ -676,13 +678,18 @@ public class MainActivity extends AppCompatActivity {
                 (TermuxX11ExtraKeys.getExtraKeysInfo() == null ? 0 : TermuxX11ExtraKeys.getExtraKeysInfo().getMatrix().length));
         pager.setLayoutParams(layoutParams);
 
-        ekbarContentInset = prefs.adjustHeightForEK.get() && showNow ? layoutParams.height : 0;
+        // A bar tied to the keyboard follows the screen reseeding of the keyboard itself, so that
+        // the screen either keeps its size or is never covered by the bar.
+        boolean adjustHeight = prefs.hideEKBarWithoutIme.get()
+                ? prefs.Reseed.get() : prefs.adjustHeightForEK.get();
+        ekbarContentInset = adjustHeight && showNow ? layoutParams.height : 0;
         applyContentInsets();
         getLorieView().requestFocus();
     }
 
     private int ekbarContentInset = 0;
     private int imeHeight = 0;
+    private boolean imeShown = false;
     private int captionHeight = 0;
 
     private void applyContentInsets() {
@@ -697,9 +704,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void setImeHeight(int height) {
+    public void setIme(int height, boolean shown) {
+        boolean affectsExtraKeys = imeShown != shown && prefs.hideEKBarWithoutIme.get();
         imeHeight = height;
-        applyContentInsets();
+        imeShown = shown;
+        if (affectsExtraKeys)
+            setTerminalToolbarView(); // it applies the insets on its own
+        else
+            applyContentInsets();
     }
 
     // The window header of desktop windowing can not be hidden, so its space has to be given up even

@@ -872,7 +872,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onUserLeaveHint() {
-        if (!prefs.PIP.get() || !hasPipPermission(this))
+        if (!prefs.PIP.get() || !hasPipPermission(this) || !LorieView.connected())
             return;
 
         PictureInPictureParams.Builder params = new PictureInPictureParams.Builder();
@@ -926,6 +926,14 @@ public class MainActivity extends AppCompatActivity {
     void clientConnectedStateChanged() {
         runOnUiThread(()-> {
             boolean connected = LorieView.connected();
+
+            // A picture-in-picture window has nothing to show without a client, and there is no way
+            // back to the normal size from it, so the window is closed.
+            if (!connected && isInPictureInPictureMode) {
+                finish();
+                return;
+            }
+
             setTerminalToolbarView();
             findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && connected ? View.VISIBLE : View.GONE);
             findViewById(R.id.stub).setVisibility(connected?View.INVISIBLE:View.VISIBLE);

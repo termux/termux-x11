@@ -804,7 +804,8 @@ public class MainActivity extends AppCompatActivity {
         boolean fullscreen = prefs.fullscreen.get();
         boolean hideCutout = prefs.hideCutout.get();
 
-        if (oldHideCutout != hideCutout || oldFullscreen != fullscreen) {
+        // Recreating would take the window out of picture-in-picture, so it waits for the normal size.
+        if (!isInPictureInPictureMode && (oldHideCutout != hideCutout || oldFullscreen != fullscreen)) {
             oldHideCutout = hideCutout;
             oldFullscreen = fullscreen;
             // For some reason cutout or fullscreen change makes layout calculations wrong and invalid.
@@ -898,6 +899,8 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.mouse_buttons).setAlpha(isInPictureInPictureMode ? 0.f : 0.7f);
         findViewById(R.id.mouse_helper_visibility).setAlpha(isInPictureInPictureMode ? 0.f : 1.f);
         setTerminalToolbarView();
+        if (!isInPictureInPictureMode)
+            applyWindowSettings();
 
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
     }

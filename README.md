@@ -31,6 +31,13 @@ The Android app is available via the [nightly release tag](https://github.com/te
 
 The companion termux package is available from the termux graphical repository. You can ensure it's enabled and install this package with `pkg i x11-repo && pkg i termux-x11-nightly`. If you need to, you can also download a `.deb` or `*.tar.xz` from the same nightly release tag as above.
 
+### Avoiding slowdowns
+Android gives less CPU time to apps that aren't on screen. Once Termux:X11 opens, Android treats Termux itself as no longer being on screen, so things running inside Termux (like your desktop apps) can slow down.
+
+To avoid this, install `termux-x11-universal-sharedUid-debug.apk` instead of the regular one (same [nightly release tag](https://github.com/termux/termux-x11/releases/tag/nightly) or CI artifacts). This variant runs as part of Termux itself, so Android keeps treating it as one app and doesn't slow it down.
+
+This variant only works with the Termux app installed **from GitHub**, not F-Droid or Google Play — those are signed with different keys, and a shared UID requires matching signatures.
+
 Finally, most people will want to use a desktop environment with Termux:X11. If you don't know what that means or don't know which one to pick, run `pkg i xfce` (also from `x11-repo`) to install a good one to start with. The rest of these instructions will assume that your goal is to run an XFCE desktop, or that you can modify the instructions as you follow them for your actual goal.
 
 ## Running Graphical Applications

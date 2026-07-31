@@ -533,8 +533,6 @@ void Renderer::setZoom(int percent) {
     zoomPercent = percent < 100 ? 100 : (percent > 400 ? 400 : percent);
     reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
     reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
-    if (zoomPercent == 100)
-        panSourceLeft = panSourceTop = 0.f;
     if (state)
         state->drawRequested = true;
     pthread_cond_signal(stateCond);
@@ -817,11 +815,23 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     // The soft keyboard hides the bottom of the picture instead of the picture shrinking for it,
     // so only the part fitting above it is drawn, at the same scale as the whole picture.
     int cut = renderViewportY + renderViewportH - (viewportY + viewportH - hiddenBottom);
-    if (hiddenBottom > 0 && cut > 0 && cut < renderViewportH) {
+    bool bottomHidden = hiddenBottom > 0 && cut > 0 && cut < renderViewportH;
+    if (bottomHidden) {
         float shown = (float) (renderViewportH - cut) / (float) renderViewportH;
         sourceHeight *= shown;
         logicalSourceHeight *= shown;
         renderViewportH -= cut;
+    }
+
+    // The keyboard swaps the zone the picture is at for the one it was left at on the other side of
+    // the switch. Zoomed in the picture pans on its own while the keyboard is away, so there it is
+    // only put back once the keyboard is gone, to where it was before the keyboard covered it.
+    if (bottomHidden != bottomWasHidden) {
+        bottomWasHidden = bottomHidden;
+        float other = hiddenPanSourceTop;
+        hiddenPanSourceTop = panSourceTop;
+        if (other >= 0.f && (!bottomHidden || zoomPercent == 100))
+            panSourceTop = other;
     }
 
     // The buffer can be a few pixels narrower than the screen because of the mode granularity,

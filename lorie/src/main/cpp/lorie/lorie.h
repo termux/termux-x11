@@ -260,6 +260,8 @@ struct Renderer {
     volatile int hiddenBottom = 0;
     volatile int zoomPercent = 100;
     float panSourceLeft = 0.f, panSourceTop = 0.f;
+    float hiddenPanSourceTop = -1.f; // the vertical pan of the other keyboard state, negative until there was one
+    bool bottomWasHidden = false;
     JNIEnv* rendererEnv = nullptr;
     JavaVM* jvm = nullptr; // Stashed by init() so initThread() can be reached via `this` from a plain (non-capturing) pthread_create callback.
     jclass lorieViewClass = nullptr;

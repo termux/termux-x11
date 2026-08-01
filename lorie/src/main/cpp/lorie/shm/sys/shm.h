@@ -1,6 +1,8 @@
 #ifndef _SYS_SHM_H
 #define _SYS_SHM_H
 
+#include_next <sys/shm.h>
+
 #include <linux/shm.h>
 #include <stdint.h>
 #include <sys/types.h>

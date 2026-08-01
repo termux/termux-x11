@@ -35,6 +35,7 @@ add_custom_command(
 
 set(inc "${CMAKE_CURRENT_BINARY_DIR}"
         "${CMAKE_CURRENT_BINARY_DIR}/xserver"
+        "lorie/shm"
         "libxfont/include"
         "pixman/pixman"
         "xorgproto/include"
@@ -76,8 +77,7 @@ set(compile_options
         "-D_BSD_SOURCE"
         "-DHAS_FCHOWN"
         "-DHAS_STICKY_DIR_BIT"
-        "-D_PATH_TMP=getenv(\"TMPDIR\")?:\"/tmp\""
-        "-include" "${CMAKE_CURRENT_SOURCE_DIR}/lorie/shm/shm.h")
+        "-D_PATH_TMP=getenv(\"TMPDIR\")?:\"/tmp\"")
 if (SIZEOF_UNSIGNED_LONG EQUAL 8)
     set(compile_options ${compile_options} "-D_XSERVER64=1")
 endif ()

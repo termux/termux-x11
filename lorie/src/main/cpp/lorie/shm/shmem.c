@@ -25,7 +25,7 @@
 
 #endif
 
-#include "shm.h"
+#include <sys/shm.h>
 
 #define DBG(...)
 #define ANDROID_SHMEM_SOCKNAME "/dev/shm/%08x"

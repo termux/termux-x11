@@ -11,8 +11,10 @@
 #include <pixman.h>
 #include <stdbool.h>
 #include <linux/memfd.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
+#include <unistd.h>
 #include <errno.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>

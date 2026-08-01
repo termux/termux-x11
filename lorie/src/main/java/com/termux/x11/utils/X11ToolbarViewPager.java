@@ -1,7 +1,10 @@
 package com.termux.x11.utils;
 
+import static android.os.Build.VERSION.SDK_INT;
+
 import android.annotation.SuppressLint;
 import android.graphics.Color;
+import android.os.Build.VERSION_CODES;
 import android.graphics.drawable.ColorDrawable;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -71,10 +74,11 @@ public class X11ToolbarViewPager {
                     return true;
                 });
 
-                editText.setOnCapturedPointerListener((v2, e2) -> {
-                    MainActivity.setCapturingEnabled(false);
-                    return false;
-                });
+                if (SDK_INT >= VERSION_CODES.O)
+                    editText.setOnCapturedPointerListener((v2, e2) -> {
+                        MainActivity.setCapturingEnabled(false);
+                        return false;
+                    });
 
                 back.setOnClickListener(v -> mActivity.getTerminalToolbarViewPager().setCurrentItem(0, true));
                 back.setTextColor(0xFFFFFFFF);

@@ -7,7 +7,7 @@ android {
     ndkVersion termuxX11NdkVersion
     defaultConfig {
         applicationId "com.termux.x11"
-        minSdkVersion 26
+        minSdkVersion 24
         targetSdkVersion 34
         versionCode 15
         versionName termuxX11VersionName

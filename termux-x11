@@ -6,8 +6,8 @@ if [ ! -e /system/bin/getprop ] || [ ! -e /system/bin/app_process ]; then
   echo "from 'pkg install tigervnc' is recommended instead."
   exit 1
 fi
-if [ "$(getprop ro.build.version.sdk)" -lt "26" ]; then
-  echo "Termux:X11 requires at least Android 8 or newer."
+if [ "$(getprop ro.build.version.sdk)" -lt "24" ]; then
+  echo "Termux:X11 requires at least Android 7 or newer."
   echo "Please upgrade your Android device."
   echo "If you cannot upgrade, the 'vncserver' command"
   echo "from 'pkg install tigervnc' is recommended instead."

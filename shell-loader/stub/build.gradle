@@ -1,7 +1,7 @@
 apply plugin: 'com.android.library'
 
 android.namespace 'com.termux.x11.stub'
-android.defaultConfig.minSdkVersion 26
+android.defaultConfig.minSdkVersion 24
 android.compileSdkVersion 34
 android.buildFeatures.buildConfig false
 android.buildTypes.release.minifyEnabled false

@@ -27,7 +27,7 @@ android {
     compileSdkVersion 34
     ndkVersion termuxX11NdkVersion
     defaultConfig {
-        minSdkVersion 26
+        minSdkVersion 24
         targetSdkVersion 34
         buildConfigField "String", "VERSION_NAME", "\"${termuxX11VersionName}\""
         buildConfigField "String", "COMMIT", "\"" + ("git rev-parse HEAD\n".execute().getText().trim() ?: (System.getenv('CURRENT_COMMIT') ?: "NO_COMMIT")) + "\""

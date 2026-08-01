@@ -9,6 +9,7 @@
 #pragma clang diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
 #define EGL_EGLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES
+#define __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__
 
 #define CVT_H_GRANULARITY 8
 
@@ -26,6 +27,9 @@
 #include <unistd.h>
 #include "list.h"
 #include "lorie.h"
+
+// libEGL exports this only since API 26, weak so the library still loads below that.
+__attribute__((weak)) EGLClientBuffer eglGetNativeClientBufferANDROID(const struct AHardwareBuffer* buffer);
 
 #define log(...) __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", __VA_ARGS__)
 #define loge(...) __android_log_print(ANDROID_LOG_ERROR, "gles-renderer", __VA_ARGS__)
@@ -164,6 +168,58 @@ static const EGLint ctxattribs[] = {
         EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE
 };
 
+// The window the context is kept current on while the real surface is gone. Nothing ever reads
+// from the texture behind it, and neither it nor the surface is released, both live as long as
+// the renderer does.
+//
+// Weird devices without proper EGL_KHR_surfaceless_context support
+// We can not use pbuffer-based surfaces because it will require searching for configs supporting it
+// and I am not sure all devices have configs supporting both pbuffers and regular surfaces simultaneously
+static ANativeWindow* createDefaultWindow(JNIEnv* env) {
+    if (__builtin_available(android 24, *)) {
+        AImageReader* reader = NULL; // Never released, lives as long as the renderer does, same as the window
+        ANativeWindow* win = NULL;
+        if (AImageReader_new(1, 1, AIMAGE_FORMAT_RGBA_8888, 2, &reader) != AMEDIA_OK) {
+            log("Failed to initialise ImageReader");
+        } else {
+            AImageReader_ImageListener listener = { .context = NULL, .onImageAvailable = [](void* context, AImageReader* reader) {
+                AImage* image = NULL;
+                if (AImageReader_acquireLatestImage(reader, &image) == AMEDIA_OK && image)
+                    AImage_delete(image);
+            } };
+            if (AImageReader_setImageListener(reader, &listener) != AMEDIA_OK) {
+                log("Failed to set ImageReader listener");
+                AImageReader_delete(reader);
+            } else if (AImageReader_getWindow(reader, &win) != AMEDIA_OK) {
+                log("Failed to obtain ImageReader native window");
+                AImageReader_delete(reader);
+            }
+        }
+
+        if (win)
+            return win;
+    }
+
+    jclass surfaceTextureClass = env->FindClass("android/graphics/SurfaceTexture");
+    jclass surfaceClass = env->FindClass("android/view/Surface");
+    if (!surfaceTextureClass || !surfaceClass) {
+        log("Failed to find SurfaceTexture or Surface class");
+        return nullptr;
+    }
+
+    jobject surfaceTexture = env->NewObject(surfaceTextureClass, env->GetMethodID(surfaceTextureClass, "<init>", "(Z)V"), true);
+    jobject surface = surfaceTexture ? env->NewObject(surfaceClass, env->GetMethodID(surfaceClass, "<init>", "(Landroid/graphics/SurfaceTexture;)V"), surfaceTexture) : nullptr;
+    if (!surface) {
+        log("Failed to instantiate SurfaceTexture or Surface");
+        env->ExceptionClear();
+        return nullptr;
+    }
+
+    env->NewGlobalRef(surfaceTexture);
+    env->NewGlobalRef(surface);
+    return ANativeWindow_fromSurface(env, surface);
+}
+
 void* Renderer::initThread() {
     if (jvm->AttachCurrentThread(&rendererEnv, NULL) != JNI_OK) {
         log("Failed to attach renderer thread to JVM");
@@ -173,7 +229,6 @@ void* Renderer::initThread() {
     EGLint major, minor;
     EGLint numConfigs;
     EGLint *const alphaAttrib = &configAttribs[11];
-    AImageReader* reader = NULL; // We will use this ImageReader each time surface is destroyed, zero reasons to clean it up
 
     pthread_setname_np(pthread_self(), "LorieRendererThread");
 
@@ -200,32 +255,10 @@ void* Renderer::initThread() {
     if (ctx == EGL_NO_CONTEXT)
         return printEglError("eglCreateContext failed", __LINE__);
 
-    // Weird devices without proper EGL_KHR_surfaceless_context support
-    // We can not use pbuffer-based surfaces because it will require searching for configs supporting it
-    // and I am not sure all devices have configs supporting both pbuffers and regular surfaces simultaneously
-    if (AImageReader_new(1, 1, AIMAGE_FORMAT_RGBA_8888, 2, &reader) != AMEDIA_OK) {
-        log("Failed to initialise ImageReader");
-        return nullptr;
-    }
+    win = defaultWin = createDefaultWindow(rendererEnv);
+    if (!defaultWin)
+        return printEglError("Got no window to keep the context current on", __LINE__);
 
-    AImageReader_ImageListener listener = { .context = NULL, .onImageAvailable = [](void* context, AImageReader* reader) {
-        AImage* image = NULL;
-        if (AImageReader_acquireLatestImage(reader, &image) == AMEDIA_OK && image)
-            AImage_delete(image);
-    } };
-    if (AImageReader_setImageListener(reader, &listener) != AMEDIA_OK) {
-        log("Failed to set ImageReader listener");
-        AImageReader_delete(reader);
-        return nullptr;
-    }
-
-    if (AImageReader_getWindow(reader, &defaultWin) != AMEDIA_OK) {
-        log("Failed to obtain ImageReader native window");
-        AImageReader_delete(reader);
-        return nullptr;
-    }
-
-    win = defaultWin;
     ANativeWindow_acquire(defaultWin);
 
     sfc = defaultSfc = eglCreateWindowSurface(egl_display, cfg, win, NULL);
@@ -311,6 +344,12 @@ void Renderer::testCapabilities(int* legacy_drawing) {
             .usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
             .format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM
     };
+
+    if (!__builtin_available(android 26, *)) {
+        loge("No AHardwareBuffer on this platform, forcing legacy drawing");
+        *legacy_drawing = 1;
+        return;
+    }
 
     if (egl_display == EGL_NO_DISPLAY) {
         egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);

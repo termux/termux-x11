@@ -234,6 +234,21 @@ LorieBuffer* _Nullable LorieBufferList_first(struct xorg_list* _Nullable list);
  */
 LorieBuffer* _Nullable LorieBufferList_findById(struct xorg_list* _Nullable list, uint64_t id);
 
+/**
+ * Receives a raw AHardwareBuffer handle (not wrapped into a LorieBuffer) from an AF_UNIX socket.
+ * Used for buffers handed over directly by DRI3 clients, as opposed to LorieBuffer_recvHandleFromUnixSocket.
+ *
+ * @param socketFd socket to receive the handle from.
+ * @param outBuffer receives the buffer handle.
+ * @return 0 on success, an error code otherwise.
+ */
+int LorieBuffer_recvAHardwareBufferHandleFromUnixSocket(int socketFd, AHardwareBuffer* _Nullable * _Nonnull outBuffer);
+
+/**
+ * Describes a raw AHardwareBuffer, as obtained from LorieBuffer_recvAHardwareBufferHandleFromUnixSocket.
+ */
+void LorieBuffer_describeAHardwareBuffer(AHardwareBuffer* _Nonnull buffer, AHardwareBuffer_Desc* _Nonnull outDesc);
+
 #undef STATIC_INLINE
 
 int ancil_send_fd(int sock, int fd);

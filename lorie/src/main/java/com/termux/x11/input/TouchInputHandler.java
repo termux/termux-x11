@@ -397,11 +397,17 @@ public class TouchInputHandler {
             mInputStrategy = new InputStrategyInterface.TrackpadInputStrategy(mInjector);
     }
 
+    private static boolean hasPointerCapture(View view) {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && view.hasPointerCapture();
+    }
+
     public void setCapturingEnabled(boolean enabled) {
-        if (mInjector.pointerCapture && enabled)
-            mActivity.getLorieView().requestPointerCapture();
-        else
-            mActivity.getLorieView().releasePointerCapture();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (mInjector.pointerCapture && enabled)
+                mActivity.getLorieView().requestPointerCapture();
+            else
+                mActivity.getLorieView().releasePointerCapture();
+        }
 
         if (mInjector.pauseKeyInterceptingWithEsc) {
             if (mInjector.dexMetaKeyCapture)
@@ -455,10 +461,10 @@ public class TouchInputHandler {
 
         MainActivity.getRealMetrics(mMetrics);
 
-        if (!p.pointerCapture.get() && mActivity.getLorieView().hasPointerCapture())
+        if (!p.pointerCapture.get() && hasPointerCapture(mActivity.getLorieView()))
             mActivity.getLorieView().releasePointerCapture();
 
-        keyIntercepting = !mInjector.pauseKeyInterceptingWithEsc || mActivity.getLorieView().hasPointerCapture();
+        keyIntercepting = !mInjector.pauseKeyInterceptingWithEsc || hasPointerCapture(mActivity.getLorieView());
         SamsungDexUtils.dexMetaKeyCapture(mActivity, mInjector.dexMetaKeyCapture && keyIntercepting);
 
         swipeUpAction = extractUserActionFromPreferences(p, "swipeUp");
@@ -868,7 +874,7 @@ public class TouchInputHandler {
                 return true;
             }
 
-            if (!v.hasPointerCapture()) {
+            if (!hasPointerCapture(v)) {
                 mRenderData.mapScreenPoint(e.getX(), e.getY(), mappedPoint);
                 if (mRenderData.setCursorPosition(mappedPoint[0], mappedPoint[1]))
                     mInjector.sendCursorMove(mappedPoint[0], mappedPoint[1], false);
@@ -959,7 +965,7 @@ public class TouchInputHandler {
             boolean hasTilt = e.getDevice().getMotionRange(MotionEvent.AXIS_TILT) != null;
             boolean hasOrientation = e.getDevice().getMotionRange(MotionEvent.AXIS_ORIENTATION) != null;
 
-            if (MainActivity.getInstance().getLorieView().hasPointerCapture() &&
+            if (hasPointerCapture(MainActivity.getInstance().getLorieView()) &&
                     isExternal(dev) && rangeX != null && rangeY != null) {
                 newX *= (float) mMetrics.widthPixels / rangeX.getMax();
                 newY *= (float) mMetrics.heightPixels / rangeY.getMax();

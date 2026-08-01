@@ -5,6 +5,7 @@
 #pragma ide diagnostic ignored "OCUnusedMacroInspection"
 #define EGL_EGLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES
+#define __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -23,6 +24,9 @@
 #include <android/sharedmem.h>
 #include "list.h"
 #include "buffer.h"
+
+// libEGL exports this only since API 26, weak so the library still loads below that.
+__attribute__((weak)) EGLClientBuffer eglGetNativeClientBufferANDROID(const struct AHardwareBuffer* buffer);
 
 struct LorieBuffer {
     int16_t refcount;
@@ -71,12 +75,14 @@ static inline size_t alignToPage(size_t size) {
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "UnreachableCallsOfFunction"
 int LorieBuffer_createRegion(char const* name, size_t size) {
-    int fd = ASharedMemory_create(name, size);
-    if (fd)
+    int fd = -1;
+    if (__builtin_available(android 26, *))
+        fd = ASharedMemory_create(name, size);
+    if (fd >= 0)
         return fd;
 
     fd = memfd_create(name, MFD_CLOEXEC|MFD_ALLOW_SEALING);
-    if (fd) {
+    if (fd >= 0) {
         ftruncate (fd, size);
         return fd;
     }
@@ -133,7 +139,8 @@ static LorieBuffer* allocate(int32_t width, int32_t stride, int32_t height, int8
             if (!b.desc.buffer)
                 return NULL;
 
-            AHardwareBuffer_describe(b.desc.buffer, &desc);
+            if (__builtin_available(android 26, *))
+                AHardwareBuffer_describe(b.desc.buffer, &desc);
             b.desc.width = desc.width;
             b.desc.height = desc.height;
             b.desc.stride = desc.stride;
@@ -154,7 +161,8 @@ static LorieBuffer* allocate(int32_t width, int32_t stride, int32_t height, int8
                 close(b.fd);
                 break;
             case LORIEBUFFER_AHARDWAREBUFFER:
-                AHardwareBuffer_release(b.desc.buffer);
+                if (__builtin_available(android 26, *))
+                    AHardwareBuffer_release(b.desc.buffer);
                 break;
             default: break;
         }
@@ -180,7 +188,9 @@ __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_allocate(int32_t width, int32_t height,
     } else if (type == LORIEBUFFER_AHARDWAREBUFFER) {
         AHardwareBuffer_Desc desc = { .width = width, .height = height, .format = format, .layers = 1,
                 .usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER };
-        int err = AHardwareBuffer_allocate(&desc, &ahardwarebuffer);
+        int err = -1;
+        if (__builtin_available(android 26, *))
+            err = AHardwareBuffer_allocate(&desc, &ahardwarebuffer);
         if (err != 0)
             dprintf(2, "FATAL: failed to allocate AHardwareBuffer (width %d height %d format %d): error %d\n", width, height, format, err);
     }
@@ -231,15 +241,20 @@ __LIBC_HIDDEN__ void LorieBuffer_convert(LorieBuffer* buffer, int8_t type, int8_
         AHardwareBuffer *b = NULL;
         AHardwareBuffer_Desc desc = { .width = buffer->desc.width, .height = buffer->desc.height, .format = format, .layers = 1,
                 .usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER };
-        int err = AHardwareBuffer_allocate(&desc, &b);
+        int err = -1;
+        if (__builtin_available(android 26, *))
+            err = AHardwareBuffer_allocate(&desc, &b);
         if (err != 0)
             return;
 
-        AHardwareBuffer_describe(b, &desc);
+        if (__builtin_available(android 26, *))
+            AHardwareBuffer_describe(b, &desc);
 
-        if (AHardwareBuffer_lock(b, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1, NULL, &data) == 0) {
-            pixman_blt(buffer->desc.data, data, buffer->desc.stride, desc.stride, 32, 32, 0, 0, 0, 0, buffer->desc.width, buffer->desc.height);
-            AHardwareBuffer_unlock(b, NULL);
+        if (__builtin_available(android 26, *)) {
+            if (AHardwareBuffer_lock(b, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1, NULL, &data) == 0) {
+                pixman_blt(buffer->desc.data, data, buffer->desc.stride, desc.stride, 32, 32, 0, 0, 0, 0, buffer->desc.width, buffer->desc.height);
+                AHardwareBuffer_unlock(b, NULL);
+            }
         }
 
         buffer->desc.type = type;
@@ -274,7 +289,8 @@ __LIBC_HIDDEN__ void __LorieBuffer_free(LorieBuffer* buffer) {
             close(buffer->fd);
             break;
         case LORIEBUFFER_AHARDWAREBUFFER:
-            AHardwareBuffer_release(buffer->desc.buffer);
+            if (__builtin_available(android 26, *))
+                AHardwareBuffer_release(buffer->desc.buffer);
             break;
         default: break;
     }
@@ -301,8 +317,10 @@ __LIBC_HIDDEN__ int LorieBuffer_lock(LorieBuffer* buffer, void** out) {
 
     if (buffer->desc.type == LORIEBUFFER_REGULAR || buffer->desc.type == LORIEBUFFER_FD)
         buffer->lockedData = buffer->desc.data;
-    else if (buffer->desc.type == LORIEBUFFER_AHARDWAREBUFFER)
-        ret = AHardwareBuffer_lock(buffer->desc.buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1, NULL, &buffer->lockedData);
+    else if (buffer->desc.type == LORIEBUFFER_AHARDWAREBUFFER) {
+        if (__builtin_available(android 26, *))
+            ret = AHardwareBuffer_lock(buffer->desc.buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1, NULL, &buffer->lockedData);
+    }
 
     if (out)
         *out = buffer->lockedData;
@@ -322,8 +340,10 @@ __LIBC_HIDDEN__ int LorieBuffer_unlock(LorieBuffer* buffer) {
         return ENOENT;
     }
 
-    if (buffer->desc.type == LORIEBUFFER_AHARDWAREBUFFER)
-        ret = AHardwareBuffer_unlock(buffer->desc.buffer, NULL);
+    if (buffer->desc.type == LORIEBUFFER_AHARDWAREBUFFER) {
+        if (__builtin_available(android 26, *))
+            ret = AHardwareBuffer_unlock(buffer->desc.buffer, NULL);
+    }
 
     buffer->lockedData = NULL;
     buffer->locked = false;
@@ -338,8 +358,10 @@ __LIBC_HIDDEN__ void LorieBuffer_sendHandleToUnixSocket(LorieBuffer* _Nonnull bu
     write(socketFd, buffer, sizeof(*buffer));
     if (buffer->desc.type == LORIEBUFFER_FD)
         ancil_send_fd(socketFd, buffer->fd);
-    else if (buffer->desc.type == LORIEBUFFER_AHARDWAREBUFFER)
-        AHardwareBuffer_sendHandleToUnixSocket(buffer->desc.buffer, socketFd);
+    else if (buffer->desc.type == LORIEBUFFER_AHARDWAREBUFFER) {
+        if (__builtin_available(android 26, *))
+            AHardwareBuffer_sendHandleToUnixSocket(buffer->desc.buffer, socketFd);
+    }
 }
 
 __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuffer** outBuffer) {
@@ -373,8 +395,10 @@ __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuf
                 *outBuffer = NULL;
             return;
         }
-    } else if (buffer.desc.type == LORIEBUFFER_AHARDWAREBUFFER)
-        AHardwareBuffer_recvHandleFromUnixSocket(socketFd, &buffer.desc.buffer);
+    } else if (buffer.desc.type == LORIEBUFFER_AHARDWAREBUFFER) {
+        if (__builtin_available(android 26, *))
+            AHardwareBuffer_recvHandleFromUnixSocket(socketFd, &buffer.desc.buffer);
+    }
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "MemoryLeak"
@@ -384,8 +408,10 @@ __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuf
     if (!ret) {
         if (buffer.fd >= 0)
             close(buffer.fd);
-        if (buffer.desc.buffer)
-            AHardwareBuffer_release(buffer.desc.buffer);
+        if (buffer.desc.buffer) {
+            if (__builtin_available(android 26, *))
+                AHardwareBuffer_release(buffer.desc.buffer);
+        }
         if (outBuffer)
             outBuffer = NULL;
         return;
@@ -401,7 +427,7 @@ __LIBC_HIDDEN__ void LorieBuffer_attachToGL(LorieBuffer* buffer) {
     if (!eglGetCurrentDisplay() || !buffer)
         return;
 
-    if (buffer->image == NULL && buffer->desc.buffer)
+    if (buffer->image == NULL && buffer->desc.buffer && eglGetNativeClientBufferANDROID)
         buffer->image = eglCreateImageKHR(eglGetCurrentDisplay(), EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, eglGetNativeClientBufferANDROID(buffer->desc.buffer), imageAttributes);
 
     glGenTextures(1, &buffer->id);
@@ -465,6 +491,17 @@ __LIBC_HIDDEN__ LorieBuffer* _Nullable LorieBufferList_findById(struct xorg_list
         if (buffer->desc.id == id)
             return buffer;
     return NULL;
+}
+
+int LorieBuffer_recvAHardwareBufferHandleFromUnixSocket(int socketFd, AHardwareBuffer** outBuffer) {
+    if (__builtin_available(android 26, *))
+        return AHardwareBuffer_recvHandleFromUnixSocket(socketFd, outBuffer);
+    return -ENOSYS;
+}
+
+void LorieBuffer_describeAHardwareBuffer(AHardwareBuffer* buffer, AHardwareBuffer_Desc* outDesc) {
+    if (__builtin_available(android 26, *))
+        AHardwareBuffer_describe(buffer, outDesc);
 }
 
 __LIBC_HIDDEN__ int ancil_send_fd(int sock, int fd) {

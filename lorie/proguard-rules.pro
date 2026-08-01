@@ -6,11 +6,6 @@
     void resetIme();
 }
 
--keep class com.termux.x11.MainActivity {
-    public static com.termux.x11.MainActivity getInstance();
-    void clientConnectedStateChanged();
-}
-
 -keep class com.termux.x11.CmdEntryPoint {
     public static void main(java.lang.String[]);
 }
@@ -24,6 +19,10 @@
 -dontwarn android.content.IIntentReceiver$Stub
 -dontwarn android.content.IIntentSender
 -dontwarn android.content.pm.IPackageManager
+
+-keepclassmembers class com.termux.x11.** {
+    void performReceive(android.content.Intent, int, java.lang.String, android.os.Bundle, boolean, boolean, int);
+}
 
 # Keep Preference subclasses' onSetInitialValue for reflective calls
 -keepclassmembers class * extends android.preference.Preference {

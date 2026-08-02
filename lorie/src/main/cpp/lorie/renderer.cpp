@@ -584,6 +584,7 @@ void Renderer::refreshContext() {
     log("rendererSetWindow %p %d %d", pendingWin, width, height);
 
     releaseWinAndSurface(&win, &sfc);
+    teardownCursorOverlay(); // bound to the window we just released, must be recreated for the new one
 
     if (pendingWin && (width <= 0 || height <= 0)) {
         log("Xlorie: We've got invalid surface. Probably it became invalid before we started working with it.\n");
@@ -622,6 +623,8 @@ void Renderer::refreshContext() {
 
     glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win));
     log("Xlorie: new surface applied: %p\n", sfc);
+
+    ensureCursorOverlay();
 }
 
 // Drains the deferred GPU copy queue (filled by present_execute_copy) into the root texture via
@@ -820,7 +823,8 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
 
     int surfaceH = ANativeWindow_getHeight(win);
     int surfaceW = ANativeWindow_getWidth(win);
-    int renderViewportX = viewportX, renderViewportY = viewportY, renderViewportW = viewportW, renderViewportH = viewportH;
+    renderViewportX = viewportX; renderViewportY = viewportY;
+    renderViewportW = viewportW; renderViewportH = viewportH;
     float destinationScaleX = 1.f, destinationScaleY = 1.f;
     if (zoomPercent > 100 && viewportW > 0 && viewportH > 0) {
         float requestedScale = (float) zoomPercent / 100.f;
@@ -841,7 +845,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
         renderViewportY = (int) (centerY - (float) renderViewportH / 2.f + 0.5f);
     }
 
-    float sourceWidth = (float) desc->width, sourceHeight = (float) desc->height;
+    sourceWidth = (float) desc->width; sourceHeight = (float) desc->height;
     float logicalSourceWidth = (float) expectedW, logicalSourceHeight = (float) expectedH;
     if (zoomPercent > 100) {
         float requestedScale = (float) zoomPercent / 100.f;
@@ -879,7 +883,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
                     ? panToCursor(panSourceLeft, (float) state->cursor.x, sourceWidth, (float) expectedW) : 0.f;
     panSourceTop = sourceHeight < (float) expectedH
                    ? panToCursor(panSourceTop, (float) state->cursor.y, sourceHeight, (float) expectedH) : 0.f;
-    float sourceLeft = panSourceLeft, sourceTop = panSourceTop;
+    sourceLeft = panSourceLeft; sourceTop = panSourceTop;
 
     glDisable(GL_SCISSOR_TEST);
     glViewport(0, 0, surfaceW, surfaceH);
@@ -909,15 +913,20 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
 
     if (state->cursor.updated) {
         log("Xlorie: updating cursor\n");
-        lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid);
-        state->cursor.updated = false;
-        bindTexture(cursor.id);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
-        lorie_mutex_unlock(&state->cursor.lock, &state->cursor.lockingPid);
+        if (!cursorOverlayUsable()) {
+            lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid);
+            bindTexture(cursor.id);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
+            lorie_mutex_unlock(&state->cursor.lock, &state->cursor.lockingPid);
+        } // else: the overlay thread rereads cursor.bits itself
     }
 
     state->cursor.moved = FALSE;
-    drawCursor(sourceWidth, sourceHeight, sourceLeft, sourceTop);
+    if (cursorOverlayUsable())
+        markCursorOverlayDirty(state->cursor.updated);
+    else
+        drawCursor(sourceWidth, sourceHeight, sourceLeft, sourceTop);
+    state->cursor.updated = FALSE;
     glFlush();
 
     // Wait until root window drawing is finished before giving control back to X server
@@ -1027,7 +1036,25 @@ void Renderer::threadLoop() {
         // Prefer a full redraw over the standalone apply below so a pending GPU copy shares one
         // lock+fence with the root/cursor draw, instead of two GPU round trips per frame.
         bool gpuCopyPending = state && state->gpuCopyQueue.readIndex != state->gpuCopyQueue.writeIndex;
-        if (state && state->surfaceAvailable && !state->waitForNextFrame &&
+        // A plain cursor change, with panning out of play, can skip GL entirely via the overlay thread.
+        bool cursorOnlyChange = state && !state->drawRequested && !gpuCopyPending &&
+            (state->cursor.moved || state->cursor.updated);
+        bool canUseCursorOverlay = cursorOnlyChange && state->surfaceAvailable && sourceWidth > 0.f &&
+            cursorOverlayUsable();
+        if (canUseCursorOverlay) {
+            // panToCursor is pure/cheap - rerun it to see if this move would actually pan (only then
+            // does the crop, and with it the whole picture, need a real GL redraw).
+            bool pansX = zoomPercent > 100 &&
+                panToCursor(panSourceLeft, (float) state->cursor.x, sourceWidth, (float) expectedW) != panSourceLeft;
+            bool pansY = sourceHeight < (float) expectedH &&
+                panToCursor(panSourceTop, (float) state->cursor.y, sourceHeight, (float) expectedH) != panSourceTop;
+            canUseCursorOverlay = !pansX && !pansY;
+        }
+
+        if (canUseCursorOverlay) {
+            markCursorOverlayDirty(state->cursor.updated);
+            state->cursor.moved = state->cursor.updated = FALSE;
+        } else if (state && state->surfaceAvailable && !state->waitForNextFrame &&
             (state->drawRequested || state->cursor.moved || state->cursor.updated || gpuCopyPending))
             redrawLocked(&waitingForBuffers);
         else if (gpuCopyPending)
@@ -1134,4 +1161,259 @@ void Renderer::drawCursor(float displayWidth, float displayHeight, float sourceL
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     drawRegion(cursor.id, x, y, x + w, y + h, 0.f, 0.f, 1.f, 1.f, false);
     glDisable(GL_BLEND);
+}
+
+// --- Cursor SurfaceControl overlay: plain cursor moves skip GL via a dedicated AChoreographer thread ---
+
+static void cursorOverlayFrameCallback(long t, void* data) {
+    auto* r = (Renderer*) data;
+    r->applyCursorOverlayIfDirty();
+
+    pthread_mutex_lock(&r->cursorOverlayLock);
+    r->cursorOverlayCallbackArmed = false; // this posting has now fired
+    pthread_mutex_unlock(&r->cursorOverlayLock);
+
+    r->armCursorOverlayCallbackIfNeeded();
+}
+
+static void* cursorOverlayThreadMain(void* cookie) {
+    auto* r = (Renderer*) cookie;
+    pthread_setname_np(pthread_self(), "LorieCursorOverlay");
+    r->cursorOverlayLooper = ALooper_prepare(ALOOPER_PREPARE_ALLOW_NON_CALLBACKS);
+    r->cursorOverlayChoreographer = AChoreographer_getInstance();
+    r->armCursorOverlayCallbackIfNeeded();
+    while (true) {
+        ALooper_pollOnce(-1, NULL, NULL, NULL);
+        r->armCursorOverlayCallbackIfNeeded(); // in case ALooper_wake() is what woke us up
+    }
+}
+
+void Renderer::teardownCursorOverlay() {
+    if (!__builtin_available(android 29, *))
+        return;
+
+    pthread_mutex_lock(&cursorOverlayLock);
+    if (cursorSurfaceControl) {
+        ASurfaceControl_release(cursorSurfaceControl);
+        cursorSurfaceControl = nullptr;
+    }
+    cursorOverlayGeometryDirty = cursorOverlayBufferDirty = false;
+    if (cursorOverlayPendingBuffer) {
+        AHardwareBuffer_release(cursorOverlayPendingBuffer);
+        cursorOverlayPendingBuffer = nullptr;
+    }
+    pthread_mutex_unlock(&cursorOverlayLock);
+}
+
+void Renderer::ensureCursorOverlay() {
+    bool created = false;
+
+    if (!__builtin_available(android 29, *) || !win || win == defaultWin)
+        return;
+
+    if (!cursorOverlayThreadStarted) {
+        cursorOverlayThreadStarted = true; // only ever try once, whether it succeeds or not
+        if (pthread_create(&cursorOverlayThread, NULL, cursorOverlayThreadMain, this) != 0) {
+            log("Xlorie: failed to start cursor overlay thread, drawing cursor in GL instead");
+            return;
+        }
+        cursorOverlayFeatureAvailable = true;
+    }
+
+    if (!cursorOverlayFeatureAvailable)
+        return;
+
+    pthread_mutex_lock(&cursorOverlayLock);
+    if (!cursorSurfaceControl) {
+        cursorSurfaceControl = ASurfaceControl_createFromWindow(win, "lorie-cursor");
+        if (!cursorSurfaceControl)
+            log("Xlorie: failed to create cursor overlay surface, drawing cursor in GL instead");
+        else {
+            cursorOverlayGeometryDirty = true; // (re)send position/visibility to the new layer
+            created = true;
+        }
+    }
+    pthread_mutex_unlock(&cursorOverlayLock);
+
+    if (created)
+        resendCursorOverlayBuffer(); // the new layer starts out with no buffer of its own
+}
+
+void Renderer::markCursorOverlayDirty(bool bufferMightHaveChanged) {
+    float scaleX, scaleY;
+    uint32_t destW, destH;
+
+    pthread_mutex_lock(&cursorOverlayLock);
+    cursorOverlayGeometryDirty = true;
+    pthread_mutex_unlock(&cursorOverlayLock);
+    wakeCursorOverlayIfIdle();
+
+    if (!state->cursor.width || !state->cursor.height)
+        return;
+
+    computeCursorOverlayScale(&scaleX, &scaleY);
+    destW = (uint32_t) fmaxf(1.f, roundf((float) state->cursor.width * scaleX));
+    destH = (uint32_t) fmaxf(1.f, roundf((float) state->cursor.height * scaleY));
+
+    if (bufferMightHaveChanged || destW != cursorOverlayRawW || destH != cursorOverlayRawH)
+        renderCursorOverlayBuffer(destW, destH);
+}
+
+void Renderer::computeCursorOverlayScale(float* scaleX, float* scaleY) {
+    *scaleX = sourceWidth > 0.f ? (float) renderViewportW / sourceWidth : 1.f;
+    *scaleY = sourceHeight > 0.f ? (float) renderViewportH / sourceHeight : 1.f;
+}
+
+// Destination rect in the parent window's pixel space (top-left origin, unlike drawCursor()'s NDC).
+bool Renderer::computeCursorOverlayRect(int32_t* outX, int32_t* outY, uint32_t* outW, uint32_t* outH) {
+    float scaleX, scaleY;
+
+    if (!state->cursor.width || !state->cursor.height || sourceWidth <= 0.f || sourceHeight <= 0.f)
+        return false;
+
+    computeCursorOverlayScale(&scaleX, &scaleY);
+
+    *outX = renderViewportX + (int32_t) lroundf(((float) state->cursor.x - sourceLeft - (float) state->cursor.xhot) * scaleX);
+    *outY = renderViewportY + (int32_t) lroundf(((float) state->cursor.y - sourceTop - (float) state->cursor.yhot) * scaleY);
+    *outW = (uint32_t) fmaxf(1.f, roundf((float) state->cursor.width * scaleX));
+    *outH = (uint32_t) fmaxf(1.f, roundf((float) state->cursor.height * scaleY));
+    return true;
+}
+
+// Hands the overlay thread a fresh reference to cursorOverlayRenderTarget's current buffer -
+// used both after actually re-rendering it and when a brand new ASurfaceControl needs one resent.
+void Renderer::resendCursorOverlayBuffer() {
+    AHardwareBuffer* ahb;
+
+    if (!cursorOverlayRenderTarget)
+        return;
+
+    ahb = LorieBuffer_description(cursorOverlayRenderTarget)->buffer;
+    AHardwareBuffer_acquire(ahb);
+
+    pthread_mutex_lock(&cursorOverlayLock);
+    if (cursorOverlayPendingBuffer)
+        AHardwareBuffer_release(cursorOverlayPendingBuffer);
+    cursorOverlayPendingBuffer = ahb;
+    cursorOverlayBufferDirty = true;
+    pthread_mutex_unlock(&cursorOverlayLock);
+    wakeCursorOverlayIfIdle();
+}
+
+// Only ever called from the overlay thread - AChoreographer_postFrameCallback must run on the
+// thread that owns cursorOverlayChoreographer.
+void Renderer::armCursorOverlayCallbackIfNeeded() {
+    bool needsArming;
+
+    pthread_mutex_lock(&cursorOverlayLock);
+    needsArming = !cursorOverlayCallbackArmed && (cursorOverlayGeometryDirty || cursorOverlayBufferDirty);
+    if (needsArming)
+        cursorOverlayCallbackArmed = true;
+    pthread_mutex_unlock(&cursorOverlayLock);
+
+    if (needsArming)
+        AChoreographer_postFrameCallback(cursorOverlayChoreographer, cursorOverlayFrameCallback, this);
+}
+
+// Wakes the overlay thread out of ALooper_pollOnce() if it went idle with nothing scheduled -
+// safe to call from any thread, and a no-op if a callback is already pending.
+void Renderer::wakeCursorOverlayIfIdle() {
+    bool idle;
+
+    pthread_mutex_lock(&cursorOverlayLock);
+    idle = !cursorOverlayCallbackArmed;
+    pthread_mutex_unlock(&cursorOverlayLock);
+
+    if (idle && cursorOverlayLooper)
+        ALooper_wake(cursorOverlayLooper);
+}
+
+// Runs on the renderer thread with the EGL context current. Renders the cursor bitmap scaled to
+// destW x destH - using the configured GL filtering - into an AHardwareBuffer, so the compositor
+// is handed a buffer already at its destination size and never has to scale (or filter) it itself.
+void Renderer::renderCursorOverlayBuffer(uint32_t destW, uint32_t destH) {
+    GLint prevViewport[4];
+    EGLSync fence;
+
+    lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid);
+    bindTexture(cursor.id);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
+    lorie_mutex_unlock(&state->cursor.lock, &state->cursor.lockingPid);
+
+    if (!cursorOverlayRenderTarget || cursorOverlayRawW != destW || cursorOverlayRawH != destH) {
+        if (cursorOverlayRenderTarget)
+            LorieBuffer_release(cursorOverlayRenderTarget);
+        cursorOverlayRenderTarget = LorieBuffer_allocate((int32_t) destW, (int32_t) destH, AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM, LORIEBUFFER_AHARDWAREBUFFER);
+        if (cursorOverlayRenderTarget)
+            LorieBuffer_attachToGL(cursorOverlayRenderTarget);
+    }
+    if (!cursorOverlayRenderTarget)
+        return;
+
+    glGetIntegerv(GL_VIEWPORT, prevViewport);
+    if (!cursorOverlayFbo)
+        glGenFramebuffers(1, &cursorOverlayFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, cursorOverlayFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, LorieBuffer_getGLTextureId(cursorOverlayRenderTarget), 0);
+    glViewport(0, 0, (GLsizei) destW, (GLsizei) destH);
+    glClearColor(0.f, 0.f, 0.f, 0.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    drawRegion(cursor.id, -1.f, 1.f, 1.f, -1.f, 0.f, 0.f, 1.f, 1.f, false);
+
+    fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, NULL);
+    glFlush();
+    eglClientWaitSyncKHR(egl_display, fence, 0, EGL_FOREVER);
+    eglDestroySyncKHR(egl_display, fence);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+
+    cursorOverlayRawW = destW;
+    cursorOverlayRawH = destH;
+    resendCursorOverlayBuffer();
+}
+
+// Runs on the dedicated overlay thread, once per vsync.
+void Renderer::applyCursorOverlayIfDirty() {
+    bool geometryDirty, bufferDirty;
+    ASurfaceControl* sc;
+    AHardwareBuffer* buf = nullptr;
+
+    pthread_mutex_lock(&cursorOverlayLock);
+    sc = cursorSurfaceControl;
+    geometryDirty = cursorOverlayGeometryDirty;
+    bufferDirty = cursorOverlayBufferDirty;
+    cursorOverlayGeometryDirty = cursorOverlayBufferDirty = false;
+    if (bufferDirty) {
+        buf = cursorOverlayPendingBuffer;
+        cursorOverlayPendingBuffer = nullptr;
+    }
+    pthread_mutex_unlock(&cursorOverlayLock);
+
+    if (!sc || (!geometryDirty && !bufferDirty) || !state) {
+        if (buf)
+            AHardwareBuffer_release(buf);
+        return;
+    }
+
+    int32_t x = 0, y = 0;
+    uint32_t w = 0, h = 0;
+    bool visible = computeCursorOverlayRect(&x, &y, &w, &h);
+
+    ASurfaceTransaction* t = ASurfaceTransaction_create();
+    ASurfaceTransaction_setVisibility(t, sc, visible ? ASURFACE_TRANSACTION_VISIBILITY_SHOW : ASURFACE_TRANSACTION_VISIBILITY_HIDE);
+
+    if (visible) {
+        if (buf)
+            ASurfaceTransaction_setBuffer(t, sc, buf, -1);
+        // Buffer is already rendered at exactly w x h, so the compositor never has to scale it.
+        ARect src = {0, 0, (int32_t) w, (int32_t) h};
+        ARect dst = {x, y, x + (int32_t) w, y + (int32_t) h};
+        ASurfaceTransaction_setGeometry(t, sc, src, dst, 0);
+    }
+
+    ASurfaceTransaction_apply(t);
+    ASurfaceTransaction_delete(t);
+    if (buf)
+        AHardwareBuffer_release(buf);
 }

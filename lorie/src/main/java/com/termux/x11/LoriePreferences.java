@@ -158,6 +158,13 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
     }
 
     @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (prefs != null && prefs.ctx == this)
+            prefs = null;
+    }
+
+    @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
 

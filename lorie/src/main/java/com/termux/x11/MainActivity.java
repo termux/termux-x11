@@ -50,6 +50,8 @@ import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
@@ -797,7 +799,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void applyImmersiveMode() {
-        getWindow().getDecorView().setSystemUiVisibility(!prefs.fullscreen.get() ? 0 :
+        boolean isFullscreen = prefs.fullscreen.get();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            WindowInsetsController controller = getWindow().getInsetsController();
+            if (controller != null) {
+                if (!isFullscreen)
+                    controller.show(WindowInsets.Type.systemBars());
+                else {
+                    controller.hide(WindowInsets.Type.systemBars());
+                    controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                }
+            }
+        } else
+            getWindow().getDecorView().setSystemUiVisibility(!isFullscreen ? 0 :
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                         | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                         | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN

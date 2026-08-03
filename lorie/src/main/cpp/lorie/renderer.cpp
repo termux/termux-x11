@@ -6,6 +6,7 @@
 #pragma ide diagnostic ignored "UnreachableCode"
 #pragma ide diagnostic ignored "OCUnusedMacroInspection"
 #pragma ide diagnostic ignored "misc-no-recursion"
+#pragma ide diagnostic ignored "readability-redundant-declaration"
 #pragma clang diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
 #define EGL_EGLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES
@@ -21,8 +22,8 @@
 #include <android/log.h>
 #include <media/NdkImageReader.h>
 #include <dlfcn.h>
-#include <math.h>
-#include <string.h>
+#include <cmath>
+#include <cstring>
 #include <sys/mman.h>
 #include <unistd.h>
 #include "list.h"
@@ -122,14 +123,14 @@ static const char fragmentShaderBgraSrc[] = FRAGMENT_SHADER(".bgra");
 // GPU copy batch finishes instead of it waiting for the next vblank-tick poll.
 extern "C" volatile int conn_fd;
 
-static void notifyGpuCopyDone(void) {
+static void notifyGpuCopyDone() {
     if (conn_fd != -1) {
         lorieEvent e = { .type = EVENT_GPU_COPY_DONE };
         write(conn_fd, &e, sizeof(e));
     }
 }
 
-void Renderer::bindTexture(GLuint id) {
+void Renderer::bindTexture(GLuint id) const {
     glBindTexture(GL_TEXTURE_2D, id);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filtering);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filtering);
@@ -320,7 +321,7 @@ void Renderer::init(JNIEnv* env) {
     }, this);
 }
 
-int Renderer::getWakeupCondFd() {
+int Renderer::getWakeupCondFd() const {
     return stateCondFd;
 }
 

@@ -42,7 +42,7 @@ static void* printEglError(const char* msg, int line) {
     int err = eglGetError();
     switch(err) {
 #define E(code, text) case code: desc = (char*) text; break
-        case EGL_SUCCESS: desc = NULL; // "No error"
+        case EGL_SUCCESS: desc = nullptr; // "No error"
         E(EGL_NOT_INITIALIZED, "EGL not initialized or failed to initialize");
         E(EGL_BAD_ACCESS, "Resource inaccessible");
         E(EGL_BAD_ALLOC, "Cannot allocate resources");
@@ -75,7 +75,7 @@ static inline __always_inline void vprintEglError(const char* msg, int line) {
 
 static void checkGlError(int line) {
     GLenum error;
-    char *desc = NULL;
+    char *desc = nullptr;
     for (error = glGetError(); error; error = glGetError()) {
         switch (error) {
 #define E(code) case code: desc = (char*)#code; break
@@ -177,13 +177,13 @@ static const EGLint ctxattribs[] = {
 // and I am not sure all devices have configs supporting both pbuffers and regular surfaces simultaneously
 static ANativeWindow* createDefaultWindow(JNIEnv* env) {
     if (__builtin_available(android 24, *)) {
-        AImageReader* reader = NULL; // Never released, lives as long as the renderer does, same as the window
-        ANativeWindow* win = NULL;
+        AImageReader* reader = nullptr; // Never released, lives as long as the renderer does, same as the window
+        ANativeWindow* win = nullptr;
         if (AImageReader_new(1, 1, AIMAGE_FORMAT_RGBA_8888, 2, &reader) != AMEDIA_OK) {
             log("Failed to initialise ImageReader");
         } else {
-            AImageReader_ImageListener listener = { .context = NULL, .onImageAvailable = [](void* context, AImageReader* reader) {
-                AImage* image = NULL;
+            AImageReader_ImageListener listener = { .context = nullptr, .onImageAvailable = [](void* context, AImageReader* reader) {
+                AImage* image = nullptr;
                 if (AImageReader_acquireLatestImage(reader, &image) == AMEDIA_OK && image)
                     AImage_delete(image);
             } };
@@ -221,7 +221,7 @@ static ANativeWindow* createDefaultWindow(JNIEnv* env) {
 }
 
 void* Renderer::initThread() {
-    if (jvm->AttachCurrentThread(&rendererEnv, NULL) != JNI_OK) {
+    if (jvm->AttachCurrentThread(&rendererEnv, nullptr) != JNI_OK) {
         log("Failed to attach renderer thread to JVM");
         return nullptr;
     }
@@ -251,7 +251,7 @@ void* Renderer::initThread() {
         eglChooseConfig(egl_display, configAttribs, &cfg, 1, &numConfigs) != EGL_TRUE)
         return printEglError("eglChooseConfig failed", __LINE__);
 
-    ctx = eglCreateContext(egl_display, cfg, NULL, ctxattribs);
+    ctx = eglCreateContext(egl_display, cfg, nullptr, ctxattribs);
     if (ctx == EGL_NO_CONTEXT)
         return printEglError("eglCreateContext failed", __LINE__);
 
@@ -261,7 +261,7 @@ void* Renderer::initThread() {
 
     ANativeWindow_acquire(defaultWin);
 
-    sfc = defaultSfc = eglCreateWindowSurface(egl_display, cfg, win, NULL);
+    sfc = defaultSfc = eglCreateWindowSurface(egl_display, cfg, win, nullptr);
 
     eglMakeCurrent(egl_display, sfc, sfc, ctx);
     eglSwapInterval(egl_display, 0);
@@ -298,24 +298,24 @@ void Renderer::init(JNIEnv* env) {
     lorieViewClass = (jclass) env->NewGlobalRef(clazz);
     setRendererViewportMethod = env->GetStaticMethodID(lorieViewClass, "setRendererViewport", "(IIIIFFFF)V");
 
-    pthread_mutex_init(&stateLock, NULL);
+    pthread_mutex_init(&stateLock, nullptr);
 
     // Created once, never recreated; only the fd is (re)sent to the X server whenever it (re)connects.
     pthread_condattr_t cond_attr;
     pthread_condattr_init(&cond_attr);
     pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
     stateCondFd = LorieBuffer_createRegion("renderer-cond", sizeof(pthread_cond_t));
-    stateCond = stateCondFd == -1 ? (pthread_cond_t*) MAP_FAILED : (pthread_cond_t*) mmap(NULL, sizeof(pthread_cond_t), PROT_READ|PROT_WRITE, MAP_SHARED, stateCondFd, 0);
+    stateCond = stateCondFd == -1 ? (pthread_cond_t*) MAP_FAILED : (pthread_cond_t*) mmap(nullptr, sizeof(pthread_cond_t), PROT_READ|PROT_WRITE, MAP_SHARED, stateCondFd, 0);
     if (stateCond == MAP_FAILED) {
         loge("Failed to allocate renderer wakeup cond var, aborting");
         abort();
     }
     pthread_cond_init(stateCond, &cond_attr);
 
-    pthread_cond_init(&stateChangeFinishCond, NULL);
+    pthread_cond_init(&stateChangeFinishCond, nullptr);
     pthread_spin_init(&bufferLock, false);
 
-    pthread_create(&t, NULL, +[](void* cookie) -> void* {
+    pthread_create(&t, nullptr, +[](void* cookie) -> void* {
         return ((Renderer*) cookie)->initThread();
     }, this);
 }
@@ -335,7 +335,7 @@ void Renderer::testCapabilities(int* legacy_drawing) {
     EGLClientBuffer clientBuffer;
     EGLImageKHR img;
     EGLint major, minor;
-    AHardwareBuffer *new_ = NULL;
+    AHardwareBuffer *new_ = nullptr;
     int status;
     AHardwareBuffer_Desc d0 = {
             .width = 64,
@@ -364,7 +364,7 @@ void Renderer::testCapabilities(int* legacy_drawing) {
     eglBindAPI(EGL_OPENGL_ES_API);
 
     status = AHardwareBuffer_allocate(&d0, &new_);
-    if (status != 0 || new_ == NULL) {
+    if (status != 0 || new_ == nullptr) {
         loge("Failed to allocate native buffer (%p, error %d)", new_, status);
         loge("Forcing legacy drawing");
         *legacy_drawing = 1;
@@ -372,9 +372,9 @@ void Renderer::testCapabilities(int* legacy_drawing) {
     }
 
     uint32_t *pixels;
-    if (AHardwareBuffer_lock(new_, AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, NULL, (void **) &pixels) == 0) {
+    if (AHardwareBuffer_lock(new_, AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, nullptr, (void **) &pixels) == 0) {
         pixels[0] = 0xAABBCCDD;
-        AHardwareBuffer_unlock(new_, NULL);
+        AHardwareBuffer_unlock(new_, nullptr);
     } else {
         loge("Failed to lock native buffer (%p, error %d)", new_, status);
         loge("Forcing legacy drawing");
@@ -403,12 +403,12 @@ void Renderer::testCapabilities(int* legacy_drawing) {
         // If resulting texture has BGRA format but still drawing RGBA we should flip format to RGBA and flip pixels manually in shader.
         // In the case if for some reason we can not use HAL_PIXEL_FORMAT_BGRA_8888 we should fallback to legacy drawing method (uploading pixels via glTexImage2D).
         configAttribs[1] = EGL_PBUFFER_BIT;
-        EGLConfig checkcfg = 0;
+        EGLConfig checkcfg = nullptr;
         GLuint fbo = 0, texture = 0;
         if (eglChooseConfig(egl_display, configAttribs, &checkcfg, 1, &numConfigs) != EGL_TRUE)
             return vprintEglError("check eglChooseConfig failed", __LINE__);
 
-        EGLContext testctx = eglCreateContext(egl_display, checkcfg, NULL, ctxattribs);
+        EGLContext testctx = eglCreateContext(egl_display, checkcfg, nullptr, ctxattribs);
         if (testctx == EGL_NO_CONTEXT)
             return vprintEglError("check eglCreateContext failed", __LINE__);
 
@@ -485,7 +485,7 @@ void Renderer::removeBuffer(uint64_t id) {
 }
 
 void Renderer::removeAllBuffers() {
-    LorieBuffer *buf = NULL;
+    LorieBuffer *buf = nullptr;
 
     pthread_spin_lock(&bufferLock);
     while ((buf = LorieBufferList_first(&addedBuffers))) {
@@ -501,7 +501,7 @@ void Renderer::removeAllBuffers() {
 }
 
 void Renderer::setWindow(JNIEnv *env, jobject jsfc) {
-    ANativeWindow* newWin = jsfc ? ANativeWindow_fromSurface(env, jsfc) : NULL;
+    ANativeWindow* newWin = jsfc ? ANativeWindow_fromSurface(env, jsfc) : nullptr;
     if (newWin)
         ANativeWindow_acquire(newWin);
 
@@ -587,11 +587,11 @@ void Renderer::refreshContext() {
 
     if (pendingWin && (width <= 0 || height <= 0)) {
         log("Xlorie: We've got invalid surface. Probably it became invalid before we started working with it.\n");
-        releaseWinAndSurface(&pendingWin, NULL);
+        releaseWinAndSurface(&pendingWin, nullptr);
     }
 
     win = pendingWin;
-    pendingWin = NULL;
+    pendingWin = nullptr;
     windowChanged = FALSE;
 
     if (!win) {
@@ -603,7 +603,7 @@ void Renderer::refreshContext() {
         return;
     }
 
-    sfc = eglCreateWindowSurface(egl_display, cfg, win, NULL);
+    sfc = eglCreateWindowSurface(egl_display, cfg, win, nullptr);
     if (sfc == EGL_NO_SURFACE)
         return vprintEglError("eglCreateWindowSurface failed", __LINE__);
 
@@ -761,7 +761,7 @@ void Renderer::applyPendingGpuCopies() {
     lorie_mutex_lock(&state->lock, &state->lockingPid);
     serial = applyPendingGpuCopiesLocked();
     if (serial) {
-        EGLSync fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, NULL);
+        EGLSync fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
         glFlush();
         eglClientWaitSyncKHR(egl_display, fence, 0, EGL_FOREVER);
         eglDestroySyncKHR(egl_display, fence);
@@ -786,7 +786,7 @@ static float panToCursor(float offset, float cursor, float shown, float total) {
 
 void Renderer::redrawLocked(bool* waitingForBuffers) {
     float xfactor = 1.f;
-    const LorieBuffer_Desc *desc = NULL;
+    const LorieBuffer_Desc *desc = nullptr;
     EGLSync fence;
     // The buffer will not be released until this function ends, but main thread can modify buffer list
     pthread_spin_lock(&bufferLock);
@@ -904,7 +904,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
                (sourceLeft + sourceWidth) / (float) desc->width * xfactor,
                (sourceTop + sourceHeight) / (float) desc->height,
                LorieBuffer_isRgba(buffer));
-    fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, NULL);
+    fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
     glFlush();
 
     if (state->cursor.updated) {
@@ -939,7 +939,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT);
     glDisable(GL_SCISSOR_TEST);
-    fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, NULL);
+    fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
     eglClientWaitSyncKHR(egl_display, fence, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, EGL_FOREVER);
     eglDestroySyncKHR(egl_display, fence);
 
@@ -988,12 +988,12 @@ void Renderer::threadLoop() {
             pthread_cond_wait(stateCond, &stateLock);
 
         if (stateChanged) {
-            struct lorie_shared_server_state* oldState = NULL;
+            struct lorie_shared_server_state* oldState = nullptr;
             if (state && pendingState != state)
                 oldState = state;
 
             state = pendingState;
-            pendingState = NULL;
+            pendingState = nullptr;
             stateChanged = false;
             waitingForBuffers = false;
 
@@ -1048,7 +1048,7 @@ static GLuint loadShader(GLenum shaderType, const char* pSource) {
     if (!shader)
         return 0;
 
-    glShaderSource(shader, 1, &pSource, NULL);
+    glShaderSource(shader, 1, &pSource, nullptr);
     glCompileShader(shader);
     glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
     if (compiled)
@@ -1057,7 +1057,7 @@ static GLuint loadShader(GLenum shaderType, const char* pSource) {
     glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen);
     if (infoLen) {
         char buf[infoLen];
-        glGetShaderInfoLog(shader, infoLen, NULL, buf);
+        glGetShaderInfoLog(shader, infoLen, nullptr, buf);
         log("renderer: Could not compile shader %d:\n%s\n", shaderType, buf);
     }
     glDeleteShader(shader);
@@ -1088,7 +1088,7 @@ static GLuint createProgram(const char* p_vertex_source, const char* p_fragment_
     glGetProgramiv(program, GL_INFO_LOG_LENGTH, &bufLength);
     if (bufLength) {
         char buf[bufLength];
-        glGetProgramInfoLog(program, bufLength, NULL, buf);
+        glGetProgramInfoLog(program, bufLength, nullptr, buf);
         log("renderer: Could not link program:\n%s\n", buf);
     }
     glDeleteProgram(program);

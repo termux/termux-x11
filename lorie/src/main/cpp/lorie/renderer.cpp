@@ -113,13 +113,7 @@ static const char vertexShaderSrc[] =
     "varying vec2 outTexCoords;\n" \
     "uniform sampler2D texture;\n" \
     "void main(void) {\n" \
-    "    vec4 texColor = texture2D(texture, outTexCoords)" texture ";\n" \
-    /* If r+g+b == 0, then isNotBlack will be 0.0, otherwise 1.0 (or greater) */ \
-    "    float isNotBlack = step(0.001, texColor.r + texColor.g + texColor.b);\n" \
-    /* If the color is black, multiplying by 0.0 clears the alpha channel.*/ \
-    /* If the color has at least one valid color channel, alpha remains untouched. */ \
-    "    texColor.a = texColor.a * isNotBlack;\n" \
-    "   gl_FragColor = texColor;\n" \
+    "   gl_FragColor = texture2D(texture, outTexCoords)" texture ";\n" \
     "}\n"
 
 static const char fragmentShaderSrc[] = FRAGMENT_SHADER();

@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
@@ -159,21 +160,31 @@ static int xcallback(int fd, int events, __unused void* data) {
         if (read(conn_fd, &e, sizeof(e)) == sizeof(e)) {
             switch(e.type) {
                 case EVENT_CLIPBOARD_SEND: {
-                    if (!e.clipboardSend.count)
-                        break;
                     char clipboard[e.clipboardSend.count + 1];
-                    memset(clipboard, 0, e.clipboardSend.count + 1);
-                    read(conn_fd, clipboard, sizeof(clipboard));
-                    clipboard[e.clipboardSend.count] = 0;
-                    log(DEBUG, "Clipboard content (%zu symbols) is %s", strlen(clipboard), clipboard);
+                    memset(clipboard, 0, sizeof(clipboard));
+                    read(conn_fd, clipboard, e.clipboardSend.count);
+                    log(DEBUG, "Got clipboard text from X server (%u bytes)", e.clipboardSend.count);
+
                     jmethodID id = env->GetMethodID(env->GetObjectClass(thiz), "setClipboardText","(Ljava/lang/String;)V");
-                    jobject bb = env->NewDirectByteBuffer(clipboard, strlen(clipboard));
+                    jobject bb = env->NewDirectByteBuffer(clipboard, e.clipboardSend.count);
                     jobject charset = env->CallStaticObjectMethod(Charset.self, Charset.forName, env->NewStringUTF("UTF-8"));
                     jobject cb = env->CallObjectMethod(charset, Charset.decode, bb);
                     env->DeleteLocalRef(bb);
 
                     jstring str = (jstring) env->CallObjectMethod(cb, CharBuffer.toString);
                     env->CallVoidMethod(thiz, id, str);
+                    break;
+                }
+                case EVENT_CLIPBOARD_SEND_IMAGE: {
+                    int imgFd = ancil_recv_fd(conn_fd);
+                    if (imgFd < 0) {
+                        log(ERROR, "Failed to receive clipboard image fd from X server");
+                        break;
+                    }
+
+                    log(DEBUG, "Got clipboard image from X server (%s, %u bytes, fd=%d)", e.clipboardSendImage.mime, e.clipboardSendImage.size, imgFd);
+                    jmethodID id = env->GetMethodID(env->GetObjectClass(thiz), "setClipboardImage", "(Ljava/lang/String;I)V");
+                    env->CallVoidMethod(thiz, id, env->NewStringUTF(e.clipboardSendImage.mime), imgFd); // ownership of the fd passes to Java
                     break;
                 }
                 case EVENT_CLIPBOARD_REQUEST: {
@@ -329,14 +340,47 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
             {"sendClipboardAnnounce", "()V", (void *) +[](__unused JNIEnv *env, __unused jobject thiz) {
                 sendEvent(.type = EVENT_CLIPBOARD_ANNOUNCE);
             }},
-            {"sendClipboardEvent", "([B)V", (void *) +[](JNIEnv *env, __unused jobject thiz, jbyteArray text) {
-                if (conn_fd != -1 && text) {
-                    jsize length = env->GetArrayLength(text);
-                    jbyte* str = env->GetByteArrayElements(text, NULL);
-                    sendEvent(.clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = (uint32_t) length });
-                    write(conn_fd, str, length);
-                    env->ReleaseByteArrayElements(text, str, JNI_ABORT);
+            {"sendClipboardEvent", "(Ljava/lang/String;[B)V", (void *) +[](JNIEnv *env, __unused jobject thiz, jstring mime, jbyteArray data) {
+                if (conn_fd == -1)
+                    return;
+
+                const char* mimeStr = env->GetStringUTFChars(mime, NULL);
+                size_t dataLen = data ? (size_t) env->GetArrayLength(data) : 0;
+                log(DEBUG, "Sending clipboard data to X server (%s, %zu bytes)", mimeStr, dataLen);
+
+                if (!strncmp(mimeStr, "image/", 6) && dataLen) {
+                    int fd = LorieBuffer_createRegion("x11-clipboard-image", dataLen);
+                    if (fd < 0) {
+                        log(ERROR, "Failed to create shared memory region for clipboard image: %s", strerror(errno));
+                    } else {
+                        void* mem = mmap(NULL, dataLen, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+                        if (mem == MAP_FAILED) {
+                            log(ERROR, "Failed to mmap clipboard image region: %s", strerror(errno));
+                            close(fd);
+                        } else {
+                            jbyte* bytes = env->GetByteArrayElements(data, NULL);
+                            memcpy(mem, bytes, dataLen);
+                            env->ReleaseByteArrayElements(data, bytes, JNI_ABORT);
+                            munmap(mem, dataLen);
+
+                            lorieEvent e = { .clipboardSendImage = { .t = EVENT_CLIPBOARD_SEND_IMAGE, .size = (uint32_t) dataLen } };
+                            snprintf(e.clipboardSendImage.mime, sizeof(e.clipboardSendImage.mime), "%s", mimeStr);
+                            write(conn_fd, &e, sizeof(e));
+                            ancil_send_fd(conn_fd, fd);
+                            close(fd);
+                        }
+                    }
+                } else {
+                    lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = (uint32_t) dataLen } };
+                    write(conn_fd, &e, sizeof(e));
+                    if (dataLen) {
+                        jbyte* bytes = env->GetByteArrayElements(data, NULL);
+                        write(conn_fd, bytes, dataLen);
+                        env->ReleaseByteArrayElements(data, bytes, JNI_ABORT);
+                    }
                 }
+
+                env->ReleaseStringUTFChars(mime, mimeStr);
             }},
             {"sendWindowChange", "(IIILjava/lang/String;)V", (void *) +[](__unused JNIEnv* env, __unused jobject cls, jint width, jint height, jint framerate, jstring jname) {
                 if (conn_fd != -1) {

@@ -66,6 +66,12 @@
                 <action android:name="com.termux.x11.CHANGE_PREFERENCE" />
             </intent-filter>
         </receiver>
+
+        <provider
+            android:name=".ClipboardImageProvider"
+            android:authorities="${applicationId}.clipboardimage"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
     <queries>
         <package android:name="com.termux" />

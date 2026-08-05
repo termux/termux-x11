@@ -10,11 +10,13 @@ import android.graphics.Matrix;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
+import android.net.Uri;
 import android.opengl.GLES20;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.ParcelFileDescriptor;
 import android.text.Editable;
 import android.text.InputType;
 import android.util.AttributeSet;
@@ -34,12 +36,16 @@ import android.view.inputmethod.SurroundingText;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.math.MathUtils;
 
 import com.termux.x11.input.InputStub;
 import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.SamsungDexUtils;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Set;
 import java.util.regex.PatternSyntaxException;
 
@@ -569,25 +575,78 @@ public class LorieView extends SurfaceView implements InputStub {
     // It is used in native code
     void setClipboardText(String text) {
         clipboard.setPrimaryClip(ClipData.newPlainText("X11 clipboard", text));
+        markOwnClipboardWrite();
+    }
 
-        // Android does not send PrimaryClipChanged event to the window which posted event
-        // But in the case we are owning focus and clipboard is unchanged it will be replaced by the same value on X server side.
-        // Not cool in the case if user installed some clipboard manager, clipboard content will be doubled.
+    // It is used in native code. Takes ownership of fd (a shared memory region holding the raw bytes).
+    void setClipboardImage(String mime, int fd) {
+        Log.d("CLIP", "setClipboardImage, mime=" + mime + " fd=" + fd);
+        Uri uri = ClipboardImageProvider.publish(mime, ParcelFileDescriptor.adoptFd(fd));
+        ClipData clip = new ClipData(new ClipDescription("X11 clipboard", new String[]{mime}),
+                new ClipData.Item(uri));
+        clipboard.setPrimaryClip(clip);
+        markOwnClipboardWrite();
+    }
+
+    // Android does not send a PrimaryClipChanged event to the window which posted it,
+    // but if we are focused and the clipboard content is unchanged, the same value would
+    // otherwise be reflected back to the X server. Not great if the user has a clipboard
+    // manager installed, since the content would end up doubled there.
+    private void markOwnClipboardWrite() {
         lastClipboardTimestamp = System.currentTimeMillis() + 150;
     }
 
     /** @noinspection unused*/ // It is used in native code
     void requestClipboard() {
         if (!clipboardSyncEnabled) {
-            sendClipboardEvent("".getBytes(UTF_8));
+            sendClipboardEvent("text/plain", new byte[0]);
             return;
         }
 
-        CharSequence clip = clipboard.getText();
-        if (clip != null) {
-            String text = String.valueOf(clipboard.getText());
-            sendClipboardEvent(text.getBytes(UTF_8));
-            Log.d("CLIP", "sending clipboard contents: " + text);
+        ClipData clipData = clipboard.getPrimaryClip();
+        ClipDescription desc = clipboard.getPrimaryClipDescription();
+        if (clipData == null || clipData.getItemCount() == 0 || desc == null)
+            return;
+
+        if (desc.hasMimeType("image/*")) {
+            Uri uri = clipData.getItemAt(0).getUri();
+            String mime = desc.getMimeType(0);
+            Log.d("CLIP", "clipboard holds an image, mime=" + mime + " uri=" + uri);
+            byte[] data = uri != null ? readClipboardImage(uri) : null;
+            if (data != null) {
+                sendClipboardEvent(mime, data);
+                Log.d("CLIP", "sending clipboard image contents (" + mime + ", " + data.length + " bytes)");
+                return;
+            }
+            Log.e("CLIP", "failed to read clipboard image, falling back to text");
+        }
+
+        String text = String.valueOf(clipData.getItemAt(0).coerceToText(getContext()));
+        sendClipboardEvent("text/plain", text.getBytes(UTF_8));
+        Log.d("CLIP", "sending clipboard contents: " + text);
+    }
+
+    // Sends the image through as-is, whatever format it actually is -- the X11 side already
+    // negotiates the real mime type instead of assuming everything is image/png.
+    @Nullable
+    private byte[] readClipboardImage(Uri uri) {
+        try (InputStream in = getContext().getContentResolver().openInputStream(uri)) {
+            if (in == null) {
+                Log.e("CLIP", "openInputStream(" + uri + ") returned null");
+                return null;
+            }
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1)
+                out.write(buf, 0, n);
+            byte[] result = out.toByteArray();
+            Log.d("CLIP", "read " + result.length + " bytes from " + uri);
+            return result;
+        } catch (IOException e) {
+            Log.e("CLIP", "Failed to read clipboard image from " + uri, e);
+            return null;
         }
     }
 
@@ -603,7 +662,8 @@ public class LorieView extends SurfaceView implements InputStub {
                 lastClipboardTimestamp < timestamp &&
                 desc.getMimeTypeCount() == 1 &&
                 (desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) ||
-                        desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_HTML))) {
+                        desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_HTML) ||
+                        desc.hasMimeType("image/*"))) {
             lastClipboardTimestamp = timestamp;
             sendClipboardAnnounce();
             Log.d("CLIP", "sending clipboard announce");
@@ -666,7 +726,7 @@ public class LorieView extends SurfaceView implements InputStub {
     @FastNative static native void startLogcat(int fd);
     @FastNative static native void setClipboardSyncEnabled(boolean enabled, boolean ignored);
     @FastNative public native void sendClipboardAnnounce();
-    @FastNative public native void sendClipboardEvent(byte[] text);
+    @FastNative public native void sendClipboardEvent(String mime, byte[] data);
     @FastNative static native void sendWindowChange(int width, int height, int framerate, String name);
     @FastNative static native void setViewport(int x, int y, int width, int height, int expectedWidth, int expectedHeight, int hiddenBottom);
     @FastNative private static native void setRendererZoom(int percent);

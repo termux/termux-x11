@@ -987,3 +987,111 @@ void lorieKeysymKeyboardEvent(KeySym keysym, int down) {
      */
     mieqProcessInputEvents();
 }
+
+/*
+ * Resolves the real modifier mask that a given lock key (Caps_Lock/Num_Lock) actually
+ * locks in the current keymap, the same way a real press of that key would resolve it
+ * (compare lorieIsAffectedByNumLock above), so lorieSyncLockKeysState locks/unlocks
+ * exactly what a real key would.
+ */
+static unsigned lorieGetLockKeyModMask(KeySym sym) {
+	XkbDescPtr xkb;
+	XkbAction *act;
+	KeyCode keycode;
+	unsigned state = lorieGetKeyboardState() & ~0xff;
+
+	keycode = lorieKeysymToKeycode(sym, state, NULL);
+	if (keycode == 0)
+		return 0;
+
+	xkb = GetMaster(lorieKeyboard, KEYBOARD_OR_FLOAT)->key->xkbInfo->desc;
+	act = XkbKeyActionPtr(xkb, keycode, state);
+	if (act == NULL || act->type != XkbSA_LockMods)
+		return 0;
+
+	if (act->mods.flags & XkbSA_UseModMapMods)
+		return xkb->map->modmap[keycode];
+	return act->mods.mask;
+}
+
+/*
+ * Directly flips a locked modifier bit and runs the same bookkeeping a real
+ * key-triggered lock action would (see XkbHandleActions/_XkbFilterLockState in
+ * xkbActions.c), without emulating any key press -- so no spurious KeyPress/KeyRelease
+ * ever reaches clients just because Android's lock key state changed elsewhere.
+ */
+static void lorieSetLockedMods(DeviceIntPtr dev, unsigned mask, Bool on) {
+	XkbSrvInfoPtr xkbi = dev->key->xkbInfo;
+	XkbStateRec old;
+	XkbEventCauseRec cause;
+	xkbStateNotify sn;
+	unsigned changed;
+
+	if (!mask)
+		return;
+
+	old = xkbi->state;
+	if (on)
+		xkbi->state.locked_mods |= mask;
+	else
+		xkbi->state.locked_mods &= ~mask;
+	XkbComputeDerivedState(xkbi);
+
+	changed = XkbStateChangedFlags(&old, &xkbi->state);
+	if (!changed)
+		return;
+
+	XkbSetCauseUnknown(&cause);
+	memset(&sn, 0, sizeof(sn));
+	sn.changed = changed;
+	XkbSendStateNotify(dev, &sn);
+
+	changed = XkbIndicatorsToUpdate(dev, changed, FALSE);
+	if (changed)
+		XkbUpdateIndicators(dev, changed, TRUE, NULL, &cause);
+
+	XkbPushLockedStateToSlaves(dev, 0, 0);
+}
+
+/*
+ * Scroll Lock isn't tied to any real modifier in stock keymaps (unlike Caps/Num Lock),
+ * so there's nothing in locked_mods to flip for it. It's still a regular, explicitly
+ * settable indicator though (compat/led/ledscroll allows it, unlike caps/num), so we
+ * just drive its LED state directly the same way a SetNamedIndicator request would.
+ */
+static void lorieSetScrollLockIndicator(DeviceIntPtr dev, Bool on) {
+	XkbDescPtr xkb = dev->key->xkbInfo->desc;
+	Atom atom;
+	int i;
+
+	if (!xkb->names)
+		return;
+
+	atom = MakeAtom("Scroll Lock", strlen("Scroll Lock"), TRUE);
+	for (i = 0; i < XkbNumIndicators; i++) {
+		if (xkb->names->indicators[i] == atom) {
+			XkbEventCauseRec cause;
+			XkbSetCauseUnknown(&cause);
+			XkbSetIndicators(dev, 1u << i, on ? (1u << i) : 0, &cause);
+			return;
+		}
+	}
+}
+
+/*
+ * Mirrors Android's current Caps/Num/Scroll Lock state onto the X server's XKB state,
+ * e.g. right after regaining focus, when the state may have changed while backgrounded
+ * and unseen by us. Changes server state directly instead of emulating key presses.
+ *
+ * `state` bits must match InputEventSender.syncLockKeysState() on the Java side:
+ * bit0 = Caps Lock, bit1 = Num Lock, bit2 = Scroll Lock.
+ */
+void lorieSyncLockKeysState(uint8_t state) {
+	DeviceIntPtr master = GetMaster(lorieKeyboard, KEYBOARD_OR_FLOAT);
+	if (!master || !master->key || !master->key->xkbInfo)
+		return;
+
+	lorieSetLockedMods(master, lorieGetLockKeyModMask(XK_Caps_Lock), (state & (1u << 0)) != 0);
+	lorieSetLockedMods(master, lorieGetLockKeyModMask(XK_Num_Lock), (state & (1u << 1)) != 0);
+	lorieSetScrollLockIndicator(master, (state & (1u << 2)) != 0);
+}

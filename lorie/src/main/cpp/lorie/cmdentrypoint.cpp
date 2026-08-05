@@ -209,6 +209,15 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
     return JNI_TRUE;
 }
 
+static Bool handleLockKeysState(__unused ClientPtr pClient, void *closure) {
+    // This must be done only on X server thread (touches XKB state directly).
+    auto *e = (lorieEvent*) closure;
+    lorieSyncLockKeysState(e->lockKeysState.state);
+    free(e);
+    return TRUE;
+}
+
+
 static Bool handleTouchEvent(__unused ClientPtr pClient, void *closure) {
     ValuatorMask mask;
     auto *e = (lorieEvent*) closure;
@@ -411,6 +420,13 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 }, nullptr, nullptr);
                 lorieWakeServer();
                 break;
+            case EVENT_LOCK_KEYS_STATE: {
+                auto *copy = (lorieEvent*) calloc(1, sizeof(lorieEvent));
+                memcpy(copy, &e, sizeof(e));
+                QueueWorkProc(handleLockKeysState, nullptr, copy);
+                lorieWakeServer();
+                break;
+            }
         }
 
         int n;

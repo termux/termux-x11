@@ -42,4 +42,7 @@ public interface InputStub {
     void sendTouchEvent(int action, int pointerId, int x, int y);
 
     void sendStylusEvent(float x, float y, int pressure, int tiltX, int tiltY, int orientation, int buttons, boolean eraser, boolean mouseMode);
+
+    /** Mirrors Android's current Caps/Num/Scroll Lock state onto the remote host's keyboard state. */
+    void sendLockKeysState(int state);
 }

@@ -281,17 +281,18 @@ add_library(Xlorie SHARED
         "xserver/hw/xquartz/keysym2ucs.c"
         "libxcvt/lib/libxcvt.c"
         "lorie/shm/shmem.c"
-        "lorie/cmdentrypoint.c"
         "lorie/clipboard.c"
         "lorie/InitOutput.c"
         "lorie/InitInput.c"
         "lorie/InputXKB.c"
         "lorie/renderer.cpp"
         "lorie/buffer.c"
-        "lorie/activity.cpp")
+        "lorie/activity.cpp"
+        "lorie/cmdentrypoint.cpp")
 target_include_directories(Xlorie PRIVATE ${inc} "libxcvt/include")
-# -nostdlib++ keeps this shared object free of any libc++ dependency; renderer.cpp and activity.cpp
-# are restricted to a runtime-free subset of C++ (no exceptions, no RTTI, no STL) to make that possible.
+# -nostdlib++ keeps this shared object free of any libc++ dependency; renderer.cpp, activity.cpp,
+# and cmdentrypoint.cpp are restricted to a runtime-free subset of C++ (no exceptions, no RTTI, no
+# STL) to make that possible.
 target_link_options(Xlorie PRIVATE "-Wl,--as-needed" "-Wl,--no-undefined" "-fvisibility=hidden" "-nostdlib++")
 target_link_libraries(Xlorie "-Wl,--whole-archive" ${XSERVER_LIBS} "-Wl,--no-whole-archive" android mediandk log m z EGL GLESv2)
 target_compile_options(Xlorie PRIVATE ${compile_options} "$<$<COMPILE_LANGUAGE:C>:${c_only_compile_options}>" "$<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions;-fno-rtti>")

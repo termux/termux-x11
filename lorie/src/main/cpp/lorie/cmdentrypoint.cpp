@@ -411,6 +411,19 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 }, nullptr, nullptr);
                 lorieWakeServer();
                 break;
+            case EVENT_LOCK_KEYS_STATE: {
+                auto *copy = (lorieEvent*) calloc(1, sizeof(lorieEvent));
+                memcpy(copy, &e, sizeof(e));
+                QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
+                    // This must be done only on X server thread (touches XKB state directly).
+                    auto *e = (lorieEvent*) closure;
+                    lorieSyncLockKeysState(e->lockKeysState.state);
+                    free(e);
+                    return TRUE;
+                }, nullptr, copy);
+                lorieWakeServer();
+                break;
+            }
         }
 
         int n;

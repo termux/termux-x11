@@ -32,6 +32,7 @@ void lorieRequestClipboard(void);
 void lorieHandleClipboardAnnounce(void);
 void lorieHandleClipboardData(const char* data);
 void lorieSetStylusEnabled(Bool enabled);
+void lorieSyncLockKeysState(uint8_t state);
 void lorieWakeServer(void);
 void lorieRecheckGpuCopies(void);
 void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d);
@@ -106,6 +107,7 @@ typedef enum {
     EVENT_WINDOW_FOCUS_CHANGED,
     EVENT_RENDERER_WAKEUP_COND,
     EVENT_GPU_COPY_DONE,
+    EVENT_LOCK_KEYS_STATE,
 } eventType;
 
 typedef union {
@@ -157,6 +159,10 @@ typedef union {
         uint8_t t;
         uint32_t count;
     } clipboardSend;
+    struct {
+        uint8_t t;
+        uint8_t state; // bit0 = Caps Lock, bit1 = Num Lock, bit2 = Scroll Lock
+    } lockKeysState;
 } lorieEvent;
 
 typedef struct { int16_t x1, y1, x2, y2; } LorieGpuCopyRect;

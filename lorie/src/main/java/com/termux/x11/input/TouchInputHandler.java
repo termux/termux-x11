@@ -283,8 +283,10 @@ public class TouchInputHandler {
         if (ignoreGamepadEvents && (event.isFromSource(InputDevice.SOURCE_GAMEPAD) || event.isFromSource(InputDevice.SOURCE_JOYSTICK)))
             return true;
 
-        if (event.getDeviceId() >= 0)
+        if (event.getDeviceId() >= 0) {
             mInjector.releaseStuckModifiers(event.getMetaState());
+            mInjector.syncLockKeysState(event.getMetaState());
+        }
 
         // Regular touchpads and Dex touchpad (in captured mode) send events as finger too,
         // but they should be handled as touchscreens with trackpad mode.

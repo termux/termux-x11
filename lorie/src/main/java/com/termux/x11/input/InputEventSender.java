@@ -45,6 +45,9 @@ public final class InputEventSender {
     private final TreeSet<Integer> mPressedTextKeys;
     private final TreeSet<Integer> mPressedKeys;
 
+    /** Last Caps/Num/Scroll Lock state sent to the host, or -1 if none has been sent yet. */
+    private int mLockKeysState = -1;
+
     public InputEventSender(InputStub injector) {
         if (injector == null)
             throw new NullPointerException();
@@ -78,6 +81,23 @@ public final class InputEventSender {
                         mInjector.sendKeyEvent(0, mod[i], false);
                 }
             }
+        }
+    }
+
+    /**
+     * Mirrors Android's current Caps/Num/Scroll Lock state onto the host, e.g. after regaining
+     * focus with the state possibly having changed while backgrounded. Every KeyEvent and
+     * MotionEvent carries the current state in its metaState regardless of which key or pointer
+     * action it represents, so callers can just forward it on every real (non-synthetic) event;
+     * this only actually notifies the host when the state actually changed.
+     */
+    public void syncLockKeysState(int eventMetaState) {
+        int state = (((eventMetaState & META_CAPS_LOCK_ON) != 0) ? 1 : 0)
+                | (((eventMetaState & META_NUM_LOCK_ON) != 0) ? 2 : 0)
+                | (((eventMetaState & META_SCROLL_LOCK_ON) != 0) ? 4 : 0);
+        if (state != mLockKeysState) {
+            mLockKeysState = state;
+            mInjector.sendLockKeysState(state);
         }
     }
 
@@ -177,6 +197,9 @@ public final class InputEventSender {
     public boolean sendKeyEvent(KeyEvent e) {
         int keyCode = e.getKeyCode();
         boolean pressed = e.getAction() == KeyEvent.ACTION_DOWN;
+
+        if (e.getDeviceId() >= 0)
+            syncLockKeysState(e.getMetaState());
 
         if ((e.getFlags() & KeyEvent.FLAG_CANCELED) == KeyEvent.FLAG_CANCELED) {
             android.util.Log.d("KeyEvent", "We've got key event with FLAG_CANCELED, it will not be consumed. Details: " + e);

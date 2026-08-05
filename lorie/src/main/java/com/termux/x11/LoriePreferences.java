@@ -123,8 +123,9 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        if (prefs == null)
+            prefs = new Prefs(this);
         super.onCreate(savedInstanceState);
-        prefs = new Prefs(this);
         getSupportFragmentManager().beginTransaction().replace(android.R.id.content, new LoriePreferenceFragment(null)).commit();
 
         ActionBar actionBar = getSupportActionBar();

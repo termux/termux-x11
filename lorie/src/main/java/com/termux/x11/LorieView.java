@@ -691,12 +691,7 @@ public class LorieView extends SurfaceView implements InputStub {
     @FastNative public native void sendTouchEvent(int action, int id, int x, int y);
     @FastNative public native void sendStylusEvent(float x, float y, int pressure, int tiltX, int tiltY, int orientation, int buttons, boolean eraser, boolean mouseMode);
     @FastNative static public native void requestStylusEnabled(boolean enabled);
-    public boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown) {
-//        if (keyCode == 67)
-//            new Exception().printStackTrace();
-        return sendKeyEvent(scanCode, keyCode, keyDown, 0);
-    }
-    @FastNative public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown, int a);
+    @FastNative public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
     @FastNative public native void sendTextEvent(byte[] text);
     @CriticalNative public static native boolean requestConnection();
 

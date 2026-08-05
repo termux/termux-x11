@@ -368,10 +368,9 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
             {"requestStylusEnabled", "(Z)V", (void *) +[](__unused JNIEnv *env, __unused jclass clazz, jboolean enabled) {
                 sendEvent(.stylusEnable = { .t = EVENT_STYLUS_ENABLE, .enable = enabled });
             }},
-            {"sendKeyEvent", "(IIZI)Z", (void *) +[](__unused JNIEnv* env, __unused jobject cls, jint scan_code, jint key_code, jboolean key_down) -> jboolean {
+            {"sendKeyEvent", "(IIZ)Z", (void *) +[](__unused JNIEnv* env, __unused jobject cls, jint scan_code, jint key_code, jboolean key_down) -> jboolean {
                 if (conn_fd != -1) {
                     int code = (scan_code) ?: android_to_linux_keycode[key_code];
-                    log(DEBUG, "Sending key: %d (%d %d %d)", code + 8, scan_code, key_code, key_down);
                     sendEvent(.key = { .t = EVENT_KEY, .key = (uint16_t) (code + 8), .state = key_down });
                 }
                 return true;

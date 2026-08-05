@@ -802,6 +802,7 @@ public class MainActivity extends AppCompatActivity {
         boolean isFullscreen = prefs.fullscreen.get();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(!isFullscreen);
             WindowInsetsController controller = getWindow().getInsetsController();
             if (controller != null) {
                 if (!isFullscreen)

@@ -15,11 +15,17 @@
 #include <sys/prctl.h>
 #include <sys/ioctl.h>
 #include <libgen.h>
+#include <cerrno>
+extern "C" {
 #include <globals.h>
+#define class lorie_reserved_class
+#define public lorie_reserved_public
 #include <xkbsrv.h>
-#include <errno.h>
 #include <inpututils.h>
 #include <randrstr.h>
+#undef class
+#undef public
+}
 #include <linux/in.h>
 #include <arpa/inet.h>
 #include <poll.h>
@@ -28,62 +34,55 @@
 #define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
 
 static int argc = 0;
-static char** argv = NULL;
+static char** argv = nullptr;
 __LIBC_HIDDEN__ volatile int conn_fd = -1; // The only variable shared with activity code.
 extern DeviceIntPtr lorieMouse, lorieTouch, lorieKeyboard, loriePen, lorieEraser;
 extern ScreenPtr pScreenPtr;
-extern int ucs2keysym(long ucs);
-void lorieKeysymKeyboardEvent(KeySym keysym, int down);
+extern "C" int ucs2keysym(long ucs);
+extern "C" void lorieKeysymKeyboardEvent(KeySym keysym, int down);
 
-char *xtrans_unix_path_x11 = NULL;
-char *xtrans_unix_dir_x11 = NULL;
+char *xtrans_unix_path_x11 = nullptr;
+char *xtrans_unix_dir_x11 = nullptr;
 
 struct xorg_list registeredBuffers;
 
-static void* startServer(__unused void* cookie) {
-    char* envp[] = { NULL };
-    exit(dix_main(argc, (char**) argv, envp));
-}
-
-static Bool detectTracer(void)
-{
-    FILE *fp;
-    char  line[256];
-    int pid = 0;
-
-    fp = fopen("/proc/self/status", "r");
-    if (!fp)
-        return TRUE;
-
-    while (fgets(line, sizeof(line), fp)) {
-        if (strncmp(line, "TracerPid:", 10) == 0) {
-            sscanf(line+10, "%d", &pid);
-            break;
-        }
-    }
-
-    if (pid != 0)
-        log(INFO, "Tracer detected");
-
-    fclose(fp);
-    return pid != 0;
-}
-
-JNIEXPORT jboolean JNICALL
+extern "C" JNIEXPORT jboolean JNICALL
 Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjectArray args) {
     pthread_t t;
-    JavaVM* vm = NULL;
+    JavaVM* vm = nullptr;
+    auto detectTracer = []() -> Bool {
+        FILE *fp;
+        char line[256];
+        int pid = 0;
+
+        fp = fopen("/proc/self/status", "r");
+        if (!fp)
+            return TRUE;
+
+        while (fgets(line, sizeof(line), fp)) {
+            if (strncmp(line, "TracerPid:", 10) == 0) {
+                sscanf(line+10, "%d", &pid);
+                break;
+            }
+        }
+
+        if (pid != 0)
+            log(INFO, "Tracer detected");
+
+        fclose(fp);
+        return pid != 0;
+    };
     // execv's argv array is a bit incompatible with Java's String[], so we do some converting here...
-    argc = (*env)->GetArrayLength(env, args) + 1; // Leading executable path
+    argc = env->GetArrayLength(args) + 1; // Leading executable path
     argv = (char**) calloc(argc, sizeof(char*));
 
     argv[0] = (char*) "Xlorie";
     for(int i=1; i<argc; i++) {
-        jstring js = (jstring)((*env)->GetObjectArrayElement(env, args, i - 1));
-        const char *pjc = (*env)->GetStringUTFChars(env, js, JNI_FALSE);
+        auto js = (jstring) env->GetObjectArrayElement(args, i - 1);
+        const char *pjc = env->GetStringUTFChars(js, JNI_FALSE);
         argv[i] = (char *) calloc(strlen(pjc) + 1, sizeof(char)); //Extra char for the terminating NULL
         strcpy((char *) argv[i], pjc);
-        (*env)->ReleaseStringUTFChars(env, js, pjc);
+        env->ReleaseStringUTFChars(js, pjc);
     }
 
     {
@@ -102,7 +101,7 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
         char pid[32] = {0};
         prctl(PR_SET_PDEATHSIG, SIGTERM);
         sprintf(pid, "%d", getppid());
-        execlp("logcat", "logcat", "--pid", pid, NULL);
+        execlp("logcat", "logcat", "--pid", pid, nullptr);
     }
 
     // No matter what tracer is attached.
@@ -145,7 +144,7 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
     {
         const char *root_dir = dirname(getenv("TMPDIR"));
         const char* pathes[] = {
-                "/etc/X11/fonts", "/usr/share/fonts/X11", "/share/fonts", NULL
+                "/etc/X11/fonts", "/usr/share/fonts/X11", "/share/fonts", nullptr
         };
         for (int i=0; pathes[i]; i++) {
             char current_path[1024] = {0};
@@ -197,47 +196,22 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
         return JNI_FALSE;
     }
 
-    (*env)->GetJavaVM(env, &vm);
+    env->GetJavaVM(&vm);
 
     AChoreographer *choreographer = AChoreographer_getInstance();
     // Trigger it first time
     AChoreographer_postFrameCallback(choreographer, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, choreographer);
 
     xorg_list_init(&registeredBuffers);
-    pthread_create(&t, NULL, startServer, vm);
+    pthread_create(&t, nullptr, +[](__unused void* cookie) -> void* {
+        exit(dix_main(argc, (char**) argv, (char*[]) { nullptr }));
+    }, vm);
     return JNI_TRUE;
-}
-
-static Bool sendConfigureNotify(__unused ClientPtr pClient, void *closure) {
-    // This must be done only on X server thread.
-    lorieEvent* e = closure;
-    __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "window changed: %d %d %s", e->screenSize.width, e->screenSize.height, e->screenSize.name);
-    lorieConfigureNotify(e->screenSize.width, e->screenSize.height, e->screenSize.framerate, e->screenSize.name_size, e->screenSize.name);
-    free(e);
-    return TRUE;
-}
-
-static Bool handleClipboardAnnounce(__unused ClientPtr pClient, __unused void *closure) {
-    // This must be done only on X server thread.
-    lorieHandleClipboardAnnounce();
-    return TRUE;
-}
-
-static Bool handleGpuCopyDoneEvent(__unused ClientPtr pClient, __unused void *closure) {
-    // This must be done only on X server thread (touches present's internal vblank queue).
-    lorieRecheckGpuCopies();
-    return TRUE;
-}
-
-static Bool handleClipboardData(__unused ClientPtr pClient, void *closure) {
-    // This must be done only on X server thread.
-    lorieHandleClipboardData(closure);
-    return TRUE;
 }
 
 static Bool handleTouchEvent(__unused ClientPtr pClient, void *closure) {
     ValuatorMask mask;
-    lorieEvent *e = closure;
+    auto *e = (lorieEvent*) closure;
     double x = max(min((float) e->touch.x, pScreenPtr->width), 0);
     double y = max(min((float) e->touch.y, pScreenPtr->height), 0);
     valuator_mask_zero(&mask);
@@ -289,19 +263,26 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
     if (read(fd, &e, sizeof(e)) == sizeof(e)) {
         switch(e.type) {
             case EVENT_SCREEN_SIZE: {
-                lorieEvent *copy = calloc(1, sizeof(lorieEvent) + e.screenSize.name_size + 1);
+                auto *copy = (lorieEvent*) calloc(1, sizeof(lorieEvent) + e.screenSize.name_size + 1);
                 memcpy(copy, &e, sizeof(e));
-                copy->screenSize.name = copy->screenSize.name_size ? (char*) (copy + 1) : NULL;
+                copy->screenSize.name = copy->screenSize.name_size ? (char*) (copy + 1) : nullptr;
                 if (copy->screenSize.name_size)
                     read(fd, copy->screenSize.name, copy->screenSize.name_size);
-                QueueWorkProc(sendConfigureNotify, NULL, copy);
+                QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
+                    // This must be done only on X server thread.
+                    auto* e = (lorieEvent*) closure;
+                    __android_log_print(ANDROID_LOG_ERROR, "tx11-request", "window changed: %d %d %s", e->screenSize.width, e->screenSize.height, e->screenSize.name);
+                    lorieConfigureNotify(e->screenSize.width, e->screenSize.height, e->screenSize.framerate, e->screenSize.name_size, e->screenSize.name);
+                    free(e);
+                    return TRUE;
+                }, nullptr, copy);
                 lorieWakeServer();
                 break;
             }
             case EVENT_TOUCH: {
-                lorieEvent *copy = calloc(1, sizeof(lorieEvent));
+                auto *copy = (lorieEvent*) calloc(1, sizeof(lorieEvent));
                 memcpy(copy, &e, sizeof(e));
-                QueueWorkProc(handleTouchEvent, NULL, copy);
+                QueueWorkProc(handleTouchEvent, nullptr, copy);
                 lorieWakeServer();
                 break;
             }
@@ -332,11 +313,11 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
 
                 for (int i=0; i<3; i++) {
                     if (released & 0x1) {
-                        QueuePointerEvents(device, ButtonRelease, i + 1, POINTER_RELATIVE, NULL);
+                        QueuePointerEvents(device, ButtonRelease, i + 1, POINTER_RELATIVE, nullptr);
                         __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "sending %d press", i+1);
                     }
                     if (pressed & 0x1) {
-                        QueuePointerEvents(device, ButtonPress, i + 1, POINTER_RELATIVE, NULL);
+                        QueuePointerEvents(device, ButtonPress, i + 1, POINTER_RELATIVE, nullptr);
                         __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "sending %d release", i+1);
                     }
                     released >>= 1;
@@ -366,7 +347,7 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                     case 1: // BUTTON_LEFT
                     case 2: // BUTTON_MIDDLE
                     case 3: // BUTTON_RIGHT
-                        QueuePointerEvents(lorieMouse, e.mouse.down ? ButtonPress : ButtonRelease, e.mouse.detail, POINTER_RELATIVE, NULL);
+                        QueuePointerEvents(lorieMouse, e.mouse.down ? ButtonPress : ButtonRelease, e.mouse.detail, POINTER_RELATIVE, nullptr);
                         break;
                     case 4: // BUTTON_SCROLL
                         if (e.mouse.x) {
@@ -397,14 +378,22 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 lorieEnableClipboardSync(e.clipboardEnable.enable);
                 break;
             case EVENT_CLIPBOARD_ANNOUNCE:
-                QueueWorkProc(handleClipboardAnnounce, NULL, NULL);
+                QueueWorkProc(+[](__unused ClientPtr pClient, __unused void *closure) -> Bool {
+                    // This must be done only on X server thread.
+                    lorieHandleClipboardAnnounce();
+                    return TRUE;
+                }, nullptr, nullptr);
                 lorieWakeServer();
                 break;
             case EVENT_CLIPBOARD_SEND: {
-                char *data = calloc(1, e.clipboardSend.count + 1);
+                char *data = (char*) calloc(1, e.clipboardSend.count + 1);
                 read(conn_fd, data, e.clipboardSend.count);
                 data[e.clipboardSend.count] = 0;
-                QueueWorkProc(handleClipboardData, NULL, data);
+                QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
+                    // This must be done only on X server thread.
+                    lorieHandleClipboardData((const char*) closure);
+                    return TRUE;
+                }, nullptr, data);
                 lorieWakeServer();
                 break;
             }
@@ -415,7 +404,11 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 break;
             }
             case EVENT_GPU_COPY_DONE:
-                QueueWorkProc(handleGpuCopyDoneEvent, NULL, NULL);
+                QueueWorkProc(+[](__unused ClientPtr pClient, __unused void *closure) -> Bool {
+                    // This must be done only on X server thread (touches present's internal vblank queue).
+                    lorieRecheckGpuCopies();
+                    return TRUE;
+                }, nullptr, nullptr);
                 lorieWakeServer();
                 break;
         }
@@ -429,7 +422,7 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
 void lorieSendClipboardData(const char* data) {
     if (data && conn_fd != -1) {
         size_t len = strlen(data);
-        lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = len } };
+        lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = (uint32_t) len } };
         write(conn_fd, &e, sizeof(e));
         write(conn_fd, data, len);
     }
@@ -449,13 +442,6 @@ bool lorieConnectionAlive(void) {
     // Check if socket is closed or has errors.
     struct pollfd p = { .fd = conn_fd, .events = POLLIN | POLLHUP | POLLERR | POLLRDHUP };
     return !(poll(&p, 1, 0) == 1 && (p.revents & (POLLERR | POLLNVAL | POLLRDHUP | POLLHUP)));
-}
-
-static Bool addFd(__unused ClientPtr pClient, void *closure) {
-    InputThreadRegisterDev((int) (int64_t) closure, handleLorieEvents, NULL);
-    conn_fd = (int) (int64_t) closure;
-    lorieActivityConnected();
-    return TRUE;
 }
 
 void lorieSendSharedServerState(int memfd) {
@@ -493,62 +479,66 @@ void lorieUnregisterBuffer(LorieBuffer* buffer) {
     }
 }
 
-void DDXNotifyFocusChanged(void) {
+extern "C" void DDXNotifyFocusChanged(void) {
     if (conn_fd != -1) {
         lorieEvent e = { .type = EVENT_WINDOW_FOCUS_CHANGED };
         write(conn_fd, &e, sizeof(e));
     }
 }
 
-JNIEXPORT jobject JNICALL
+extern "C" JNIEXPORT jobject JNICALL
 Java_com_termux_x11_CmdEntryPoint_getXConnection(JNIEnv *env, __unused jobject cls) {
     int client[2];
-    jclass ParcelFileDescriptorClass = (*env)->FindClass(env, "android/os/ParcelFileDescriptor");
-    jmethodID adoptFd = (*env)->GetStaticMethodID(env, ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
+    jclass ParcelFileDescriptorClass = env->FindClass("android/os/ParcelFileDescriptor");
+    jmethodID adoptFd = env->GetStaticMethodID(ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
     socketpair(AF_UNIX, SOCK_STREAM, 0, client);
-    QueueWorkProc(addFd, NULL, (void*) (int64_t) client[1]);
+    QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
+        InputThreadRegisterDev((int) (int64_t) closure, handleLorieEvents, nullptr);
+        conn_fd = (int) (int64_t) closure;
+        lorieActivityConnected();
+        return TRUE;
+    }, nullptr, (void*) (int64_t) client[1]);
     lorieWakeServer();
 
-    return (*env)->CallStaticObjectMethod(env, ParcelFileDescriptorClass, adoptFd, client[0]);
+    return env->CallStaticObjectMethod(ParcelFileDescriptorClass, adoptFd, client[0]);
 }
 
-void* logcatThread(void *arg) {
-    char buffer[4096];
-    size_t len;
-    while((len = read((int) (int64_t) arg, buffer, 4096)) >=0)
-        write(2, buffer, len);
-    close((int) (int64_t) arg);
-    return NULL;
-}
-
-JNIEXPORT jobject JNICALL
+extern "C" JNIEXPORT jobject JNICALL
 Java_com_termux_x11_CmdEntryPoint_getLogcatOutput(JNIEnv *env, __unused jobject cls) {
-    jclass ParcelFileDescriptorClass = (*env)->FindClass(env, "android/os/ParcelFileDescriptor");
-    jmethodID adoptFd = (*env)->GetStaticMethodID(env, ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
+    jclass ParcelFileDescriptorClass = env->FindClass("android/os/ParcelFileDescriptor");
+    jmethodID adoptFd = env->GetStaticMethodID(ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
     const char *debug = getenv("TERMUX_X11_DEBUG");
     if (debug && !strcmp(debug, "1")) {
         pthread_t t;
         int p[2];
         pipe(p);
         fchmod(p[1], 0777);
-        pthread_create(&t, NULL, logcatThread, (void*) (uint64_t) p[0]);
-        return (*env)->CallStaticObjectMethod(env, ParcelFileDescriptorClass, adoptFd, p[1]);
+        pthread_create(&t, nullptr, +[](void *arg) -> void* {
+            char buffer[4096];
+            size_t len;
+            while((len = read((int) (int64_t) arg, buffer, 4096)) >=0)
+                write(2, buffer, len);
+            close((int) (int64_t) arg);
+            return nullptr;
+        }, (void*) (uint64_t) p[0]);
+        return env->CallStaticObjectMethod(ParcelFileDescriptorClass, adoptFd, p[1]);
     }
-    return NULL;
+    return nullptr;
 }
 
-JNIEXPORT jboolean JNICALL
+extern "C" JNIEXPORT jboolean JNICALL
 Java_com_termux_x11_CmdEntryPoint_connected(__unused JNIEnv *env, __unused jclass clazz) {
     return conn_fd != -1;
 }
 
-JNIEXPORT void JNICALL
+extern "C" JNIEXPORT void JNICALL
 Java_com_termux_x11_CmdEntryPoint_listenForConnections(JNIEnv *env, jobject thiz) {
     int server_fd, client, count;
-    struct sockaddr_in address = { .sin_family = AF_INET, .sin_addr = { .s_addr = INADDR_ANY }, .sin_port = htons(PORT) };
+    struct sockaddr_in address = { .sin_family = AF_INET, .sin_port = htons(PORT), .sin_addr = { .s_addr = INADDR_ANY } };
     int addrlen = sizeof(address);
-    jmethodID sendBroadcast = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, thiz), "sendBroadcast", "()V");
+    jmethodID sendBroadcast = env->GetMethodID(env->GetObjectClass(thiz), "sendBroadcast", "()V");
     uint8_t buffer[512] = {0};
+    int reuse = 1;
 
     // Even in the case if it will fail for some reason everything will work fine
     // But connection will be delayed a bit
@@ -558,8 +548,8 @@ Java_com_termux_x11_CmdEntryPoint_listenForConnections(JNIEnv *env, jobject thiz
         return;
     }
 
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int));
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int));
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse));
 
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
         log(ERROR, "Socket bind failed: %s", strerror(errno));
@@ -573,7 +563,7 @@ Java_com_termux_x11_CmdEntryPoint_listenForConnections(JNIEnv *env, jobject thiz
         return;
     }
 
-    while(1) {
+    while(true) {
         if ((client = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0) {
             log(ERROR, "Socket accept failed: %s", strerror(errno));
             continue;
@@ -582,7 +572,7 @@ Java_com_termux_x11_CmdEntryPoint_listenForConnections(JNIEnv *env, jobject thiz
         if ((count = read(client, buffer, sizeof(buffer))) > 0) {
             if (!memcmp(buffer, MAGIC, min(count, sizeof(MAGIC)))) {
                 log(DEBUG, "New client connection!\n");
-                (*env)->CallVoidMethod(env, thiz, sendBroadcast);
+                env->CallVoidMethod(thiz, sendBroadcast);
             }
         }
         close(client);

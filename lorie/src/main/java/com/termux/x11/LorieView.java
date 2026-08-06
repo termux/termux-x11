@@ -578,17 +578,16 @@ public class LorieView extends SurfaceView implements InputStub {
 
     /** @noinspection unused*/ // It is used in native code
     void requestClipboard() {
-        if (!clipboardSyncEnabled) {
-            sendClipboardEvent("".getBytes(UTF_8));
-            return;
-        }
+        ClipDescription desc = clipboardSyncEnabled ? clipboard.getPrimaryClipDescription() : null;
+        boolean isText = desc != null && (desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) || desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_HTML));
+        CharSequence clip = isText ? clipboard.getText() : null;
+        String text = clip != null ? clip.toString() : "";
 
-        CharSequence clip = clipboard.getText();
-        if (clip != null) {
-            String text = String.valueOf(clipboard.getText());
-            sendClipboardEvent(text.getBytes(UTF_8));
+        // A requesting X11 client blocks on a SelectionNotify, so this must always answer, even
+        // with an empty string, or the request is left unresolved.
+        sendClipboardEvent(text.getBytes(UTF_8));
+        if (!text.isEmpty())
             Log.d("CLIP", "sending clipboard contents: " + text);
-        }
     }
 
     public void handleClipboardChange() {

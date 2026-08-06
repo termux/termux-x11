@@ -14,6 +14,7 @@
 #include <sys/socket.h>
 #include <sys/prctl.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <libgen.h>
 #include <globals.h>
 #include <xkbsrv.h>
@@ -401,9 +402,25 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 lorieWakeServer();
                 break;
             case EVENT_CLIPBOARD_SEND: {
-                char *data = calloc(1, e.clipboardSend.count + 1);
-                read(conn_fd, data, e.clipboardSend.count);
-                data[e.clipboardSend.count] = 0;
+                LorieClipboardData *data = lorieClipboardDataAlloc("text/plain", e.clipboardSend.count);
+                read(conn_fd, data->data, e.clipboardSend.count);
+                log(DEBUG, "Got clipboard text from activity (%zu bytes)", data->length);
+                QueueWorkProc(handleClipboardData, NULL, data);
+                lorieWakeServer();
+                break;
+            }
+            case EVENT_CLIPBOARD_SEND_IMAGE: {
+                int imgFd = ancil_recv_fd(fd);
+                if (imgFd < 0) {
+                    log(ERROR, "Failed to receive clipboard image fd from activity");
+                    break;
+                }
+
+                LorieClipboardData *data = lorieClipboardDataAlloc(e.clipboardSendImage.mime, e.clipboardSendImage.size);
+                read(imgFd, data->data, data->length);
+                close(imgFd);
+
+                log(DEBUG, "Got clipboard image from activity (%s, %zu bytes)", data->mime, data->length);
                 QueueWorkProc(handleClipboardData, NULL, data);
                 lorieWakeServer();
                 break;
@@ -426,13 +443,41 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
     }
 }
 
-void lorieSendClipboardData(const char* data) {
-    if (data && conn_fd != -1) {
-        size_t len = strlen(data);
-        lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = len } };
-        write(conn_fd, &e, sizeof(e));
-        write(conn_fd, data, len);
+void lorieSendClipboardText(const void* data, size_t data_len) {
+    if (!data || conn_fd == -1)
+        return;
+
+    lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = data_len } };
+    write(conn_fd, &e, sizeof(e));
+    write(conn_fd, data, data_len);
+    log(DEBUG, "Sent clipboard text to activity (%zu bytes)", data_len);
+}
+
+void lorieSendClipboardImage(const char* mime, const void* data, size_t size) {
+    if (!data || conn_fd == -1)
+        return;
+
+    int fd = LorieBuffer_createRegion("x11-clipboard-image", size);
+    if (fd < 0) {
+        log(ERROR, "Failed to create shared memory region for clipboard image: %s", strerror(errno));
+        return;
     }
+
+    void* mem = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (mem == MAP_FAILED) {
+        log(ERROR, "Failed to mmap clipboard image region: %s", strerror(errno));
+        close(fd);
+        return;
+    }
+    memcpy(mem, data, size);
+    munmap(mem, size);
+
+    lorieEvent e = { .clipboardSendImage = { .t = EVENT_CLIPBOARD_SEND_IMAGE, .size = (uint32_t) size } };
+    snprintf(e.clipboardSendImage.mime, sizeof(e.clipboardSendImage.mime), "%s", mime);
+    write(conn_fd, &e, sizeof(e));
+    ancil_send_fd(conn_fd, fd);
+    close(fd);
+    log(DEBUG, "Sent clipboard image to activity via shared memory (%s, %zu bytes)", mime, size);
 }
 
 void lorieRequestClipboard(void) {

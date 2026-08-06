@@ -24,13 +24,35 @@ extern "C" {
 
 struct lorie_shared_server_state;
 
+// Ownership is transferred to lorieHandleClipboardData, which frees the whole thing with one free().
+typedef struct {
+    char mime[32];
+    size_t length;
+    uint8_t data[];
+} LorieClipboardData;
+
+// data[0..length) is left zeroed for the caller to fill in (read/memcpy); data[length] is always
+// a spare zero byte, so text payloads can be treated as a plain NUL-terminated C string.
+static inline LorieClipboardData* lorieClipboardDataAlloc(const char* mime, size_t length) {
+    LorieClipboardData* d = (LorieClipboardData*) calloc(1, sizeof(LorieClipboardData) + length + 1);
+    if (!d)
+        return NULL;
+    snprintf(d->mime, sizeof(d->mime), "%s", mime);
+    d->length = length;
+    return d;
+}
+
 void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name);
 void lorieEnableClipboardSync(Bool enable);
-void lorieSendClipboardData(const char* data);
+void lorieSendClipboardText(const void* data, size_t data_len);
+// Ships an image clip, as-is (whatever mime it actually is, e.g. image/png or image/jpeg -- no
+// recoding), as a shared memory region (see LorieBuffer_createRegion) handed over the socket as
+// an ancillary fd, instead of streaming the bytes through the event socket itself.
+void lorieSendClipboardImage(const char* mime, const void* data, size_t size);
 void lorieInitClipboard(void);
 void lorieRequestClipboard(void);
 void lorieHandleClipboardAnnounce(void);
-void lorieHandleClipboardData(const char* data);
+void lorieHandleClipboardData(LorieClipboardData* data);
 void lorieSetStylusEnabled(Bool enabled);
 void lorieWakeServer(void);
 void lorieRecheckGpuCopies(void);
@@ -103,6 +125,7 @@ typedef enum {
     EVENT_CLIPBOARD_ANNOUNCE,
     EVENT_CLIPBOARD_REQUEST,
     EVENT_CLIPBOARD_SEND,
+    EVENT_CLIPBOARD_SEND_IMAGE, // used both ways; the payload arrives as an ancillary fd, not inline bytes
     EVENT_WINDOW_FOCUS_CHANGED,
     EVENT_RENDERER_WAKEUP_COND,
     EVENT_GPU_COPY_DONE,
@@ -155,8 +178,13 @@ typedef union {
     } clipboardEnable;
     struct {
         uint8_t t;
-        uint32_t count;
+        uint32_t count; // EVENT_CLIPBOARD_SEND always carries text/plain; see EVENT_CLIPBOARD_SEND_IMAGE for images
     } clipboardSend;
+    struct {
+        uint8_t t;
+        char mime[32]; // e.g. "image/png" or "image/jpeg", whatever the source actually is
+        uint32_t size; // size of the shared memory region sent as an ancillary fd right after this event
+    } clipboardSendImage;
 } lorieEvent;
 
 typedef struct { int16_t x1, y1, x2, y2; } LorieGpuCopyRect;

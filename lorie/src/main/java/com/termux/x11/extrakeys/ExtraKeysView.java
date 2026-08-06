@@ -350,7 +350,8 @@ public final class ExtraKeysView extends GridLayout {
                     button.setText(buttonInfo.display);
                 if (buttonInfo.popup != null)
                     button.setPopupHint(buttonInfo.popup);
-                button.setTextColor(mButtonTextColor);
+                if (!isSpecialButton(buttonInfo))
+                    button.setTextColor(mButtonTextColor);
                 button.setAllCaps(true);
                 button.setPadding(0, 0, 0, 0);
 

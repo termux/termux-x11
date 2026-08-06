@@ -121,6 +121,11 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
         }
     }
 
+    public void reload() {
+        if (mExtraKeysView != null)
+            mExtraKeysView.reload();
+    }
+
     public void unsetSpecialKeys() {
         if (mExtraKeysView == null)
             return;

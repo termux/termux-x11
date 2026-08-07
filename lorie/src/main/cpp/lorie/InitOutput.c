@@ -809,7 +809,7 @@ void InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     screen_info->bitmapBitOrder = BITMAP_BIT_ORDER;
     screen_info->numPixmapFormats = ARRAY_SIZE(depths);
 
-    rendererTestCapabilities(&pvfb->root.legacyDrawing);
+    rendererTestCapabilities(&pvfb->root.legacyDrawing, &pvfb->gpuPresentDisabled);
     xorgGlxCreateVendor();
     lorieInitClipboard();
 

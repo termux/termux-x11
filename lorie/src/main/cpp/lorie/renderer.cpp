@@ -25,6 +25,7 @@
 #include <cmath>
 #include <cstring>
 #include <sys/mman.h>
+#include <sys/socket.h>
 #include <unistd.h>
 #include "list.h"
 #include "lorie.h"
@@ -329,7 +330,7 @@ void Renderer::setFiltering(jint f) {
     filtering = f;
 }
 
-void Renderer::testCapabilities(int* legacy_drawing) {
+void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) {
     // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     EGLint numConfigs;
@@ -382,6 +383,60 @@ void Renderer::testCapabilities(int* legacy_drawing) {
         *legacy_drawing = 1;
         AHardwareBuffer_release(new_);
         return;
+    }
+
+    // Cross-process AHardwareBuffer sync relies on dma-buf. Send the buffer's handle through a
+    // local socketpair exactly as it would be sent to the X server, and check whether the fd(s)
+    // that come out are real dma-bufs. Skip if Present's GPU-copy offload is already off, since
+    // that's the only thing this depends on.
+    if (!*gpu_present_disabled) {
+        int sv[2] = { -1, -1 };
+        bool dmaBufFound = false;
+        if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0) {
+            AHardwareBuffer_sendHandleToUnixSocket(new_, sv[0]);
+            shutdown(sv[0], SHUT_WR);
+            for (;;) {
+                uint8_t data[4096];
+                union {
+                    uint8_t buf[CMSG_SPACE(32 * sizeof(int))];
+                    struct cmsghdr align;
+                } control;
+                struct iovec iov = { .iov_base = data, .iov_len = sizeof(data) };
+                struct msghdr msg = {
+                    .msg_iov = &iov, .msg_iovlen = 1,
+                    .msg_control = control.buf, .msg_controllen = sizeof(control.buf),
+                };
+                ssize_t n = recvmsg(sv[1], &msg, 0);
+                if (n <= 0)
+                    break;
+                for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                    if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS)
+                        continue;
+                    int *fds = (int *) CMSG_DATA(cmsg);
+                    int nfds = (int) ((cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int));
+                    for (int i = 0; i < nfds; i++) {
+                        char path[32], target[256];
+                        snprintf(path, sizeof(path), "/proc/self/fd/%d", fds[i]);
+                        ssize_t len = readlink(path, target, sizeof(target) - 1);
+                        if (len > 0) {
+                            target[len] = '\0';
+                            if (strstr(target, "dmabuf") || strstr(target, "dma_heap") || strstr(target, "/dev/dma"))
+                                dmaBufFound = true;
+                        }
+                        close(fds[i]);
+                    }
+                }
+            }
+            close(sv[0]);
+            close(sv[1]);
+        } else {
+            dmaBufFound = true; // Can't check, assume the best rather than force a slower fallback.
+        }
+
+        if (!dmaBufFound) {
+            loge("AHardwareBuffer is not dma-buf-backed on this device, disabling Present GPU offload");
+            *gpu_present_disabled = 1;
+        }
     }
 
     clientBuffer = eglGetNativeClientBufferANDROID(new_);
@@ -444,9 +499,9 @@ void Renderer::testCapabilities(int* legacy_drawing) {
     }
 }
 
-void rendererTestCapabilities(int* legacy_drawing) {
+void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled) {
     Renderer scratch;
-    scratch.testCapabilities(legacy_drawing);
+    scratch.testCapabilities(legacy_drawing, gpu_present_disabled);
 }
 
 void Renderer::setSharedState(struct lorie_shared_server_state* newState) {
@@ -789,6 +844,12 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     float xfactor = 1.f;
     const LorieBuffer_Desc *desc = nullptr;
     EGLSync fence;
+
+    // Early returns below skip the applyPendingGpuCopiesLocked() call further down, which would
+    // stall copies queued for windows unrelated to root while root itself isn't ready yet.
+    if (state->gpuCopyQueue.readIndex != state->gpuCopyQueue.writeIndex)
+        applyPendingGpuCopies();
+
     // The buffer will not be released until this function ends, but main thread can modify buffer list
     pthread_spin_lock(&bufferLock);
     LorieBuffer *buffer = LorieBufferList_findById(&buffers, state->rootWindowTextureID);

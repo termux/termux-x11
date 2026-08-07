@@ -43,7 +43,7 @@ bool lorieConnectionAlive(void);
 extern bool lorieDebugEnabled; // Set in activity.cpp's startLogcat, only called when TERMUX_X11_DEBUG=1.
 void lorieSetRendererWakeupCond(int fd);
 
-__unused void rendererTestCapabilities(int* legacy_drawing);
+__unused void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled);
 
 static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_t* lockingPid) {
     // Unfortunately there is no robust mutexes in bionic.
@@ -307,7 +307,7 @@ struct Renderer {
     void* initThread();
     int getWakeupCondFd() const;
     void setFiltering(jint f);
-    void testCapabilities(int* legacy_drawing);
+    void testCapabilities(int* legacy_drawing, int* gpu_present_disabled);
     void setSharedState(struct lorie_shared_server_state* newState);
     void addBuffer(LorieBuffer* buf);
     void removeBuffer(uint64_t id);

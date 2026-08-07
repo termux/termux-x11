@@ -84,6 +84,7 @@ typedef struct {
     uint64_t current_msc;
 
     uint64_t gpuCopySerialCounter;
+    uint64_t rootGpuCopyPending;
 } lorieScreenInfo;
 
 ScreenPtr pScreenPtr;
@@ -935,6 +936,9 @@ Bool lorieTryScheduleGpuCopy(PixmapPtr pixmap, PixmapPtr dst, RegionPtr update, 
     // Extra reference: keeps the LorieBuffer struct alive on this side until lorieGpuCopyAck()
     // releases it, independently from the X pixmap's own lifetime.
     LorieBuffer_acquire(srcBuffer);
+    // Read of the client's own pixmap (e.g. another client re-drawing into a buffer it already
+    // handed to Present) could otherwise race this copy's GPU read of it.
+    LorieBuffer_gpuCopyPendingInc(srcBuffer);
     // Root already has its own lifecycle (recreated on resize, kept alive by pScreenPtr->devPrivate)
     // - an extra reference here would outlive a resize and let the renderer keep finding a stale,
     // already-destroyed root buffer. Redirected-window destinations have no such guarantee, so they
@@ -943,6 +947,14 @@ Bool lorieTryScheduleGpuCopy(PixmapPtr pixmap, PixmapPtr dst, RegionPtr update, 
     if (!dstIsRoot) {
         lorieRegisterBuffer(dstBuffer);
         LorieBuffer_acquire(dstBuffer);
+        // Tracked so CPU reads of this window's pixmap (e.g. a compositor reading it back to
+        // paint) only pay for the GPU lock (see lorieNeedsGpuLock) while a GPU write into it can
+        // actually be in flight, instead of on every AHardwareBuffer-backed pixmap access.
+        LorieBuffer_gpuCopyPendingInc(dstBuffer);
+    } else {
+        // Tracked so CPU reads of the screen pixmap only pay for the GPU lock (see
+        // lorieNeedsGpuLock) while a GPU write into it can actually be in flight.
+        pvfb->rootGpuCopyPending++;
     }
     *out_dst_buffer = dstIsRoot ? NULL : dstBuffer;
 
@@ -972,6 +984,13 @@ Bool lorieGpuCopyIsDone(uint64_t serial) {
 
 void lorieGpuCopyAck(PixmapPtr pixmap, void *dst_buffer) {
     LoriePixmapPriv *priv = LORIE_PIXMAP_PRIV_FROM_PIXMAP(pixmap);
+    if (priv && priv->buffer)
+        LorieBuffer_gpuCopyPendingDec(priv->buffer);
+    if (dst_buffer)
+        LorieBuffer_gpuCopyPendingDec((LorieBuffer *) dst_buffer);
+    else
+        pvfb->rootGpuCopyPending--;
+
     if (priv && priv->buffer)
         LorieBuffer_release(priv->buffer);
     if (dst_buffer)
@@ -1075,9 +1094,10 @@ Bool lorieModifyPixmapHeader(PixmapPtr pPix, __unused int w, __unused int h, __u
 // Whether a CPU access to pPix could race a GPU write from the renderer, and so needs state->lock.
 static inline __always_inline Bool lorieNeedsGpuLock(PixmapPtr pPix, LoriePixmapPriv *priv, int index) {
     if (pScreenPtr->GetScreenPixmap(pScreenPtr) == pPix)
-        return index == EXA_PREPARE_DEST || (!pvfb->gpuPresentDisabled && !pvfb->root.legacyDrawing);
+        return index == EXA_PREPARE_DEST || (pvfb->rootGpuCopyPending && !pvfb->root.legacyDrawing);
     return !pvfb->root.legacyDrawing && priv->buffer &&
-           LorieBuffer_description(priv->buffer)->type == LORIEBUFFER_AHARDWAREBUFFER;
+           LorieBuffer_description(priv->buffer)->type == LORIEBUFFER_AHARDWAREBUFFER &&
+           LorieBuffer_hasGpuCopyPending(priv->buffer);
 }
 
 Bool loriePrepareAccess(PixmapPtr pPix, int index) {

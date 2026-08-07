@@ -109,6 +109,23 @@ STATIC_INLINE void LorieBuffer_release(LorieBuffer* _Nullable buffer) {
 }
 
 /**
+ * Mark/unmark the buffer as the source or destination of a GPU copy scheduled with
+ * lorieTryScheduleGpuCopy() but not yet completed. Only ever called from the X server thread.
+ *
+ * @param buffer the buffer
+ */
+void LorieBuffer_gpuCopyPendingInc(LorieBuffer* _Nullable buffer);
+void LorieBuffer_gpuCopyPendingDec(LorieBuffer* _Nullable buffer);
+
+/**
+ * Whether a CPU access to this buffer could race a GPU copy still in flight (see
+ * LorieBuffer_gpuCopyPendingInc/Dec).
+ *
+ * @param buffer the buffer
+ */
+bool LorieBuffer_hasGpuCopyPending(LorieBuffer* _Nullable buffer);
+
+/**
  * Return a description of the LorieBuffer.
  *
  * @param buffer the buffer to be described

@@ -43,7 +43,23 @@ struct LorieBuffer {
     GLuint id;
     EGLImage image;
     struct xorg_list link;
+
+    int32_t gpuCopyPending;
 };
+
+void LorieBuffer_gpuCopyPendingInc(LorieBuffer* buffer) {
+    if (buffer)
+        buffer->gpuCopyPending++;
+}
+
+void LorieBuffer_gpuCopyPendingDec(LorieBuffer* buffer) {
+    if (buffer)
+        buffer->gpuCopyPending--;
+}
+
+bool LorieBuffer_hasGpuCopyPending(LorieBuffer* buffer) {
+    return buffer && buffer->gpuCopyPending;
+}
 
 __attribute__((unused))
 static int memfd_create(const char *name, unsigned int flags) {

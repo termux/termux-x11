@@ -990,7 +990,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         setWindowFlag(FLAG_FULLSCREEN, fullscreen);
-        setWindowFlag(FLAG_KEEP_SCREEN_ON, prefs.keepScreenOn.get());
+        setWindowFlag(FLAG_KEEP_SCREEN_ON, prefs.keepScreenOn.get() && LorieView.connected());
         applyImmersiveMode();
 
         View contentChild = ((FrameLayout) findViewById(android.R.id.content)).getChildAt(0);

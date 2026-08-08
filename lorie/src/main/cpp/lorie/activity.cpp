@@ -26,6 +26,16 @@
 extern volatile int conn_fd; // The only variable from shared with X server code.
 bool lorieDebugEnabled = false;
 
+// Timestamp of the last real input reaching the X session, from any source. Read/written only
+// from the Android main thread via JNI.
+static volatile int64_t lastInputTimestampMs = 0;
+
+static int64_t nowMs(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
 static struct {
     jclass self;
     jmethodID getInstance, clientConnectedStateChanged, resetIme;
@@ -267,6 +277,7 @@ static void startLogcat(JNIEnv *env, __unused jobject cls, jint fd) {
 }
 
 static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jbyteArray text) {
+    lastInputTimestampMs = nowMs();
     if (conn_fd != -1 && text) {
         jsize length = env->GetArrayLength(text);
         jbyte *str = env->GetByteArrayElements(text, NULL);
@@ -349,6 +360,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
                 }
             }},
             {"sendMouseEvent", "(FFIZZ)V", (void *) +[](__unused JNIEnv* env, __unused jobject cls, jfloat x, jfloat y, jint which_button, jboolean button_down, jboolean relative) {
+                lastInputTimestampMs = nowMs();
                 if (conn_fd != -1) {
                     if (which_button > 0)
                         env->CallVoidMethod(globalThiz, MainActivity.resetIme);
@@ -356,10 +368,12 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
                 }
             }},
             {"sendTouchEvent", "(IIII)V", (void *) +[](__unused JNIEnv* env, __unused jobject cls, jint action, jint id, jint x, jint y) {
+                lastInputTimestampMs = nowMs();
                 if (action != -1)
                     sendEvent(.touch = { .t = EVENT_TOUCH, .type = (uint16_t) action, .id = (uint16_t) id, .x = (uint16_t) x, .y = (uint16_t) y });
             }},
             {"sendStylusEvent", "(FFIIIIIZZ)V", (void *) +[](__unused JNIEnv *env, __unused jobject thiz, jfloat x, jfloat y, jint pressure, jint tilt_x, jint tilt_y, jint orientation, jint buttons, jboolean eraser, jboolean mouse) {
+                lastInputTimestampMs = nowMs();
                 if (conn_fd != -1) {
                     env->CallVoidMethod(globalThiz, MainActivity.resetIme);
                     sendEvent(.stylus = { .t = EVENT_STYLUS, .x = x, .y = y, .pressure = (uint16_t) pressure, .tilt_x = (int8_t) tilt_x, .tilt_y = (int8_t) tilt_y, .orientation = (int16_t) orientation, .buttons = (uint8_t) buttons, .eraser = eraser, .mouse = mouse });
@@ -369,6 +383,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
                 sendEvent(.stylusEnable = { .t = EVENT_STYLUS_ENABLE, .enable = enabled });
             }},
             {"sendKeyEvent", "(IIZ)Z", (void *) +[](__unused JNIEnv* env, __unused jobject cls, jint scan_code, jint key_code, jboolean key_down) -> jboolean {
+                lastInputTimestampMs = nowMs();
                 if (conn_fd != -1) {
                     int code = (scan_code) ?: android_to_linux_keycode[key_code];
                     sendEvent(.key = { .t = EVENT_KEY, .key = (uint16_t) (code + 8), .state = key_down });
@@ -377,6 +392,12 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
             }},
             {"sendTextEvent", "([B)V", (void *)&sendTextEvent},
             {"requestConnection", "()Z", (void *)&requestConnection},
+            {"getLastInputTimestamp", "()J", (void *) +[](__unused JNIEnv* env, __unused jclass clazz) -> jlong {
+                return (jlong) lastInputTimestampMs;
+            }},
+            {"markUserActivity", "()V", (void *) +[](__unused JNIEnv* env, __unused jclass clazz) {
+                lastInputTimestampMs = nowMs();
+            }},
     };
     vm->AttachCurrentThread(&env, NULL);
     jclass cls = env->FindClass("com/termux/x11/LorieView");

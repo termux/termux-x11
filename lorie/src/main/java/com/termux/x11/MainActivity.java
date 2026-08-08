@@ -39,6 +39,7 @@ import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.service.notification.StatusBarNotification;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -111,6 +112,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean isInPictureInPictureMode = false;
     /** The display the system letterboxed us on instead of rotating, {@code null} until it does. */
     private Rect orientationDeniedAt = null;
+    private String screenIdleTimeoutArmedMode = null; // numeric screenIdleTimeout mode the pending idle check reflects, or null if none pending
+    private final Runnable screenIdleTimeoutCheck = this::checkScreenIdleTimeout;
     /** Aspect ratios outside of the range the device is configured with are rejected by the system. */
     private static final float MIN_PIP_ASPECT_RATIO = getSystemDimenFloat("config_pictureInPictureMinAspectRatio", 1.f / 2.39f);
     private static final float MAX_PIP_ASPECT_RATIO = getSystemDimenFloat("config_pictureInPictureMaxAspectRatio", 2.39f);
@@ -297,6 +300,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        handler.removeCallbacks(screenIdleTimeoutCheck);
         unregisterReceiver(receiver);
         super.onDestroy();
     }
@@ -902,8 +906,11 @@ public class MainActivity extends AppCompatActivity {
         KeyInterceptor.recheck();
 
         // The system bars come back when the window loses focus.
-        if (hasFocus)
+        if (hasFocus) {
             applyImmersiveMode();
+            LorieView.markUserActivity();
+            applyScreenIdleTimeout();
+        }
     }
 
     private void applyImmersiveMode() {
@@ -938,6 +945,41 @@ public class MainActivity extends AppCompatActivity {
             getWindow().addFlags(flag);
         else
             getWindow().clearFlags(flag);
+    }
+
+    /** Keeps or drops the screen-on flag based on elapsed idle time, rescheduling itself for the remaining time. */
+    private void checkScreenIdleTimeout() {
+        String mode = prefs.screenIdleTimeout.get();
+        if ("never".equals(mode) || "system".equals(mode)) {
+            screenIdleTimeoutArmedMode = null;
+            return;
+        }
+
+        long systemTimeoutMs = Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_OFF_TIMEOUT, 0);
+        long timeoutMs = Math.max(Long.parseLong(mode) * 60_000L - systemTimeoutMs, 0);
+        long elapsed = (System.nanoTime() / 1_000_000L) - LorieView.getLastInputTimestamp();
+        if (elapsed >= timeoutMs) {
+            screenIdleTimeoutArmedMode = null;
+            setWindowFlag(FLAG_KEEP_SCREEN_ON, false);
+        } else {
+            screenIdleTimeoutArmedMode = mode;
+            setWindowFlag(FLAG_KEEP_SCREEN_ON, true);
+            handler.postDelayed(screenIdleTimeoutCheck, timeoutMs - elapsed);
+        }
+    }
+
+    /** Syncs screenIdleTimeout state/timer to the current preference without extending an already-scheduled check. */
+    private void applyScreenIdleTimeout() {
+        String mode = prefs.screenIdleTimeout.get();
+        boolean connected = LorieView.connected();
+        if (!connected || "never".equals(mode) || "system".equals(mode)) {
+            handler.removeCallbacks(screenIdleTimeoutCheck);
+            screenIdleTimeoutArmedMode = null;
+            setWindowFlag(FLAG_KEEP_SCREEN_ON, connected && "never".equals(mode));
+        } else if (!mode.equals(screenIdleTimeoutArmedMode)) {
+            handler.removeCallbacks(screenIdleTimeoutCheck);
+            checkScreenIdleTimeout();
+        }
     }
 
     void applyWindowSettings() {
@@ -990,7 +1032,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         setWindowFlag(FLAG_FULLSCREEN, fullscreen);
-        setWindowFlag(FLAG_KEEP_SCREEN_ON, prefs.keepScreenOn.get() && LorieView.connected());
+        applyScreenIdleTimeout();
         applyImmersiveMode();
 
         View contentChild = ((FrameLayout) findViewById(android.R.id.content)).getChildAt(0);

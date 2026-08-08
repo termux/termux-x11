@@ -242,6 +242,8 @@ struct lorie_shared_server_state {
 #ifdef __cplusplus
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
+#include <android/surface_control.h>
+#include <android/looper.h>
 #include "list.h"
 
 struct Renderer {
@@ -303,6 +305,23 @@ struct Renderer {
     uint64_t dstSizeLogCount = 0, srcSizeLogCount = 0;
     uint64_t lastRequestedBufferId = 0;
 
+    // API 29+ only; cursorOverlayFeatureAvailable stays false and drawCursor() is used otherwise.
+    ASurfaceControl* cursorSurfaceControl = nullptr;
+    AChoreographer* cursorOverlayChoreographer = nullptr;
+    ALooper* cursorOverlayLooper = nullptr; // set once by the overlay thread, then read-only
+    pthread_t cursorOverlayThread{};
+    bool cursorOverlayThreadStarted = false, cursorOverlayFeatureAvailable = false;
+    pthread_mutex_t cursorOverlayLock = PTHREAD_MUTEX_INITIALIZER;
+    bool cursorOverlayGeometryDirty = false, cursorOverlayBufferDirty = false; // guarded by cursorOverlayLock
+    bool cursorOverlayCallbackArmed = false; // guarded by cursorOverlayLock; is a choreographer callback pending?
+    AHardwareBuffer* cursorOverlayPendingBuffer = nullptr; // guarded by cursorOverlayLock; ref held for the overlay thread
+    uint32_t cursorOverlayRawW = 0, cursorOverlayRawH = 0; // size last rendered into cursorOverlayRenderTarget
+    LorieBuffer* cursorOverlayRenderTarget = nullptr; // renderer-thread only
+    GLuint cursorOverlayFbo = 0; // renderer-thread only
+    // redrawLocked()'s geometry, reused by the cursor-only path in threadLoop instead of being local.
+    float sourceWidth = 0.f, sourceHeight = 0.f, sourceLeft = 0.f, sourceTop = 0.f;
+    int renderViewportX = 0, renderViewportY = 0, renderViewportW = 0, renderViewportH = 0;
+
     void init(JNIEnv* env);
     void* initThread();
     int getWakeupCondFd() const;
@@ -327,6 +346,20 @@ struct Renderer {
     void reportViewport(int dstX, int dstY, int dstW, int dstH, float left, float top, float width, float height);
     void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip);
     void drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop);
+
+    __attribute__((always_inline)) inline bool cursorOverlayUsable() {
+        return cursorOverlayFeatureAvailable && cursorSurfaceControl != nullptr;
+    }
+    void ensureCursorOverlay();
+    void teardownCursorOverlay();
+    void markCursorOverlayDirty(bool bufferDirty);
+    void applyCursorOverlayIfDirty();
+    void computeCursorOverlayScale(float* scaleX, float* scaleY);
+    bool computeCursorOverlayRect(int32_t* outX, int32_t* outY, uint32_t* outW, uint32_t* outH);
+    void resendCursorOverlayBuffer();
+    void armCursorOverlayCallbackIfNeeded();
+    void wakeCursorOverlayIfIdle();
+    void renderCursorOverlayBuffer(uint32_t destW, uint32_t destH);
 };
 #endif
 

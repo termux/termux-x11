@@ -49,7 +49,12 @@ import androidx.preference.PreferenceScreen;
 import androidx.preference.SeekBarPreference;
 
 import android.provider.Settings;
+import android.text.Spannable;
+import android.text.SpannableString;
+import android.text.TextUtils;
 import android.text.method.LinkMovementMethod;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.StyleSpan;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Display;
@@ -371,6 +376,35 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                     && ContextCompat.checkSelfPermission(requireContext(), POST_NOTIFICATIONS) == PERMISSION_DENIED;
             setVisible("requestNotificationPermission", requestNotificationPermissionVisible);
+
+            updateScreenIdleTimeoutSummary();
+        }
+
+        /** Warns when the system's own screen-off timeout outlasts the chosen idle timeout, since it takes over once our own keep-awake window ends. */
+        private void updateScreenIdleTimeoutSummary() {
+            ListPreference p = findPreference("screenIdleTimeout");
+            if (p == null || getContext() == null)
+                return;
+
+            p.setSummaryProvider(null); // overrides the generic SimpleSummaryProvider set above
+
+            String mode = prefs.screenIdleTimeout.get();
+            if ("never".equals(mode) || "auto".equals(mode)) {
+                p.setSummary(p.getEntry());
+                return;
+            }
+
+            long systemTimeoutMs = Settings.System.getInt(getContext().getContentResolver(), Settings.System.SCREEN_OFF_TIMEOUT, 0);
+            if (systemTimeoutMs <= Long.parseLong(mode) * 60_000L) {
+                p.setSummary(p.getEntry());
+                return;
+            }
+
+            String warningText = getString(R.string.lorie_pref_summary_screenIdleTimeoutConflict, (systemTimeoutMs / 60_000) + " min");
+            SpannableString warning = new SpannableString(warningText);
+            warning.setSpan(new ForegroundColorSpan(0xFFFFA000), 0, warningText.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            warning.setSpan(new StyleSpan(Typeface.BOLD), 0, warningText.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            p.setSummary(TextUtils.concat(p.getEntry(), "\n", warning));
         }
 
         /** @noinspection SameParameterValue*/

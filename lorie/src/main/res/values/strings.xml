@@ -53,7 +53,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_fullscreen_summary">Toggle immersive mode in your device display</string>
     <string name="lorie_pref_forceOrientation">Screen orientation</string>
     <string name="lorie_pref_hideCutout">Hide display cutout (if any)</string>
-    <string name="lorie_pref_keepScreenOn">Keep Screen On</string>
+    <string name="lorie_pref_screenIdleTimeout">Screen idle timeout</string>
 
     <string name="lorie_pref_touchMode">Touchscreen input mode</string>
     <string name="lorie_pref_scaleTouchpad">Apply display scale factor to touchpad</string>
@@ -121,4 +121,5 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_summary_requiresExactOrCustom">Requires "display resolution mode" to be "exact" or "custom"</string>
     <string name="lorie_pref_summary_requiresIntercepting">Requires intercepting system shortcuts with Dex mode or with Accessibility service</string>
     <string name="lorie_pref_summary_requiresTrackpadAndNative">Requires "Touchscreen input mode" to be "Trackpad" and "Display resolution mode" to be not "native"</string>
+    <string name="lorie_pref_summary_screenIdleTimeoutConflict">⚠️ System screen timeout (%s) is longer and takes priority</string>
 </resources>

@@ -10,6 +10,24 @@
         <item>2</item>
         <item>3</item>
     </string-array>
+    <string-array name="screenIdleTimeoutEntries">
+        <item>Never (keep screen on)</item>
+        <item>1 minute</item>
+        <item>5 minutes</item>
+        <item>10 minutes</item>
+        <item>20 minutes</item>
+        <item>1 hour</item>
+        <item>System</item>
+    </string-array>
+    <string-array name="screenIdleTimeoutValues">
+        <item>never</item>
+        <item>1</item>
+        <item>5</item>
+        <item>10</item>
+        <item>20</item>
+        <item>60</item>
+        <item>system</item>
+    </string-array>
     <string-array name="transformCapturedPointerEntries">
         <item>No</item>
         <item>Clockwise</item>

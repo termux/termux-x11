@@ -61,6 +61,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private ClipboardManager clipboard;
     private long lastClipboardTimestamp = System.currentTimeMillis();
     private boolean keyboardVisible = false;
+    private long mNativeContext;
     private static boolean clipboardSyncEnabled = false;
     private static boolean hardwareKbdScancodesWorkaround = false;
     private final InputMethodManager mIMM = (InputMethodManager)getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
@@ -282,7 +283,7 @@ public class LorieView extends SurfaceView implements InputStub {
         @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {}
 
         @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int width, int height) {
-            LorieView.this.surfaceChanged(holder.getSurface());
+            LorieView.this.surfaceChanged(mNativeContext, holder.getSurface());
             width = getMeasuredWidth();
             height = getMeasuredHeight();
 
@@ -291,7 +292,7 @@ public class LorieView extends SurfaceView implements InputStub {
         }
 
         @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
-            LorieView.this.surfaceChanged(null);
+            LorieView.this.surfaceChanged(mNativeContext, null);
         }
     };
 
@@ -304,7 +305,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private void init() {
         getHolder().addCallback(mSurfaceCallback);
         clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
-        nativeInit();
+        mNativeContext = nativeInit();
 
         setFocusable(true);
         setFocusableInTouchMode(true);
@@ -317,6 +318,13 @@ public class LorieView extends SurfaceView implements InputStub {
                 return true;
             }
         });
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        nativeDestroy(mNativeContext);
+        mNativeContext = 0;
     }
 
     public void setCallback(Callback callback) {
@@ -416,7 +424,7 @@ public class LorieView extends SurfaceView implements InputStub {
         else
             name = "external";
 
-        sendWindowChange(p.x, p.y, framerate, name);
+        sendWindowChange(mNativeContext, p.x, p.y, framerate, name);
     }
 
     @Keep
@@ -511,7 +519,7 @@ public class LorieView extends SurfaceView implements InputStub {
             inputSourceWidth = p.x;
             inputSourceHeight = p.y;
         }
-        setViewport(viewport.left, viewport.top, viewport.width(), viewport.height(), p.x, p.y, hiddenBottom);
+        setViewport(mNativeContext, viewport.left, viewport.top, viewport.width(), viewport.height(), p.x, p.y, hiddenBottom);
 
         updateInputTransform();
         if (!dimensionsFrozen)
@@ -577,10 +585,10 @@ public class LorieView extends SurfaceView implements InputStub {
 
     public void reloadPreferences(Prefs p) {
         String filtering = p.displayFilteringMode.get();
-        setFiltering("nearest".equals(filtering) ? GLES20.GL_NEAREST : GLES20.GL_LINEAR);
+        setFiltering(mNativeContext, "nearest".equals(filtering) ? GLES20.GL_NEAREST : GLES20.GL_LINEAR);
         hardwareKbdScancodesWorkaround = p.hardwareKbdScancodesWorkaround.get();
         clipboardSyncEnabled = p.clipboardEnable.get();
-        setClipboardSyncEnabled(clipboardSyncEnabled, clipboardSyncEnabled);
+        setClipboardSyncEnabled(mNativeContext, clipboardSyncEnabled, clipboardSyncEnabled);
         TouchInputHandler.refreshInputDevices();
     }
 
@@ -603,7 +611,7 @@ public class LorieView extends SurfaceView implements InputStub {
 
         // A requesting X11 client blocks on a SelectionNotify, so this must always answer, even
         // with an empty string, or the request is left unresolved.
-        sendClipboardEvent(text.getBytes(UTF_8));
+        sendClipboardEvent(mNativeContext, text.getBytes(UTF_8));
         if (!text.isEmpty())
             Log.d("CLIP", "sending clipboard contents: " + text);
     }
@@ -622,7 +630,7 @@ public class LorieView extends SurfaceView implements InputStub {
                 (desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) ||
                         desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_HTML))) {
             lastClipboardTimestamp = timestamp;
-            sendClipboardAnnounce();
+            sendClipboardAnnounce(mNativeContext);
             Log.d("CLIP", "sending clipboard announce");
         }
     }
@@ -675,43 +683,67 @@ public class LorieView extends SurfaceView implements InputStub {
         }, 10);
     }
 
-    @FastNative private native void nativeInit();
-    @FastNative private native void surfaceChanged(Surface surface);
-    @FastNative private native void setFiltering(int filtering);
-    @FastNative static native void connect(int fd);
-    @CriticalNative static native boolean connected();
-    @FastNative static native void startLogcat(int fd);
-    @FastNative static native void setClipboardSyncEnabled(boolean enabled, boolean ignored);
-    @FastNative public native void sendClipboardAnnounce();
-    @FastNative public native void sendClipboardEvent(byte[] text);
-    @FastNative static native void sendWindowChange(int width, int height, int framerate, String name);
-    @FastNative static native void setViewport(int x, int y, int width, int height, int expectedWidth, int expectedHeight, int hiddenBottom);
-    @FastNative private static native void setRendererZoom(int percent);
+    @FastNative private native long nativeInit();
+    @FastNative private native void nativeDestroy(long ptr);
+    @FastNative private native void surfaceChanged(long ptr, Surface surface);
+    @FastNative private native void setFiltering(long ptr, int filtering);
+    @FastNative private native void setClipboardSyncEnabled(long ptr, boolean enabled, boolean ignored);
+    @FastNative private native void sendClipboardAnnounce(long ptr);
+    @FastNative private native void sendClipboardEvent(long ptr, byte[] text);
+    @FastNative private native void sendWindowChange(long ptr, int width, int height, int framerate, String name);
+    @FastNative private native void setViewport(long ptr, int x, int y, int width, int height, int expectedWidth, int expectedHeight, int hiddenBottom);
+    @FastNative private native void setRendererZoom(long ptr, int percent);
+
+    // Public API stays free of the native pointer; it's threaded through to an overload below.
+    public void connect(int fd) { connect(mNativeContext, fd); }
+    @FastNative private static native void connect(long ptr, int fd);
+
+    public boolean connected() { return connected(mNativeContext); }
+    @CriticalNative private static native boolean connected(long ptr);
+
+    public void startLogcat(int fd) { startLogcat(mNativeContext, fd); }
+    @FastNative private static native void startLogcat(long ptr, int fd);
 
     public void adjustRendererZoom(int delta) {
         rendererZoom = MathUtils.clamp(rendererZoom + delta, 100, 400);
-        setRendererZoom(rendererZoom);
+        setRendererZoom(mNativeContext, rendererZoom);
     }
 
     public void resetRendererZoom() {
         rendererZoom = 100;
-        setRendererZoom(rendererZoom);
+        setRendererZoom(mNativeContext, rendererZoom);
     }
 
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode) {
         freezeDimensions(isInPictureInPictureMode);
         // Zooming a floating window makes no sense, but the zoom is restored along with the size.
-        setRendererZoom(isInPictureInPictureMode ? 100 : rendererZoom);
+        setRendererZoom(mNativeContext, isInPictureInPictureMode ? 100 : rendererZoom);
     }
 
-    @FastNative public native void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative);
-    @FastNative public native void sendTouchEvent(int action, int id, int x, int y);
-    @FastNative public native void sendStylusEvent(float x, float y, int pressure, int tiltX, int tiltY, int orientation, int buttons, boolean eraser, boolean mouseMode);
-    @FastNative static public native void requestStylusEnabled(boolean enabled);
-    @FastNative public native void sendLockKeysState(int state);
-    @FastNative public native boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown);
-    @FastNative public native void sendTextEvent(byte[] text);
-    @CriticalNative public static native boolean requestConnection();
+    public void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative) { sendMouseEvent(mNativeContext, x, y, whichButton, buttonDown, relative); }
+    @FastNative private native void sendMouseEvent(long ptr, float x, float y, int whichButton, boolean buttonDown, boolean relative);
+
+    public void sendTouchEvent(int action, int id, int x, int y) { sendTouchEvent(mNativeContext, action, id, x, y); }
+    @FastNative private native void sendTouchEvent(long ptr, int action, int id, int x, int y);
+
+    public void sendStylusEvent(float x, float y, int pressure, int tiltX, int tiltY, int orientation, int buttons, boolean eraser, boolean mouseMode) { sendStylusEvent(mNativeContext, x, y, pressure, tiltX, tiltY, orientation, buttons, eraser, mouseMode); }
+    @FastNative private native void sendStylusEvent(long ptr, float x, float y, int pressure, int tiltX, int tiltY, int orientation, int buttons, boolean eraser, boolean mouseMode);
+
+    public void requestStylusEnabled(boolean enabled) { requestStylusEnabled(mNativeContext, enabled); }
+    @FastNative private native void requestStylusEnabled(long ptr, boolean enabled);
+
+    public void sendLockKeysState(int state) { sendLockKeysState(mNativeContext, state); }
+    @FastNative private native void sendLockKeysState(long ptr, int state);
+
+    public boolean sendKeyEvent(int scanCode, int keyCode, boolean keyDown) { return sendKeyEvent(mNativeContext, scanCode, keyCode, keyDown); }
+    @FastNative private native boolean sendKeyEvent(long ptr, int scanCode, int keyCode, boolean keyDown);
+
+    public void sendTextEvent(byte[] text) { sendTextEvent(mNativeContext, text); }
+    @FastNative private native void sendTextEvent(long ptr, byte[] text);
+
+    public boolean requestConnection() { return requestConnection(mNativeContext); }
+    @CriticalNative private static native boolean requestConnection(long ptr);
+
     @CriticalNative public static native long getLastInputTimestamp();
     @CriticalNative public static native void markUserActivity();
 

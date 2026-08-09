@@ -120,14 +120,12 @@ static const char vertexShaderSrc[] =
 static const char fragmentShaderSrc[] = FRAGMENT_SHADER();
 static const char fragmentShaderBgraSrc[] = FRAGMENT_SHADER(".bgra");
 
-// The renderer's end of activity.c's socket to the X server; used to notify it immediately when a
-// GPU copy batch finishes instead of it waiting for the next vblank-tick poll.
-extern "C" volatile int conn_fd;
-
-static void notifyGpuCopyDone() {
-    if (conn_fd != -1) {
+// Notifies activity.cpp's end of the GUI<->X server socket immediately when a GPU copy batch
+// finishes, instead of it waiting for the next vblank-tick poll.
+void Renderer::notifyGpuCopyDone() {
+    if (connFdPtr && *connFdPtr != -1) {
         lorieEvent e = { .type = EVENT_GPU_COPY_DONE };
-        write(conn_fd, &e, sizeof(e));
+        write(*connFdPtr, &e, sizeof(e));
     }
 }
 
@@ -290,8 +288,6 @@ void* Renderer::initThread() {
 }
 
 void Renderer::init(JNIEnv* env) {
-    pthread_t t;
-
     if (ctx)
         return;
 
@@ -317,9 +313,24 @@ void Renderer::init(JNIEnv* env) {
     pthread_cond_init(&stateChangeFinishCond, nullptr);
     pthread_spin_init(&bufferLock, false);
 
-    pthread_create(&t, nullptr, +[](void* cookie) -> void* {
+    stopping = false;
+    pthread_create(&thread, nullptr, +[](void* cookie) -> void* {
         return ((Renderer*) cookie)->initThread();
     }, this);
+}
+
+void Renderer::destroy() {
+    if (!ctx)
+        return; // never initialized, or already destroyed
+
+    pthread_mutex_lock(&stateLock);
+    stopping = true;
+    pthread_cond_signal(stateCond);
+    pthread_mutex_unlock(&stateLock);
+
+    pthread_join(thread, nullptr);
+    thread = 0;
+    ctx = EGL_NO_CONTEXT; // re-passes init()'s `if (ctx) return;` guard for a future re-init
 }
 
 int Renderer::getWakeupCondFd() const {
@@ -1045,9 +1056,11 @@ bool Renderer::shouldWait(bool *waitingForBuffers) {
 void Renderer::threadLoop() {
     LorieBuffer* buf;
     bool waitingForBuffers = false;
-    while (true) {
-        while (shouldWait(&waitingForBuffers))
+    while (!stopping) {
+        while (!stopping && shouldWait(&waitingForBuffers))
             pthread_cond_wait(stateCond, &stateLock);
+        if (stopping)
+            break;
 
         if (stateChanged) {
             struct lorie_shared_server_state* oldState = nullptr;
@@ -1102,6 +1115,34 @@ void Renderer::threadLoop() {
         pthread_spin_unlock(&bufferLock);
         pthread_mutex_lock(&stateLock);
     }
+    pthread_mutex_unlock(&stateLock);
+
+    // Runs on the renderer thread: safe to touch GL/EGL here, they are thread-affine.
+    removeAllBuffers();
+    pthread_spin_lock(&bufferLock);
+    while ((buf = LorieBufferList_first(&removedBuffers)))
+        LorieBuffer_release(buf);
+    pthread_spin_unlock(&bufferLock);
+
+    if (state) {
+        munmap(state, sizeof(*state));
+        state = nullptr;
+    }
+
+    glDeleteProgram(g_texture_program);
+    glDeleteProgram(g_texture_program_bgra);
+    glDeleteTextures(1, &cursor.id);
+    eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    if (sfc != defaultSfc) // defensive; setWindow(nullptr) already reverts this before onDetachedFromWindow runs
+        eglDestroySurface(egl_display, sfc);
+    eglDestroySurface(egl_display, defaultSfc);
+    eglDestroyContext(egl_display, ctx);
+    // Intentionally not calling eglTerminate(egl_display): the EGLDisplay is a process-wide
+    // driver connection, not a per-instance resource.
+    ANativeWindow_release(defaultWin);
+    munmap(stateCond, sizeof(pthread_cond_t));
+    close(stateCondFd);
+    jvm->DetachCurrentThread();
 }
 
 static GLuint loadShader(GLenum shaderType, const char* pSource) {

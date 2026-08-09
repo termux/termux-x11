@@ -259,6 +259,8 @@ struct Renderer {
     struct xorg_list addedBuffers, buffers, removedBuffers;
     volatile jint filtering = GL_NEAREST;
 
+    pthread_t thread = 0;
+    volatile bool stopping = false;
     volatile bool stateChanged = false, windowChanged = false, viewportChanged = false;
     struct lorie_shared_server_state* pendingState = nullptr;
     ANativeWindow* pendingWin = nullptr;
@@ -309,7 +311,10 @@ struct Renderer {
     uint64_t dstSizeLogCount = 0, srcSizeLogCount = 0;
     uint64_t lastRequestedBufferId = 0;
 
+    volatile int* connFdPtr = nullptr;
+
     void init(JNIEnv* env);
+    void destroy();
     void* initThread();
     int getWakeupCondFd() const;
     void setFiltering(jint f);
@@ -330,6 +335,7 @@ struct Renderer {
     bool shouldWait(bool* waitingForBuffers);
     void threadLoop();
     void bindTexture(GLuint id) const;
+    void notifyGpuCopyDone();
     void reportViewport(int dstX, int dstY, int dstW, int dstH, float left, float top, float width, float height);
     void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip);
     void drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop);

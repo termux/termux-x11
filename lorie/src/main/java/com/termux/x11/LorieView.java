@@ -60,6 +60,7 @@ public class LorieView extends SurfaceView implements InputStub {
 
     private ClipboardManager clipboard;
     private long lastClipboardTimestamp = System.currentTimeMillis();
+    private boolean keyboardVisible = false;
     private static boolean clipboardSyncEnabled = false;
     private static boolean hardwareKbdScancodesWorkaround = false;
     private final InputMethodManager mIMM = (InputMethodManager)getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
@@ -326,6 +327,23 @@ public class LorieView extends SurfaceView implements InputStub {
     public void triggerCallback() {
         requestFocus();
         updateViewport();
+    }
+
+    /** Shows or hides the soft keyboard for this view, the same way focusing an editable field would. */
+    public void setKeyboardVisible(boolean visible) {
+        if (visible == keyboardVisible)
+            return;
+
+        keyboardVisible = visible;
+        if (visible) {
+            requestFocus();
+            mIMM.showSoftInput(this, 0);
+        } else
+            mIMM.hideSoftInputFromWindow(getWindowToken(), 0);
+    }
+
+    public void toggleKeyboardVisible() {
+        setKeyboardVisible(!keyboardVisible);
     }
 
     void getDimensionsFromSettings(int width, int height) {

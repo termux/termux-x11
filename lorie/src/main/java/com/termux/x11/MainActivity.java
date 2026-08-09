@@ -61,7 +61,6 @@ import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -101,7 +100,6 @@ public class MainActivity extends AppCompatActivity {
     private Notification mNotification;
     private final int mNotificationId = 7892;
     NotificationManager mNotificationManager;
-    static InputMethodManager inputMethodManager;
     private static DisplayManager displayManager;
     private static boolean showIMEWhileExternalConnected = true;
     private static boolean externalKeyboardConnected = false;
@@ -245,7 +243,6 @@ public class MainActivity extends AppCompatActivity {
         else
             registerReceiver(receiver, filter);
 
-        inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         displayManager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
         orientationListener = new OrientationEventListener(this) {
             @Override public void onOrientationChanged(int orientation) {
@@ -693,7 +690,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onPause() {
-        inputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
+        getLorieView().setKeyboardVisible(false);
 
         for (StatusBarNotification notification: mNotificationManager.getActiveNotifications())
             if (notification.getId() == mNotificationId)
@@ -884,7 +881,7 @@ public class MainActivity extends AppCompatActivity {
         super.onConfigurationChanged(newConfig);
 
         if (newConfig.orientation != orientation)
-            inputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
+            getLorieView().setKeyboardVisible(false);
 
         if (newConfig.densityDpi != densityDpi)
             orientationDeniedAt = null;
@@ -1064,15 +1061,11 @@ public class MainActivity extends AppCompatActivity {
      */
     public static void toggleKeyboardVisibility(Context context) {
         Log.d("MainActivity", "Toggling keyboard visibility");
-        if(inputMethodManager != null) {
-            android.util.Log.d("toggleKeyboardVisibility", "externalKeyboardConnected " + externalKeyboardConnected + " showIMEWhileExternalConnected " + showIMEWhileExternalConnected);
-            if (!externalKeyboardConnected || showIMEWhileExternalConnected)
-                inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
-            else
-                inputMethodManager.hideSoftInputFromWindow(getInstance().getWindow().getDecorView().getRootView().getWindowToken(), 0);
-
-            getInstance().getLorieView().requestFocus();
-        }
+        LorieView view = getInstance().getLorieView();
+        if (!externalKeyboardConnected || showIMEWhileExternalConnected)
+            view.toggleKeyboardVisible();
+        else
+            view.setKeyboardVisible(false);
     }
 
     @SuppressWarnings("SameParameterValue")
@@ -1137,7 +1130,7 @@ public class MainActivity extends AppCompatActivity {
         if (textInput != null)
             textInput.setShowSoftInputOnFocus(!connected || showIMEWhileExternalConnected);
         if (connected && !showIMEWhileExternalConnected)
-            inputMethodManager.hideSoftInputFromWindow(getWindow().getDecorView().getRootView().getWindowToken(), 0);
+            getLorieView().setKeyboardVisible(false);
         getLorieView().requestFocus();
     }
 }

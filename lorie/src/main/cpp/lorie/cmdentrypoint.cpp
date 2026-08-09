@@ -35,7 +35,7 @@ extern "C" {
 
 static int argc = 0;
 static char** argv = nullptr;
-__LIBC_HIDDEN__ volatile int conn_fd = -1; // The only variable shared with activity code.
+__LIBC_HIDDEN__ volatile int conn_fd = -1;
 extern DeviceIntPtr lorieMouse, lorieTouch, lorieKeyboard, loriePen, lorieEraser;
 extern ScreenPtr pScreenPtr;
 extern "C" int ucs2keysym(long ucs);

@@ -132,6 +132,77 @@
  
          InputThreadInit();
  
++++ ./dri3/dri3_request.c
+@@ -227,6 +227,35 @@
+     return Success;
+ }
+ 
++/* Lorie: not part of upstream DRI3. Implemented in lorie/InitOutput.c, which knows about
++ * LorieBuffer/AHardwareBuffer; this file stays free of Android-specific types. */
++extern int lorieSendAHardwareBufferForPixmap(PixmapPtr pixmap, int socketFd);
++
++static int
++proc_dri3_ahardwarebuffer_from_pixmap(ClientPtr client)
++{
++    REQUEST(xDRI3AHardwareBufferFromPixmapReq);
++    PixmapPtr pixmap;
++    int fd, rc;
++
++    SetReqFds(client, 1);
++    REQUEST_SIZE_MATCH(xDRI3AHardwareBufferFromPixmapReq);
++    rc = dixLookupResourceByType((void **) &pixmap, stuff->pixmap, RT_PIXMAP,
++                                 client, DixReadAccess);
++    if (rc != Success) {
++        client->errorValue = stuff->pixmap;
++        return rc;
++    }
++
++    fd = ReadFdFromClient(client);
++    if (fd < 0)
++        return BadValue;
++
++    rc = lorieSendAHardwareBufferForPixmap(pixmap, fd) ? Success : BadMatch;
++    close(fd);
++    return rc;
++}
++
+ static int
+ proc_dri3_buffer_from_pixmap(ClientPtr client)
+ {
+@@ -564,6 +593,7 @@
+     proc_dri3_get_supported_modifiers,  /* 6 */
+     proc_dri3_pixmap_from_buffers,      /* 7 */
+     proc_dri3_buffers_from_pixmap,      /* 8 */
++    [X_DRI3AHardwareBufferFromPixmap] = proc_dri3_ahardwarebuffer_from_pixmap, /* 200, Lorie */
+ };
+ 
+ int
+@@ -697,6 +727,17 @@
+     return (*proc_dri3_vector[stuff->dri3ReqType]) (client);
+ }
+ 
++static int _X_COLD
++sproc_dri3_ahardwarebuffer_from_pixmap(ClientPtr client)
++{
++    REQUEST(xDRI3AHardwareBufferFromPixmapReq);
++    REQUEST_SIZE_MATCH(xDRI3AHardwareBufferFromPixmapReq);
++
++    swaps(&stuff->length);
++    swapl(&stuff->pixmap);
++    return (*proc_dri3_vector[stuff->dri3ReqType]) (client);
++}
++
+ int (*sproc_dri3_vector[DRI3NumberRequests]) (ClientPtr) = {
+     sproc_dri3_query_version,           /* 0 */
+     sproc_dri3_open,                    /* 1 */
+@@ -707,6 +748,7 @@
+     sproc_dri3_get_supported_modifiers, /* 6 */
+     sproc_dri3_pixmap_from_buffers,     /* 7 */
+     sproc_dri3_buffers_from_pixmap,     /* 8 */
++    [X_DRI3AHardwareBufferFromPixmap] = sproc_dri3_ahardwarebuffer_from_pixmap, /* 200, Lorie */
+ };
+ 
+ int _X_COLD
 +++ ./include/os.h
 @@ -557,6 +557,8 @@
  extern _X_EXPORT void

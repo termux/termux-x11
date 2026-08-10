@@ -66,6 +66,15 @@
                 <action android:name="com.termux.x11.CHANGE_PREFERENCE" />
             </intent-filter>
         </receiver>
+
+        <receiver android:name=".LorieBroadcastReceiver" android:exported="true" tools:ignore="ExportedReceiver" android:enabled="true">
+            <intent-filter>
+                <action android:name="com.termux.x11.CmdEntryPoint.ACTION_START" />
+                <action android:name="com.termux.x11.ACTION_STOP" />
+                <action android:name="com.termux.x11.ACTION_PREFERENCES_CHANGED" />
+                <action android:name="com.termux.x11.ACTION_CUSTOM" />
+            </intent-filter>
+        </receiver>
     </application>
     <queries>
         <package android:name="com.termux" />

@@ -15,11 +15,9 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PictureInPictureParams;
-import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
@@ -122,30 +120,26 @@ public class MainActivity extends AppCompatActivity {
     private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> onPreferencesChanged(key);
     private OrientationEventListener orientationListener;
 
-    private final BroadcastReceiver receiver = new BroadcastReceiver() {
-        @SuppressLint("UnspecifiedRegisterReceiverFlag")
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            prefs.recheckStoringSecondaryDisplayPreferences();
-            if (ACTION_START.equals(intent.getAction())) {
-                try {
-                    Log.v("LorieBroadcastReceiver", "Got new ACTION_START intent");
-                    onReceiveConnection(intent);
-                } catch (Exception e) {
-                    Log.e("MainActivity", "Something went wrong while we extracted connection details from binder.", e);
-                }
-            } else if (ACTION_STOP.equals(intent.getAction())) {
-                finishAffinity();
-            } else if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction())) {
-                Log.d("MainActivity", "preference: " + intent.getStringExtra("key"));
-                if (!"additionalKbdVisible".equals(intent.getStringExtra("key")))
-                    onPreferencesChanged("");
-            } else if (ACTION_CUSTOM.equals(intent.getAction())) {
-                android.util.Log.d("ACTION_CUSTOM", "action " + intent.getStringExtra("what"));
-                mInputHandler.extractUserActionFromPreferences(prefs, intent.getStringExtra("what")).accept(0, true);
+    public void onBroadcastReceive(Context context, Intent intent) {
+        prefs.recheckStoringSecondaryDisplayPreferences();
+        if (ACTION_START.equals(intent.getAction())) {
+            try {
+                Log.v("LorieBroadcastReceiver", "Got new ACTION_START intent");
+                onReceiveConnection(intent);
+            } catch (Exception e) {
+                Log.e("MainActivity", "Something went wrong while we extracted connection details from binder.", e);
             }
+        } else if (ACTION_STOP.equals(intent.getAction())) {
+            finishAffinity();
+        } else if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction())) {
+            Log.d("MainActivity", "preference: " + intent.getStringExtra("key"));
+            if (!"additionalKbdVisible".equals(intent.getStringExtra("key")))
+                onPreferencesChanged("");
+        } else if (ACTION_CUSTOM.equals(intent.getAction())) {
+            android.util.Log.d("ACTION_CUSTOM", "action " + intent.getStringExtra("what"));
+            mInputHandler.extractUserActionFromPreferences(prefs, intent.getStringExtra("what")).accept(0, true);
         }
-    };
+    }
 
     ViewTreeObserver.OnPreDrawListener mOnPredrawListener = new ViewTreeObserver.OnPreDrawListener() {
         @Override
@@ -236,16 +230,6 @@ public class MainActivity extends AppCompatActivity {
         lorieView.setCallback((screenWidth, screenHeight, inputTransform) ->
                 mInputHandler.handleInputTransformChanged(screenWidth, screenHeight, inputTransform));
 
-        IntentFilter filter = new IntentFilter(ACTION_START) {{
-            addAction(ACTION_PREFERENCES_CHANGED);
-            addAction(ACTION_STOP);
-            addAction(ACTION_CUSTOM);
-        }};
-        if (SDK_INT >= VERSION_CODES.O)
-            registerReceiver(receiver, filter, SDK_INT >= VERSION_CODES.TIRAMISU ? RECEIVER_EXPORTED : 0);
-        else
-            registerReceiver(receiver, filter);
-
         displayManager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
         orientationListener = new OrientationEventListener(this) {
             @Override public void onOrientationChanged(int orientation) {
@@ -298,7 +282,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         handler.removeCallbacks(screenIdleTimeoutCheck);
-        unregisterReceiver(receiver);
+        if (instance == this)
+            instance = null;
         super.onDestroy();
     }
 

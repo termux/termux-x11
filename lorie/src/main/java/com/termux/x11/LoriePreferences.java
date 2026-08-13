@@ -165,6 +165,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
     @Override
     protected void onDestroy() {
+        getContentResolver().unregisterContentObserver(accessibilityObserver);
         super.onDestroy();
         if (prefs != null && prefs.ctx == this)
             prefs = null;

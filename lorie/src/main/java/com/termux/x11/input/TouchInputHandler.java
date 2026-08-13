@@ -92,6 +92,7 @@ public class TouchInputHandler {
     private InputStrategyInterface mInputStrategy;
     private final InputEventSender mInjector;
     private final MainActivity mActivity;
+    private final InputManager.InputDeviceListener mInputDeviceListener;
     private final DisplayMetrics mMetrics = new DisplayMetrics();
     private final float[] mappedPoint = new float[2];
     private final float[] matrixValues = new float[9];
@@ -209,7 +210,7 @@ public class TouchInputHandler {
         mTouchpadHandler = isTouchpad ? null : new TouchInputHandler(activity, mRenderData, injector, true);
 
         refreshInputDevices();
-        ((InputManager) mActivity.getSystemService(Context.INPUT_SERVICE)).registerInputDeviceListener(new InputManager.InputDeviceListener() {
+        mInputDeviceListener = new InputManager.InputDeviceListener() {
             @Override
             public void onInputDeviceAdded(int deviceId) {
                 InputDevice dev = InputDevice.getDevice(deviceId);
@@ -231,12 +232,18 @@ public class TouchInputHandler {
                 android.util.Log.d("InputDeviceListener", "changed " + name);
                 refreshInputDevices();
             }
-        }, null);
-
+        };
+        ((InputManager) mActivity.getSystemService(Context.INPUT_SERVICE)).registerInputDeviceListener(mInputDeviceListener, null);
     }
 
     public TouchInputHandler(MainActivity activity, final InputEventSender injector) {
         this(activity, null, injector, false);
+    }
+
+    public void onDestroy() {
+        ((InputManager) mActivity.getSystemService(Context.INPUT_SERVICE)).unregisterInputDeviceListener(mInputDeviceListener);
+        if (mTouchpadHandler != null)
+            mTouchpadHandler.onDestroy();
     }
 
     static public void refreshInputDevices() {

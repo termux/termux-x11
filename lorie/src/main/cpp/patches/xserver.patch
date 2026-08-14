@@ -309,7 +309,16 @@
      present_check_flip2_ptr             check_flip2;
  
 +++ ./present/present_execute.c
-@@ -67,6 +67,14 @@
+@@ -34,5 +34,7 @@
+     ScreenPtr               screen = vblank->screen;
+     present_screen_priv_ptr screen_priv = present_screen_priv(screen);
+-
++    /* lorie: disarm, or miSyncTriggerFence()'s restart-scan re-fires this callback. */
++    present_fence_set_callback(vblank->wait_fence, NULL, NULL);
++
+     screen_priv->re_execute(vblank);
+ }
+@@ -67,6 +69,14 @@
      WindowPtr                   window = vblank->window;
      ScreenPtr                   screen = window->drawable.pScreen;
      present_screen_priv_ptr screen_priv = present_screen_priv(screen);
@@ -324,7 +333,7 @@
  
      /* If present_flip failed, we may have to requeue for the next MSC */
      if (vblank->exec_msc == crtc_msc + 1 &&
-@@ -79,12 +87,59 @@
+@@ -79,12 +95,59 @@
          return;
      }
  

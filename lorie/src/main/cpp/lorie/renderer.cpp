@@ -489,6 +489,16 @@ void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) 
         if (eglMakeCurrent(egl_display, checksfc, checksfc, testctx) != EGL_TRUE)
             return vprintEglError("check eglMakeCurrent failed", __LINE__);
 
+        // Intel's Mesa driver has a race that makes dma-buf cross-process write visibility
+        // unreliable, so blacklist it outright.
+        if (!*gpu_present_disabled) {
+            const char *renderer = (const char *) glGetString(GL_RENDERER);
+            if (renderer && strstr(renderer, "Mesa") && strstr(renderer, "Intel")) {
+                loge("Detected Intel Mesa driver (GL_RENDERER=%s), disabling Present GPU offload", renderer);
+                *gpu_present_disabled = 1;
+            }
+        }
+
         glActiveTexture(GL_TEXTURE0); checkGlError();
         glGenTextures(1, &texture); checkGlError();
         bindTexture(texture);

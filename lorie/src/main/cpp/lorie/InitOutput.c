@@ -99,6 +99,12 @@ static lorieScreenInfo lorieScreen = {
 }, *pvfb = &lorieScreen;
 static char *xstartup = NULL;
 static char **xstartupArgv = NULL;
+static char *xstartupPreference = NULL; // Set over JNI, lower priority than -xstartup/-- on the command line.
+
+void lorieSetXstartupPreference(const char *cmd) {
+    free(xstartupPreference);
+    xstartupPreference = cmd && *cmd ? strdup(cmd) : NULL;
+}
 
 // Owned by the activity process, handed to us over the connection socket. Points at a placeholder until
 // the first connection so callers don't need a NULL check.
@@ -289,6 +295,8 @@ void ddxReady(void) {
     if (!xstartupArgv) {
         if (xstartup && !strlen(xstartup)) // allow overriding $TERMUX_X11_XSTARTUP with empty xstartup arg
             return;
+        if (!xstartup || !strlen(xstartup))
+            xstartup = xstartupPreference;
         if (!xstartup || !strlen(xstartup))
             xstartup = getenv("TERMUX_X11_XSTARTUP");
         if (!xstartup || !strlen(xstartup))

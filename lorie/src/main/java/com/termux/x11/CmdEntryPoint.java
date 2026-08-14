@@ -9,7 +9,6 @@ import android.content.Context;
 import android.content.IIntentReceiver;
 import android.content.IIntentSender;
 import android.content.Intent;
-import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -18,13 +17,20 @@ import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.util.Log;
+import android.util.Xml;
 import android.view.Surface;
 
 import androidx.annotation.Keep;
 
+import org.xmlpull.v1.XmlPullParser;
+
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
 
 @Keep @SuppressLint({"StaticFieldLeak", "UnsafeDynamicallyLoadedCode"})
 public class CmdEntryPoint extends ICmdEntryInterface.Stub {
@@ -32,6 +38,9 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     static final Handler handler;
     public static Context ctx;
     private final Intent intent = createIntent();
+    private final Map<String, String> filePreferences = readFilePreferences(); // Own shared_prefs read once at startup; empty if unreadable (standalone flavor, different UID).
+    private final Object preferencesLock = new Object();
+    private Bundle receivedPreferences;
 
     /**
      * Command-line entry point.
@@ -45,11 +54,77 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     }
 
     CmdEntryPoint(String[] args) {
-        if (!start(args))
+        if (!start(args, fetchPreference("xstartupCommand", "")))
             System.exit(1);
 
         spawnListeningThread();
         sendBroadcastDelayed();
+    }
+
+    private static Map<String, String> readFilePreferences() {
+        Map<String, String> result = new HashMap<>();
+        if (ctx == null)
+            return result;
+        try {
+            String dataDir = ctx.getPackageManager().getApplicationInfo(BuildConfig.APPLICATION_ID, 0).dataDir;
+            File file = new File(dataDir, "shared_prefs/" + BuildConfig.APPLICATION_ID + "_preferences.xml");
+            if (!file.exists())
+                return result;
+
+            try (FileInputStream in = new FileInputStream(file)) {
+                XmlPullParser parser = Xml.newPullParser();
+                parser.setInput(in, null);
+                for (int event = parser.getEventType(); event != XmlPullParser.END_DOCUMENT; event = parser.next()) {
+                    if (event != XmlPullParser.START_TAG)
+                        continue;
+                    String name = parser.getAttributeValue(null, "name");
+                    String value = parser.getAttributeValue(null, "value");
+                    if (name != null && value != null)
+                        result.put(name, value);
+                }
+            }
+        } catch (Exception e) {
+            // Different UID (standalone flavor) -- can't read the app's private files.
+        }
+        return result;
+    }
+
+    @Override
+    public void setPreferences(Bundle prefs) {
+        synchronized (preferencesLock) {
+            receivedPreferences = prefs;
+            preferencesLock.notifyAll();
+        }
+    }
+
+    // defaultValue's type (Integer/Boolean/String) picks how the raw stored string gets parsed.
+    @SuppressWarnings("unchecked")
+    private <T> T fetchPreference(String key, T defaultValue) {
+        String raw = filePreferences.get(key);
+        if (raw == null) {
+            // Ask the app instead, sending the ACTION_START intent early instead of only from
+            // sendBroadcastDelayed() afterward; setPreferences() below wakes this up.
+            synchronized (preferencesLock) {
+                if (receivedPreferences == null) {
+                    sendBroadcast(intent);
+                    try {
+                        preferencesLock.wait(2000);
+                    } catch (InterruptedException ignored) {}
+                }
+                raw = receivedPreferences != null ? receivedPreferences.getString(key) : null;
+            }
+        }
+        if (raw == null)
+            return defaultValue;
+        try {
+            if (defaultValue instanceof Integer)
+                return (T) Integer.valueOf(raw);
+            if (defaultValue instanceof Boolean)
+                return (T) Boolean.valueOf(raw);
+            return (T) raw;
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     @SuppressLint({"WrongConstant", "PrivateApi"})
@@ -62,9 +137,10 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         Intent intent = new Intent(ACTION_START);
         intent.putExtra(null, bundle);
         intent.setPackage(BuildConfig.APPLICATION_ID);
+        intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES); // Broadcasts are dropped for force-stopped apps unless explicitly told otherwise.
 
         if (getuid() == 0 || getuid() == 2000)
-            intent.setFlags(0x00400000 /* FLAG_RECEIVER_FROM_SHELL */);
+            intent.addFlags(0x00400000 /* FLAG_RECEIVER_FROM_SHELL */);
 
         return intent;
     }
@@ -163,7 +239,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         return context;
     }
 
-    public static native boolean start(String[] args);
+    public static native boolean start(String[] args, String xstartupCommand);
     public native ParcelFileDescriptor getXConnection();
     public native ParcelFileDescriptor getLogcatOutput();
     private static native boolean connected();

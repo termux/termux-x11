@@ -54,6 +54,7 @@
         <SwitchPreferenceCompat app:key="enforceCharBasedInput" app:defaultValue="false" />
     </PreferenceScreen>
     <PreferenceScreen app:key="other">
+        <EditTextPreference app:key="xstartupCommand" app:defaultValue="" android:summary="@string/lorie_pref_xstartupCommand_summary" />
         <SwitchPreferenceCompat app:key="clipboardEnable" app:defaultValue="true" />
         <Preference app:key="requestNotificationPermission" />
         <Preference app:key="configureResponseToUserActions" app:fragment="userActions" />

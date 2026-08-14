@@ -25,6 +25,7 @@ extern "C" {
 struct lorie_shared_server_state;
 
 void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name);
+void lorieSetXstartupPreference(const char* cmd);
 void lorieEnableClipboardSync(Bool enable);
 void lorieSendClipboardData(const char* data);
 void lorieInitClipboard(void);

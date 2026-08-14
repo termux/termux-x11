@@ -6,5 +6,6 @@
         <!-- Keeps termux-x11's process from being classified separately from termux's own cpuset. -->
         <activity android:name="com.termux.x11.MainActivity" android:process="com.termux" />
         <activity android:name="com.termux.x11.LoriePreferences" android:process="com.termux" />
+        <receiver android:name="com.termux.x11.LorieBroadcastReceiver" android:process="com.termux" />
     </application>
 </manifest>

@@ -280,8 +280,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         handler.removeCallbacks(screenIdleTimeoutCheck);
-        if (mInputHandler != null)
-            mInputHandler.onDestroy();
         if (instance == this)
             instance = null;
         super.onDestroy();

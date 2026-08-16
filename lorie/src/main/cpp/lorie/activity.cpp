@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
@@ -61,6 +62,14 @@ struct LorieViewResources {
     jobject thiz = NULL;   // global ref to the owning LorieView
     volatile int connFd = -1;
     bool destroyed = true;
+
+    // Turns the async EVENT_CLIPBOARD_ITEM_REOPEN_REQUEST/REPLY round trip into a synchronous
+    // call: xcallback (GUI thread) signals this once a reply arrives.
+    pthread_mutex_t reopenLock;
+    pthread_cond_t reopenCond;
+    bool reopenReplyReady = false;
+    bool reopenSuccess = false;
+    int reopenResultFd = -1;
 
     LorieViewResources(JNIEnv* callerEnv, jobject view);
     ~LorieViewResources();
@@ -154,6 +163,8 @@ LorieViewResources::LorieViewResources(JNIEnv *callerEnv, jobject view) {
     destroyed = false;
     renderer.init(callerEnv);
     renderer.connFdPtr = &connFd; // lets the renderer thread wake up a GPU copy waiter
+    pthread_mutex_init(&reopenLock, NULL);
+    pthread_cond_init(&reopenCond, NULL);
 
     callerEnv->GetJavaVM(&vm);
     vm->AttachCurrentThread(&env, NULL);
@@ -171,6 +182,8 @@ LorieViewResources::~LorieViewResources() {
     }
 
     renderer.destroy();
+    pthread_mutex_destroy(&reopenLock);
+    pthread_cond_destroy(&reopenCond);
 
     if (thiz) {
         env->DeleteGlobalRef(thiz);
@@ -200,21 +213,134 @@ int LorieViewResources::xcallback(int fd, int events) {
         if (read(connFd, &e, sizeof(e)) == sizeof(e)) {
             switch(e.type) {
                 case EVENT_CLIPBOARD_SEND: {
-                    if (!e.clipboardSend.count)
-                        break;
                     char clipboard[e.clipboardSend.count + 1];
-                    memset(clipboard, 0, e.clipboardSend.count + 1);
-                    read(connFd, clipboard, sizeof(clipboard));
-                    clipboard[e.clipboardSend.count] = 0;
-                    log(DEBUG, "Clipboard content (%zu symbols) is %s", strlen(clipboard), clipboard);
+                    memset(clipboard, 0, sizeof(clipboard));
+                    read(connFd, clipboard, e.clipboardSend.count);
+                    log(DEBUG, "Got clipboard text from X server (%u bytes)", e.clipboardSend.count);
+
                     jmethodID id = env->GetMethodID(env->GetObjectClass(thiz), "setClipboardText","(Ljava/lang/String;)V");
-                    jobject bb = env->NewDirectByteBuffer(clipboard, strlen(clipboard));
+                    jobject bb = env->NewDirectByteBuffer(clipboard, e.clipboardSend.count);
                     jobject charset = env->CallStaticObjectMethod(Charset.self, Charset.forName, env->NewStringUTF("UTF-8"));
                     jobject cb = env->CallObjectMethod(charset, Charset.decode, bb);
                     env->DeleteLocalRef(bb);
 
                     jstring str = (jstring) env->CallObjectMethod(cb, CharBuffer.toString);
                     env->CallVoidMethod(thiz, id, str);
+                    break;
+                }
+                case EVENT_CLIPBOARD_SEND_BLOB: {
+                    int blobFd = ancil_recv_fd(connFd);
+                    if (blobFd < 0) {
+                        log(ERROR, "Failed to receive clipboard blob fd from X server");
+                        break;
+                    }
+
+                    log(DEBUG, "Got clipboard blob from X server (%s, %u bytes, fd=%d)", e.clipboardSendBlob.mime, e.clipboardSendBlob.size, blobFd);
+                    jmethodID id = env->GetMethodID(env->GetObjectClass(thiz), "setClipboardBlob", "(Ljava/lang/String;I)V");
+                    env->CallVoidMethod(thiz, id, env->NewStringUTF(e.clipboardSendBlob.mime), blobFd); // ownership of the fd passes to Java
+                    break;
+                }
+                case EVENT_CLIPBOARD_LIST_BEGIN: {
+                    uint32_t count = e.clipboardListBegin.itemCount, received;
+                    int* itemFds = (int*) malloc(count * sizeof(int));
+                    char (*itemNames)[256] = (char(*)[256]) malloc(count * sizeof(*itemNames));
+                    char (*itemMimes)[32] = (char(*)[32]) malloc(count * sizeof(*itemMimes));
+                    uint64_t* itemSizes = (uint64_t*) malloc(count * sizeof(uint64_t));
+                    uint8_t* itemKinds = (uint8_t*) malloc(count * sizeof(uint8_t));
+                    // On OOM, still drain all `count` LIST_ITEM messages to keep socket framing in
+                    // sync with the sender, just discarding fds instead of storing them.
+                    bool oom = count > 0 && (!itemFds || !itemNames || !itemMimes || !itemSizes || !itemKinds);
+                    if (oom)
+                        log(ERROR, "Out of memory receiving clipboard file list (%u items)", count);
+
+                    for (received = 0; received < count; received++) {
+                        lorieEvent item = {0};
+                        if (read(connFd, &item, sizeof(item)) != sizeof(item) || item.type != EVENT_CLIPBOARD_LIST_ITEM)
+                            break;
+
+                        // A directory item names a directory, not a file -- no fd follows it.
+                        int itemFd = -1;
+                        if (item.clipboardListItem.kind == LORIE_CLIP_FILE) {
+                            itemFd = ancil_recv_fd(connFd);
+                            if (itemFd < 0)
+                                break;
+                        }
+
+                        if (oom) {
+                            if (itemFd >= 0)
+                                close(itemFd);
+                            continue;
+                        }
+
+                        itemFds[received] = itemFd;
+                        memcpy(itemNames[received], item.clipboardListItem.name, sizeof(*itemNames));
+                        memcpy(itemMimes[received], item.clipboardListItem.mime, sizeof(*itemMimes));
+                        itemSizes[received] = item.clipboardListItem.size;
+                        itemKinds[received] = item.clipboardListItem.kind;
+                    }
+
+                    lorieEvent end = {0};
+                    read(connFd, &end, sizeof(end)); // EVENT_CLIPBOARD_LIST_END terminator
+
+                    if (oom) {
+                        // Already drained and closed every fd above; nothing left to release.
+                    } else if (received != count) {
+                        log(ERROR, "Malformed clipboard file list from X server (%u/%u items)", received, count);
+                        for (uint32_t i = 0; i < received; i++)
+                            if (itemFds[i] >= 0)
+                                close(itemFds[i]);
+                    } else if (count > 0) {
+                        jclass stringClass = env->FindClass("java/lang/String");
+                        jobjectArray names = env->NewObjectArray((jsize) count, stringClass, nullptr);
+                        jobjectArray mimes = env->NewObjectArray((jsize) count, stringClass, nullptr);
+                        jlongArray sizes = env->NewLongArray((jsize) count);
+                        jintArray fds = env->NewIntArray((jsize) count);
+                        jintArray kinds = env->NewIntArray((jsize) count);
+                        env->DeleteLocalRef(stringClass);
+
+                        for (uint32_t i = 0; i < count; i++) {
+                            env->SetObjectArrayElement(names, (jsize) i, env->NewStringUTF(itemNames[i]));
+                            env->SetObjectArrayElement(mimes, (jsize) i, env->NewStringUTF(itemMimes[i]));
+                            jlong size = (jlong) itemSizes[i];
+                            env->SetLongArrayRegion(sizes, (jsize) i, 1, &size);
+                            jint fdValue = itemFds[i];
+                            env->SetIntArrayRegion(fds, (jsize) i, 1, &fdValue);
+                            jint kindValue = itemKinds[i];
+                            env->SetIntArrayRegion(kinds, (jsize) i, 1, &kindValue);
+                        }
+
+                        log(DEBUG, "Got clipboard file list from X server (%u items)", count);
+                        jmethodID id = env->GetMethodID(env->GetObjectClass(thiz), "setClipboardFileList",
+                                                        "([Ljava/lang/String;[Ljava/lang/String;[J[I[II)V");
+                        env->CallVoidMethod(thiz, id, names, mimes, sizes, fds, kinds, (jint) e.clipboardListBegin.generation);
+                        env->DeleteLocalRef(names);
+                        env->DeleteLocalRef(mimes);
+                        env->DeleteLocalRef(sizes);
+                        env->DeleteLocalRef(fds);
+                        env->DeleteLocalRef(kinds);
+                    }
+
+                    free(itemFds);
+                    free(itemNames);
+                    free(itemMimes);
+                    free(itemSizes);
+                    free(itemKinds);
+                    break;
+                }
+                case EVENT_CLIPBOARD_ITEM_REOPEN_REPLY: {
+                    bool success = e.clipboardItemReopenReply.success;
+                    int itemFd = -1;
+                    if (success) {
+                        itemFd = ancil_recv_fd(connFd);
+                        success = itemFd >= 0;
+                    }
+
+                    pthread_mutex_lock(&reopenLock);
+                    reopenSuccess = success;
+                    reopenResultFd = itemFd;
+                    reopenReplyReady = true;
+                    pthread_cond_signal(&reopenCond);
+                    pthread_mutex_unlock(&reopenLock);
                     break;
                 }
                 case EVENT_CLIPBOARD_REQUEST: {
@@ -395,15 +521,117 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
                 auto* r = (LorieViewResources*) ptr;
                 sendEvent(r, .type = EVENT_CLIPBOARD_ANNOUNCE);
             }},
-            {"sendClipboardEvent", "(J[B)V", (void *) +[](JNIEnv *env, __unused jobject thiz, jlong ptr, jbyteArray text) {
+            {"sendClipboardEvent", "(JLjava/lang/String;[B)V", (void *) +[](JNIEnv *env, __unused jobject thiz, jlong ptr, jstring mime, jbyteArray data) {
                 auto* r = (LorieViewResources*) ptr;
-                if (r && r->connFd != -1 && text) {
-                    jsize length = env->GetArrayLength(text);
-                    jbyte* str = env->GetByteArrayElements(text, NULL);
-                    sendEvent(r, .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = (uint32_t) length });
-                    write(r->connFd, str, length);
-                    env->ReleaseByteArrayElements(text, str, JNI_ABORT);
+                if (!r || r->connFd == -1)
+                    return;
+
+                const char* mimeStr = env->GetStringUTFChars(mime, NULL);
+                size_t dataLen = data ? (size_t) env->GetArrayLength(data) : 0;
+                log(DEBUG, "Sending clipboard data to X server (%s, %zu bytes)", mimeStr, dataLen);
+
+                // EVENT_CLIPBOARD_SEND has no mime field (always text/plain); anything else must
+                // go via EVENT_CLIPBOARD_SEND_BLOB, which carries one.
+                if (strcmp(mimeStr, "text/plain") != 0 && dataLen) {
+                    int fd = LorieBuffer_createRegion("x11-clipboard-blob", dataLen);
+                    if (fd < 0) {
+                        log(ERROR, "Failed to create shared memory region for clipboard blob: %s", strerror(errno));
+                    } else {
+                        void* mem = mmap(NULL, dataLen, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+                        if (mem == MAP_FAILED) {
+                            log(ERROR, "Failed to mmap clipboard blob region: %s", strerror(errno));
+                            close(fd);
+                        } else {
+                            jbyte* bytes = env->GetByteArrayElements(data, NULL);
+                            memcpy(mem, bytes, dataLen);
+                            env->ReleaseByteArrayElements(data, bytes, JNI_ABORT);
+                            munmap(mem, dataLen);
+
+                            lorieEvent e = { .clipboardSendBlob = { .t = EVENT_CLIPBOARD_SEND_BLOB, .size = (uint32_t) dataLen } };
+                            snprintf(e.clipboardSendBlob.mime, sizeof(e.clipboardSendBlob.mime), "%s", mimeStr);
+                            write(r->connFd, &e, sizeof(e));
+                            ancil_send_fd(r->connFd, fd);
+                            close(fd);
+                        }
+                    }
+                } else {
+                    lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = (uint32_t) dataLen } };
+                    write(r->connFd, &e, sizeof(e));
+                    if (dataLen) {
+                        jbyte* bytes = env->GetByteArrayElements(data, NULL);
+                        write(r->connFd, bytes, dataLen);
+                        env->ReleaseByteArrayElements(data, bytes, JNI_ABORT);
+                    }
                 }
+
+                env->ReleaseStringUTFChars(mime, mimeStr);
+            }},
+            {"sendClipboardFileList", "(J[Ljava/lang/String;[Ljava/lang/String;[J[I)V", (void *) +[](JNIEnv *env, __unused jobject thiz, jlong ptr, jobjectArray names, jobjectArray mimes, jlongArray sizes, jintArray fds) {
+                auto* r = (LorieViewResources*) ptr;
+                jsize count = env->GetArrayLength(fds);
+
+                if (!r || r->connFd == -1) {
+                    // Nobody to send to -- we still own these fds and must close them.
+                    jint* fdElems = env->GetIntArrayElements(fds, NULL);
+                    for (jsize i = 0; i < count; i++)
+                        close(fdElems[i]);
+                    env->ReleaseIntArrayElements(fds, fdElems, JNI_ABORT);
+                    return;
+                }
+
+                log(DEBUG, "Sending clipboard file list to X server (%d items)", count);
+
+                lorieEvent begin = { .clipboardListBegin = { .t = EVENT_CLIPBOARD_LIST_BEGIN, .itemCount = (uint32_t) count } };
+                write(r->connFd, &begin, sizeof(begin));
+
+                jlong* sizeElems = env->GetLongArrayElements(sizes, NULL);
+                jint* fdElems = env->GetIntArrayElements(fds, NULL);
+                for (jsize i = 0; i < count; i++) {
+                    auto name = (jstring) env->GetObjectArrayElement(names, i);
+                    auto mime = (jstring) env->GetObjectArrayElement(mimes, i);
+                    const char* nameStr = env->GetStringUTFChars(name, NULL);
+                    const char* mimeStr = env->GetStringUTFChars(mime, NULL);
+
+                    lorieEvent e = { .clipboardListItem = { .t = EVENT_CLIPBOARD_LIST_ITEM, .size = (uint64_t) sizeElems[i], .kind = LORIE_CLIP_FILE } };
+                    snprintf(e.clipboardListItem.name, sizeof(e.clipboardListItem.name), "%s", nameStr);
+                    snprintf(e.clipboardListItem.mime, sizeof(e.clipboardListItem.mime), "%s", mimeStr);
+                    write(r->connFd, &e, sizeof(e));
+                    ancil_send_fd(r->connFd, fdElems[i]);
+                    close(fdElems[i]);
+
+                    env->ReleaseStringUTFChars(name, nameStr);
+                    env->ReleaseStringUTFChars(mime, mimeStr);
+                    env->DeleteLocalRef(name);
+                    env->DeleteLocalRef(mime);
+                }
+                env->ReleaseLongArrayElements(sizes, sizeElems, JNI_ABORT);
+                env->ReleaseIntArrayElements(fds, fdElems, JNI_ABORT);
+
+                lorieEvent end = { .type = EVENT_CLIPBOARD_LIST_END };
+                write(r->connFd, &end, sizeof(end));
+            }},
+            // Blocks for a fresh fd from the X server; runs on a Binder pool thread, never the GUI
+            // thread that signals reopenCond, so this can't deadlock itself.
+            {"reopenClipboardItem", "(JII)I", (void *) +[](__unused JNIEnv* env, __unused jclass clazz, jlong ptr, jint generation, jint index) -> jint {
+                auto* r = (LorieViewResources*) ptr;
+                if (!r || r->connFd == -1)
+                    return -1;
+
+                pthread_mutex_lock(&r->reopenLock);
+                r->reopenReplyReady = false;
+                lorieEvent e = { .clipboardItemReopenRequest = { .t = EVENT_CLIPBOARD_ITEM_REOPEN_REQUEST, .generation = (uint32_t) generation, .index = (uint32_t) index } };
+                write(r->connFd, &e, sizeof(e));
+
+                struct timespec deadline;
+                clock_gettime(CLOCK_REALTIME, &deadline);
+                deadline.tv_sec += 5;
+                int rc = 0;
+                while (!r->reopenReplyReady && rc == 0)
+                    rc = pthread_cond_timedwait(&r->reopenCond, &r->reopenLock, &deadline);
+
+                jint result = (r->reopenReplyReady && r->reopenSuccess) ? r->reopenResultFd : -1;
+                pthread_mutex_unlock(&r->reopenLock);
+                return result;
             }},
             {"sendWindowChange", "(JIIILjava/lang/String;)V", (void *) +[](__unused JNIEnv* env, __unused jobject cls, jlong ptr, jint width, jint height, jint framerate, jstring jname) {
                 auto* r = (LorieViewResources*) ptr;

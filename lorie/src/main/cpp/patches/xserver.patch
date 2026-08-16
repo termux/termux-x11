@@ -123,6 +123,28 @@
      if (!IsKeyboardDevice(pDev))
          return;
  
++++ ./dix/events.c
+@@ -202,6 +202,7 @@
+ 
+ CallbackListPtr EventCallback;
+ CallbackListPtr DeviceEventCallback;
++CallbackListPtr SendEventCallback;
+ 
+ #define DNPMCOUNT 8
+ 
+@@ -5619,6 +5620,12 @@
+         return BadValue;
+     }
+     stuff->event.u.u.type |= SEND_EVENT_BIT;
++
++    if (SendEventCallback) {
++        SendEventInfoRec info = { client, pWin, &stuff->event };
++        CallCallbacks(&SendEventCallback, &info);
++    }
++
+     if (stuff->propagate) {
+         for (; pWin; pWin = pWin->parent) {
+             if (XaceHook(XACE_SEND_ACCESS, client, NULL, pWin,
 +++ ./dix/main.c
 @@ -268,6 +268,7 @@
          }
@@ -132,6 +154,58 @@
  
          InputThreadInit();
  
++++ ./dix/selection.c
+@@ -66,6 +66,7 @@
+ 
+ Selection *CurrentSelections;
+ CallbackListPtr SelectionCallback;
++CallbackListPtr SelectionBridgeCallback;
+ 
+ int
+ dixLookupSelection(Selection ** result, Atom selectionName,
+@@ -300,6 +301,19 @@
+             WriteEventsToClient(pSel->client, 1, &event);
+             return Success;
+         }
++
++        if (pSel->client == serverClient && SelectionBridgeCallback != NULL) {
++            SelectionBridgeInfoRec info = {
++                .client = client,
++                .requestor = stuff->requestor,
++                .selection = stuff->selection,
++                .target = stuff->target,
++                .property = stuff->property,
++                .time = stuff->time,
++            };
++            CallCallbacks(&SelectionBridgeCallback, &info);
++            return Success;
++        }
+     }
+ 
+     event.u.u.type = SelectionNotify;
++++ ./include/dix.h
+@@ -620,6 +620,21 @@
+ 
+ extern _X_EXPORT CallbackListPtr RootWindowFinalizeCallback;
+ 
++/*
++ * SendEventCallback stuff: fired for every validated X_SendEvent request,
++ * right before delivery through the normal event-mask/window-registration
++ * path. Lets a DDX observe events addressed to a window it can't register
++ * interest on through the usual SelectInput mechanism (e.g. a window
++ * "owned" by serverClient, which never receives events that way).
++ */
++extern _X_EXPORT CallbackListPtr SendEventCallback;
++
++typedef struct {
++    ClientPtr client;
++    WindowPtr window;
++    xEvent *event;
++} SendEventInfoRec;
++
+ extern int
+ XItoCoreType(int xi_type);
+ extern Bool
 +++ ./include/os.h
 @@ -557,6 +557,8 @@
  extern _X_EXPORT void
@@ -142,6 +216,29 @@
  ddxInputThreadInit(void);
  extern _X_EXPORT int
  TimeSinceLastInputEvent(void);
++++ ./include/selection.h
+@@ -88,6 +88,21 @@
+ } SelectionInfoRec;
+ 
+ /*
++ * Selection bridge callback: lets a DDX answer ConvertSelection requests for
++ * a selection it owns as serverClient, instead of getting an unconditional deny.
++ */
++extern _X_EXPORT CallbackListPtr SelectionBridgeCallback;
++
++typedef struct {
++    ClientPtr client;
++    Window requestor;
++    Atom selection;
++    Atom target;
++    Atom property;
++    CARD32 time;
++} SelectionBridgeInfoRec;
++
++/*
+  *  Selection server internals
+  */
+ 
 +++ ./include/xkbfile.h
 @@ -79,6 +79,36 @@
  

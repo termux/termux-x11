@@ -7,6 +7,7 @@
     <string name="lorie_app_name">&TERMUX_X11_APP_NAME;</string>
 
     <string name="not_connected">Not connected</string>
+    <string name="clipboard_directory_paste_denied">Android does not allow pasting a folder\'s contents here; only the file manager it was copied from can read it</string>
     <string name="preferences_button_text">   PREFERENCES   </string>
     <string name="help_button_text">   HELP   </string>
     <string name="exit_button_text">   EXIT   </string>

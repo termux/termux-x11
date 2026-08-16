@@ -75,6 +75,17 @@
                 <action android:name="com.termux.x11.ACTION_CUSTOM" />
             </intent-filter>
         </receiver>
+
+        <provider
+            android:name=".ClipboardDocumentsProvider"
+            android:authorities="${applicationId}.clipboarddocuments"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
     </application>
     <queries>
         <package android:name="com.termux" />

@@ -43,6 +43,7 @@ void lorieUnregisterBuffer(LorieBuffer* buffer);
 bool lorieConnectionAlive(void);
 extern bool lorieDebugEnabled; // Set in activity.cpp's startLogcat, only called when TERMUX_X11_DEBUG=1.
 void lorieSetRendererWakeupCond(int fd);
+void lorieSetCursorVisible(Bool visible);
 
 __unused void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled);
 
@@ -237,7 +238,7 @@ struct lorie_shared_server_state {
         uint32_t x, y, xhot, yhot, width, height;
         uint32_t bits[512*512]; // 1 megabyte should be enough for any cursor up to 512x512
         // Signals to renderer to update cursor's texture or its coordinates
-        volatile uint8_t updated, moved;
+        volatile uint8_t updated, moved, visible;
     } cursor;
 };
 

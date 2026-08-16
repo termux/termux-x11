@@ -24,6 +24,7 @@
 #include <sys/stat.h>
 #include <dlfcn.h>
 #include "fb.h"
+#include "inputstr.h"
 #include "mipointer.h"
 #include "micmap.h"
 #include "miline.h"
@@ -159,6 +160,7 @@ void OsVendorInit(void) {
     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&lorieScreen.state->lock, &mutex_attr);
     pthread_mutex_init(&lorieScreen.state->cursor.lock, &mutex_attr);
+    lorieScreen.state->cursor.visible = TRUE;
 }
 
 // Queued from handleLorieEvents (input thread) to run on the main thread, i.e. the same thread that
@@ -405,7 +407,20 @@ static RRModePtr lorieCvt(int width, int height, int framerate) {
     return mode;
 }
 
-static void lorieMoveCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
+static Bool lorieCursorFromMouse(DeviceIntPtr pDev) {
+    return !pDev || GetMaster(pDev, MASTER_POINTER) == inputInfo.pointer;
+}
+
+void lorieSetCursorVisible(Bool visible) {
+    pvfb->state->cursor.visible = visible;
+    pvfb->state->cursor.moved = TRUE;
+    pthread_cond_signal(rendererCond);
+}
+
+static void lorieMoveCursor(DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
+    if (!lorieCursorFromMouse(pDev))
+        return;
+
     pvfb->state->cursor.x = x;
     pvfb->state->cursor.y = y;
     pvfb->state->cursor.moved = TRUE;
@@ -441,8 +456,11 @@ static void lorieConvertCursor(CursorPtr pCurs, uint32_t *data) {
     }
 }
 
-static void lorieSetCursor(unused DeviceIntPtr pDev, unused ScreenPtr pScr, CursorPtr pCurs, int x0, int y0) {
+static void lorieSetCursor(DeviceIntPtr pDev, unused ScreenPtr pScr, CursorPtr pCurs, int x0, int y0) {
     CursorBitsPtr bits = pCurs ? pCurs->bits : NULL;
+    if (!lorieCursorFromMouse(pDev))
+        return;
+
     if (pCurs && (pCurs->bits->width >= 512 || pCurs->bits->height >= 512))
         // We do not have enough memory allocated for such a big cursor, let's display default "X" cursor
         pCurs = rootCursor;

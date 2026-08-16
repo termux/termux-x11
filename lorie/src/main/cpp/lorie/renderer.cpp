@@ -1236,7 +1236,7 @@ void Renderer::drawRegion(GLuint id, float x0, float y0, float x1, float y1, flo
 void Renderer::drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop) {
     float x, y, w, h;
 
-    if (!state->cursor.width || !state->cursor.height)
+    if (!state->cursor.width || !state->cursor.height || !state->cursor.visible)
         return;
 
     x = 2.f * ((float) state->cursor.x - sourceLeft - (float) state->cursor.xhot) / displayWidth - 1.f;

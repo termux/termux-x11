@@ -237,6 +237,7 @@ static Bool handleTouchEvent(__unused ClientPtr pClient, void *closure) {
     valuator_mask_set_double(&mask, 0, x * 0xFFFF / (float) pScreenPtr->width);
     valuator_mask_set_double(&mask, 1, y * 0xFFFF / (float) pScreenPtr->height);
     QueueTouchEvents(lorieTouch, e->touch.type, e->touch.id, 0, &mask);
+    lorieSetCursorVisible(FALSE);
 
     end:
     free(e);
@@ -333,6 +334,7 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
             }
             case EVENT_MOUSE: {
                 int flags;
+                lorieSetCursorVisible(TRUE);
                 switch(e.mouse.detail) {
                     case 0: // BUTTON_UNDEFINED
                         flags = (e.mouse.relative) ? POINTER_RELATIVE | POINTER_ACCELERATE : POINTER_ABSOLUTE | POINTER_SCREEN | POINTER_NORAW;

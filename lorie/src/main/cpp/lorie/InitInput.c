@@ -50,9 +50,6 @@ ProcessInputEvents(void) {
     mieqProcessInputEvents();
 }
 
-void
-DDXRingBell(__unused int volume, __unused int pitch, __unused int duration) {}
-
 static int
 lorieKeybdProc(DeviceIntPtr pDevice, int onoff) {
     DevicePtr pDev = (DevicePtr) pDevice;

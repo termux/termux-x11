@@ -38,7 +38,7 @@ static int64_t nowMs() {
 
 static struct {
     jclass self;
-    jmethodID clientConnectedStateChanged, resetIme;
+    jmethodID clientConnectedStateChanged, resetIme, ringBell;
 } MainActivity = {nullptr};
 
 static struct {
@@ -144,6 +144,7 @@ static jlong nativeInit(JNIEnv *env, jobject thiz) {
         MainActivity.self = FindClassOrDie(env,  "com/termux/x11/MainActivity");
         MainActivity.clientConnectedStateChanged = FindMethodOrDie(env, MainActivity.self, "clientConnectedStateChanged", "()V", JNI_FALSE);
         MainActivity.resetIme = FindMethodOrDie(env, env->GetObjectClass(thiz), "resetIme", "()V", JNI_FALSE);
+        MainActivity.ringBell = FindMethodOrDie(env, env->GetObjectClass(thiz), "ringBell", "()V", JNI_FALSE);
     }
 
     return (jlong) (intptr_t) new (malloc(sizeof(LorieViewResources))) LorieViewResources(env, thiz);
@@ -269,6 +270,10 @@ int LorieViewResources::xcallback(int fd, int events) {
                 case EVENT_SYNC_REPLY: {
                     jmethodID id = env->GetMethodID(env->GetObjectClass(thiz), "onSyncReply", "(I)V");
                     env->CallVoidMethod(thiz, id, (jint) e.sync.serial);
+                    break;
+                }
+                case EVENT_RING_BELL: {
+                    env->CallVoidMethod(thiz, MainActivity.ringBell);
                     break;
                 }
             }

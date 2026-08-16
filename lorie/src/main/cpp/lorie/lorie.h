@@ -114,6 +114,7 @@ typedef enum {
     EVENT_LOCK_KEYS_STATE,
     EVENT_SYNC,
     EVENT_SYNC_REPLY,
+    EVENT_RING_BELL,
 } eventType;
 
 typedef union {

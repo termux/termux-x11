@@ -15,6 +15,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.database.ContentObserver;
@@ -916,8 +917,19 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
         private PrefsProto() {} // No instantiation allowed
         protected PrefsProto(Context ctx) {
             this.ctx = ctx;
-            builtInDisplayPreferences = PreferenceManager.getDefaultSharedPreferences(ctx);
-            secondaryDisplayPreferences = ctx.getSharedPreferences("secondary", Context.MODE_PRIVATE);
+
+            // A platform-supplied Context can identify as the host app's package in sharedUid builds.
+            Context prefsCtx = ctx;
+            if (!BuildConfig.APPLICATION_ID.equals(ctx.getPackageName())) {
+                try {
+                    prefsCtx = ctx.createPackageContext(BuildConfig.APPLICATION_ID, 0);
+                } catch (PackageManager.NameNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            builtInDisplayPreferences = PreferenceManager.getDefaultSharedPreferences(prefsCtx);
+            secondaryDisplayPreferences = prefsCtx.getSharedPreferences("secondary", Context.MODE_PRIVATE);
             recheckStoringSecondaryDisplayPreferences();
         }
 

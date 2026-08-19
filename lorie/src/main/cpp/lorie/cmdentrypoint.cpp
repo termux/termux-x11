@@ -23,6 +23,7 @@ extern "C" {
 #include <xkbsrv.h>
 #include <inpututils.h>
 #include <randrstr.h>
+#include <mi.h>
 #undef class
 #undef public
 }
@@ -413,6 +414,19 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 }, nullptr, nullptr);
                 lorieWakeServer();
                 break;
+            case EVENT_SYNC: {
+                auto serial = (uintptr_t) e.sync.serial;
+                QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
+                    // This must be done only on X server thread. Forces mieq to drain everything
+                    // enqueued before this marker, so the reply is a reliable "the server has
+                    // applied every event sent so far" barrier.
+                    mieqProcessInputEvents();
+                    lorieSendSyncReply((uint32_t) (uintptr_t) closure);
+                    return TRUE;
+                }, nullptr, (void*) serial);
+                lorieWakeServer();
+                break;
+            }
             case EVENT_LOCK_KEYS_STATE: {
                 auto *copy = (lorieEvent*) calloc(1, sizeof(lorieEvent));
                 memcpy(copy, &e, sizeof(e));
@@ -440,6 +454,13 @@ void lorieSendClipboardData(const char* data) {
         lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = (uint32_t) len } };
         write(conn_fd, &e, sizeof(e));
         write(conn_fd, data, len);
+    }
+}
+
+void lorieSendSyncReply(uint32_t serial) {
+    if (conn_fd != -1) {
+        lorieEvent e = { .sync = { .t = EVENT_SYNC_REPLY, .serial = serial } };
+        write(conn_fd, &e, sizeof(e));
     }
 }
 

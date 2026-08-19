@@ -15,6 +15,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Matrix;
 import android.graphics.PointF;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.hardware.display.DisplayManager;
 import android.hardware.input.InputManager;
 import android.os.Handler;
@@ -25,6 +27,7 @@ import android.view.GestureDetector;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewConfiguration;
 
@@ -54,6 +57,9 @@ import java.util.function.BiConsumer;
 public class TouchInputHandler {
     private static final float EPSILON = 0.001f;
 
+    /** Must match Renderer::panToCursor()'s edge fraction in renderer.cpp. */
+    private static final float PAN_EDGE_FRACTION = 0.05f;
+
     public static int STYLUS_INPUT_HELPER_MODE = 1; // 1 = Left Click, 2 Middle Click, 4 Right Click
 
     /** Used to set/store the selected input mode. */
@@ -80,6 +86,7 @@ public class TouchInputHandler {
 
     private final RenderData mRenderData;
     private final GestureDetector mScroller;
+    private final ScaleGestureDetector mZoomer;
     private final TapGestureDetector mTapDetector;
     private final StylusListener mStylusListener = new StylusListener();
     private final HardwareMouseListener mHMListener = new HardwareMouseListener();
@@ -193,6 +200,10 @@ public class TouchInputHandler {
         // moving the cursor, it means that the cursor would become stuck if the finger were held
         // down too long.
         mScroller.setIsLongpressEnabled(false);
+
+        mZoomer = new ScaleGestureDetector(/*desktop*/ activity, listener);
+        // Quick-scale (double-tap-drag) would otherwise fight with our own double-tap-drag handling.
+        mZoomer.setQuickScaleEnabled(false);
 
         mTapDetector = new TapGestureDetector(/*desktop*/ activity, listener);
         mSwipePinchDetector = new SwipeDetector(/*desktop*/ activity);
@@ -345,6 +356,7 @@ public class TouchInputHandler {
             // Avoid short-circuit logic evaluation - ensure all gesture detectors see all events so
             // that they generate correct notifications.
             mScroller.onTouchEvent(event);
+            mZoomer.onTouchEvent(event);
             mTapDetector.onTouchEvent(event);
             mSwipePinchDetector.onTouchEvent(event);
 
@@ -603,7 +615,12 @@ public class TouchInputHandler {
     /** Responds to touch events filtered by the gesture detectors.
      * @noinspection NullableProblems */
     private class GestureListener extends GestureDetector.SimpleOnGestureListener
-            implements TapGestureDetector.OnTapListener {
+            implements ScaleGestureDetector.OnScaleGestureListener, TapGestureDetector.OnTapListener {
+        /** Pan/zoom state tracked across a pinch gesture; see onScale(). Valid only while mPinchTracking. */
+        private float mPinchPanLeft, mPinchPanTop, mPinchWidth, mPinchHeight;
+        private float mPinchLastFracX, mPinchLastFracY;
+        private boolean mPinchTracking;
+
         private final Handler mGestureListenerHandler = new Handler(msg -> {
             if (msg.what == InputStub.BUTTON_LEFT)
                 mInputStrategy.onTap(InputStub.BUTTON_LEFT);
@@ -678,6 +695,81 @@ public class TouchInputHandler {
                 moveCursorToScreenPoint(e2.getX(), e2.getY());
             }
             return true;
+        }
+
+        /**
+         * Pans and zooms the local view around the pinch focus. Pan/zoom state is tracked
+         * incrementally in Java (mPinchPanLeft/Top/Width/Height) rather than re-derived each call
+         * from LorieView's last-reported rect, since onScale() can fire faster than Renderer
+         * reports frames back and re-deriving would drop everything but the latest call.
+         * fracX/Y come from getInputViewport() (screen-space, layout-stable) rather than mapping
+         * through the X11-space transform, which would reintroduce the same staleness.
+         * The cursor is clamped into the shown rect's 5% pan-safe band from its own position
+         * (not teleported to the focus) so panToCursor() doesn't yank the view once pan-following
+         * resumes.
+         */
+        @Override
+        public boolean onScale(ScaleGestureDetector detector) {
+            if (!mSwipePinchDetector.isPinching()) {
+                mPinchTracking = false;
+                return false;
+            }
+
+            LorieView view = mActivity.getLorieView();
+            Rect viewport = view.getInputViewport();
+            float focusX = detector.getFocusX(), focusY = detector.getFocusY();
+            float fracX = viewport.width() > 0 ? (focusX - viewport.left) / (float) viewport.width() : 0.5f;
+            float fracY = viewport.height() > 0 ? (focusY - viewport.top) / (float) viewport.height() : 0.5f;
+
+            if (!mPinchTracking) {
+                RectF shown = view.getInputSourceRect();
+                mPinchPanLeft = shown.left;
+                mPinchPanTop = shown.top;
+                mPinchWidth = shown.width();
+                mPinchHeight = shown.height();
+                mPinchLastFracX = fracX;
+                mPinchLastFracY = fracY;
+                mPinchTracking = true;
+            }
+
+            // The source point that was at mPinchLastFracX/Y a moment ago, under the pan/zoom
+            // state as of that moment - this is what gets carried along to the current focus.
+            float anchorX = mPinchPanLeft + mPinchLastFracX * mPinchWidth;
+            float anchorY = mPinchPanTop + mPinchLastFracY * mPinchHeight;
+
+            int zoomPercent = view.adjustRendererZoomByFactor(detector.getScaleFactor());
+            mPinchWidth = mRenderData.screenWidth * 100f / zoomPercent;
+            mPinchHeight = mRenderData.screenHeight * 100f / zoomPercent;
+            mPinchPanLeft = MathUtils.clamp(anchorX - fracX * mPinchWidth, 0, mRenderData.screenWidth - mPinchWidth);
+            mPinchPanTop = MathUtils.clamp(anchorY - fracY * mPinchHeight, 0, mRenderData.screenHeight - mPinchHeight);
+            mPinchLastFracX = fracX;
+            mPinchLastFracY = fracY;
+
+            view.setPinchZoomFocus(anchorX, anchorY, fracX, fracY);
+
+            float marginX = mPinchWidth * PAN_EDGE_FRACTION;
+            float marginY = mPinchHeight * PAN_EDGE_FRACTION;
+            PointF cursor = mRenderData.getCursorPosition();
+            float clampedX = MathUtils.clamp(cursor.x, mPinchPanLeft + marginX, mPinchPanLeft + mPinchWidth - marginX);
+            float clampedY = MathUtils.clamp(cursor.y, mPinchPanTop + marginY, mPinchPanTop + mPinchHeight - marginY);
+            if (mRenderData.setCursorPosition(clampedX, clampedY))
+                mInjector.sendCursorMove(clampedX, clampedY, false);
+
+            mSuppressCursorMovement = true;
+            return true;
+        }
+
+        /** Called when the user starts to zoom. Always accepts so onScale() can decide. */
+        @Override
+        public boolean onScaleBegin(ScaleGestureDetector detector) {
+            return true;
+        }
+
+        /** Called when the user is done zooming. Resumes normal cursor-following pan. */
+        @Override
+        public void onScaleEnd(ScaleGestureDetector detector) {
+            mPinchTracking = false;
+            mActivity.getLorieView().clearPinchZoomFocus();
         }
 
         /** Called whenever a gesture starts. Always accepts the gesture so it isn't ignored. */

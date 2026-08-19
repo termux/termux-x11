@@ -268,6 +268,9 @@ struct Renderer {
     volatile int viewportX = 0, viewportY = 0, viewportW = 0, viewportH = 0, expectedW = 0, expectedH = 0;
     volatile int hiddenBottom = 0;
     volatile int zoomPercent = 100;
+    // Source point a pinch wants kept at a given viewport fraction. Negative sourceX = no pinch.
+    volatile float pinchAnchorSourceX = -1.f, pinchAnchorSourceY = -1.f;
+    volatile float pinchAnchorFracX = 0.5f, pinchAnchorFracY = 0.5f;
     float panSourceLeft = 0.f, panSourceTop = 0.f;
     float hiddenPanSourceTop = -1.f; // the vertical pan of the other keyboard state, negative until there was one
     bool bottomWasHidden = false;
@@ -327,6 +330,8 @@ struct Renderer {
     void setWindow(JNIEnv* env, jobject jsfc);
     void setViewport(int x, int y, int w, int h, int ew, int eh, int hidden);
     void setZoom(int percent);
+    void setZoomAnchor(float sourceX, float sourceY, float fracX, float fracY);
+    void clearZoomAnchor();
     void releaseWinAndSurface(ANativeWindow** anw, EGLSurface* esfc);
     void refreshContext();
     LorieBuffer* findBufferWithRetry(uint64_t id);

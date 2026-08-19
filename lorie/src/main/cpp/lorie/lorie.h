@@ -24,13 +24,53 @@ extern "C" {
 
 struct lorie_shared_server_state;
 
+// Ownership is transferred to lorieHandleClipboardData, which frees the whole thing with one free().
+typedef struct {
+    char mime[32];
+    size_t length;
+    uint8_t data[];
+} LorieClipboardData;
+
+typedef enum { LORIE_CLIP_FILE, LORIE_CLIP_DIR } LorieClipItemKind;
+
+// One item of a multi-item clip (see LorieClipboardList). LORIE_CLIP_DIR sets neither data nor
+// fd; name is '/'-separated and relative to the top-level entry, e.g. "Documents/notes.txt".
+typedef struct {
+    char name[256]; // "" for non-file items
+    char mime[32];
+    uint8_t kind; // LorieClipItemKind
+    int fd; // O_RDONLY, owned by this item; -1 if data is used instead
+    uint64_t length;
+    uint8_t* data; // NULL when fd >= 0
+} LorieClipboardItem;
+
+typedef struct {
+    size_t count;
+    LorieClipboardItem items[];
+} LorieClipboardList;
+
+// data[0..length) is left zeroed for the caller to fill in (read/memcpy); data[length] is always
+// a spare zero byte, so text payloads can be treated as a plain NUL-terminated C string.
+static inline LorieClipboardData* lorieClipboardDataAlloc(const char* mime, size_t length) {
+    LorieClipboardData* d = (LorieClipboardData*) calloc(1, sizeof(LorieClipboardData) + length + 1);
+    if (!d)
+        return NULL;
+    snprintf(d->mime, sizeof(d->mime), "%s", mime);
+    d->length = length;
+    return d;
+}
+
 void lorieConfigureNotify(int width, int height, int framerate, size_t name_size, char* name);
 void lorieEnableClipboardSync(Bool enable);
-void lorieSendClipboardData(const char* data);
+void lorieSendClipboardText(const void* data, size_t data_len);
+void lorieSendClipboardBlob(const char* mime, const void* data, size_t size);
+void lorieSendClipboardFileList(LorieClipboardList* list, uint32_t generation);
+int lorieReopenSentClipItem(uint32_t generation, uint32_t index);
 void lorieInitClipboard(void);
 void lorieRequestClipboard(void);
 void lorieHandleClipboardAnnounce(void);
-void lorieHandleClipboardData(const char* data);
+void lorieHandleClipboardData(LorieClipboardData* data);
+void lorieHandleClipboardDataList(LorieClipboardList* list);
 void lorieSetStylusEnabled(Bool enabled);
 void lorieSyncLockKeysState(uint8_t state);
 void lorieWakeServer(void);
@@ -105,10 +145,16 @@ typedef enum {
     EVENT_CLIPBOARD_ANNOUNCE,
     EVENT_CLIPBOARD_REQUEST,
     EVENT_CLIPBOARD_SEND,
+    EVENT_CLIPBOARD_SEND_BLOB,
     EVENT_WINDOW_FOCUS_CHANGED,
     EVENT_RENDERER_WAKEUP_COND,
     EVENT_GPU_COPY_DONE,
     EVENT_LOCK_KEYS_STATE,
+    EVENT_CLIPBOARD_LIST_BEGIN,
+    EVENT_CLIPBOARD_LIST_ITEM,
+    EVENT_CLIPBOARD_LIST_END,
+    EVENT_CLIPBOARD_ITEM_REOPEN_REQUEST,
+    EVENT_CLIPBOARD_ITEM_REOPEN_REPLY,
 } eventType;
 
 typedef union {
@@ -164,6 +210,32 @@ typedef union {
         uint8_t t;
         uint8_t state; // bit0 = Caps Lock, bit1 = Num Lock, bit2 = Scroll Lock
     } lockKeysState;
+    struct {
+        uint8_t t;
+        char mime[32];
+        uint32_t size;
+    } clipboardSendBlob;
+    struct {
+        uint8_t t;
+        uint32_t itemCount;
+        uint32_t generation;
+    } clipboardListBegin;
+    struct {
+        uint8_t t;
+        char name[256];
+        char mime[32];
+        uint64_t size;
+        uint8_t kind;
+    } clipboardListItem;
+    struct {
+        uint8_t t;
+        uint32_t generation;
+        uint32_t index;
+    } clipboardItemReopenRequest;
+    struct {
+        uint8_t t;
+        uint8_t success;
+    } clipboardItemReopenReply;
 } lorieEvent;
 
 typedef struct { int16_t x1, y1, x2, y2; } LorieGpuCopyRect;

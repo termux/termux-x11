@@ -14,6 +14,7 @@
 #include <sys/socket.h>
 #include <sys/prctl.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <libgen.h>
 #include <cerrno>
 extern "C" {
@@ -388,15 +389,89 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 lorieWakeServer();
                 break;
             case EVENT_CLIPBOARD_SEND: {
-                char *data = (char*) calloc(1, e.clipboardSend.count + 1);
-                read(conn_fd, data, e.clipboardSend.count);
-                data[e.clipboardSend.count] = 0;
+                LorieClipboardData *data = lorieClipboardDataAlloc("text/plain", e.clipboardSend.count);
+                read(conn_fd, data->data, e.clipboardSend.count);
+                log(DEBUG, "Got clipboard text from activity (%zu bytes)", data->length);
                 QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
                     // This must be done only on X server thread.
-                    lorieHandleClipboardData((const char*) closure);
+                    lorieHandleClipboardData((LorieClipboardData*) closure);
                     return TRUE;
                 }, nullptr, data);
                 lorieWakeServer();
+                break;
+            }
+            case EVENT_CLIPBOARD_SEND_BLOB: {
+                int blobFd = ancil_recv_fd(fd);
+                if (blobFd < 0) {
+                    log(ERROR, "Failed to receive clipboard blob fd from activity");
+                    break;
+                }
+
+                LorieClipboardData *data = lorieClipboardDataAlloc(e.clipboardSendBlob.mime, e.clipboardSendBlob.size);
+                read(blobFd, data->data, data->length);
+                close(blobFd);
+
+                log(DEBUG, "Got clipboard blob from activity (%s, %zu bytes)", data->mime, data->length);
+                QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
+                    // This must be done only on X server thread.
+                    lorieHandleClipboardData((LorieClipboardData*) closure);
+                    return TRUE;
+                }, nullptr, data);
+                lorieWakeServer();
+                break;
+            }
+            case EVENT_CLIPBOARD_LIST_BEGIN: {
+                uint32_t count = e.clipboardListBegin.itemCount, received;
+                auto *list = (LorieClipboardList*) calloc(1, sizeof(LorieClipboardList) + count * sizeof(LorieClipboardItem));
+
+                for (received = 0; received < count; received++) {
+                    lorieEvent item = {0};
+                    if (read(fd, &item, sizeof(item)) != sizeof(item) || item.type != EVENT_CLIPBOARD_LIST_ITEM)
+                        break;
+
+                    int itemFd = ancil_recv_fd(fd);
+                    if (itemFd < 0)
+                        break;
+
+                    LorieClipboardItem *dst = &list->items[received];
+                    snprintf(dst->name, sizeof(dst->name), "%s", item.clipboardListItem.name);
+                    snprintf(dst->mime, sizeof(dst->mime), "%s", item.clipboardListItem.mime);
+                    dst->kind = item.clipboardListItem.kind;
+                    dst->fd = itemFd;
+                    dst->length = item.clipboardListItem.size;
+                }
+                list->count = received;
+
+                lorieEvent end = {0};
+                read(fd, &end, sizeof(end)); // EVENT_CLIPBOARD_LIST_END terminator
+
+                if (received != count) {
+                    log(ERROR, "Malformed clipboard file list from activity (%u/%u items)", received, count);
+                    for (uint32_t i = 0; i < received; i++)
+                        close(list->items[i].fd);
+                    free(list);
+                    break;
+                }
+
+                log(DEBUG, "Got clipboard file list from activity (%u items)", count);
+                QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
+                    // This must be done only on X server thread.
+                    lorieHandleClipboardDataList((LorieClipboardList*) closure);
+                    return TRUE;
+                }, nullptr, list);
+                lorieWakeServer();
+                break;
+            }
+            case EVENT_CLIPBOARD_ITEM_REOPEN_REQUEST: {
+                // Pure file I/O on an already-decoded path -- no dix/X11 state involved, so this
+                // can be answered directly from this thread instead of via QueueWorkProc.
+                int itemFd = lorieReopenSentClipItem(e.clipboardItemReopenRequest.generation, e.clipboardItemReopenRequest.index);
+                lorieEvent reply = { .clipboardItemReopenReply = { .t = EVENT_CLIPBOARD_ITEM_REOPEN_REPLY, .success = (uint8_t) (itemFd >= 0) } };
+                write(fd, &reply, sizeof(reply));
+                if (itemFd >= 0) {
+                    ancil_send_fd(fd, itemFd);
+                    close(itemFd);
+                }
                 break;
             }
             case EVENT_RENDERER_WAKEUP_COND: {
@@ -434,13 +509,76 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
     }
 }
 
-void lorieSendClipboardData(const char* data) {
-    if (data && conn_fd != -1) {
-        size_t len = strlen(data);
-        lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = (uint32_t) len } };
-        write(conn_fd, &e, sizeof(e));
-        write(conn_fd, data, len);
+void lorieSendClipboardText(const void* data, size_t data_len) {
+    if (!data || conn_fd == -1)
+        return;
+
+    lorieEvent e = { .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = (uint32_t) data_len } };
+    write(conn_fd, &e, sizeof(e));
+    write(conn_fd, data, data_len);
+    log(DEBUG, "Sent clipboard text to activity (%zu bytes)", data_len);
+}
+
+void lorieSendClipboardBlob(const char* mime, const void* data, size_t size) {
+    if (!data || conn_fd == -1)
+        return;
+
+    int fd = LorieBuffer_createRegion("x11-clipboard-blob", size);
+    if (fd < 0) {
+        log(ERROR, "Failed to create shared memory region for clipboard blob: %s", strerror(errno));
+        return;
     }
+
+    void* mem = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (mem == MAP_FAILED) {
+        log(ERROR, "Failed to mmap clipboard blob region: %s", strerror(errno));
+        close(fd);
+        return;
+    }
+    memcpy(mem, data, size);
+    munmap(mem, size);
+
+    lorieEvent e = { .clipboardSendBlob = { .t = EVENT_CLIPBOARD_SEND_BLOB, .size = (uint32_t) size } };
+    snprintf(e.clipboardSendBlob.mime, sizeof(e.clipboardSendBlob.mime), "%s", mime);
+    write(conn_fd, &e, sizeof(e));
+    ancil_send_fd(conn_fd, fd);
+    close(fd);
+    log(DEBUG, "Sent clipboard blob to activity via shared memory (%s, %zu bytes)", mime, size);
+}
+
+void lorieSendClipboardFileList(LorieClipboardList* list, uint32_t generation) {
+    if (!list)
+        return;
+
+    if (conn_fd == -1) {
+        for (size_t i = 0; i < list->count; i++)
+            if (list->items[i].fd >= 0)
+                close(list->items[i].fd);
+        free(list);
+        return;
+    }
+
+    lorieEvent begin = { .clipboardListBegin = { .t = EVENT_CLIPBOARD_LIST_BEGIN, .itemCount = (uint32_t) list->count, .generation = generation } };
+    write(conn_fd, &begin, sizeof(begin));
+
+    for (size_t i = 0; i < list->count; i++) {
+        LorieClipboardItem* item = &list->items[i];
+        lorieEvent e = { .clipboardListItem = { .t = EVENT_CLIPBOARD_LIST_ITEM, .size = item->length, .kind = item->kind } };
+        snprintf(e.clipboardListItem.name, sizeof(e.clipboardListItem.name), "%s", item->name);
+        snprintf(e.clipboardListItem.mime, sizeof(e.clipboardListItem.mime), "%s", item->mime);
+        write(conn_fd, &e, sizeof(e));
+        // A directory item names a directory, not a file -- there is no fd to hand over for it.
+        if (item->kind == LORIE_CLIP_FILE) {
+            ancil_send_fd(conn_fd, item->fd);
+            close(item->fd);
+        }
+    }
+
+    lorieEvent end = { .type = EVENT_CLIPBOARD_LIST_END };
+    write(conn_fd, &end, sizeof(end));
+
+    log(DEBUG, "Sent clipboard file list to activity (%zu items)", list->count);
+    free(list);
 }
 
 void lorieRequestClipboard(void) {

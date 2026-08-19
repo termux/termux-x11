@@ -5,22 +5,29 @@ import android.content.ClipData;
 import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.database.Cursor;
+import android.provider.DocumentsContract;
+import android.provider.OpenableColumns;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
+import android.net.Uri;
 import android.opengl.GLES20;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.ParcelFileDescriptor;
+import android.os.PersistableBundle;
 import android.text.Editable;
 import android.text.InputType;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.Rational;
 import android.view.KeyEvent;
+import android.webkit.MimeTypeMap;
 import android.view.Display;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -31,15 +38,22 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 import android.view.inputmethod.SurroundingText;
+import android.widget.Toast;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.math.MathUtils;
 
 import com.termux.x11.input.InputStub;
 import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.SamsungDexUtils;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.PatternSyntaxException;
 
@@ -595,25 +609,215 @@ public class LorieView extends SurfaceView implements InputStub {
     // It is used in native code
     void setClipboardText(String text) {
         clipboard.setPrimaryClip(ClipData.newPlainText("X11 clipboard", text));
+        markOwnClipboardWrite();
+    }
 
-        // Android does not send PrimaryClipChanged event to the window which posted event
-        // But in the case we are owning focus and clipboard is unchanged it will be replaced by the same value on X server side.
-        // Not cool in the case if user installed some clipboard manager, clipboard content will be doubled.
+    // It is used in native code. Takes ownership of fd (a shared memory region holding the raw bytes).
+    void setClipboardBlob(String mime, int fd) {
+        Log.d("CLIP", "setClipboardBlob, mime=" + mime + " fd=" + fd);
+        Uri uri = ClipboardDocumentsProvider.publishRawBytes(mime, ParcelFileDescriptor.adoptFd(fd));
+        ClipData clip = new ClipData(new ClipDescription("X11 clipboard", new String[]{mime}),
+                new ClipData.Item(uri));
+        clipboard.setPrimaryClip(clip);
+        markOwnClipboardWrite();
+    }
+
+    // It is used in native code. Takes ownership of each fd (-1 for a directory item). `names[i]`
+    // is '/'-separated, relative to its top-level entry. `generation` isn't a local counter --
+    // see reopenClipboardItem.
+    void setClipboardFileList(String[] names, String[] mimes, long[] sizes, int[] fds, int[] kinds, int generation) {
+        Log.d("CLIP", "setClipboardFileList, " + fds.length + " item(s)");
+        ParcelFileDescriptor[] pfds = new ParcelFileDescriptor[fds.length];
+        String[] resolvedMimes = new String[mimes.length];
+        for (int i = 0; i < fds.length; i++) {
+            boolean isDir = kinds[i] == ClipboardDocumentsProvider.KIND_DIR;
+            pfds[i] = isDir ? null : ParcelFileDescriptor.adoptFd(fds[i]);
+            resolvedMimes[i] = isDir ? DocumentsContract.Document.MIME_TYPE_DIR : resolveMime(mimes[i], names[i]);
+        }
+
+        Uri[] uris = ClipboardDocumentsProvider.publishFiles(names, resolvedMimes, pfds, kinds, generation, mNativeContext);
+        if (uris.length == 0)
+            return;
+
+        // Only top-level entries (no '/' in their path) become their own ClipData item; anything
+        // nested under a directory item is reachable only by navigating into it via the provider.
+        List<String> topLevelMimes = new ArrayList<>();
+        for (int i = 0; i < names.length; i++)
+            if (names[i].indexOf('/') < 0)
+                topLevelMimes.add(resolvedMimes[i]);
+        topLevelMimes.add("text/uri-list");
+
+        ClipDescription description = new ClipDescription("X11 clipboard", topLevelMimes.toArray(new String[0]));
+        // DocumentsUI silently ignores a file-clip paste without a "clipper:opType" extra.
+        PersistableBundle opType = new PersistableBundle();
+        opType.putInt("clipper:opType", 1 /* FileOperationService.OPERATION_COPY */);
+        description.setExtras(opType);
+
+        ClipData clip = new ClipData(description, new ClipData.Item(uris[0]));
+        for (int i = 1; i < uris.length; i++)
+            clip.addItem(new ClipData.Item(uris[i]));
+
+        // A very large selection can blow the ~1 MB binder limit; this runs from native code with
+        // no pending-exception handling there, so an uncaught throw would abort the process.
+        try {
+            clipboard.setPrimaryClip(clip);
+            markOwnClipboardWrite();
+        } catch (RuntimeException e) {
+            Log.e("CLIP", "Failed to publish clipboard file list (" + uris.length + " items)", e);
+        }
+    }
+
+    private static String resolveMime(String mime, String name) {
+        if (mime != null && !mime.isEmpty() && !"application/octet-stream".equals(mime))
+            return mime;
+
+        String ext = MimeTypeMap.getFileExtensionFromUrl(name);
+        String guessed = !ext.isEmpty() ? MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) : null;
+        return guessed != null ? guessed : "application/octet-stream";
+    }
+
+    // Suppresses briefly reflecting our own clipboard write back to the X server.
+    private void markOwnClipboardWrite() {
         lastClipboardTimestamp = System.currentTimeMillis() + 150;
     }
 
     /** @noinspection unused*/ // It is used in native code
     void requestClipboard() {
+        ClipData clipData = clipboardSyncEnabled ? clipboard.getPrimaryClip() : null;
         ClipDescription desc = clipboardSyncEnabled ? clipboard.getPrimaryClipDescription() : null;
+
+        // Prefer a real file reference (X11 file managers need one); a Uri-backed blob of
+        // whatever mime it actually is comes next; plain text is the last resort.
+        if (clipData != null && clipData.getItemCount() > 0 && desc != null) {
+            clipboardDirAccessDenied = false;
+            if (trySendClipboardFileList(clipData, desc))
+                return;
+
+            if (clipboardDirAccessDenied) {
+                Toast.makeText(getContext(), R.string.clipboard_directory_paste_denied, Toast.LENGTH_LONG).show();
+                sendClipboardEvent(mNativeContext, "text/plain", new byte[0]);
+                return;
+            }
+        }
+
+        if (clipData != null && clipData.getItemCount() > 0 && desc != null) {
+            Uri uri = clipData.getItemAt(0).getUri();
+            String mime = desc.getMimeType(0);
+            byte[] data = uri != null ? readClipboardBytes(uri) : null;
+            if (data != null) {
+                sendClipboardEvent(mNativeContext, mime, data);
+                Log.d("CLIP", "sending clipboard blob (" + mime + ", " + data.length + " bytes)");
+                return;
+            }
+        }
+
         boolean isText = desc != null && (desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) || desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_HTML));
-        CharSequence clip = isText ? clipboard.getText() : null;
+        CharSequence clip = isText && clipData != null && clipData.getItemCount() > 0 ? clipData.getItemAt(0).coerceToText(getContext()) : null;
         String text = clip != null ? clip.toString() : "";
 
         // A requesting X11 client blocks on a SelectionNotify, so this must always answer, even
         // with an empty string, or the request is left unresolved.
-        sendClipboardEvent(mNativeContext, text.getBytes(UTF_8));
+        sendClipboardEvent(mNativeContext, "text/plain", text.getBytes(UTF_8));
         if (!text.isEmpty())
             Log.d("CLIP", "sending clipboard contents: " + text);
+    }
+
+    // Set when a clip item is a directory (Android grants read access only to the pasted Uri
+    // itself, never its children); requestClipboard() shows an explanation for this.
+    private boolean clipboardDirAccessDenied = false;
+
+    // Ships every item's fd over the native fd-passing path. Returns false if any item can't be
+    // opened, so the caller falls back to text.
+    private boolean trySendClipboardFileList(ClipData clipData, ClipDescription desc) {
+        int count = clipData.getItemCount();
+        String[] names = new String[count];
+        String[] mimes = new String[count];
+        long[] sizes = new long[count];
+        ParcelFileDescriptor[] pfds = new ParcelFileDescriptor[count];
+
+        for (int i = 0; i < count; i++) {
+            Uri uri = clipData.getItemAt(i).getUri();
+            if (uri == null) {
+                Log.e("CLIP", "clipboard item " + i + " has no uri, falling back to text");
+                closeAll(pfds, i);
+                return false;
+            }
+
+            String mime = i < desc.getMimeTypeCount() ? desc.getMimeType(i) : getContext().getContentResolver().getType(uri);
+            if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) {
+                Log.e("CLIP", "clipboard item " + i + " is a directory, cannot be pasted");
+                closeAll(pfds, i);
+                clipboardDirAccessDenied = true;
+                return false;
+            }
+
+            try {
+                pfds[i] = getContext().getContentResolver().openFileDescriptor(uri, "r");
+            } catch (Exception e) {
+                Log.e("CLIP", "Failed to open clipboard item " + uri, e);
+                pfds[i] = null;
+            }
+            if (pfds[i] == null) {
+                closeAll(pfds, i);
+                return false;
+            }
+
+            String name = queryDisplayName(uri);
+            names[i] = name != null ? name : ("file" + i);
+            mimes[i] = mime != null ? mime : "application/octet-stream";
+            sizes[i] = pfds[i].getStatSize();
+        }
+
+        int[] fds = new int[count];
+        for (int i = 0; i < count; i++)
+            fds[i] = pfds[i].detachFd(); // ownership passes to native from here on
+
+        Log.d("CLIP", "sending clipboard file list (" + count + " items)");
+        sendClipboardFileList(mNativeContext, names, mimes, sizes, fds);
+        return true;
+    }
+
+    @Nullable
+    private String queryDisplayName(Uri uri) {
+        try (Cursor cursor = getContext().getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst())
+                return cursor.getString(0);
+        } catch (Exception e) {
+            Log.e("CLIP", "Failed to query display name for " + uri, e);
+        }
+        return null;
+    }
+
+    private static void closeAll(ParcelFileDescriptor[] pfds, int count) {
+        for (int i = 0; i < count; i++) {
+            try {
+                if (pfds[i] != null)
+                    pfds[i].close();
+            } catch (IOException ignored) {
+            }
+        }
+    }
+
+    @Nullable
+    private byte[] readClipboardBytes(Uri uri) {
+        try (InputStream in = getContext().getContentResolver().openInputStream(uri)) {
+            if (in == null) {
+                Log.e("CLIP", "openInputStream(" + uri + ") returned null");
+                return null;
+            }
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1)
+                out.write(buf, 0, n);
+            byte[] result = out.toByteArray();
+            Log.d("CLIP", "read " + result.length + " bytes from " + uri);
+            return result;
+        } catch (IOException e) {
+            Log.e("CLIP", "Failed to read clipboard item from " + uri, e);
+            return null;
+        }
     }
 
     public void handleClipboardChange() {
@@ -624,11 +828,7 @@ public class LorieView extends SurfaceView implements InputStub {
         ClipDescription desc = clipboard.getPrimaryClipDescription();
         // Below API 26 the clipboard carries no timestamp, so every change looks like a new one.
         long timestamp = desc == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O ? lastClipboardTimestamp + 1 : desc.getTimestamp();
-        if (clipboardSyncEnabled && desc != null &&
-                lastClipboardTimestamp < timestamp &&
-                desc.getMimeTypeCount() == 1 &&
-                (desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) ||
-                        desc.hasMimeType(ClipDescription.MIMETYPE_TEXT_HTML))) {
+        if (clipboardSyncEnabled && desc != null && lastClipboardTimestamp < timestamp) {
             lastClipboardTimestamp = timestamp;
             sendClipboardAnnounce(mNativeContext);
             Log.d("CLIP", "sending clipboard announce");
@@ -689,7 +889,10 @@ public class LorieView extends SurfaceView implements InputStub {
     @FastNative private native void setFiltering(long ptr, int filtering);
     @FastNative private native void setClipboardSyncEnabled(long ptr, boolean enabled, boolean ignored);
     @FastNative private native void sendClipboardAnnounce(long ptr);
-    @FastNative private native void sendClipboardEvent(long ptr, byte[] text);
+    @FastNative private native void sendClipboardEvent(long ptr, String mime, byte[] data);
+    @FastNative private native void sendClipboardFileList(long ptr, String[] names, String[] mimes, long[] sizes, int[] fds);
+    // Blocks for a fresh fd from the X server; off the GUI thread, so not @FastNative/@CriticalNative.
+    static native int reopenClipboardItem(long ptr, int generation, int index);
     @FastNative private native void sendWindowChange(long ptr, int width, int height, int framerate, String name);
     @FastNative private native void setViewport(long ptr, int x, int y, int width, int height, int expectedWidth, int expectedHeight, int hiddenBottom);
     @FastNative private native void setRendererZoom(long ptr, int percent);

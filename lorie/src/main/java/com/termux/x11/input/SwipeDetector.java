@@ -11,20 +11,22 @@ import android.view.ViewConfiguration;
 /**
  * Helper class for disambiguating whether to treat a two-finger gesture as a swipe or a pinch.
  * Initially, the status will be unknown, until the fingers have moved sufficiently far to
- * determine the intent.
+ * determine the intent, and locked in for the rest of the gesture from then on.
  */
 @SuppressWarnings("ConstantConditions")
 public class SwipeDetector {
-    private boolean mInSwipe = false;
+    public static final int UNKNOWN = 0, SWIPE = 1, PINCH = 2;
 
-    /** Initial coordinates of the two pointers in the current gesture. */
+    private int mState = UNKNOWN;
+
+    /** Coordinates of the two pointers at the start of the gesture. */
     private float mFirstX0;
     private float mFirstY0;
     private float mFirstX1;
     private float mFirstY1;
 
     /**
-     * The initial coordinates above are valid when this flag is set. Used to determine whether a
+     * The coordinates above are valid when this flag is set. Used to determine whether a
      * MotionEvent's pointer coordinates are the first ones of the gesture.
      */
     private boolean mInGesture;
@@ -35,7 +37,7 @@ public class SwipeDetector {
     private final int mTouchSlopSquare;
 
     private void reset() {
-        mInSwipe = false;
+        mState = UNKNOWN;
         mInGesture = false;
     }
 
@@ -48,7 +50,12 @@ public class SwipeDetector {
 
     /** Returns whether a swipe is in progress. */
     public boolean isSwiping() {
-        return mInSwipe;
+        return mState == SWIPE;
+    }
+
+    /** Returns whether a pinch is in progress. */
+    public boolean isPinching() {
+        return mState == PINCH;
     }
 
     /**
@@ -76,9 +83,9 @@ public class SwipeDetector {
                 return;
         }
 
-        // If the gesture is known, there is no need for further processing - the state should
-        // remain the same until the gesture is complete, as tested above.
-        if (mInSwipe)
+        // If the gesture is already determined, there is no need for further processing - the
+        // state should remain the same until the gesture is complete, as tested above.
+        if (mState != UNKNOWN)
             return;
 
         float currentX0 = event.getX(0);
@@ -112,7 +119,7 @@ public class SwipeDetector {
         boolean finger0Moved = squaredDistance0 > mTouchSlopSquare;
         boolean finger1Moved = squaredDistance1 > mTouchSlopSquare;
 
-        if ((!finger0Moved && !finger1Moved) || (finger0Moved && !finger1Moved) || (!finger0Moved && finger1Moved))
+        if ((!finger0Moved && !finger1Moved) || (finger0Moved != finger1Moved))
             return;
 
         // Both fingers have moved, so determine SWIPE/PINCH status. If the fingers have moved in
@@ -121,6 +128,6 @@ public class SwipeDetector {
         // vectors are pointing in the same direction, and negative if they're in opposite
         // directions.
         float scalarProduct = deltaX0 * deltaX1 + deltaY0 * deltaY1;
-        mInSwipe = scalarProduct > 0;
+        mState = scalarProduct > 0 ? SWIPE : PINCH;
     }
 }

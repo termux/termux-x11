@@ -254,6 +254,12 @@ int LorieViewResources::xcallback(int fd, int events) {
                 }
                 case EVENT_WINDOW_FOCUS_CHANGED: {
                     env->CallVoidMethod(thiz, MainActivity.resetIme);
+                    break;
+                }
+                case EVENT_SYNC_REPLY: {
+                    jmethodID id = env->GetMethodID(env->GetObjectClass(thiz), "onSyncReply", "(I)V");
+                    env->CallVoidMethod(thiz, id, (jint) e.sync.serial);
+                    break;
                 }
             }
         }
@@ -394,6 +400,25 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
                 auto* r = (LorieViewResources*) ptr;
                 if (!r || r->destroyed) return;
                 r->renderer.setZoom(percent);
+            }},
+            {"setZoomAnchor", "(JFFFF)V", (void *) +[](__unused JNIEnv *env, __unused jobject thiz, jlong ptr, jfloat sourceX, jfloat sourceY, jfloat fracX, jfloat fracY) {
+                auto* r = (LorieViewResources*) ptr;
+                if (!r || r->destroyed) return;
+                r->renderer.setZoomAnchor(sourceX, sourceY, fracX, fracY);
+            }},
+            {"clearZoomAnchor", "(J)V", (void *) +[](__unused JNIEnv *env, __unused jobject thiz, jlong ptr) {
+                auto* r = (LorieViewResources*) ptr;
+                if (!r || r->destroyed) return;
+                r->renderer.clearZoomAnchor();
+            }},
+            {"getCursorPosition", "(J)J", (void *) +[](__unused JNIEnv *env, __unused jobject thiz, jlong ptr) -> jlong {
+                auto* r = (LorieViewResources*) ptr;
+                if (!r || r->destroyed || !r->renderer.state) return 0;
+                return ((jlong) r->renderer.state->cursor.x << 32) | (jlong) r->renderer.state->cursor.y;
+            }},
+            {"sendSync", "(JI)V", (void *) +[](__unused JNIEnv *env, __unused jobject thiz, jlong ptr, jint serial) {
+                auto* r = (LorieViewResources*) ptr;
+                sendEvent(r, .sync = { .t = EVENT_SYNC, .serial = (uint32_t) serial });
             }},
             {"setFiltering", "(JI)V", (void *) +[](__unused JNIEnv* env, __unused jobject self, jlong ptr, jint filtering) {
                 auto* r = (LorieViewResources*) ptr;

@@ -44,6 +44,7 @@ bool lorieConnectionAlive(void);
 extern bool lorieDebugEnabled; // Set in activity.cpp's startLogcat, only called when TERMUX_X11_DEBUG=1.
 void lorieSetRendererWakeupCond(int fd);
 void lorieSetCursorVisible(Bool visible);
+void lorieSendSyncReply(uint32_t serial);
 
 __unused void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled);
 
@@ -109,6 +110,8 @@ typedef enum {
     EVENT_RENDERER_WAKEUP_COND,
     EVENT_GPU_COPY_DONE,
     EVENT_LOCK_KEYS_STATE,
+    EVENT_SYNC,
+    EVENT_SYNC_REPLY,
 } eventType;
 
 typedef union {
@@ -164,6 +167,10 @@ typedef union {
         uint8_t t;
         uint8_t state; // bit0 = Caps Lock, bit1 = Num Lock, bit2 = Scroll Lock
     } lockKeysState;
+    struct {
+        uint8_t t;
+        uint32_t serial;
+    } sync;
 } lorieEvent;
 
 typedef struct { int16_t x1, y1, x2, y2; } LorieGpuCopyRect;
@@ -268,6 +275,9 @@ struct Renderer {
     volatile int viewportX = 0, viewportY = 0, viewportW = 0, viewportH = 0, expectedW = 0, expectedH = 0;
     volatile int hiddenBottom = 0;
     volatile int zoomPercent = 100;
+    // Source point a pinch wants kept at a given viewport fraction. Negative sourceX = no pinch.
+    volatile float pinchAnchorSourceX = -1.f, pinchAnchorSourceY = -1.f;
+    volatile float pinchAnchorFracX = 0.5f, pinchAnchorFracY = 0.5f;
     float panSourceLeft = 0.f, panSourceTop = 0.f;
     float hiddenPanSourceTop = -1.f; // the vertical pan of the other keyboard state, negative until there was one
     bool bottomWasHidden = false;
@@ -327,6 +337,8 @@ struct Renderer {
     void setWindow(JNIEnv* env, jobject jsfc);
     void setViewport(int x, int y, int w, int h, int ew, int eh, int hidden);
     void setZoom(int percent);
+    void setZoomAnchor(float sourceX, float sourceY, float fracX, float fracY);
+    void clearZoomAnchor();
     void releaseWinAndSurface(ANativeWindow** anw, EGLSurface* esfc);
     void refreshContext();
     LorieBuffer* findBufferWithRetry(uint64_t id);

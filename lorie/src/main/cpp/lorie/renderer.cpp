@@ -656,6 +656,27 @@ void Renderer::setZoom(int percent) {
     pthread_mutex_unlock(&stateLock);
 }
 
+void Renderer::setZoomAnchor(float sourceX, float sourceY, float fracX, float fracY) {
+    pthread_mutex_lock(&stateLock);
+    pinchAnchorSourceX = sourceX;
+    pinchAnchorSourceY = sourceY;
+    pinchAnchorFracX = fracX;
+    pinchAnchorFracY = fracY;
+    if (state)
+        state->drawRequested = true;
+    pthread_cond_signal(stateCond);
+    pthread_mutex_unlock(&stateLock);
+}
+
+void Renderer::clearZoomAnchor() {
+    pthread_mutex_lock(&stateLock);
+    pinchAnchorSourceX = -1.f;
+    if (state)
+        state->drawRequested = true;
+    pthread_cond_signal(stateCond);
+    pthread_mutex_unlock(&stateLock);
+}
+
 void Renderer::refreshContext() {
     int width = pendingWin ? ANativeWindow_getWidth(pendingWin) : 0;
     int height = pendingWin ? ANativeWindow_getHeight(pendingWin) : 0;
@@ -959,12 +980,17 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
 
     auto cursorX = (float) state->cursor.x, cursorY = (float) state->cursor.y; // snapshot, cursor.x/y is updated lock-free
 
-    // The buffer can be a few pixels narrower than the screen because of the mode granularity,
-    // so panning horizontally only makes sense when zoomed in.
-    panSourceLeft = zoomPercent > 100
-                    ? panToCursor(panSourceLeft, cursorX, sourceWidth, (float) expectedW) : 0.f;
-    panSourceTop = sourceHeight < (float) expectedH
-                   ? panToCursor(panSourceTop, cursorY, sourceHeight, (float) expectedH) : 0.f;
+    if (pinchAnchorSourceX >= 0.f) {
+        panSourceLeft = fmaxf(0.f, fminf(pinchAnchorSourceX - pinchAnchorFracX * sourceWidth, (float) expectedW - sourceWidth));
+        panSourceTop = fmaxf(0.f, fminf(pinchAnchorSourceY - pinchAnchorFracY * sourceHeight, (float) expectedH - sourceHeight));
+    } else {
+        // The buffer can be a few pixels narrower than the screen because of the mode granularity,
+        // so panning horizontally only makes sense when zoomed in.
+        panSourceLeft = zoomPercent > 100
+                        ? panToCursor(panSourceLeft, cursorX, sourceWidth, (float) expectedW) : 0.f;
+        panSourceTop = sourceHeight < (float) expectedH
+                       ? panToCursor(panSourceTop, cursorY, sourceHeight, (float) expectedH) : 0.f;
+    }
     float sourceLeft = panSourceLeft, sourceTop = panSourceTop;
 
     glDisable(GL_SCISSOR_TEST);

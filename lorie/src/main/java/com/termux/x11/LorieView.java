@@ -8,7 +8,9 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Point;
+import android.graphics.PointF;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.drawable.ColorDrawable;
 import android.opengl.GLES20;
 import android.os.Build;
@@ -52,7 +54,7 @@ import dalvik.annotation.optimization.FastNative;
 @Keep @SuppressLint("WrongConstant")
 @SuppressWarnings("deprecation")
 public class LorieView extends SurfaceView implements InputStub {
-    private static int rendererZoom = 100;
+    private static float rendererZoom = 100f;
     private static final Rect NO_INSETS = new Rect();
 
     public interface Callback {
@@ -703,6 +705,10 @@ public class LorieView extends SurfaceView implements InputStub {
     @FastNative private native void sendWindowChange(long ptr, int width, int height, int framerate, String name);
     @FastNative private native void setViewport(long ptr, int x, int y, int width, int height, int expectedWidth, int expectedHeight, int hiddenBottom);
     @FastNative private native void setRendererZoom(long ptr, int percent);
+    @FastNative private native void setZoomAnchor(long ptr, float sourceX, float sourceY, float fracX, float fracY);
+    @FastNative private native void clearZoomAnchor(long ptr);
+    @FastNative private native long getCursorPosition(long ptr);
+    @FastNative private native void sendSync(long ptr, int serial);
 
     // Public API stays free of the native pointer; it's threaded through to an overload below.
     public void connect(int fd) { connect(mNativeContext, fd); }
@@ -716,18 +722,71 @@ public class LorieView extends SurfaceView implements InputStub {
 
     public void adjustRendererZoom(int delta) {
         rendererZoom = MathUtils.clamp(rendererZoom + delta, 100, 400);
-        setRendererZoom(mNativeContext, rendererZoom);
+        setRendererZoom(mNativeContext, Math.round(rendererZoom));
+    }
+
+    /** Multiplies the current zoom by {@code factor}; returns the resulting percentage (100-400). */
+    public int adjustRendererZoomByFactor(float factor) {
+        rendererZoom = MathUtils.clamp(rendererZoom * factor, 100f, 400f);
+        setRendererZoom(mNativeContext, Math.round(rendererZoom));
+        return Math.round(rendererZoom);
+    }
+
+    /** Pins a source point to a fraction of the viewport, so pan follows a pinch instead of the cursor. */
+    public void setPinchZoomFocus(float sourceX, float sourceY, float fracX, float fracY) {
+        setZoomAnchor(mNativeContext, sourceX, sourceY, fracX, fracY);
+    }
+
+    /** Resumes normal cursor-following pan once a pinch ends. */
+    public void clearPinchZoomFocus() {
+        clearZoomAnchor(mNativeContext);
+    }
+
+    /** The real X11 pointer position - unlike RenderData's copy, always accurate in trackpad mode. */
+    public PointF getRealCursorPosition() {
+        long packed = getCursorPosition(mNativeContext);
+        return new PointF((float) (packed >>> 32), (float) (packed & 0xFFFFFFFFL));
+    }
+
+    public interface SyncListener { void onSyncReply(int serial); }
+    private SyncListener mSyncListener;
+
+    /** Notifies {@code listener} once a barrier sent via {@link #sendSync} has been applied server-side. */
+    public void setSyncListener(SyncListener listener) {
+        mSyncListener = listener;
+    }
+
+    /** Asks the X server to echo {@code serial} back once every event sent before this one has actually been applied. */
+    public void sendSync(int serial) {
+        sendSync(mNativeContext, serial);
+    }
+
+    @Keep
+    @SuppressWarnings("unused")
+    private void onSyncReply(int serial) {
+        if (mSyncListener != null)
+            mSyncListener.onSyncReply(serial);
+    }
+
+    /** The portion of the X11 screen currently visible, in X11 screen coordinates. */
+    public RectF getInputSourceRect() {
+        return new RectF(inputSourceLeft, inputSourceTop, inputSourceLeft + inputSourceWidth, inputSourceTop + inputSourceHeight);
+    }
+
+    /** The on-screen rect the picture is drawn into; stable across pan/zoom, unlike getInputSourceRect(). */
+    public Rect getInputViewport() {
+        return new Rect(inputViewport);
     }
 
     public void resetRendererZoom() {
-        rendererZoom = 100;
-        setRendererZoom(mNativeContext, rendererZoom);
+        rendererZoom = 100f;
+        setRendererZoom(mNativeContext, Math.round(rendererZoom));
     }
 
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode) {
         freezeDimensions(isInPictureInPictureMode);
         // Zooming a floating window makes no sense, but the zoom is restored along with the size.
-        setRendererZoom(mNativeContext, isInPictureInPictureMode ? 100 : rendererZoom);
+        setRendererZoom(mNativeContext, isInPictureInPictureMode ? 100 : Math.round(rendererZoom));
     }
 
     public void sendMouseEvent(float x, float y, int whichButton, boolean buttonDown, boolean relative) { sendMouseEvent(mNativeContext, x, y, whichButton, buttonDown, relative); }

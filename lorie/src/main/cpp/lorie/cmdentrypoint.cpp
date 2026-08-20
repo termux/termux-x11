@@ -61,7 +61,7 @@ Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjec
 
         while (fgets(line, sizeof(line), fp)) {
             if (strncmp(line, "TracerPid:", 10) == 0) {
-                sscanf(line+10, "%d", &pid);
+                pid = (int) strtol(line + 10, nullptr, 10);
                 break;
             }
         }
@@ -352,12 +352,12 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                         QueuePointerEvents(lorieMouse, e.mouse.down ? ButtonPress : ButtonRelease, e.mouse.detail, POINTER_RELATIVE, nullptr);
                         break;
                     case 4: // BUTTON_SCROLL
-                        if (e.mouse.x) {
+                        if (e.mouse.x != 0.0f) {
                             valuator_mask_zero(&mask);
                             valuator_mask_set_double(&mask, 2, (double) e.mouse.x / 120);
                             QueuePointerEvents(lorieMouse, MotionNotify, 0, POINTER_RELATIVE, &mask);
                         }
-                        if (e.mouse.y) {
+                        if (e.mouse.y != 0.0f) {
                             valuator_mask_zero(&mask);
                             valuator_mask_set_double(&mask, 3, (double) e.mouse.y / 120);
                             QueuePointerEvents(lorieMouse, MotionNotify, 0, POINTER_RELATIVE, &mask);

@@ -1,17 +1,16 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
+#include <cstdio>
+#include <cstdlib>
 #include <unistd.h>
-#include <string.h>
+#include <cstring>
 #include <pthread.h>
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/mman.h>
-#include <errno.h>
+#include <cerrno>
 #include <jni.h>
 #include <android/looper.h>
-#include <wchar.h>
+#include <cwchar>
 #include <linux/in.h>
 #include <arpa/inet.h>
 #include <poll.h>
@@ -31,7 +30,7 @@ bool lorieDebugEnabled = false;
 // from the Android main thread via JNI.
 static volatile int64_t lastInputTimestampMs = 0;
 
-static int64_t nowMs(void) {
+static int64_t nowMs() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (int64_t) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
@@ -40,25 +39,25 @@ static int64_t nowMs(void) {
 static struct {
     jclass self;
     jmethodID getInstance, clientConnectedStateChanged, resetIme;
-} MainActivity = {0};
+} MainActivity = {nullptr};
 
 static struct {
     jclass self;
     jmethodID forName;
     jmethodID decode;
-} Charset = {0};
+} Charset = {nullptr};
 
 static struct {
     jclass self;
     jmethodID toString;
-} CharBuffer = {0};
+} CharBuffer = {nullptr};
 
 // Bundles the native state belonging to the current LorieView instance so it can be released
 // as a unit when that instance is torn down, instead of leaking as scattered process globals.
 struct LorieViewResources {
     Renderer renderer;
-    JNIEnv* env = NULL;    // GUI-thread JNIEnv. Must be used only in GUI thread.
-    jobject thiz = NULL;   // global ref to the owning LorieView
+    JNIEnv* env = nullptr;    // GUI-thread JNIEnv. Must be used only in GUI thread.
+    jobject thiz = nullptr;   // global ref to the owning LorieView
     volatile int connFd = -1;
     bool destroyed = true;
 
@@ -75,7 +74,7 @@ static jclass FindClassOrDie(JNIEnv *env, const char* name) {
         sprintf(buffer, "class %s not found", name);
         log(ERROR, "%s", buffer);
         env->FatalError(buffer);
-        return NULL;
+        return nullptr;
     }
 
     return (jclass) env->NewGlobalRef(clazz);
@@ -88,12 +87,13 @@ static jmethodID FindMethodOrDie(JNIEnv *env, jclass clazz, const char* name, co
         sprintf(buffer, "method %s %s not found", name, signature);
         log(ERROR, "%s", buffer);
         env->FatalError(buffer);
-        return NULL;
+        return nullptr;
     }
 
     return method;
 }
 
+// @CriticalNative: no implicit JNIEnv*/jclass, unlike the @FastNative entries below.
 static jboolean requestConnection(__unused jlong ptr) {
 #define check(cond, fmt, ...) if ((cond)) do { __android_log_print(ANDROID_LOG_ERROR, "requestConnection", fmt, ## __VA_ARGS__); goto end; } while (0)
     bool sent = JNI_FALSE;
@@ -156,7 +156,7 @@ LorieViewResources::LorieViewResources(JNIEnv *callerEnv, jobject view) {
     renderer.connFdPtr = &connFd; // lets the renderer thread wake up a GPU copy waiter
 
     callerEnv->GetJavaVM(&vm);
-    vm->AttachCurrentThread(&env, NULL);
+    vm->AttachCurrentThread(&env, nullptr);
     thiz = env->NewGlobalRef(view);
     connect(-1);
 }
@@ -174,7 +174,7 @@ LorieViewResources::~LorieViewResources() {
 
     if (thiz) {
         env->DeleteGlobalRef(thiz);
-        thiz = NULL;
+        thiz = nullptr;
     }
 }
 
@@ -187,7 +187,7 @@ int LorieViewResources::xcallback(int fd, int events) {
         ALooper_removeFd(ALooper_forThread(), fd);
         close(connFd);
         connFd = -1;
-        renderer.setSharedState(NULL);
+        renderer.setSharedState(nullptr);
         renderer.removeAllBuffers();
         log(DEBUG, "disconnected");
         return 1;
@@ -213,7 +213,7 @@ int LorieViewResources::xcallback(int fd, int events) {
                     jobject cb = env->CallObjectMethod(charset, Charset.decode, bb);
                     env->DeleteLocalRef(bb);
 
-                    jstring str = (jstring) env->CallObjectMethod(cb, CharBuffer.toString);
+                    auto str = (jstring) env->CallObjectMethod(cb, CharBuffer.toString);
                     env->CallVoidMethod(thiz, id, str);
                     break;
                 }
@@ -222,16 +222,16 @@ int LorieViewResources::xcallback(int fd, int events) {
                     break;
                 }
                 case EVENT_SHARED_SERVER_STATE: {
-                    struct lorie_shared_server_state* state = NULL;
+                    struct lorie_shared_server_state* state = nullptr;
                     int stateFd = ancil_recv_fd(connFd);
 
                     if (stateFd < 0)
                         break;
 
-                    state = (struct lorie_shared_server_state*) mmap(NULL, sizeof(*state), PROT_READ|PROT_WRITE, MAP_SHARED, stateFd, 0);
+                    state = (struct lorie_shared_server_state*) mmap(nullptr, sizeof(*state), PROT_READ|PROT_WRITE, MAP_SHARED, stateFd, 0);
                     if (!state || state == MAP_FAILED) {
                         log(ERROR, "Failed to map server state: %s", strerror(errno));
-                        state = NULL;
+                        state = nullptr;
                     }
 
                     renderer.setSharedState(state);
@@ -240,7 +240,7 @@ int LorieViewResources::xcallback(int fd, int events) {
                     break;
                 }
                 case EVENT_ADD_BUFFER: {
-                    static LorieBuffer* buffer = NULL;
+                    static LorieBuffer* buffer = nullptr;
                     const LorieBuffer_Desc* desc;
                     LorieBuffer_recvHandleFromUnixSocket(connFd, &buffer);
                     desc = LorieBuffer_description(buffer);
@@ -270,7 +270,7 @@ void LorieViewResources::connect(jint fd) {
     if (connFd != -1) {
         ALooper_removeFd(ALooper_forThread(), connFd);
         close(connFd);
-        renderer.setSharedState(NULL);
+        renderer.setSharedState(nullptr);
         renderer.removeAllBuffers();
         log(DEBUG, "disconnected");
     }
@@ -313,7 +313,7 @@ static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jlong ptr, jbyteAr
     auto* r = (LorieViewResources*) ptr;
     if (r && r->connFd != -1 && text) {
         jsize length = env->GetArrayLength(text);
-        jbyte *str = env->GetByteArrayElements(text, NULL);
+        jbyte *str = env->GetByteArrayElements(text, nullptr);
         char *p = (char*) str;
         mbstate_t mbstate = { 0 };
         if (!length)
@@ -399,7 +399,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
                 auto* r = (LorieViewResources*) ptr;
                 if (r && r->connFd != -1 && text) {
                     jsize length = env->GetArrayLength(text);
-                    jbyte* str = env->GetByteArrayElements(text, NULL);
+                    jbyte* str = env->GetByteArrayElements(text, nullptr);
                     sendEvent(r, .clipboardSend = { .t = EVENT_CLIPBOARD_SEND, .count = (uint32_t) length });
                     write(r->connFd, str, length);
                     env->ReleaseByteArrayElements(text, str, JNI_ABORT);
@@ -408,7 +408,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
             {"sendWindowChange", "(JIIILjava/lang/String;)V", (void *) +[](__unused JNIEnv* env, __unused jobject cls, jlong ptr, jint width, jint height, jint framerate, jstring jname) {
                 auto* r = (LorieViewResources*) ptr;
                 if (r && r->connFd != -1) {
-                    const char *name = (!jname || width <= 0 || height <= 0) ? NULL : env->GetStringUTFChars(jname, JNI_FALSE);
+                    const char *name = (!jname || width <= 0 || height <= 0) ? nullptr : env->GetStringUTFChars(jname, JNI_FALSE);
                     sendEvent(r, .screenSize = { .t = EVENT_SCREEN_SIZE, .width = (uint16_t) width, .height = (uint16_t) height, .framerate = (uint16_t) framerate, .name_size = (name ? strlen(name) : 0) });
                     if (name) {
                         write(r->connFd, name, strlen(name));
@@ -465,7 +465,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
                 lastInputTimestampMs = nowMs();
             }},
     };
-    vm->AttachCurrentThread(&env, NULL);
+    vm->AttachCurrentThread(&env, nullptr);
     jclass cls = env->FindClass("com/termux/x11/LorieView");
     env->RegisterNatives(cls, methods, sizeof(methods)/sizeof(methods[0]));
 
@@ -478,7 +478,7 @@ static void* stderrToLogcatThread(__unused void* cookie) {
     FILE *fp;
     int p[2];
     size_t len;
-    char *line = NULL;
+    char *line = nullptr;
     pipe(p);
 
     fp = fdopen(p[0], "r");
@@ -489,12 +489,12 @@ static void* stderrToLogcatThread(__unused void* cookie) {
         log(DEBUG, "%s%s", line, (line[len - 1] == '\n') ? "" : "\n");
     }
 
-    return NULL;
+    return nullptr;
 }
 
 extern char* __progname;
-__attribute__((constructor)) static void init(void) {
+__attribute__((constructor)) static void init() {
     pthread_t t;
     if (!strcmp(__progname, "com.termux.x11"))
-        pthread_create(&t, NULL, stderrToLogcatThread, NULL);
+        pthread_create(&t, nullptr, stderrToLogcatThread, nullptr);
 }

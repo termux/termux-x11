@@ -255,9 +255,9 @@ struct Renderer {
     EGLDisplay egl_display = EGL_NO_DISPLAY;
     EGLContext ctx = EGL_NO_CONTEXT;
     EGLSurface defaultSfc = EGL_NO_SURFACE, sfc = EGL_NO_SURFACE;
-    EGLConfig cfg = 0;
+    EGLConfig cfg = nullptr;
     ANativeWindow *defaultWin = nullptr, *win = nullptr;
-    struct xorg_list addedBuffers, buffers, removedBuffers;
+    struct xorg_list addedBuffers{}, buffers{}, removedBuffers{};
     volatile jint filtering = GL_NEAREST;
 
     pthread_t thread = 0;
@@ -278,12 +278,12 @@ struct Renderer {
     int reportedViewportX = -1, reportedViewportY = -1, reportedViewportW = -1, reportedViewportH = -1;
     float reportedSourceLeft = -1.f, reportedSourceTop = -1.f, reportedSourceWidth = -1.f, reportedSourceHeight = -1.f;
 
-    pthread_mutex_t stateLock;
+    pthread_mutex_t stateLock{};
     // Shared with the X server so it can signal us directly. Only this thread ever waits on it, so stateLock
     // (the companion mutex) doesn't need to be shared too.
     pthread_cond_t* stateCond = nullptr;
-    pthread_cond_t stateChangeFinishCond;
-    pthread_spinlock_t bufferLock;
+    pthread_cond_t stateChangeFinishCond{};
+    pthread_spinlock_t bufferLock{};
     int stateCondFd = -1;
     struct lorie_shared_server_state* state = nullptr;
     struct {
@@ -336,7 +336,7 @@ struct Renderer {
     bool shouldWait(bool* waitingForBuffers);
     void threadLoop();
     void bindTexture(GLuint id) const;
-    void notifyGpuCopyDone();
+    void notifyGpuCopyDone() const;
     void reportViewport(int dstX, int dstY, int dstW, int dstH, float left, float top, float width, float height);
     void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip);
     void drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop, float cursorX, float cursorY);

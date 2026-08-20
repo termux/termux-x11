@@ -7,6 +7,7 @@
 #pragma ide diagnostic ignored "OCUnusedMacroInspection"
 #pragma ide diagnostic ignored "misc-no-recursion"
 #pragma ide diagnostic ignored "readability-redundant-declaration"
+#pragma ide diagnostic ignored "bugprone-reserved-identifier"
 #pragma clang diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
 #define EGL_EGLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES
@@ -122,7 +123,7 @@ static const char fragmentShaderBgraSrc[] = FRAGMENT_SHADER(".bgra");
 
 // Notifies activity.cpp's end of the GUI<->X server socket immediately when a GPU copy batch
 // finishes, instead of it waiting for the next vblank-tick poll.
-void Renderer::notifyGpuCopyDone() {
+void Renderer::notifyGpuCopyDone() const {
     if (connFdPtr && *connFdPtr != -1) {
         lorieEvent e = { .type = EVENT_GPU_COPY_DONE };
         write(*connFdPtr, &e, sizeof(e));
@@ -354,8 +355,8 @@ void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) 
             .width = 64,
             .height = 64,
             .layers = 1,
-            .usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
-            .format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM
+            .format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM,
+            .usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN
     };
 
     if (!__builtin_available(android 26, *)) {
@@ -411,7 +412,7 @@ void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) 
                 union {
                     uint8_t buf[CMSG_SPACE(32 * sizeof(int))];
                     struct cmsghdr align;
-                } control;
+                } control = {};
                 struct iovec iov = { .iov_base = data, .iov_len = sizeof(data) };
                 struct msghdr msg = {
                     .msg_iov = &iov, .msg_iovlen = 1,
@@ -918,14 +919,14 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
         if (destinationScaleY < 1.f)
             destinationScaleY = 1.f;
 
-        renderViewportW = (int) ((float) viewportW * destinationScaleX + 0.5f);
-        renderViewportH = (int) ((float) viewportH * destinationScaleY + 0.5f);
-        renderViewportX = (int) (centerX - (float) renderViewportW / 2.f + 0.5f);
-        renderViewportY = (int) (centerY - (float) renderViewportH / 2.f + 0.5f);
+        renderViewportW = (int) lroundf((float) viewportW * destinationScaleX);
+        renderViewportH = (int) lroundf((float) viewportH * destinationScaleY);
+        renderViewportX = (int) lroundf(centerX - (float) renderViewportW / 2.f);
+        renderViewportY = (int) lroundf(centerY - (float) renderViewportH / 2.f);
     }
 
-    float sourceWidth = (float) desc->width, sourceHeight = (float) desc->height;
-    float logicalSourceWidth = (float) expectedW, logicalSourceHeight = (float) expectedH;
+    auto sourceWidth = (float) desc->width, sourceHeight = (float) desc->height;
+    auto logicalSourceWidth = (float) expectedW, logicalSourceHeight = (float) expectedH;
     if (zoomPercent > 100) {
         float requestedScale = (float) zoomPercent / 100.f;
         sourceWidth = (float) expectedW * destinationScaleX / requestedScale;
@@ -956,7 +957,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
             panSourceTop = other;
     }
 
-    float cursorX = (float) state->cursor.x, cursorY = (float) state->cursor.y; // snapshot, cursor.x/y is updated lock-free
+    auto cursorX = (float) state->cursor.x, cursorY = (float) state->cursor.y; // snapshot, cursor.x/y is updated lock-free
 
     // The buffer can be a few pixels narrower than the screen because of the mode granularity,
     // so panning horizontally only makes sense when zoomed in.

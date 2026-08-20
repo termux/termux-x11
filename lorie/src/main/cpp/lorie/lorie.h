@@ -109,6 +109,7 @@ typedef enum {
     EVENT_RENDERER_WAKEUP_COND,
     EVENT_GPU_COPY_DONE,
     EVENT_LOCK_KEYS_STATE,
+    EVENT_RING_BELL,
 } eventType;
 
 typedef union {

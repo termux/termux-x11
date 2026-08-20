@@ -450,6 +450,13 @@ void lorieRequestClipboard(void) {
     }
 }
 
+extern "C" void DDXRingBell(int volume, __unused int pitch, __unused int duration) {
+    if (volume && conn_fd != -1) {
+        lorieEvent e = { .type = EVENT_RING_BELL };
+        write(conn_fd, &e, sizeof(e));
+    }
+}
+
 bool lorieConnectionAlive(void) {
     if (conn_fd == -1)
         return false;

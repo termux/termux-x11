@@ -10,11 +10,16 @@ import android.graphics.Matrix;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
+import android.media.AudioManager;
+import android.media.ToneGenerator;
 import android.opengl.GLES20;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.os.VibratorManager;
 import android.text.Editable;
 import android.text.InputType;
 import android.util.AttributeSet;
@@ -681,6 +686,34 @@ public class LorieView extends SurfaceView implements InputStub {
             else
                 mIMM.restartInput(this);
         }, 10);
+    }
+
+    /**
+     * X11 bell (XBell/XKB), forwarded from the X server over the native connection.
+     * It is called from native code, not from Java.
+     * @noinspection unused
+     */
+    @Keep void ringBell() {
+        Vibrator vibrator = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                ? ((VibratorManager) getContext().getSystemService(Context.VIBRATOR_MANAGER_SERVICE)).getDefaultVibrator()
+                : (Vibrator) getContext().getSystemService(Context.VIBRATOR_SERVICE);
+        if (vibrator != null && vibrator.hasVibrator()) {
+            // Two short pulses, so it does not read as a single IME key-tap haptic.
+            long[] pattern = { 0, 80, 60, 80 };
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1));
+            else
+                vibrator.vibrate(pattern, -1);
+            return;
+        }
+
+        try {
+            ToneGenerator tone = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, ToneGenerator.MAX_VOLUME);
+            tone.startTone(ToneGenerator.TONE_PROP_BEEP, 150);
+            postDelayed(tone::release, 200);
+        } catch (RuntimeException e) {
+            Log.w("LorieView", "Failed to play bell tone", e);
+        }
     }
 
     @FastNative private native long nativeInit();

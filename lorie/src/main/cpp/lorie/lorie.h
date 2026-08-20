@@ -339,7 +339,7 @@ struct Renderer {
     void notifyGpuCopyDone();
     void reportViewport(int dstX, int dstY, int dstW, int dstH, float left, float top, float width, float height);
     void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip);
-    void drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop);
+    void drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop, float cursorX, float cursorY);
 };
 #endif
 

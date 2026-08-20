@@ -956,12 +956,14 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
             panSourceTop = other;
     }
 
+    float cursorX = (float) state->cursor.x, cursorY = (float) state->cursor.y; // snapshot, cursor.x/y is updated lock-free
+
     // The buffer can be a few pixels narrower than the screen because of the mode granularity,
     // so panning horizontally only makes sense when zoomed in.
     panSourceLeft = zoomPercent > 100
-                    ? panToCursor(panSourceLeft, (float) state->cursor.x, sourceWidth, (float) expectedW) : 0.f;
+                    ? panToCursor(panSourceLeft, cursorX, sourceWidth, (float) expectedW) : 0.f;
     panSourceTop = sourceHeight < (float) expectedH
-                   ? panToCursor(panSourceTop, (float) state->cursor.y, sourceHeight, (float) expectedH) : 0.f;
+                   ? panToCursor(panSourceTop, cursorY, sourceHeight, (float) expectedH) : 0.f;
     float sourceLeft = panSourceLeft, sourceTop = panSourceTop;
 
     glDisable(GL_SCISSOR_TEST);
@@ -1000,7 +1002,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     }
 
     state->cursor.moved = FALSE;
-    drawCursor(sourceWidth, sourceHeight, sourceLeft, sourceTop);
+    drawCursor(sourceWidth, sourceHeight, sourceLeft, sourceTop, cursorX, cursorY);
     glFlush();
 
     // Wait until root window drawing is finished before giving control back to X server
@@ -1233,14 +1235,14 @@ void Renderer::drawRegion(GLuint id, float x0, float y0, float x1, float y1, flo
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); checkGlError();
 }
 
-void Renderer::drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop) {
+void Renderer::drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop, float cursorX, float cursorY) {
     float x, y, w, h;
 
     if (!state->cursor.width || !state->cursor.height || !state->cursor.visible)
         return;
 
-    x = 2.f * ((float) state->cursor.x - sourceLeft - (float) state->cursor.xhot) / displayWidth - 1.f;
-    y = 2.f * ((float) state->cursor.y - sourceTop - (float) state->cursor.yhot) / displayHeight - 1.f;
+    x = 2.f * (cursorX - sourceLeft - (float) state->cursor.xhot) / displayWidth - 1.f;
+    y = 2.f * (cursorY - sourceTop - (float) state->cursor.yhot) / displayHeight - 1.f;
     w = 2.f * (float) state->cursor.width / displayWidth;
     h = 2.f * (float) state->cursor.height / displayHeight;
     glEnable(GL_BLEND);

@@ -3,6 +3,7 @@
 #pragma ide diagnostic ignored "ConstantParameter"
 #pragma ide diagnostic ignored "OCUnusedGlobalDeclarationInspection"
 #pragma ide diagnostic ignored "OCUnusedMacroInspection"
+#pragma ide diagnostic ignored "readability-redundant-declaration"
 #define EGL_EGLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES
 #define __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__
@@ -99,7 +100,7 @@ int LorieBuffer_createRegion(char const* name, size_t size) {
 
     fd = memfd_create(name, MFD_CLOEXEC|MFD_ALLOW_SEALING);
     if (fd >= 0) {
-        ftruncate (fd, size);
+        ftruncate (fd, (off_t) size);
         return fd;
     }
 
@@ -157,9 +158,9 @@ static LorieBuffer* allocate(int32_t width, int32_t stride, int32_t height, int8
 
             if (__builtin_available(android 26, *))
                 AHardwareBuffer_describe(b.desc.buffer, &desc);
-            b.desc.width = desc.width;
-            b.desc.height = desc.height;
-            b.desc.stride = desc.stride;
+            b.desc.width = (int32_t) desc.width;
+            b.desc.height = (int32_t) desc.height;
+            b.desc.stride = (int32_t) desc.stride;
             b.desc.format = desc.format;
             break;
         }
@@ -268,14 +269,14 @@ __LIBC_HIDDEN__ void LorieBuffer_convert(LorieBuffer* buffer, int8_t type, int8_
 
         if (__builtin_available(android 26, *)) {
             if (AHardwareBuffer_lock(b, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1, NULL, &data) == 0) {
-                pixman_blt(buffer->desc.data, data, buffer->desc.stride, desc.stride, 32, 32, 0, 0, 0, 0, buffer->desc.width, buffer->desc.height);
+                pixman_blt(buffer->desc.data, data, buffer->desc.stride, (int) desc.stride, 32, 32, 0, 0, 0, 0, buffer->desc.width, buffer->desc.height);
                 AHardwareBuffer_unlock(b, NULL);
             }
         }
 
         buffer->desc.type = type;
         buffer->desc.format = format;
-        buffer->desc.stride = desc.stride;
+        buffer->desc.stride = (int32_t) desc.stride;
         buffer->desc.buffer = b;
         free(buffer->desc.data);
         buffer->desc.data = NULL;
@@ -471,14 +472,6 @@ __LIBC_HIDDEN__ void LorieBuffer_bindTexture(LorieBuffer *buffer) {
 
 __LIBC_HIDDEN__ unsigned int LorieBuffer_getGLTextureId(LorieBuffer *buffer) {
     return buffer ? buffer->id : 0;
-}
-
-__LIBC_HIDDEN__ int LorieBuffer_getWidth(LorieBuffer *buffer) {
-    return LorieBuffer_description(buffer)->width;
-}
-
-__LIBC_HIDDEN__ int LorieBuffer_getHeight(LorieBuffer *buffer) {
-    return LorieBuffer_description(buffer)->height;
 }
 
 __LIBC_HIDDEN__ bool LorieBuffer_isRgba(LorieBuffer *buffer) {

@@ -194,22 +194,6 @@ void LorieBuffer_bindTexture(LorieBuffer* _Nullable buffer);
 unsigned int LorieBuffer_getGLTextureId(LorieBuffer* _Nullable buffer);
 
 /**
- * Get width of the buffer.
- *
- * @param buffer
- * @return
- */
-
-int LorieBuffer_getWidth(LorieBuffer* _Nullable buffer);
-/**
- * Get height of the buffer.
- *
- * @param buffer
- * @return
- */
-int LorieBuffer_getHeight(LorieBuffer* _Nullable buffer);
-
-/**
  * Check if the buffer is RGBA.
  *
  * @param buffer

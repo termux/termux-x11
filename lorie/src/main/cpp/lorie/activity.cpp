@@ -346,8 +346,32 @@ static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jlong ptr, jbyteAr
     }
 }
 
+extern char* __progname;
+
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
     JNIEnv* env;
+
+    if (!strcmp(__progname, "com.termux.x11")) {
+        // Redirects stderr to logcat.
+        pthread_create([]{ static pthread_t t; return &t; }(), nullptr, +[](__unused void* cookie) -> void* {
+            FILE *fp;
+            int p[2];
+            size_t len;
+            char *line = nullptr;
+            pipe(p);
+
+            fp = fdopen(p[0], "r");
+
+            dup2(p[1], 2);
+            dup2(p[1], 1);
+            while ((getline(&line, &len, fp)) != -1) {
+                log(DEBUG, "%s%s", line, (line[len - 1] == '\n') ? "" : "\n");
+            }
+
+            return nullptr;
+        }, nullptr);
+    }
+
     static JNINativeMethod methods[] = {
             {"nativeInit", "()J", (void *)&nativeInit},
             {"nativeDestroy", "(J)V", (void *) +[](__unused JNIEnv *env, __unused jobject thiz, jlong ptr) {
@@ -470,31 +494,4 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
     env->RegisterNatives(cls, methods, sizeof(methods)/sizeof(methods[0]));
 
     return JNI_VERSION_1_6;
-}
-
-
-// It is needed to redirect stderr to logcat
-static void* stderrToLogcatThread(__unused void* cookie) {
-    FILE *fp;
-    int p[2];
-    size_t len;
-    char *line = nullptr;
-    pipe(p);
-
-    fp = fdopen(p[0], "r");
-
-    dup2(p[1], 2);
-    dup2(p[1], 1);
-    while ((getline(&line, &len, fp)) != -1) {
-        log(DEBUG, "%s%s", line, (line[len - 1] == '\n') ? "" : "\n");
-    }
-
-    return nullptr;
-}
-
-extern char* __progname;
-__attribute__((constructor)) static void init() {
-    pthread_t t;
-    if (!strcmp(__progname, "com.termux.x11"))
-        pthread_create(&t, nullptr, stderrToLogcatThread, nullptr);
 }

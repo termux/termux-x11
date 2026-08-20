@@ -180,6 +180,19 @@
  _XFUNCPROTOBEGIN
  
  extern _X_EXPORT char *XkbIndentText(unsigned   /* size */
++++ ./os/connection.c
+@@ -185,9 +185,10 @@
+ {
+ #if !defined(WIN32)
+     OsSigHandlerPtr handler;
++    const char *notifyParent = getenv("TERMUX_X11_NOTIFY_PARENT");
+ 
+     handler = OsSignal(SIGUSR1, SIG_IGN);
+-    if (handler == SIG_IGN)
++    if (handler == SIG_IGN || (notifyParent && !strcmp(notifyParent, "1")))
+         RunFromSmartParent = TRUE;
+     OsSignal(SIGUSR1, handler);
+     ParentProcess = getppid();
 +++ ./os/osinit.c
 @@ -170,13 +170,11 @@
  #endif

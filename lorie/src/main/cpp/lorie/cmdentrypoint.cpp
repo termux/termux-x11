@@ -47,9 +47,14 @@ char *xtrans_unix_dir_x11 = nullptr;
 struct xorg_list registeredBuffers;
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjectArray args) {
+Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjectArray args, jstring xstartupCommand) {
     pthread_t t;
     JavaVM* vm = nullptr;
+
+    const char *xstartupCommandChars = env->GetStringUTFChars(xstartupCommand, JNI_FALSE);
+    lorieSetXstartupPreference(xstartupCommandChars);
+    env->ReleaseStringUTFChars(xstartupCommand, xstartupCommandChars);
+
     auto detectTracer = []() -> Bool {
         FILE *fp;
         char line[256];

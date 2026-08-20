@@ -645,6 +645,10 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                                 edit.putString(key, newValue);
                                 break;
                             }
+                            case "xstartupCommand": {
+                                sendResponse(remote, 1, 1, "xstartupCommand: can only be changed from the app's own settings screen.");
+                                return;
+                            }
                             default: {
                                 PrefsProto.Preference pref = p.keys.get(key);
                                 if (pref != null && pref.type == boolean.class) {

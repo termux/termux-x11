@@ -93,6 +93,8 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_enforceCharBasedInput">Enforce char based input</string>
     <string name="lorie_pref_enforceCharBasedInput_summary">Suppresses suggestions, predictive typing and CJK languages</string>
 
+    <string name="lorie_pref_xstartupCommand">X startup command</string>
+    <string name="lorie_pref_xstartupCommand_summary">Run this command after the X server starts, when the session was not started with -xstartup or -- on the command line.</string>
     <string name="lorie_pref_clipboardEnable">Clipboard sharing</string>
     <string name="lorie_pref_requestNotificationPermission">Request notification permission</string>
     <string name="lorie_pref_xrMode">Meta Oculus XR mode</string>

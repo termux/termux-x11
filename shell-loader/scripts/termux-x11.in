@@ -1,4 +1,4 @@
-#!/data/data/@EMBEDDED_APPLICATION_ID@/files/usr/bin/sh
+#!/data/data/@EMBEDDED_APPLICATION_ID@/files/usr/bin/bash
 if [ ! -e /system/bin/getprop ] || [ ! -e /system/bin/app_process ]; then
   echo "Headless system detected. Termux:X11 requires standard Android to work,"
   echo "and depends on APKs and system properties."
@@ -18,4 +18,5 @@ fi
 [ -z "${CLASSPATH+x}" ] || export XSTARTUP_CLASSPATH="$CLASSPATH"
 export CLASSPATH=/data/data/@EMBEDDED_APPLICATION_ID@/files/usr/libexec/termux-x11/loader.apk
 unset LD_LIBRARY_PATH LD_PRELOAD
+[ -n "$(trap -p USR1)" ] && export TERMUX_X11_NOTIFY_PARENT=1
 exec /system/bin/app_process -Xnoimage-dex2oat / --nice-name="termux-x11 @APPLICATION_ID@ $*" com.termux.x11.Loader "$@"

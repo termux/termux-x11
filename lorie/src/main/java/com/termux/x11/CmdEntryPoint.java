@@ -39,6 +39,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
      * @param args The command-line arguments
      */
     public static void main(String[] args) {
+        initEntryPoint();
         android.util.Log.i("CmdEntryPoint", "commit " + BuildConfig.COMMIT);
         handler.post(() -> new CmdEntryPoint(args));
         Looper.loop();
@@ -177,6 +178,9 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
             Log.e("CmdEntryPoint", "Something went wrong when preparing MainLooper", e);
         }
         handler = new Handler();
+    }
+
+    private static void initEntryPoint() {
         ctx = createContext();
 
         String path = "lib/" + Build.SUPPORTED_ABIS[0] + "/libXlorie.so";

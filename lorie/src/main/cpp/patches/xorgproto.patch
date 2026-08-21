@@ -1,0 +1,31 @@
++++ ./include/X11/extensions/dri3proto.h
+@@ -49,7 +49,12 @@
+ #define xDRI3ImportSyncobj		10
+ #define xDRI3FreeSyncobj		11
+ 
+-#define DRI3NumberRequests		12
++/* Lorie: not part of upstream DRI3. Hands back the pixmap's backing AHardwareBuffer
++ * (via an ancillary fd, same mechanism as PixmapFromBuffer) instead of a plain dma-buf fd.
++ * Parked far above the upstream requests so future DRI3 spec growth can never collide with it. */
++#define X_DRI3AHardwareBufferFromPixmap 200
++
++#define DRI3NumberRequests		201
+ 
+ #define DRI3Syncobj CARD32
+ 
+@@ -140,6 +145,15 @@
+ } xDRI3BufferFromPixmapReply;
+ #define sz_xDRI3BufferFromPixmapReply   32
+ 
++/* Lorie: not part of upstream DRI3 */
++typedef struct {
++    CARD8   reqType;
++    CARD8   dri3ReqType;
++    CARD16  length;
++    CARD32  pixmap;
++} xDRI3AHardwareBufferFromPixmapReq;
++#define sz_xDRI3AHardwareBufferFromPixmapReq     8
++
+ typedef struct {
+     CARD8   reqType;
+     CARD8   dri3ReqType;

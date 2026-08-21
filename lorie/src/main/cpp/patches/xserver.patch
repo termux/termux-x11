@@ -21,88 +21,31 @@
   ShmRegisterFuncs(ScreenPtr pScreen, ShmFuncsPtr funcs);
  
 +++ ./dix/dixutils.c
-@@ -506,18 +506,25 @@
+@@ -504,6 +504,11 @@
+  * sleeps for input.
+  */
  
++#define ClearWorkQueue _ClearWorkQueue
++#define ProcessWorkQueue _ProcessWorkQueue
++#define ProcessWorkQueueZombies _ProcessWorkQueueZombies
++#define QueueWorkProc _QueueWorkProc
++
  WorkQueuePtr workQueue;
  static WorkQueuePtr *workQueueLast = &workQueue;
-+static pthread_spinlock_t workQueueLock;
-+
-+__attribute__((constructor)) static void workQueueLockInit (void) {
-+    pthread_spin_init(&workQueueLock, FALSE);
-+}
  
- void
- ClearWorkQueue(void)
- {
-     WorkQueuePtr q, *p;
- 
-+    pthread_spin_lock(&workQueueLock);
-     p = &workQueue;
-     while ((q = *p)) {
-         *p = q->next;
-         free(q);
-     }
-     workQueueLast = p;
-+    pthread_spin_unlock(&workQueueLock);
- }
- 
- void
-@@ -525,6 +532,7 @@
- {
-     WorkQueuePtr q, *p;
- 
-+    pthread_spin_lock(&workQueueLock);
-     p = &workQueue;
-     /*
-      * Scan the work queue once, calling each function.  Those
-@@ -533,16 +541,20 @@
-      * QueueWorkProc.
-      */
-     while ((q = *p)) {
-+        pthread_spin_unlock(&workQueueLock);
-         if ((*q->function) (q->client, q->closure)) {
-+            pthread_spin_lock(&workQueueLock);
-             /* remove q from the list */
-             *p = q->next;       /* don't fetch until after func called */
-             free(q);
-         }
-         else {
-+            pthread_spin_lock(&workQueueLock);
-             p = &q->next;       /* don't fetch until after func called */
-         }
-     }
-     workQueueLast = p;
-+    pthread_spin_unlock(&workQueueLock);
- }
- 
- void
-@@ -550,6 +562,7 @@
- {
-     WorkQueuePtr q, *p;
- 
-+    pthread_spin_lock(&workQueueLock);
-     p = &workQueue;
-     while ((q = *p)) {
-         if (q->client && q->client->clientGone) {
-@@ -563,6 +576,7 @@
-         }
-     }
-     workQueueLast = p;
-+    pthread_spin_unlock(&workQueueLock);
- }
- 
- Bool
-@@ -578,8 +592,10 @@
-     q->client = client;
-     q->closure = closure;
-     q->next = NULL;
-+    pthread_spin_lock(&workQueueLock);
-     *workQueueLast = q;
-     workQueueLast = &q->next;
-+    pthread_spin_unlock(&workQueueLock);
+@@ -583,6 +588,11 @@
      return TRUE;
  }
  
++#undef ClearWorkQueue
++#undef ProcessWorkQueue
++#undef ProcessWorkQueueZombies
++#undef QueueWorkProc
++
+ /*
+  * Manage a queue of sleeping clients, awakening them
+  * when requested, by using the OS functions IgnoreClient
+
 +++ ./dix/enterleave.c
 @@ -1541,6 +1541,8 @@
      }

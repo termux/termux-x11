@@ -288,7 +288,8 @@ add_library(Xlorie SHARED
         "lorie/renderer.cpp"
         "lorie/buffer.c"
         "lorie/activity.cpp"
-        "lorie/cmdentrypoint.cpp")
+        "lorie/cmdentrypoint.cpp"
+        "lorie/workqueue.cpp")
 target_include_directories(Xlorie PRIVATE ${inc} "libxcvt/include")
 # -nostdlib++ keeps this shared object free of any libc++ dependency; renderer.cpp, activity.cpp,
 # and cmdentrypoint.cpp are restricted to a runtime-free subset of C++ (no exceptions, no RTTI, no

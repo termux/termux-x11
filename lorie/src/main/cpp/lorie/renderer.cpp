@@ -743,7 +743,7 @@ uint64_t Renderer::applyPendingGpuCopiesLocked() {
     if (!state || state->gpuCopyQueue.readIndex == state->gpuCopyQueue.writeIndex)
         return 0;
 
-    while (state->gpuCopyQueue.readIndex != state->gpuCopyQueue.writeIndex) {
+    while (state->gpuCopyQueue.readIndex != __atomic_load_n(&state->gpuCopyQueue.writeIndex, __ATOMIC_ACQUIRE)) {
         LorieGpuCopyEntry entry = state->gpuCopyQueue.entries[state->gpuCopyQueue.readIndex % LORIE_GPU_COPY_QUEUE_CAPACITY];
         LorieBuffer *src = findBufferWithRetry(entry.srcBufferId);
         LorieBuffer *dst = findBufferWithRetry(entry.dstBufferId);
@@ -845,7 +845,7 @@ void Renderer::applyPendingGpuCopies() {
         eglDestroySyncKHR(egl_display, fence);
         // Only now that the GPU has actually finished (not just been told to start) is it safe to
         // let present_execute_copy release/idle the source pixmap back to the client.
-        state->gpuCopyQueue.completedSerial = serial;
+        __atomic_store_n(&state->gpuCopyQueue.completedSerial, serial, __ATOMIC_RELEASE);
         notifyGpuCopyDone();
     }
     lorie_mutex_unlock(&state->lock, &state->lockingPid);
@@ -1010,7 +1010,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     eglClientWaitSyncKHR(egl_display, fence, 0, EGL_FOREVER);
     eglDestroySyncKHR(egl_display, fence);
     if (gpuCopySerial) {
-        state->gpuCopyQueue.completedSerial = gpuCopySerial;
+        __atomic_store_n(&state->gpuCopyQueue.completedSerial, gpuCopySerial, __ATOMIC_RELEASE);
         notifyGpuCopyDone();
     }
     state->waitForNextFrame = true;

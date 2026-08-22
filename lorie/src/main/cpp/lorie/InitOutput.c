@@ -925,6 +925,13 @@ Bool lorieTryScheduleGpuCopy(PixmapPtr pixmap, PixmapPtr dst, RegionPtr update, 
         return FALSE;
     }
     priv = LORIE_PIXMAP_PRIV_FROM_PIXMAP(pixmap);
+    if (priv->locked) {
+        int status;
+        LorieBuffer_unlock(priv->buffer);
+        status = LorieBuffer_lock(priv->buffer, &priv->locked);
+        if (status)
+            FatalError("Failed to lock the surface: %d\n", status);
+    }
     desc = LorieBuffer_description(srcBuffer);
     dstDesc = LorieBuffer_description(dstBuffer);
 
@@ -986,8 +993,7 @@ Bool lorieTryScheduleGpuCopy(PixmapPtr pixmap, PixmapPtr dst, RegionPtr update, 
     for (i = 0; i < numRects; i++)
         entry->rects[i] = (LorieGpuCopyRect) { box[i].x1, box[i].y1, box[i].x2, box[i].y2 };
 
-    __sync_synchronize(); // publish entry contents before the renderer can see the new writeIndex
-    pvfb->state->gpuCopyQueue.writeIndex = writeIndex + 1;
+    __atomic_store_n(&pvfb->state->gpuCopyQueue.writeIndex, writeIndex + 1, __ATOMIC_RELEASE); // release-publish entry writes above
     pthread_cond_signal(rendererCond);
 
     *out_serial = entry->serial;
@@ -997,7 +1003,7 @@ Bool lorieTryScheduleGpuCopy(PixmapPtr pixmap, PixmapPtr dst, RegionPtr update, 
 }
 
 Bool lorieGpuCopyIsDone(uint64_t serial) {
-    return pvfb->state->gpuCopyQueue.completedSerial >= serial;
+    return __atomic_load_n(&pvfb->state->gpuCopyQueue.completedSerial, __ATOMIC_ACQUIRE) >= serial;
 }
 
 void lorieGpuCopyAck(PixmapPtr pixmap, void *dst_buffer) {

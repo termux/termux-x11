@@ -68,6 +68,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private Callback mCallback;
     private final Point p = new Point();
     private final Rect contentInsets = new Rect();
+    private final Rect availableRect = new Rect();
     private final Rect viewport = new Rect();
     private final Rect inputViewport = new Rect();
     private int obscuredBottom = 0;
@@ -472,6 +473,11 @@ public class LorieView extends SurfaceView implements InputStub {
         updateViewport();
     }
 
+    /** Drawable area, in this view's own local coordinates, with insets already excluded. */
+    public Rect getAvailableRect() {
+        return new Rect(availableRect);
+    }
+
     public void setContentInsets(int left, int top, int right, int bottom) {
         if (contentInsets.left == left && contentInsets.top == top && contentInsets.right == right && contentInsets.bottom == bottom)
             return;
@@ -489,6 +495,8 @@ public class LorieView extends SurfaceView implements InputStub {
         int availableLeft = insets.left, availableTop = insets.top;
         int availableW = Math.max(0, surfaceW - insets.left - insets.right);
         int availableH = Math.max(0, surfaceH - insets.top - insets.bottom);
+
+        availableRect.set(availableLeft, availableTop, availableLeft + availableW, availableTop + availableH);
 
         if (availableW == 0 || availableH == 0)
             return;

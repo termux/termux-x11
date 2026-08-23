@@ -401,19 +401,21 @@ public class MainActivity extends AppCompatActivity {
 
     private RectF getVisibleFrmRect() {
         final ViewPager pager = getTerminalToolbarViewPager();
-        Rect frmRect = new Rect();
-        frm.getGlobalVisibleRect(frmRect);
-        RectF result = new RectF(frmRect.left, frmRect.top, frmRect.right, frmRect.bottom);
+        final LorieView lorieView = getLorieView();
+        final View sharedParent = (View) frm.getParent(); // also mouse/stylus aux buttons' parent
+
+        // lorieView's available rect already excludes insets/caption/IME, just offset it to sharedParent's coordinates.
+        RectF result = new RectF(lorieView.getAvailableRect());
+        result.offset(frm.getLeft() + lorieView.getLeft(), frm.getTop() + lorieView.getTop());
+
         if (pager.getVisibility() == View.VISIBLE) {
-            // getGlobalVisibleRect ignores setRotation(), so we compute bounds from bar thickness
-            // directly. For LEFT/RIGHT the pager is rotated 90°: its measured height is always
-            // the on-screen thin dimension regardless of orientation.
+            // ekbar may not already be excluded from availableRect, so clamp against it separately.
             int barThickness = pager.getMeasuredHeight();
             switch (getPagerPosition()) {
-                case PAGER_POSITION_TOP:    result.top    += barThickness; break;
-                case PAGER_POSITION_BOTTOM: result.bottom -= barThickness; break;
-                case PAGER_POSITION_LEFT:   result.left   += barThickness; break;
-                case PAGER_POSITION_RIGHT:  result.right  -= barThickness; break;
+                case PAGER_POSITION_TOP:    result.top    = Math.max(result.top, barThickness); break;
+                case PAGER_POSITION_BOTTOM: result.bottom = Math.min(result.bottom, sharedParent.getHeight() - barThickness); break;
+                case PAGER_POSITION_LEFT:   result.left   = Math.max(result.left, barThickness); break;
+                case PAGER_POSITION_RIGHT:  result.right  = Math.min(result.right, sharedParent.getWidth() - barThickness); break;
             }
         }
         return result;

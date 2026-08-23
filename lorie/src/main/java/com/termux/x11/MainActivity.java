@@ -466,6 +466,11 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout primaryLayer = findViewById(R.id.mouse_buttons);
         LinearLayout secondaryLayer = findViewById(R.id.mouse_buttons_secondary_layer);
 
+        primaryLayer.setOnHoverListener((v, e) -> true);
+        primaryLayer.setOnGenericMotionListener((v, e) -> true);
+        if (SDK_INT >= VERSION_CODES.O)
+            primaryLayer.setOnCapturedPointerListener((v, e) -> true);
+
         boolean mouseHelperEnabled = prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get());
         primaryLayer.setVisibility(mouseHelperEnabled ? View.VISIBLE : View.GONE);
 

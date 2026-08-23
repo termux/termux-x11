@@ -465,6 +465,12 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                 return true;
             }
 
+            if ("openInputControls".contentEquals(p.getKey())) {
+                Context ctx = getContext();
+                if (ctx != null) ctx.startActivity(new Intent(ctx, InputControlsActivity.class));
+                return true;
+            }
+
             updatePreferencesLayout();
             return super.onPreferenceTreeClick(p);
         }

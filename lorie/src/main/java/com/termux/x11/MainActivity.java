@@ -75,10 +75,12 @@ import androidx.viewpager.widget.ViewPager;
 import com.termux.x11.input.InputEventSender;
 import com.termux.x11.input.InputStub;
 import com.termux.x11.input.TouchInputHandler;
+import com.termux.x11.inputcontrols.InputControlsManager;
 import com.termux.x11.utils.ImeHeightProvider;
 import com.termux.x11.utils.KeyInterceptor;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
+import com.termux.x11.widget.InputControlsView;
 
 import java.util.Map;
 import java.util.Objects;
@@ -92,6 +94,7 @@ public class MainActivity extends AppCompatActivity {
     public static Handler handler = new Handler();
     FrameLayout frm;
     private TouchInputHandler mInputHandler;
+    private InputControlsView mInputControlsView;
     protected ICmdEntryInterface service = null;
     public TermuxX11ExtraKeys mExtraKeys;
     private Notification mNotification;
@@ -266,6 +269,7 @@ public class MainActivity extends AppCompatActivity {
 
         initStylusAuxButtons();
         initMouseAuxButtons();
+        initInputControls();
 
         if (SDK_INT >= VERSION_CODES.TIRAMISU
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PERMISSION_GRANTED
@@ -429,6 +433,15 @@ public class MainActivity extends AppCompatActivity {
         mouseAuxButtons.setY(MathUtils.clamp(mouseAuxButtons.getY(), frmRect.top, frmRect.bottom - mouseAuxButtons.getHeight()));
         stylusAuxButtons.setX(MathUtils.clamp(stylusAuxButtons.getX(), frmRect.left, frmRect.right - stylusAuxButtons.getWidth()));
         stylusAuxButtons.setY(MathUtils.clamp(stylusAuxButtons.getY(), frmRect.top, frmRect.bottom - stylusAuxButtons.getHeight()));
+
+        if (mInputControlsView != null) {
+            ViewGroup.LayoutParams params = mInputControlsView.getLayoutParams();
+            params.width = Math.round(frmRect.width());
+            params.height = Math.round(frmRect.height());
+            mInputControlsView.setLayoutParams(params);
+            mInputControlsView.setX(frmRect.left);
+            mInputControlsView.setY(frmRect.top);
+        }
     }
 
     public void toggleStylusAuxButtons() {
@@ -547,6 +560,30 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    void initInputControls() {
+        mInputControlsView = new InputControlsView(this);
+        mInputControlsView.setVisibility(View.GONE);
+        ((ViewGroup) frm.getParent()).addView(mInputControlsView);
+        makeSureHelpersAreVisibleAndInScreenBounds();
+        showInputControls(prefs.showInputControls.get());
+    }
+
+    private void loadActiveControlsProfile() {
+        int id = prefs.activeControlsProfile.get();
+        mInputControlsView.setProfile(id > 0 ? new InputControlsManager(this).getProfile(id) : null);
+    }
+
+    void showInputControls(boolean show) {
+        loadActiveControlsProfile();
+        mInputControlsView.setVisibility(show && mInputControlsView.getProfile() != null && getLorieView().connected() ? View.VISIBLE : View.GONE);
+    }
+
+    public void toggleInputControls() {
+        boolean show = mInputControlsView.getVisibility() != View.VISIBLE;
+        showInputControls(show);
+        prefs.showInputControls.put(show);
+    }
+
     void onReceiveConnection(Intent intent) {
         Bundle bundle = intent == null ? null : intent.getBundleExtra(null);
         IBinder ibinder = bundle == null ? null : bundle.getBinder(null);
@@ -652,6 +689,7 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && getLorieView().connected() ? View.VISIBLE : View.GONE);
         showMouseAuxButtons(prefs.showMouseHelper.get());
         showStylusAuxButtons(prefs.showStylusClickOverride.get());
+        showInputControls(prefs.showInputControls.get());
 
         getTerminalToolbarViewPager().setAlpha(isInPictureInPictureMode ? 0.f : ((float) prefs.opacityEKBar.get())/100);
 
@@ -691,6 +729,14 @@ public class MainActivity extends AppCompatActivity {
 
     public LorieView getLorieView() {
         return findViewById(R.id.lorieView);
+    }
+
+    public FrameLayout getFrame() {
+        return frm;
+    }
+
+    public TouchInputHandler getInputHandler() {
+        return mInputHandler;
     }
 
     public ViewPager getTerminalToolbarViewPager() {

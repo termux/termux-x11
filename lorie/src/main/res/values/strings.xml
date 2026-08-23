@@ -72,6 +72,8 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_tapToMove">Enable tap-to-move for touchpads</string>
     <string name="lorie_pref_ignoreGamepadEvents">Ignore gamepad input events</string>
     <string name="lorie_pref_ignoreGamepadEvents_summary">Prevent gamepad and joystick events from being forwarded to X server</string>
+    <string name="lorie_pref_openInputControls">Input controls</string>
+    <string name="lorie_pref_openInputControls_summary">Editable on-screen buttons/joysticks overlay</string>
 
     <string name="lorie_pref_showAdditionalKbd">Show additional keyboard</string>
     <string name="lorie_pref_showAdditionalKbd_summary">Show keyboard with additional keys.</string>
@@ -123,4 +125,47 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_summary_requiresTrackpadAndNative">Requires "Touchscreen input mode" to be "Trackpad" and "Display resolution mode" to be not "native"</string>
     <string name="lorie_pref_summary_screenIdleTimeoutConflict">⚠️ System screen timeout (%s) is longer and takes priority</string>
     <string name="lorie_pref_screenIdleTimeoutSystem">System (%s)</string>
+
+    <string name="lorie_input_controls">Input controls</string>
+    <string name="lorie_input_controls_profile">Profile</string>
+    <string name="lorie_input_controls_none">None</string>
+    <string name="lorie_input_controls_type">Type</string>
+    <string name="lorie_input_controls_shape">Shape</string>
+    <string name="lorie_input_controls_scale">Scale</string>
+    <string name="lorie_input_controls_opacity">Opacity</string>
+    <string name="lorie_input_controls_range">Range</string>
+    <string name="lorie_input_controls_orientation">Orientation</string>
+    <string name="lorie_input_controls_horizontal">Horizontal</string>
+    <string name="lorie_input_controls_vertical">Vertical</string>
+    <string name="lorie_input_controls_columns">Columns</string>
+    <string name="lorie_input_controls_note">Note</string>
+    <string name="lorie_input_controls_bindings">Bindings</string>
+    <string name="lorie_input_controls_binding">Binding</string>
+    <string name="lorie_input_controls_binding_up">Binding (up)</string>
+    <string name="lorie_input_controls_binding_right">Binding (right)</string>
+    <string name="lorie_input_controls_binding_down">Binding (down)</string>
+    <string name="lorie_input_controls_binding_left">Binding (left)</string>
+    <string name="lorie_input_controls_toggle_switch">Toggle switch</string>
+    <string name="lorie_input_controls_move_mouse_when_pressed">Move mouse when pressed</string>
+    <string name="lorie_input_controls_custom_text">Custom text</string>
+    <string name="lorie_input_controls_icon">Icon</string>
+    <string name="lorie_input_controls_no_profile_selected">No profile selected</string>
+    <string name="lorie_input_controls_no_control_element_selected">No control element selected</string>
+    <string name="lorie_input_controls_new_profile">New profile</string>
+    <string name="lorie_input_controls_remove_profile">Remove profile</string>
+    <string name="lorie_input_controls_duplicate_profile">Duplicate profile</string>
+    <string name="lorie_input_controls_edit_profile">Edit profile</string>
+    <string name="lorie_input_controls_profile_name">Profile name</string>
+    <string name="lorie_input_controls_cursor_speed">Cursor speed</string>
+    <string name="lorie_input_controls_overlay_opacity">Overlay opacity</string>
+    <string name="lorie_input_controls_disable_mouse_input">Disable mouse input</string>
+    <string name="lorie_input_controls_show_touchscreen_controls">Show touchscreen controls</string>
+    <string name="lorie_input_controls_export_profile">Export profile</string>
+    <string name="lorie_input_controls_profile_exported">Profile exported to %s</string>
+    <string name="lorie_input_controls_profile_export_failed">Failed to export profile</string>
+    <string name="lorie_input_controls_import_profile">Import profile</string>
+    <string name="lorie_input_controls_unable_to_import_profile">Unable to import profile</string>
+    <string name="lorie_input_controls_external_controllers">External controllers</string>
+    <string name="lorie_input_controls_no_items_to_display">No items to display</string>
+    <string name="lorie_input_controls_remove_controller_confirm">Remove this controller\'s bindings?</string>
 </resources>

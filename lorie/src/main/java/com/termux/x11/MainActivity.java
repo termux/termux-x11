@@ -475,6 +475,8 @@ public class MainActivity extends AppCompatActivity {
         primaryLayer.setVisibility(mouseHelperEnabled ? View.VISIBLE : View.GONE);
 
         pos.setOnClickListener((v) -> {
+            final float oldX = primaryLayer.getX();
+            final float oldY = primaryLayer.getY();
             if (secondaryLayer.getOrientation() == LinearLayout.HORIZONTAL) {
                 setSize(left, 48, 96);
                 setSize(right, 48, 96);
@@ -486,8 +488,8 @@ public class MainActivity extends AppCompatActivity {
             }
             handler.postDelayed(() -> {
                 final RectF frmRect = getVisibleFrmRect();
-                primaryLayer.setX(MathUtils.clamp(primaryLayer.getX(), frmRect.left, frmRect.right - primaryLayer.getWidth()));
-                primaryLayer.setY(MathUtils.clamp(primaryLayer.getY(), frmRect.top, frmRect.bottom - primaryLayer.getHeight()));
+                primaryLayer.setX(MathUtils.clamp(oldX, frmRect.left, frmRect.right - primaryLayer.getWidth()));
+                primaryLayer.setY(MathUtils.clamp(oldY, frmRect.top, frmRect.bottom - primaryLayer.getHeight()));
             }, 10);
         });
 
@@ -511,34 +513,32 @@ public class MainActivity extends AppCompatActivity {
         pos.setOnTouchListener(new View.OnTouchListener() {
             final int touchSlop = (int) Math.pow(ViewConfiguration.get(MainActivity.this).getScaledTouchSlop(), 2);
             final int tapTimeout = ViewConfiguration.getTapTimeout();
-            final float[] startOffset = new float[2];
-            final int[] startPosition = new int[2];
+            final float[] startRaw = new float[2];
+            final float[] startLayerPos = new float[2];
             long startTime;
             @Override
             public boolean onTouch(View v, MotionEvent e) {
                 switch(e.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        primaryLayer.getLocationInWindow(startPosition);
-                        startOffset[0] = e.getX();
-                        startOffset[1] = e.getY();
+                        startRaw[0] = e.getRawX();
+                        startRaw[1] = e.getRawY();
+                        startLayerPos[0] = primaryLayer.getX();
+                        startLayerPos[1] = primaryLayer.getY();
                         startTime = SystemClock.uptimeMillis();
                         pos.setPressed(true);
                         break;
                     case MotionEvent.ACTION_MOVE: {
                         final RectF frmRect = getVisibleFrmRect();
-                        final ViewPager pager = getTerminalToolbarViewPager();
-                        int[] offset = new int[2];
-                        primaryLayer.getLocationInWindow(offset);
-                        primaryLayer.setX(MathUtils.clamp(offset[0] - startOffset[0] + e.getX(), frmRect.left, frmRect.right - primaryLayer.getWidth()));
-                        primaryLayer.setY(MathUtils.clamp(offset[1] - startOffset[1] + e.getY(), frmRect.top, frmRect.bottom - primaryLayer.getHeight()));
+                        float newX = startLayerPos[0] + (e.getRawX() - startRaw[0]);
+                        float newY = startLayerPos[1] + (e.getRawY() - startRaw[1]);
+                        primaryLayer.setX(MathUtils.clamp(newX, frmRect.left, frmRect.right - primaryLayer.getWidth()));
+                        primaryLayer.setY(MathUtils.clamp(newY, frmRect.top, frmRect.bottom - primaryLayer.getHeight()));
                         break;
                     }
                     case MotionEvent.ACTION_UP: {
-                        final int[] _pos = new int[2];
-                        primaryLayer.getLocationInWindow(_pos);
-                        int deltaX = (int) (startOffset[0] - e.getX()) + (startPosition[0] - _pos[0]);
-                        int deltaY = (int) (startOffset[1] - e.getY()) + (startPosition[1] - _pos[1]);
                         pos.setPressed(false);
+                        float deltaX = e.getRawX() - startRaw[0];
+                        float deltaY = e.getRawY() - startRaw[1];
 
                         if (deltaX * deltaX + deltaY * deltaY < touchSlop && SystemClock.uptimeMillis() - startTime <= tapTimeout) {
                             v.performClick();

@@ -475,8 +475,6 @@ public class MainActivity extends AppCompatActivity {
         primaryLayer.setVisibility(mouseHelperEnabled ? View.VISIBLE : View.GONE);
 
         pos.setOnClickListener((v) -> {
-            final float oldX = primaryLayer.getX();
-            final float oldY = primaryLayer.getY();
             if (secondaryLayer.getOrientation() == LinearLayout.HORIZONTAL) {
                 setSize(left, 48, 96);
                 setSize(right, 48, 96);
@@ -488,8 +486,8 @@ public class MainActivity extends AppCompatActivity {
             }
             handler.postDelayed(() -> {
                 final RectF frmRect = getVisibleFrmRect();
-                primaryLayer.setX(MathUtils.clamp(oldX, frmRect.left, frmRect.right - primaryLayer.getWidth()));
-                primaryLayer.setY(MathUtils.clamp(oldY, frmRect.top, frmRect.bottom - primaryLayer.getHeight()));
+                primaryLayer.setX(MathUtils.clamp(primaryLayer.getX(), frmRect.left, frmRect.right - primaryLayer.getWidth()));
+                primaryLayer.setY(MathUtils.clamp(primaryLayer.getY(), frmRect.top, frmRect.bottom - primaryLayer.getHeight()));
             }, 10);
         });
 

@@ -274,6 +274,7 @@
         android:layout_width="match_parent"
         android:layout_height="37.5dp"
         android:background="@android:color/black"
+        android:layoutDirection="ltr"
         android:layout_gravity="bottom|center"/>
 
     <View

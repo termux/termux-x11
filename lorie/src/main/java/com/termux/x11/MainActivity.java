@@ -775,6 +775,7 @@ public class MainActivity extends AppCompatActivity {
 
             ekbarContentInset = prefs.adjustHeightForEK.get() && showNow ? layoutParams.height : 0;
             applyContentInsets();
+            makeSureHelpersAreVisibleAndInScreenBounds();
         });
     }
 

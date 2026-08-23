@@ -781,13 +781,12 @@ public class MainActivity extends AppCompatActivity {
 
     private int ekbarContentInset = 0;
     private int imeHeight = 0;
-    private int captionHeight = 0;
 
     private void applyContentInsets() {
         int imeContentInset = prefs.Reseed.get() ? imeHeight : 0;
         int pos = getPagerPosition();
         getLorieView().setContentInsets(pos == PAGER_POSITION_LEFT ? ekbarContentInset : 0,
-                captionHeight + (pos == PAGER_POSITION_TOP ? ekbarContentInset : 0),
+                pos == PAGER_POSITION_TOP ? ekbarContentInset : 0,
                 pos == PAGER_POSITION_RIGHT ? ekbarContentInset : 0,
                 imeContentInset + (pos == PAGER_POSITION_BOTTOM ? ekbarContentInset : 0));
         getLorieView().setObscuredBottom(imeHeight - imeContentInset);
@@ -809,13 +808,6 @@ public class MainActivity extends AppCompatActivity {
 
         imeHeight = height;
         setTerminalToolbarViewLayout();
-    }
-
-    // The window header of desktop windowing can not be hidden, so its space has to be given up even
-    // in fullscreen mode, where fitsSystemWindows does not apply system insets.
-    public void setCaptionHeight(int height) {
-        captionHeight = height;
-        applyContentInsets();
     }
 
     public void toggleExtraKeys(boolean visible, boolean saveState) {

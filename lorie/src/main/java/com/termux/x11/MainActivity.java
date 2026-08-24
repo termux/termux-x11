@@ -90,6 +90,7 @@ public class MainActivity extends AppCompatActivity {
     public static final String ACTION_CUSTOM = "com.termux.x11.ACTION_CUSTOM";
 
     public static Handler handler = new Handler();
+    private final Runnable connectRetry = this::tryConnect;
     FrameLayout frm;
     private TouchInputHandler mInputHandler;
     protected ICmdEntryInterface service = null;
@@ -586,12 +587,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     boolean tryConnect() {
-        if (getLorieView().connected())
+        if (getLorieView().connected()) {
+            handler.removeCallbacks(connectRetry);
             return false;
+        }
 
         if (service == null) {
             boolean sent = getLorieView().requestConnection();
-            handler.postDelayed(this::tryConnect, 250);
+            scheduleConnect();
             return true;
         }
 
@@ -605,14 +608,19 @@ public class MainActivity extends AppCompatActivity {
                 clientConnectedStateChanged();
                 getLorieView().reloadPreferences(prefs);
             } else
-                handler.postDelayed(this::tryConnect, 250);
+                scheduleConnect();
         } catch (Exception e) {
             Log.e("MainActivity", "Something went wrong while we were establishing connection", e);
             service = null;
 
-            handler.postDelayed(this::tryConnect, 250);
+            scheduleConnect();
         }
         return false;
+    }
+
+    void scheduleConnect() {
+        handler.removeCallbacks(connectRetry);
+        handler.postDelayed(connectRetry, 250);
     }
 
     void onPreferencesChanged(String key) {

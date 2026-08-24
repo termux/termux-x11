@@ -32,6 +32,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     static final Handler handler;
     public static Context ctx;
     private final Intent intent = createIntent();
+    private boolean broadcastPending;
 
     /**
      * Command-line entry point.
@@ -71,7 +72,17 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     }
 
     private void sendBroadcast() {
-        sendBroadcast(intent);
+        // Called from the native listening thread on every knock on the port;
+        // coalesce bursts into a single broadcast fired 250ms later.
+        synchronized (this) {
+            if (broadcastPending)
+                return;
+            broadcastPending = true;
+        }
+        handler.postDelayed(() -> {
+            synchronized (this) { broadcastPending = false; }
+            sendBroadcast(intent);
+        }, 250);
     }
 
     static void sendBroadcast(Intent intent) {

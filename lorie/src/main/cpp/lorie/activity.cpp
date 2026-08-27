@@ -38,7 +38,7 @@ static int64_t nowMs() {
 
 static struct {
     jclass self;
-    jmethodID getInstance, clientConnectedStateChanged, resetIme;
+    jmethodID clientConnectedStateChanged, resetIme;
 } MainActivity = {nullptr};
 
 static struct {
@@ -58,6 +58,7 @@ struct LorieViewResources {
     Renderer renderer;
     JNIEnv* env = nullptr;    // GUI-thread JNIEnv. Must be used only in GUI thread.
     jobject thiz = nullptr;   // global ref to the owning LorieView
+    jobject activity = nullptr; // global ref to the owning MainActivity
     volatile int connFd = -1;
     bool destroyed = true;
 
@@ -141,7 +142,6 @@ static jlong nativeInit(JNIEnv *env, jobject thiz) {
         CharBuffer.toString = FindMethodOrDie(env, CharBuffer.self, "toString", "()Ljava/lang/String;", JNI_FALSE);
 
         MainActivity.self = FindClassOrDie(env,  "com/termux/x11/MainActivity");
-        MainActivity.getInstance = FindMethodOrDie(env, MainActivity.self, "getInstance", "()Lcom/termux/x11/MainActivity;", JNI_TRUE);
         MainActivity.clientConnectedStateChanged = FindMethodOrDie(env, MainActivity.self, "clientConnectedStateChanged", "()V", JNI_FALSE);
         MainActivity.resetIme = FindMethodOrDie(env, env->GetObjectClass(thiz), "resetIme", "()V", JNI_FALSE);
     }
@@ -158,6 +158,12 @@ LorieViewResources::LorieViewResources(JNIEnv *callerEnv, jobject view) {
     callerEnv->GetJavaVM(&vm);
     vm->AttachCurrentThread(&env, nullptr);
     thiz = env->NewGlobalRef(view);
+
+    jfieldID activityField = env->GetFieldID(env->GetObjectClass(view), "activity", "Lcom/termux/x11/MainActivity;");
+    jobject a = env->GetObjectField(view, activityField);
+    if (a)
+        activity = env->NewGlobalRef(a);
+
     connect(-1);
 }
 
@@ -176,13 +182,17 @@ LorieViewResources::~LorieViewResources() {
         env->DeleteGlobalRef(thiz);
         thiz = nullptr;
     }
+
+    if (activity) {
+        env->DeleteGlobalRef(activity);
+        activity = nullptr;
+    }
 }
 
 int LorieViewResources::xcallback(int fd, int events) {
     if (events & (ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP)) {
-        jobject instance = env->CallStaticObjectMethod(MainActivity.self, MainActivity.getInstance);
-        if (instance)
-            env->CallVoidMethod(instance, MainActivity.clientConnectedStateChanged);
+        if (activity)
+            env->CallVoidMethod(activity, MainActivity.clientConnectedStateChanged);
 
         ALooper_removeFd(ALooper_forThread(), fd);
         close(connFd);

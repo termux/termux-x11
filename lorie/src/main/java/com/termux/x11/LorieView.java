@@ -53,7 +53,7 @@ import dalvik.annotation.optimization.FastNative;
 @Keep @SuppressLint("WrongConstant")
 @SuppressWarnings("deprecation")
 public class LorieView extends SurfaceView implements InputStub {
-    private static float rendererZoom = 100f;
+    private float rendererZoom = 100f;
     private static final Rect NO_INSETS = new Rect();
 
     public interface Callback {
@@ -63,8 +63,8 @@ public class LorieView extends SurfaceView implements InputStub {
     private ClipboardManager clipboard;
     private long lastClipboardTimestamp = System.currentTimeMillis();
     private long mNativeContext;
-    private static boolean clipboardSyncEnabled = false;
-    private static boolean hardwareKbdScancodesWorkaround = false;
+    private boolean clipboardSyncEnabled = false;
+    private boolean hardwareKbdScancodesWorkaround = false;
     private final InputMethodManager mIMM = (InputMethodManager)getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
     private final MainActivity activity = MainActivity.findActivity(getContext());
     private Callback mCallback;

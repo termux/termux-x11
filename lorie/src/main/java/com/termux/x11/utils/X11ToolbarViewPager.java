@@ -75,7 +75,7 @@ public class X11ToolbarViewPager {
 
                 if (SDK_INT >= VERSION_CODES.O)
                     editText.setOnCapturedPointerListener((v2, e2) -> {
-                        MainActivity.setCapturingEnabled(false);
+                        mActivity.setCapturingEnabled(false);
                         return false;
                     });
 

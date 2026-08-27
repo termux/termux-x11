@@ -406,7 +406,7 @@ public class TouchInputHandler {
         mRenderData.screenWidth = screenWidth;
         mRenderData.screenHeight = screenHeight;
         mRenderData.setInputTransform(inputTransform);
-        MainActivity.getRealMetrics(mMetrics);
+        mActivity.getRealMetrics(mMetrics);
 
         if (mTouchpadHandler != null)
             mTouchpadHandler.handleInputTransformChanged(screenWidth, screenHeight, inputTransform);
@@ -485,7 +485,7 @@ public class TouchInputHandler {
                 capturedPointerTransformation = CapturedPointerTransformation.NONE;
         }
 
-        MainActivity.getRealMetrics(mMetrics);
+        mActivity.getRealMetrics(mMetrics);
 
         if (!p.pointerCapture.get() && hasPointerCapture(mActivity.getLorieView()))
             mActivity.getLorieView().releasePointerCapture();

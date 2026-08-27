@@ -57,7 +57,7 @@ public class ImeHeightProvider {
             sensor.getWindowVisibleDisplayFrame(visibleFrame);
 
             DisplayMetrics metrics = new DisplayMetrics();
-            MainActivity.getRealMetrics(metrics);
+            activity.getRealMetrics(metrics);
 
             report(activity, content, metrics.heightPixels - visibleFrame.bottom, ViewCompat.getRootWindowInsets(content));
         });

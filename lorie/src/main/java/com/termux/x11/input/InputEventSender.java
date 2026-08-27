@@ -36,6 +36,7 @@ public final class InputEventSender {
         KEYCODE_APP_SWITCH
     );
 
+    private final MainActivity mActivity;
     private final InputStub mInjector;
     private final float[] mappedPoint = new float[2];
 
@@ -56,9 +57,10 @@ public final class InputEventSender {
     /** Last Caps/Num/Scroll Lock state sent to the host, or -1 if none has been sent yet. */
     private int mLockKeysState = -1;
 
-    public InputEventSender(InputStub injector) {
+    public InputEventSender(MainActivity activity, InputStub injector) {
         if (injector == null)
             throw new NullPointerException();
+        mActivity = activity;
         mInjector = injector;
         mPressedTextKeys = new TreeSet<>();
         mPressedKeys = new TreeSet<>();
@@ -293,7 +295,7 @@ public final class InputEventSender {
             mPressedKeys.remove(keyCode);
 
         if (keyCode == KEYCODE_ESCAPE && !pressed && e.hasNoModifiers())
-            MainActivity.setCapturingEnabled(false);
+            mActivity.setCapturingEnabled(false);
 
         // We try to send all other key codes to the host directly.
         return mInjector.sendKeyEvent(scancode, keyCode, pressed);

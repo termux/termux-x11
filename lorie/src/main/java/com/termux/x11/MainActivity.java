@@ -211,7 +211,7 @@ public class MainActivity extends AppCompatActivity {
         LorieView lorieView = findViewById(R.id.lorieView);
         View lorieParent = (View) lorieView.getParent();
 
-        mInputHandler = new TouchInputHandler(this, new InputEventSender(lorieView));
+        mInputHandler = new TouchInputHandler(this, new InputEventSender(this, lorieView));
         mLorieKeyListener = (v, k, e) -> {
             InputDevice dev = e.getDevice();
             boolean result = mInputHandler.sendKeyEvent(e);
@@ -1141,18 +1141,14 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public static void getRealMetrics(DisplayMetrics m) {
-        if (getInstance() != null &&
-                getInstance().getLorieView() != null &&
-                getInstance().getLorieView().getDisplay() != null)
-            getInstance().getLorieView().getDisplay().getRealMetrics(m);
+    public void getRealMetrics(DisplayMetrics m) {
+        if (getLorieView() != null && getLorieView().getDisplay() != null)
+            getLorieView().getDisplay().getRealMetrics(m);
     }
 
-    public static void setCapturingEnabled(boolean enabled) {
-        if (getInstance() == null || getInstance().mInputHandler == null)
-            return;
-
-        getInstance().mInputHandler.setCapturingEnabled(enabled);
+    public void setCapturingEnabled(boolean enabled) {
+        if (mInputHandler != null)
+            mInputHandler.setCapturingEnabled(enabled);
     }
 
     public boolean shouldInterceptKeys() {

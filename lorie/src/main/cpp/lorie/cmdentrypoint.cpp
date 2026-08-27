@@ -47,9 +47,20 @@ char *xtrans_unix_dir_x11 = nullptr;
 
 struct xorg_list registeredBuffers;
 
-static jboolean start(JNIEnv *env, __unused jclass cls, jobjectArray args) {
+static JNIEnv* serverEnv = nullptr;
+static jobject thiz = nullptr;
+static jmethodID sendBroadcast = nullptr;
+static jmethodID sendBroadcastDelayed = nullptr;
+
+static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
     pthread_t t;
     JavaVM* vm = nullptr;
+
+    thiz = env->NewGlobalRef(self);
+    if (!thiz)
+        FatalError("Failed to create a global reference for the CmdEntryPoint instance");
+    sendBroadcast = env->GetMethodID(env->GetObjectClass(self), "sendBroadcast", "()V");
+    sendBroadcastDelayed = env->GetMethodID(env->GetObjectClass(self), "sendBroadcastDelayed", "()V");
     auto detectTracer = []() -> Bool {
         FILE *fp;
         char line[256];
@@ -203,7 +214,9 @@ static jboolean start(JNIEnv *env, __unused jclass cls, jobjectArray args) {
     AChoreographer_postFrameCallback(choreographer, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, choreographer);
 
     xorg_list_init(&registeredBuffers);
-    pthread_create(&t, nullptr, +[](__unused void* cookie) -> void* {
+    pthread_create(&t, nullptr, +[](void* cookie) -> void* {
+        if (((JavaVM*) cookie)->AttachCurrentThread(&serverEnv, nullptr) != JNI_OK)
+            FatalError("Failed to attach the X server thread to the JVM");
         exit(dix_main(argc, (char**) argv, (char*[]) { nullptr }));
     }, vm);
     return JNI_TRUE;
@@ -559,51 +572,61 @@ static jobject getLogcatOutput(JNIEnv *env, __unused jobject cls) {
     return nullptr;
 }
 
-static void listenForConnections(JNIEnv *env, jobject thiz) {
-    int server_fd, client, count;
+void lorieListenForKnocks(void) {
     struct sockaddr_in address = { .sin_family = AF_INET, .sin_port = htons(PORT), .sin_addr = { .s_addr = INADDR_ANY } };
-    int addrlen = sizeof(address);
-    jmethodID sendBroadcast = env->GetMethodID(env->GetObjectClass(thiz), "sendBroadcast", "()V");
-    uint8_t buffer[512] = {0};
-    int reuse = 1;
+    int fd, reuse = 1;
 
     // Even in the case if it will fail for some reason everything will work fine
     // But connection will be delayed a bit
 
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        log(ERROR, "Socket creation failed: %s", strerror(errno));
+    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        log(ERROR, "Failed to create the knock-listening socket: %s", strerror(errno));
+        serverEnv->CallVoidMethod(thiz, sendBroadcastDelayed);
         return;
     }
 
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse));
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse));
 
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-        log(ERROR, "Socket bind failed: %s", strerror(errno));
-        close(server_fd);
+    if (bind(fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
+        log(ERROR, "Failed to bind the knock-listening socket to port %d: %s", PORT, strerror(errno));
+        close(fd);
+        serverEnv->CallVoidMethod(thiz, sendBroadcastDelayed);
         return;
     }
 
-    if (listen(server_fd, 5) < 0) {
-        log(ERROR, "Socket listen failed: %s", strerror(errno));
-        close(server_fd);
+    if (listen(fd, 5) < 0) {
+        log(ERROR, "Failed to listen on the knock-listening socket: %s", strerror(errno));
+        close(fd);
+        serverEnv->CallVoidMethod(thiz, sendBroadcastDelayed);
         return;
     }
 
-    while(true) {
-        if ((client = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0) {
-            log(ERROR, "Socket accept failed: %s", strerror(errno));
-            continue;
+    SetNotifyFd(fd, +[](int fd, int ready, __unused void *data) {
+        struct sockaddr_in address;
+        socklen_t addrlen = sizeof(address);
+        uint8_t buffer[512] = {0};
+        int client, count;
+
+        if (ready & X_NOTIFY_ERROR) {
+            RemoveNotifyFd(fd);
+            close(fd);
+            return;
         }
 
-        if ((count = read(client, buffer, sizeof(buffer))) > 0) {
-            if (!memcmp(buffer, MAGIC, min(count, sizeof(MAGIC)))) {
-                log(DEBUG, "New client connection!\n");
-                env->CallVoidMethod(thiz, sendBroadcast);
-            }
+        if ((client = accept(fd, (struct sockaddr *) &address, &addrlen)) < 0) {
+            log(ERROR, "Failed to accept a connection on the knock-listening socket: %s", strerror(errno));
+            return;
+        }
+
+        if ((count = read(client, buffer, sizeof(buffer))) > 0 && !memcmp(buffer, MAGIC, min(count, sizeof(MAGIC)))) {
+            log(DEBUG, "New client connection!\n");
+            serverEnv->CallVoidMethod(thiz, sendBroadcast);
         }
         close(client);
-    }
+    }, X_NOTIFY_READ, NULL);
+
+    serverEnv->CallVoidMethod(thiz, sendBroadcastDelayed);
 }
 
 void registerCmdEntryPointNatives(JNIEnv *env) {
@@ -611,8 +634,7 @@ void registerCmdEntryPointNatives(JNIEnv *env) {
             {"start", "([Ljava/lang/String;)Z", (void *) &start},
             {"getXConnection", "()Landroid/os/ParcelFileDescriptor;", (void *) &getXConnection},
             {"getLogcatOutput", "()Landroid/os/ParcelFileDescriptor;", (void *) &getLogcatOutput},
-            {"connected", "()Z", (void *) +[](__unused JNIEnv *env, __unused jclass clazz) -> jboolean { return conn_fd != -1; }},
-            {"listenForConnections", "()V", (void *) &listenForConnections},
+            {"connected", "()Z", (void *) +[]() -> jboolean { return conn_fd != -1; }}, // @CriticalNative
     };
     jclass cls = env->FindClass("com/termux/x11/CmdEntryPoint");
     env->RegisterNatives(cls, methods, sizeof(methods)/sizeof(methods[0]));

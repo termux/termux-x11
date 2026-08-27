@@ -161,6 +161,8 @@ void OsVendorInit(void) {
     pthread_mutex_init(&lorieScreen.state->lock, &mutex_attr);
     pthread_mutex_init(&lorieScreen.state->cursor.lock, &mutex_attr);
     lorieScreen.state->cursor.visible = TRUE;
+
+    lorieListenForKnocks();
 }
 
 // Queued from handleLorieEvents (input thread) to run on the main thread, i.e. the same thread that

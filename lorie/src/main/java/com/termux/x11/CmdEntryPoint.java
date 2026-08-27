@@ -22,6 +22,8 @@ import android.view.Surface;
 
 import androidx.annotation.Keep;
 
+import dalvik.annotation.optimization.CriticalNative;
+
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.URL;
@@ -49,9 +51,6 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     CmdEntryPoint(String[] args) {
         if (!start(args))
             System.exit(1);
-
-        spawnListeningThread();
-        sendBroadcastDelayed();
     }
 
     @SuppressLint({"WrongConstant", "PrivateApi"})
@@ -72,8 +71,8 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     }
 
     private void sendBroadcast() {
-        // Called from the native listening thread on every knock on the port;
-        // coalesce bursts into a single broadcast fired 250ms later.
+        // Called from native (the X server thread) on every knock on the port; coalesce
+        // bursts into a single broadcast fired 250ms later.
         synchronized (this) {
             if (broadcastPending)
                 return;
@@ -141,10 +140,6 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         handler.postDelayed(this::sendBroadcastDelayed, 1000);
     }
 
-    void spawnListeningThread() {
-        new Thread(this::listenForConnections).start();
-    }
-
     /** @noinspection DataFlowIssue*/
     @SuppressLint("DiscouragedPrivateApi")
     public static Context createContext() {
@@ -175,11 +170,10 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
         return context;
     }
 
-    public static native boolean start(String[] args);
+    public native boolean start(String[] args);
     public native ParcelFileDescriptor getXConnection();
     public native ParcelFileDescriptor getLogcatOutput();
-    private static native boolean connected();
-    private native void listenForConnections();
+    @CriticalNative private static native boolean connected();
 
     static {
         try {

@@ -46,6 +46,7 @@ void lorieSetRendererWakeupCond(int fd);
 void lorieSetCursorVisible(Bool visible);
 void lorieSendSyncReply(uint32_t serial);
 void registerCmdEntryPointNatives(JNIEnv *env);
+void lorieListenForKnocks(void);
 
 __unused void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled);
 

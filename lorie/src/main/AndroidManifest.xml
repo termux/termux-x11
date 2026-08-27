@@ -46,6 +46,21 @@
                 <action android:name="android.intent.action.MAIN" />
             </intent-filter>
         </activity>
+        <activity
+            android:theme="@style/Theme.AppCompat.DayNight"
+            android:name=".ControlsEditorActivity"
+            android:taskAffinity=".ControlsEditorActivity"
+            android:supportsPictureInPicture="false"
+            android:resizeableActivity="true"
+            android:exported="false" />
+        <activity
+            android:theme="@style/Theme.AppCompat.DayNight"
+            android:name=".InputControlsActivity"
+            android:taskAffinity=".InputControlsActivity"
+            android:label="@string/lorie_input_controls"
+            android:supportsPictureInPicture="false"
+            android:resizeableActivity="true"
+            android:exported="false" />
 	    <meta-data android:name="android.allow_multiple_resumed_activities" android:value="true" />
 
         <service android:name=".utils.KeyInterceptor"

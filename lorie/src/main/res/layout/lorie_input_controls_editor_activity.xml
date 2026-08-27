@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/FLContainer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:id="@+id/Toolbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:background="#cc202020"
+        android:gravity="center_vertical"
+        android:padding="4dp">
+
+        <ImageButton
+            android:id="@+id/BTMove"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="8dp"
+            android:background="@android:color/transparent"
+            android:src="@android:drawable/ic_menu_mylocation"
+            android:contentDescription="@string/lorie_input_controls" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textSize="14sp"
+                android:textColor="#ffffff"
+                android:text="@string/lorie_input_controls_profile" />
+
+            <TextView
+                android:id="@+id/TVProfileName"
+                android:layout_width="wrap_content"
+                android:textColor="#4fc3f7"
+                android:textSize="14sp"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/BTAddElement"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="8dp"
+            android:background="@android:color/transparent"
+            android:src="@android:drawable/ic_menu_add"
+            android:contentDescription="@string/lorie_input_controls" />
+
+        <ImageButton
+            android:id="@+id/BTRemoveElement"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="8dp"
+            android:background="@android:color/transparent"
+            android:src="@android:drawable/ic_menu_delete"
+            android:contentDescription="@string/lorie_input_controls" />
+
+        <ImageButton
+            android:id="@+id/BTElementSettings"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="8dp"
+            android:background="@android:color/transparent"
+            android:src="@android:drawable/ic_menu_preferences"
+            android:contentDescription="@string/lorie_input_controls" />
+    </LinearLayout>
+</FrameLayout>

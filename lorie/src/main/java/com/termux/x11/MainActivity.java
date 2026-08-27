@@ -1104,11 +1104,10 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Manually toggle soft keyboard visibility
-     * @param context calling context
      */
-    public static void toggleKeyboardVisibility(Context context) {
+    public void toggleKeyboardVisibility() {
         Log.d("MainActivity", "Toggling keyboard visibility");
-        LorieView view = getInstance().getLorieView();
+        LorieView view = getLorieView();
         if (!externalKeyboardConnected || showIMEWhileExternalConnected)
             view.toggleKeyboardVisible();
         else

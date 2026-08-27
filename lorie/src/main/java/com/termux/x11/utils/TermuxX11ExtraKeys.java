@@ -1,7 +1,6 @@
 package com.termux.x11.utils;
 
 import static com.termux.x11.extrakeys.ExtraKeysConstants.PRIMARY_KEY_CODES_FOR_STRINGS;
-import static com.termux.x11.MainActivity.toggleKeyboardVisibility;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import android.annotation.SuppressLint;
@@ -171,7 +170,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     @SuppressLint("RtlHardcoded")
     public void onLorieExtraKeyButtonClick(View view, String key, boolean ctrlDown, boolean altDown, boolean shiftDown, boolean metaDown, boolean fnDown) {
         if ("KEYBOARD".equals(key))
-            toggleKeyboardVisibility(mActivity);
+            mActivity.toggleKeyboardVisibility();
         else if ("DRAWER".equals(key) || "PREFERENCES".equals(key))
             mActivity.startActivity(new Intent(mActivity, LoriePreferences.class) {{ setAction(ACTION_START_PREFERENCES_ACTIVITY); }});
         else if ("EXIT".equals(key))

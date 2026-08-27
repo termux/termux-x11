@@ -528,5 +528,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
     jclass cls = env->FindClass("com/termux/x11/LorieView");
     env->RegisterNatives(cls, methods, sizeof(methods)/sizeof(methods[0]));
 
+    registerCmdEntryPointNatives(env);
+
     return JNI_VERSION_1_6;
 }

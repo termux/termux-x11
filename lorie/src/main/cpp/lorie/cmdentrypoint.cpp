@@ -47,8 +47,7 @@ char *xtrans_unix_dir_x11 = nullptr;
 
 struct xorg_list registeredBuffers;
 
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_termux_x11_CmdEntryPoint_start(JNIEnv *env, __unused jclass cls, jobjectArray args) {
+static jboolean start(JNIEnv *env, __unused jclass cls, jobjectArray args) {
     pthread_t t;
     JavaVM* vm = nullptr;
     auto detectTracer = []() -> Bool {
@@ -522,8 +521,7 @@ extern "C" void DDXNotifyFocusChanged(void) {
     }
 }
 
-extern "C" JNIEXPORT jobject JNICALL
-Java_com_termux_x11_CmdEntryPoint_getXConnection(JNIEnv *env, __unused jobject cls) {
+static jobject getXConnection(JNIEnv *env, __unused jobject cls) {
     int client[2];
     jclass ParcelFileDescriptorClass = env->FindClass("android/os/ParcelFileDescriptor");
     jmethodID adoptFd = env->GetStaticMethodID(ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
@@ -539,8 +537,7 @@ Java_com_termux_x11_CmdEntryPoint_getXConnection(JNIEnv *env, __unused jobject c
     return env->CallStaticObjectMethod(ParcelFileDescriptorClass, adoptFd, client[0]);
 }
 
-extern "C" JNIEXPORT jobject JNICALL
-Java_com_termux_x11_CmdEntryPoint_getLogcatOutput(JNIEnv *env, __unused jobject cls) {
+static jobject getLogcatOutput(JNIEnv *env, __unused jobject cls) {
     jclass ParcelFileDescriptorClass = env->FindClass("android/os/ParcelFileDescriptor");
     jmethodID adoptFd = env->GetStaticMethodID(ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
     const char *debug = getenv("TERMUX_X11_DEBUG");
@@ -562,13 +559,7 @@ Java_com_termux_x11_CmdEntryPoint_getLogcatOutput(JNIEnv *env, __unused jobject 
     return nullptr;
 }
 
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_termux_x11_CmdEntryPoint_connected(__unused JNIEnv *env, __unused jclass clazz) {
-    return conn_fd != -1;
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_termux_x11_CmdEntryPoint_listenForConnections(JNIEnv *env, jobject thiz) {
+static void listenForConnections(JNIEnv *env, jobject thiz) {
     int server_fd, client, count;
     struct sockaddr_in address = { .sin_family = AF_INET, .sin_port = htons(PORT), .sin_addr = { .s_addr = INADDR_ANY } };
     int addrlen = sizeof(address);
@@ -613,6 +604,18 @@ Java_com_termux_x11_CmdEntryPoint_listenForConnections(JNIEnv *env, jobject thiz
         }
         close(client);
     }
+}
+
+void registerCmdEntryPointNatives(JNIEnv *env) {
+    static JNINativeMethod methods[] = {
+            {"start", "([Ljava/lang/String;)Z", (void *) &start},
+            {"getXConnection", "()Landroid/os/ParcelFileDescriptor;", (void *) &getXConnection},
+            {"getLogcatOutput", "()Landroid/os/ParcelFileDescriptor;", (void *) &getLogcatOutput},
+            {"connected", "()Z", (void *) +[](__unused JNIEnv *env, __unused jclass clazz) -> jboolean { return conn_fd != -1; }},
+            {"listenForConnections", "()V", (void *) &listenForConnections},
+    };
+    jclass cls = env->FindClass("com/termux/x11/CmdEntryPoint");
+    env->RegisterNatives(cls, methods, sizeof(methods)/sizeof(methods[0]));
 }
 
 void abort(void) {

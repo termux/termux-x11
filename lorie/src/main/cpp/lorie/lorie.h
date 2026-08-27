@@ -45,6 +45,7 @@ extern bool lorieDebugEnabled; // Set in activity.cpp's startLogcat, only called
 void lorieSetRendererWakeupCond(int fd);
 void lorieSetCursorVisible(Bool visible);
 void lorieSendSyncReply(uint32_t serial);
+void registerCmdEntryPointNatives(JNIEnv *env);
 
 __unused void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled);
 

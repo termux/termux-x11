@@ -38,6 +38,16 @@ public class TapGestureDetector {
          * @param y The y coordinate of the initial finger tapped.
          */
         void onLongPress(int pointerCount, float x, float y);
+
+        /**
+         * Notified on each move once a long-touch has already fired for the current gesture, so
+         * a drag started by a long-press can continue without re-clearing GestureDetector's own
+         * touch-slop.
+         *
+         * @param pointerCount The number of fingers held down.
+         * @param e The move event.
+         */
+        void onLongPressMove(int pointerCount, MotionEvent e);
     }
 
     /** The listener to which notifications are sent. */
@@ -117,11 +127,12 @@ public class TapGestureDetector {
                 break;
 
             case MotionEvent.ACTION_MOVE:
-                if (!mTapCancelled) {
-                    if (trackMoveEvent(event)) {
-                        cancelLongTouchNotification();
-                        mTapCancelled = true;
-                    }
+                if (mTapCancelled) {
+                    if (isLongPressActive())
+                        mListener.onLongPressMove(mPointerCount, event);
+                } else if (trackMoveEvent(event)) {
+                    cancelLongTouchNotification();
+                    mTapCancelled = true;
                 }
                 break;
 
@@ -197,6 +208,11 @@ public class TapGestureDetector {
             }
         }
         return false;
+    }
+
+    /** True once a long-touch notification has fired for the current gesture. */
+    public boolean isLongPressActive() {
+        return mTapCancelled && mInitialPoint == null;
     }
 
     /** Cleans up any stored data for the gesture. */

@@ -17,6 +17,7 @@ import android.app.NotificationManager;
 import android.app.PictureInPictureParams;
 import android.content.ClipData;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
@@ -171,6 +172,16 @@ public class MainActivity extends AppCompatActivity {
 
     public static MainActivity getInstance() {
         return instance;
+    }
+
+    /** Unwraps the {@link MainActivity} a view's {@link Context} was inflated with, if any. */
+    public static MainActivity findActivity(Context context) {
+        while (context instanceof ContextWrapper) {
+            if (context instanceof MainActivity)
+                return (MainActivity) context;
+            context = ((ContextWrapper) context).getBaseContext();
+        }
+        return null;
     }
 
     @Override

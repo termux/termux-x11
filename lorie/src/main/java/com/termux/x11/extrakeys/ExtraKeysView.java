@@ -216,6 +216,8 @@ public final class ExtraKeysView extends GridLayout {
     /** The text size currently shared by every button, {@code 0} until it has been computed. */
     private float mTextSize;
 
+    private final MainActivity activity;
+    { activity = MainActivity.findActivity(getContext()); }
 
     public ExtraKeysView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -326,7 +328,7 @@ public final class ExtraKeysView extends GridLayout {
         setRowCount(buttons.length);
         setColumnCount(maximumLength(buttons));
 
-        boolean reverseRows = MainActivity.getInstance().getPagerPosition() == PAGER_POSITION_TOP;
+        boolean reverseRows = activity.getPagerPosition() == PAGER_POSITION_TOP;
 
         for (int row = 0; row < buttons.length; row++) {
             int actualRow = reverseRows ? buttons.length - 1 - row : row;
@@ -524,7 +526,7 @@ public final class ExtraKeysView extends GridLayout {
     }
 
     void showPopup(View view, ExtraKeyButton extraButton) {
-        int pos = MainActivity.getInstance().getPagerPosition();
+        int pos = activity.getPagerPosition();
         int width = pos == PAGER_POSITION_TOP || pos == PAGER_POSITION_BOTTOM ? view.getMeasuredWidth() : view.getMeasuredHeight();
         int height = pos == PAGER_POSITION_TOP || pos == PAGER_POSITION_BOTTOM ? view.getMeasuredHeight() : view.getMeasuredWidth();
         Button button;

@@ -706,6 +706,9 @@ public class TouchInputHandler {
             if (pointerCount != 1 || mSuppressCursorMovement)
                 return false;
 
+            if (e1 != null && mTapDetector.isLongPressActive())
+                return true;
+
             if (mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy) {
                 if (mInjector.scaleTouchpad) {
                     distanceX *= mRenderData.scale.x;
@@ -882,8 +885,23 @@ public class TouchInputHandler {
                 moveCursorToScreenPoint(x, y);
             }
 
+            mLastFocusX = x;
+            mLastFocusY = y;
+
             if (mInputStrategy.onPressAndHold(button, false))
                 mIsDragging = true;
+        }
+
+        /**
+         * Called for each move once a long-press has already started a drag, so the cursor keeps
+         * following the finger without waiting for GestureDetector's own touch-slop to clear.
+         */
+        @Override
+        public void onLongPressMove(int pointerCount, MotionEvent e) {
+            if (pointerCount == 1)
+                onScroll(null, e, mLastFocusX - e.getX(), mLastFocusY - e.getY());
+            mLastFocusX = e.getX();
+            mLastFocusY = e.getY();
         }
 
         /** Maps the number of fingers in a tap or long-press gesture to a mouse-button. */

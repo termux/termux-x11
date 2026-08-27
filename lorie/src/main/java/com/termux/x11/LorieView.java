@@ -298,13 +298,9 @@ public class LorieView extends SurfaceView implements InputStub {
         }
     };
 
-    public LorieView(Context context) { super(context); init(); }
-    public LorieView(Context context, AttributeSet attrs) { super(context, attrs); init(); }
-    public LorieView(Context context, AttributeSet attrs, int defStyleAttr) { super(context, attrs, defStyleAttr); init(); }
-    @SuppressWarnings("unused")
-    public LorieView(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) { super(context, attrs, defStyleAttr, defStyleRes); init(); }
+    public LorieView(Context context, AttributeSet attrs) { super(context, attrs); }
 
-    private void init() {
+    {
         getHolder().addCallback(mSurfaceCallback);
         clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
         mNativeContext = nativeInit();

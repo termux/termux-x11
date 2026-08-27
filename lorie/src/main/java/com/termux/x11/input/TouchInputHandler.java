@@ -937,7 +937,7 @@ public class TouchInputHandler {
 
         int k = e.getKeyCode();
 
-        if (!MainActivity.isConnected()) {
+        if (!mActivity.getLorieView().connected()) {
             if (e.getKeyCode() == KEYCODE_BACK)
                 mActivity.finish();
 

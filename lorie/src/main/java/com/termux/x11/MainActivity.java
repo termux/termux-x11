@@ -1141,13 +1141,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public static boolean isConnected() {
-        if (getInstance() == null)
-            return false;
-
-        return getInstance().getLorieView().connected();
-    }
-
     public static void getRealMetrics(DisplayMetrics m) {
         if (getInstance() != null &&
                 getInstance().getLorieView() != null &&

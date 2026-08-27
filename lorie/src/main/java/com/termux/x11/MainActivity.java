@@ -100,9 +100,9 @@ public class MainActivity extends AppCompatActivity {
     private Notification mNotification;
     private final int mNotificationId = 7892;
     NotificationManager mNotificationManager;
-    private static DisplayManager displayManager;
-    private static boolean showIMEWhileExternalConnected = true;
-    private static boolean externalKeyboardConnected = false;
+    private DisplayManager displayManager;
+    private boolean showIMEWhileExternalConnected = true;
+    private boolean externalKeyboardConnected = false;
     private View.OnKeyListener mLorieKeyListener;
     private boolean filterOutWinKey = false;
     boolean useTermuxEKBarBehaviour = false;
@@ -117,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
 
     public static Prefs prefs = null;
 
-    private static boolean oldFullscreen = false, oldHideCutout = false;
+    private boolean oldFullscreen = false, oldHideCutout = false;
     private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> onPreferencesChanged(key);
     private OrientationEventListener orientationListener;
 

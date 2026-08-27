@@ -60,7 +60,7 @@ public class TouchInputHandler {
     /** Must match Renderer::panToCursor()'s edge fraction in renderer.cpp. */
     private static final float PAN_EDGE_FRACTION = 0.05f;
 
-    public static int STYLUS_INPUT_HELPER_MODE = 1; // 1 = Left Click, 2 Middle Click, 4 Right Click
+    public int mStylusInputHelperMode = 1; // 1 = Left Click, 2 Middle Click, 4 Right Click
 
     /** Used to set/store the selected input mode. */
     @SuppressWarnings("unused")
@@ -1082,12 +1082,12 @@ public class TouchInputHandler {
                     if (hasButton(e, MotionEvent.BUTTON_STYLUS_PRIMARY))
                         return (1 << 2);
                     else
-                        return STYLUS_INPUT_HELPER_MODE;
+                        return mStylusInputHelperMode;
                 } else return 0;
             } else {
                 int buttons = 0;
                 if (e.getPressure() > 0)
-                    buttons = STYLUS_INPUT_HELPER_MODE;
+                    buttons = mStylusInputHelperMode;
                 if (hasButton(e, MotionEvent.BUTTON_STYLUS_SECONDARY))
                     buttons |= (1 << 1);
                 if (hasButton(e, MotionEvent.BUTTON_STYLUS_PRIMARY))

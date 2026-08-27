@@ -320,10 +320,10 @@ public class MainActivity extends AppCompatActivity {
             overlay.setOnCapturedPointerListener((v, e) -> true);
         overlay.setVisibility(stylusMenuEnabled ? View.VISIBLE : View.GONE);
         View.OnClickListener listener = view -> {
-            TouchInputHandler.STYLUS_INPUT_HELPER_MODE = (view.equals(left) ? 1 : (view.equals(middle) ? 2 : (view.equals(right) ? 4 : 0)));
-            left.setAlpha((TouchInputHandler.STYLUS_INPUT_HELPER_MODE == 1) ? menuSelectedTrasparency : menuUnselectedTrasparency);
-            middle.setAlpha((TouchInputHandler.STYLUS_INPUT_HELPER_MODE == 2) ? menuSelectedTrasparency : menuUnselectedTrasparency);
-            right.setAlpha((TouchInputHandler.STYLUS_INPUT_HELPER_MODE == 4) ? menuSelectedTrasparency : menuUnselectedTrasparency);
+            mInputHandler.mStylusInputHelperMode = (view.equals(left) ? 1 : (view.equals(middle) ? 2 : (view.equals(right) ? 4 : 0)));
+            left.setAlpha((mInputHandler.mStylusInputHelperMode == 1) ? menuSelectedTrasparency : menuUnselectedTrasparency);
+            middle.setAlpha((mInputHandler.mStylusInputHelperMode == 2) ? menuSelectedTrasparency : menuUnselectedTrasparency);
+            right.setAlpha((mInputHandler.mStylusInputHelperMode == 4) ? menuSelectedTrasparency : menuUnselectedTrasparency);
             visibility.setAlpha(menuUnselectedTrasparency);
         };
 
@@ -335,7 +335,7 @@ public class MainActivity extends AppCompatActivity {
             if (buttons.getVisibility() == View.VISIBLE) {
                 buttons.setVisibility(View.GONE);
                 visibility.setAlpha(menuUnselectedTrasparency);
-                int m = TouchInputHandler.STYLUS_INPUT_HELPER_MODE;
+                int m = mInputHandler.mStylusInputHelperMode;
                 visibility.setText(m == 1 ? "L" : (m == 2 ? "M" : (m == 3 ? "R" : "U")));
             } else {
                 RectF frmRect = getVisibleFrmRect();
@@ -351,12 +351,12 @@ public class MainActivity extends AppCompatActivity {
                 overlay.setX(MathUtils.clamp(overlay.getX(), frmRect.left, maxX));
                 overlay.setY(MathUtils.clamp(overlay.getY(), frmRect.top, maxY));
 
-                int m = TouchInputHandler.STYLUS_INPUT_HELPER_MODE;
+                int m = mInputHandler.mStylusInputHelperMode;
                 listener.onClick(m == 1 ? left : (m == 2 ? middle : (m == 3 ? right : left)));
             }
         });
         //Simulated mouse click 1 = left , 2 = middle , 3 = right
-        TouchInputHandler.STYLUS_INPUT_HELPER_MODE = 1;
+        mInputHandler.mStylusInputHelperMode = 1;
         listener.onClick(left);
 
         visibility.setOnLongClickListener(v -> {
@@ -401,7 +401,7 @@ public class MainActivity extends AppCompatActivity {
             buttons.setAlpha(isInPictureInPictureMode ? 0.f : 1.f);
         } else {
             //Reset default input back to normal
-            TouchInputHandler.STYLUS_INPUT_HELPER_MODE = 1;
+            mInputHandler.mStylusInputHelperMode = 1;
             final float menuUnselectedTrasparency = 0.66f;
             final float menuSelectedTrasparency = 1.0f;
             findViewById(R.id.button_left_click).setAlpha(menuSelectedTrasparency);

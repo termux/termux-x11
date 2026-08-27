@@ -72,6 +72,7 @@ import androidx.core.math.MathUtils;
 import androidx.core.view.ViewCompat;
 import androidx.viewpager.widget.ViewPager;
 
+import com.termux.x11.extrakeys.ExtraKeysInfo;
 import com.termux.x11.input.InputEventSender;
 import com.termux.x11.input.InputStub;
 import com.termux.x11.input.TouchInputHandler;
@@ -757,13 +758,14 @@ public class MainActivity extends AppCompatActivity {
         handler.post(() -> {
             final ViewPager pager = getTerminalToolbarViewPager();
             boolean showNow = pager.getVisibility() == View.VISIBLE;
+            ExtraKeysInfo extraKeysInfo = mExtraKeys == null ? null : mExtraKeys.getExtraKeysInfo();
             FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) pager.getLayoutParams();
             int pos = getPagerPosition();
 
             // The window is not resized for the keyboard, so a bar along a side has to end above it.
             layoutParams.width = (pos == PAGER_POSITION_LEFT || pos == PAGER_POSITION_RIGHT) ? frm.getHeight() - imeHeight : frm.getWidth();
             layoutParams.height = Math.round(37.5f * getResources().getDisplayMetrics().density *
-                    (TermuxX11ExtraKeys.getExtraKeysInfo() == null ? 0 : TermuxX11ExtraKeys.getExtraKeysInfo().getMatrix().length));
+                    (extraKeysInfo == null ? 0 : extraKeysInfo.getMatrix().length));
 
             switch (pos) {
                 case PAGER_POSITION_TOP:

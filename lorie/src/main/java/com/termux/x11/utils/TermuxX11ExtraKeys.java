@@ -32,7 +32,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     private final MainActivity mActivity;
     private final ExtraKeysView mExtraKeysView;
     private final ClipboardManager mClipboardManager;
-    static private ExtraKeysInfo mExtraKeysInfo;
+    private ExtraKeysInfo mExtraKeysInfo;
 
     private boolean ctrlDown;
     private boolean altDown;
@@ -46,6 +46,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
         mEventListener = eventlistener;
         mActivity = activity;
         mExtraKeysView = extrakeysview;
+        mExtraKeysView.setExtraKeysViewClient(this);
         mClipboardManager = (ClipboardManager) mActivity.getSystemService(Context.CLIPBOARD_SERVICE);
     }
 
@@ -203,7 +204,8 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     /**
      * Set the terminal extra keys and style.
      */
-    public static void setExtraKeys() {
+    @Override
+    public void setExtraKeys() {
         mExtraKeysInfo = null;
 
         try {
@@ -213,20 +215,21 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
             String extrakeys = MainActivity.getPrefs().extra_keys_config.get();
             mExtraKeysInfo = new ExtraKeysInfo(extrakeys, "extra-keys-style", ExtraKeysConstants.CONTROL_CHARS_ALIASES);
         } catch (JSONException e) {
-            Toast.makeText(MainActivity.getInstance(), "Could not load and set the \"extra-keys\" property from the properties file: " + e, Toast.LENGTH_LONG).show();
+            Toast.makeText(mActivity, "Could not load and set the \"extra-keys\" property from the properties file: " + e, Toast.LENGTH_LONG).show();
             Log.e(LOG_TAG, "Could not load and set the \"extra-keys\" property from the properties file: ", e);
 
             try {
                 mExtraKeysInfo = new ExtraKeysInfo(TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS, "default", ExtraKeysConstants.CONTROL_CHARS_ALIASES);
             } catch (JSONException e2) {
-                Toast.makeText(MainActivity.getInstance(), "Can't create default extra keys", Toast.LENGTH_LONG).show();
+                Toast.makeText(mActivity, "Can't create default extra keys", Toast.LENGTH_LONG).show();
                 Log.e(LOG_TAG, "Could create default extra keys: ", e);
                 mExtraKeysInfo = null;
             }
         }
     }
 
-    public static ExtraKeysInfo getExtraKeysInfo() {
+    @Override
+    public ExtraKeysInfo getExtraKeysInfo() {
         if (mExtraKeysInfo == null)
             setExtraKeys();
         return mExtraKeysInfo;

@@ -56,7 +56,6 @@ public class X11ToolbarViewPager {
                 ExtraKeysView extraKeysView = (ExtraKeysView) layout;
                 mActivity.mExtraKeys = new TermuxX11ExtraKeys(mEventListener, mActivity, extraKeysView);
                 extraKeysView.reload();
-                extraKeysView.setExtraKeysViewClient(mActivity.mExtraKeys);
                 extraKeysView.setOnHoverListener((v, e) -> true);
                 extraKeysView.setOnGenericMotionListener((v, e) -> true);
             } else {

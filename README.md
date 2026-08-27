@@ -86,6 +86,19 @@ For some reason some devices show screen with swapped colours, in this case you 
 termux-x11 :1 -force-bgra -xstartup "xfce4-session"
 ```
 
+## Running multiple displays as separate windows
+Each display normally shares the single Termux:X11 window. Pass `-tag <tag>` to open a display as its own Android window instead:
+```
+termux-x11 :1 -tag main -xstartup "xfce4-session"
+termux-x11 :2 -tag second -xstartup "xfce4-session"
+```
+Re-running a tag brings its window back to front instead of opening a duplicate.
+
+To bring up a tagged window's activity:
+```
+am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity -d main
+```
+
 ## Using with proot environment
 If you plan to use the program with proot, keep in mind that you need to launch proot/proot-distro with the --shared-tmp option. 
 

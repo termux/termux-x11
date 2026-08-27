@@ -40,7 +40,6 @@ import androidx.annotation.NonNull;
 import androidx.core.math.MathUtils;
 
 import com.termux.x11.input.InputStub;
-import com.termux.x11.input.TouchInputHandler;
 import com.termux.x11.utils.SamsungDexUtils;
 
 import java.util.Set;
@@ -596,7 +595,7 @@ public class LorieView extends SurfaceView implements InputStub {
         hardwareKbdScancodesWorkaround = p.hardwareKbdScancodesWorkaround.get();
         clipboardSyncEnabled = p.clipboardEnable.get();
         setClipboardSyncEnabled(mNativeContext, clipboardSyncEnabled, clipboardSyncEnabled);
-        TouchInputHandler.refreshInputDevices();
+        activity.mInputHandler.refreshInputDevices();
     }
 
     // It is used in native code
@@ -654,7 +653,7 @@ public class LorieView extends SurfaceView implements InputStub {
         } else
             clipboard.removePrimaryClipChangedListener(clipboardListener);
 
-        TouchInputHandler.refreshInputDevices();
+        activity.mInputHandler.refreshInputDevices();
     }
 
     @Override

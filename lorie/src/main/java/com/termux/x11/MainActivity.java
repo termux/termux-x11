@@ -94,7 +94,7 @@ public class MainActivity extends AppCompatActivity {
     public static Handler handler = new Handler();
     private final Runnable connectRetry = this::tryConnect;
     FrameLayout frm;
-    private TouchInputHandler mInputHandler;
+    TouchInputHandler mInputHandler;
     protected ICmdEntryInterface service = null;
     public TermuxX11ExtraKeys mExtraKeys;
     private Notification mNotification;

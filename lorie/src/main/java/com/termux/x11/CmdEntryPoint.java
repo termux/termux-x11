@@ -31,6 +31,7 @@ import java.net.URL;
 @Keep @SuppressLint({"StaticFieldLeak", "UnsafeDynamicallyLoadedCode"})
 public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static final String ACTION_START = "com.termux.x11.CmdEntryPoint.ACTION_START";
+    public static final String EXTRA_DOCUMENT_TAG = "document_tag";
     static final Handler handler;
     public static Context ctx;
     private final Intent intent = createIntent();
@@ -51,6 +52,12 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     CmdEntryPoint(String[] args) {
         if (!start(args))
             System.exit(1);
+    }
+
+    // Called from native once OsVendorInit() resolves the "-tag" argument, if any.
+    void setDocumentTag(String tag) {
+        if (tag != null)
+            intent.putExtra(EXTRA_DOCUMENT_TAG, tag);
     }
 
     @SuppressLint({"WrongConstant", "PrivateApi"})

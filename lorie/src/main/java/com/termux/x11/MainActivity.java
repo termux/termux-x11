@@ -8,6 +8,7 @@ import static android.view.WindowManager.LayoutParams.*;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.ActivityOptions;
 import android.app.AppOpsManager;
 import android.app.PictureInPictureParams;
 import android.content.ClipData;
@@ -55,10 +56,12 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.Toast;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.math.MathUtils;
 import androidx.core.view.ViewCompat;
@@ -73,8 +76,15 @@ import com.termux.x11.utils.KeyInterceptor;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
 
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 @Keep @SuppressLint("ApplySharedPref")
 @SuppressWarnings({"deprecation", "unused"})
@@ -126,15 +136,145 @@ public class MainActivity extends AppCompatActivity {
         content.invalidate();
     }
 
-    @SuppressLint("StaticFieldLeak")
-    private static MainActivity instance;
+    // "-tag <tag>" windows register here, keyed by tag ("" for the default window). Weakly
+    // held so a window that dies without deregistering isn't pinned in memory.
+    private static final Map<String, WeakReference<MainActivity>> instances = new HashMap<>();
+    private String tag = "";
 
-    public MainActivity() {
-        instance = this;
+    /** Redirects a tagged intent that landed on plain MainActivity to MainActivityTagged. Returns the parsed tag, or null if it relaunched. */
+    private String relaunchAsTaggedIfNeeded(Intent intent, boolean finishSelf) {
+        // Tag comes from the launch Intent's data: either the host of a "termux-x11-window://<tag>"
+        // URI, or a bare schemeless value ("-d <tag>") used as the tag directly.
+        Uri docData = intent.getData();
+        String tag = docData != null && docData.getHost() != null ? docData.getHost()
+                : docData != null && docData.getScheme() == null ? docData.toString() : "";
+
+        if (tag.isEmpty() || this instanceof MainActivityTagged)
+            return tag;
+
+        if (finishSelf)
+            finish();
+        startTaggedActivity(new Intent(intent));
+        return null;
     }
 
-    public static MainActivity getInstance() {
-        return instance;
+    public String getTag() {
+        return tag;
+    }
+
+    /** The window registered under the given "-tag" argument, or the default window for "". */
+    public static MainActivity getInstance(String tag) {
+        WeakReference<MainActivity> ref = instances.get(tag == null ? "" : tag);
+        return ref != null ? ref.get() : null;
+    }
+
+    /** Whichever window currently has input focus, or null if none does. */
+    public static MainActivity getFocusedInstance() {
+        for (WeakReference<MainActivity> ref : instances.values()) {
+            MainActivity a = ref.get();
+            if (a != null && a.hasWindowFocus())
+                return a;
+        }
+        return null;
+    }
+
+    /** All windows that are currently alive. */
+    public static List<MainActivity> getInstances() {
+        List<MainActivity> result = new ArrayList<>();
+        for (WeakReference<MainActivity> ref : instances.values()) {
+            MainActivity a = ref.get();
+            if (a != null)
+                result.add(a);
+        }
+        return result;
+    }
+
+    private void showDisplaysDialog() {
+        Set<String> tagSet = new TreeSet<>();
+        for (Map.Entry<String, WeakReference<MainActivity>> e : instances.entrySet()) {
+            MainActivity a = e.getValue().get();
+            if (a != null && a != this && !e.getKey().isEmpty())
+                tagSet.add(e.getKey());
+        }
+        for (String pendingTag : app.pendingConnections.keySet())
+            if (!pendingTag.isEmpty())
+                tagSet.add(pendingTag);
+        tagSet.remove(tag);
+        if (tagSet.isEmpty()) {
+            Toast.makeText(this, R.string.displays_dialog_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        List<String> tags = new ArrayList<>(tagSet);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.displays_dialog_title)
+                .setItems(tags.toArray(new CharSequence[0]), (dialog, which) -> startTaggedActivity(new Intent().setData(Uri.parse(tags.get(which)))))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** Launches (or switches to) the MainActivityTagged window for the given intent's data. */
+    private void startTaggedActivity(Intent intent) {
+        intent.setClass(this, MainActivityTagged.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        startActivity(intent, freeformActivityOptions());
+    }
+
+    /** ActivityOptions requesting freeform windowing mode. */
+    private static Bundle freeformActivityOptions() {
+        ActivityOptions opts = ActivityOptions.makeBasic();
+        nativeSetLaunchWindowingModeFreeform(opts);
+        return opts.toBundle();
+    }
+
+    /** The focused window, or any window that hasn't been garbage-collected yet, or null if none are alive. */
+    public static MainActivity getFocusedOrAnyInstance() {
+        MainActivity focused = getFocusedInstance();
+        if (focused != null)
+            return focused;
+        for (WeakReference<MainActivity> ref : instances.values()) {
+            MainActivity a = ref.get();
+            if (a != null)
+                return a;
+        }
+        return null;
+    }
+
+    private final Set<Integer> pressedKeys = new LinkedHashSet<>();
+
+    public void markKeyPressed(int keyCode) {
+        pressedKeys.add(keyCode);
+    }
+
+    public void markKeyReleased(int keyCode) {
+        pressedKeys.remove(keyCode);
+    }
+
+    /** The window that considers the given key code held down, if any. */
+    public static MainActivity getInstanceWithPressedKey(int keyCode) {
+        for (WeakReference<MainActivity> ref : instances.values()) {
+            MainActivity a = ref.get();
+            if (a != null && a.pressedKeys.contains(keyCode))
+                return a;
+        }
+        return null;
+    }
+
+    /** Whether any window still has a key held down. */
+    public static boolean anyInstanceHasPressedKeys() {
+        for (WeakReference<MainActivity> ref : instances.values()) {
+            MainActivity a = ref.get();
+            if (a != null && !a.pressedKeys.isEmpty())
+                return true;
+        }
+        return false;
+    }
+
+    public static void clearAllPressedKeys() {
+        for (WeakReference<MainActivity> ref : instances.values()) {
+            MainActivity a = ref.get();
+            if (a != null)
+                a.pressedKeys.clear();
+        }
     }
 
     /** Unwraps the {@link MainActivity} a view's {@link Context} was inflated with, if any. */
@@ -153,6 +293,14 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
         app = (LorieApp) getApplication();
+
+        String parsedTag = relaunchAsTaggedIfNeeded(getIntent(), true);
+        if (parsedTag == null)
+            return;
+        tag = parsedTag;
+
+        instances.put(tag, new WeakReference<>(this));
+
         prefs = app.getPrefs(this);
         int modeValue = Integer.parseInt(prefs.touchMode.get()) - 1;
         if (modeValue > 2)
@@ -169,6 +317,7 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.preferences_button).setOnClickListener((l) -> startActivity(new Intent(this, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}));
         findViewById(R.id.help_button).setOnClickListener((l) -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/termux/termux-x11/blob/master/README.md#running-graphical-applications"))));
         findViewById(R.id.exit_button).setOnClickListener((l) -> finish());
+        findViewById(R.id.displays_button).setOnClickListener((l) -> showDisplaysDialog());
 
         LorieView lorieView = findViewById(R.id.lorieView);
         View lorieParent = (View) lorieView.getParent();
@@ -227,10 +376,9 @@ public class MainActivity extends AppCompatActivity {
 
         ImeHeightProvider.assistActivity(this);
 
-        if (app.pendingConnection != null) {
-            connectToService(app.pendingConnection);
-            app.pendingConnection = null;
-        }
+        IBinder pendingConnection = app.pendingConnections.remove(tag);
+        if (pendingConnection != null)
+            connectToService(pendingConnection);
 
         if (tryConnect()) {
             final View content = findViewById(android.R.id.content);
@@ -254,12 +402,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        relaunchAsTaggedIfNeeded(intent, false);
+    }
+
+    @Override
     protected void onDestroy() {
         handler.removeCallbacks(screenIdleTimeoutCheck);
         if (mInputHandler != null)
             mInputHandler.onDestroy();
-        if (instance == this)
-            instance = null;
+        instances.values().removeIf(ref -> ref.get() == this);
         super.onDestroy();
     }
 
@@ -1110,5 +1264,14 @@ public class MainActivity extends AppCompatActivity {
         if (connected && !showIMEWhileExternalConnected)
             getLorieView().setKeyboardVisible(false);
         getLorieView().requestFocus();
+    }
+
+    private static native void nativeSetLaunchWindowingModeFreeform(Object activityOptions);
+
+    static {
+        System.loadLibrary("Xlorie");
+    }
+
+    public static class MainActivityTagged extends MainActivity {
     }
 }

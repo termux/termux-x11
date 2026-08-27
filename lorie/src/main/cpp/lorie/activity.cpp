@@ -52,6 +52,10 @@ static struct {
     jmethodID toString;
 } CharBuffer = {nullptr};
 
+static struct {
+    jmethodID setLaunchWindowingMode;
+} ActivityOptions = {nullptr};
+
 // Bundles the native state belonging to the current LorieView instance so it can be released
 // as a unit when that instance is torn down, instead of leaking as scattered process globals.
 struct LorieViewResources {
@@ -538,6 +542,31 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
     vm->AttachCurrentThread(&env, nullptr);
     jclass cls = env->FindClass("com/termux/x11/LorieView");
     env->RegisterNatives(cls, methods, sizeof(methods)/sizeof(methods[0]));
+
+    pthread_t freeformLookupThread;
+    pthread_create(&freeformLookupThread, nullptr, +[](void* arg) -> void* {
+        auto* vm = (JavaVM*) arg;
+        JNIEnv* threadEnv;
+        vm->AttachCurrentThread(&threadEnv, nullptr);
+        jclass activityOptionsClass = threadEnv->FindClass("android/app/ActivityOptions");
+        jmethodID method = activityOptionsClass ? threadEnv->GetMethodID(activityOptionsClass, "setLaunchWindowingMode", "(I)V") : nullptr;
+        threadEnv->ExceptionClear();
+        vm->DetachCurrentThread();
+        return (void*) method;
+    }, vm);
+    void* freeformMethod;
+    pthread_join(freeformLookupThread, &freeformMethod);
+    ActivityOptions.setLaunchWindowingMode = (jmethodID) freeformMethod;
+    if (!ActivityOptions.setLaunchWindowingMode)
+        log(ERROR, "ActivityOptions.setLaunchWindowingMode(int) not found");
+
+    static JNINativeMethod mainActivityMethods[] = {
+            {"nativeSetLaunchWindowingModeFreeform", "(Ljava/lang/Object;)V", (void *) +[](JNIEnv *env, __unused jclass clazz, jobject options) {
+                if (ActivityOptions.setLaunchWindowingMode)
+                    env->CallVoidMethod(options, ActivityOptions.setLaunchWindowingMode, 5); // WINDOWING_MODE_FREEFORM
+            }},
+    };
+    env->RegisterNatives(env->FindClass("com/termux/x11/MainActivity"), mainActivityMethods, sizeof(mainActivityMethods)/sizeof(mainActivityMethods[0]));
 
     registerCmdEntryPointNatives(env);
 

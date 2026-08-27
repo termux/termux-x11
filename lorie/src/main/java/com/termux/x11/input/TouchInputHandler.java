@@ -11,7 +11,6 @@ import static android.view.KeyEvent.KEYCODE_VOLUME_UP;
 
 import android.annotation.SuppressLint;
 import android.app.PendingIntent;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Matrix;
@@ -20,6 +19,7 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.hardware.display.DisplayManager;
 import android.hardware.input.InputManager;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Build;
 import android.util.DisplayMetrics;
@@ -36,6 +36,7 @@ import androidx.annotation.IntDef;
 import androidx.core.app.NotificationCompat;
 import androidx.core.math.MathUtils;
 
+import com.termux.x11.CmdEntryPoint;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.LorieView;
 import com.termux.x11.MainActivity;
@@ -539,15 +540,20 @@ public class TouchInputHandler {
                     setPackage(ctx.getPackageName());
                     setAction(Intent.ACTION_MAIN);
                 }}, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            case "restart activity":
-                return PendingIntent.getActivity(ctx, requestCode,
-                        Intent.makeRestartActivityTask(new ComponentName(ctx, MainActivity.class)), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            case "restart activity": {
+                MainActivity activity = (MainActivity) ctx;
+                return PendingIntent.getActivity(activity, requestCode,
+                        Intent.makeRestartActivityTask(activity.getComponentName())
+                                .setData(activity.getTag().isEmpty() ? null : Uri.parse(activity.getTag())),
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            }
             case "exit":
             case "toggle soft keyboard":
             case "toggle additional key bar":
             case "release pointer and keyboard capture":
                 return PendingIntent.getBroadcast(ctx, requestCode, new Intent(MainActivity.ACTION_CUSTOM) {{
                     putExtra("what", name);
+                    putExtra(CmdEntryPoint.EXTRA_DOCUMENT_TAG, ((MainActivity) ctx).getTag());
                     setPackage(ctx.getPackageName());
                 }}, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             default: return null;

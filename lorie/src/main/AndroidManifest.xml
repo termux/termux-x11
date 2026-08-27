@@ -35,6 +35,17 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/lorie_shortcuts" />
         </activity>
         <activity
+            android:name=".MainActivity$MainActivityTagged"
+            android:taskAffinity=""
+            android:theme="@style/LorieAppTheme"
+            android:documentLaunchMode="intoExisting"
+            android:supportsPictureInPicture="true"
+            android:autoRemoveFromRecents="true"
+            android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density"
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="stateHidden|adjustNothing"
+            android:exported="false" />
+        <activity
             android:theme="@style/Theme.AppCompat.DayNight"
             android:excludeFromRecents="true"
             android:name=".LoriePreferences"

@@ -51,6 +51,7 @@ static JNIEnv* serverEnv = nullptr;
 static jobject thiz = nullptr;
 static jmethodID sendBroadcast = nullptr;
 static jmethodID sendBroadcastDelayed = nullptr;
+static jmethodID setDocumentTag = nullptr;
 
 static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
     pthread_t t;
@@ -61,6 +62,7 @@ static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
         FatalError("Failed to create a global reference for the CmdEntryPoint instance");
     sendBroadcast = env->GetMethodID(env->GetObjectClass(self), "sendBroadcast", "()V");
     sendBroadcastDelayed = env->GetMethodID(env->GetObjectClass(self), "sendBroadcastDelayed", "()V");
+    setDocumentTag = env->GetMethodID(env->GetObjectClass(self), "setDocumentTag", "(Ljava/lang/String;)V");
     auto detectTracer = []() -> Bool {
         FILE *fp;
         char line[256];
@@ -598,9 +600,13 @@ static void reportFatalError(JNIEnv *env, __unused jobject cls, jstring message)
     lorieWakeServer();
 }
 
-void lorieListenForKnocks(void) {
-    struct sockaddr_in address = { .sin_family = AF_INET, .sin_port = htons(PORT), .sin_addr = { .s_addr = INADDR_ANY } };
+// Called from OsVendorInit() once the display number and "-tag" argument (if any) are resolved,
+// so the port to knock on and the tag to report back to Java are already known.
+void lorieListenForKnocks(int port, const char *tag) {
+    struct sockaddr_in address = { .sin_family = AF_INET, .sin_port = htons(port), .sin_addr = { .s_addr = INADDR_ANY } };
     int fd, reuse = 1;
+
+    serverEnv->CallVoidMethod(thiz, setDocumentTag, tag ? serverEnv->NewStringUTF(tag) : nullptr);
 
     // Even in the case if it will fail for some reason everything will work fine
     // But connection will be delayed a bit
@@ -615,7 +621,7 @@ void lorieListenForKnocks(void) {
     setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse));
 
     if (bind(fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
-        log(ERROR, "Failed to bind the knock-listening socket to port %d: %s", PORT, strerror(errno));
+        log(ERROR, "Failed to bind the knock-listening socket to port %d: %s", port, strerror(errno));
         close(fd);
         serverEnv->CallVoidMethod(thiz, sendBroadcastDelayed);
         return;

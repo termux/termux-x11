@@ -284,6 +284,7 @@ struct Renderer {
     JNIEnv* rendererEnv = nullptr;
     JavaVM* jvm = nullptr; // Stashed by init() so initThread() can be reached via `this` from a plain (non-capturing) pthread_create callback.
     jclass lorieViewClass = nullptr;
+    jobject thiz = nullptr; // global ref to the owning LorieView
     jmethodID setRendererViewportMethod = nullptr;
     int reportedViewportX = -1, reportedViewportY = -1, reportedViewportW = -1, reportedViewportH = -1;
     float reportedSourceLeft = -1.f, reportedSourceTop = -1.f, reportedSourceWidth = -1.f, reportedSourceHeight = -1.f;
@@ -324,7 +325,7 @@ struct Renderer {
 
     volatile int* connFdPtr = nullptr;
 
-    void init(JNIEnv* env);
+    void init(JNIEnv* env, jobject thiz);
     void destroy();
     void* initThread();
     int getWakeupCondFd() const;

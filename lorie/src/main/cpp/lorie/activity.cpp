@@ -152,7 +152,7 @@ static jlong nativeInit(JNIEnv *env, jobject thiz) {
 LorieViewResources::LorieViewResources(JNIEnv *callerEnv, jobject view) {
     JavaVM* vm;
     destroyed = false;
-    renderer.init(callerEnv);
+    renderer.init(callerEnv, view);
     renderer.connFdPtr = &connFd; // lets the renderer thread wake up a GPU copy waiter
 
     callerEnv->GetJavaVM(&vm);

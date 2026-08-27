@@ -67,6 +67,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private static boolean clipboardSyncEnabled = false;
     private static boolean hardwareKbdScancodesWorkaround = false;
     private final InputMethodManager mIMM = (InputMethodManager)getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+    private final MainActivity activity = MainActivity.findActivity(getContext());
     private Callback mCallback;
     private final Point p = new Point();
     private final Rect contentInsets = new Rect();
@@ -80,7 +81,6 @@ public class LorieView extends SurfaceView implements InputStub {
     private boolean dimensionsFrozen = false;
     boolean commitedText = false;
     private final InputConnection mConnection = new BaseInputConnection(this, false) {
-        private final MainActivity a = MainActivity.getInstance();
         private CharSequence currentComposingText = null;
 
         // We can not inspect X windows and get currently edited text
@@ -211,8 +211,8 @@ public class LorieView extends SurfaceView implements InputStub {
 
             currentComposingText = reuse ? newText : null;
 
-            if (a.useTermuxEKBarBehaviour && a.mExtraKeys != null)
-                a.mExtraKeys.unsetSpecialKeys();
+            if (activity.useTermuxEKBarBehaviour && activity.mExtraKeys != null)
+                activity.mExtraKeys.unsetSpecialKeys();
             commitedText = true;
             return true;
         }
@@ -424,7 +424,7 @@ public class LorieView extends SurfaceView implements InputStub {
 
         if (getDisplay() == null || getDisplay().getDisplayId() == Display.DEFAULT_DISPLAY)
             name = "builtin";
-        else if (SamsungDexUtils.checkDeXEnabled(MainActivity.getInstance()))
+        else if (SamsungDexUtils.checkDeXEnabled(activity))
             name = "dex";
         else
             name = "external";
@@ -434,20 +434,15 @@ public class LorieView extends SurfaceView implements InputStub {
 
     @Keep
     @SuppressWarnings("unused")
-    private static void setRendererViewport(int viewportLeft, int viewportTop, int viewportWidth, int viewportHeight,
+    private void setRendererViewport(int viewportLeft, int viewportTop, int viewportWidth, int viewportHeight,
                                             float sourceLeft, float sourceTop, float sourceWidth, float sourceHeight) {
         MainActivity.handler.post(() -> {
-            MainActivity activity = MainActivity.getInstance();
-            if (activity == null)
-                return;
-
-            LorieView view = activity.getLorieView();
-            view.inputViewport.set(viewportLeft, viewportTop, viewportLeft + viewportWidth, viewportTop + viewportHeight);
-            view.inputSourceLeft = sourceLeft;
-            view.inputSourceTop = sourceTop;
-            view.inputSourceWidth = sourceWidth;
-            view.inputSourceHeight = sourceHeight;
-            view.updateInputTransform();
+            inputViewport.set(viewportLeft, viewportTop, viewportLeft + viewportWidth, viewportTop + viewportHeight);
+            inputSourceLeft = sourceLeft;
+            inputSourceTop = sourceTop;
+            inputSourceWidth = sourceWidth;
+            inputSourceHeight = sourceHeight;
+            updateInputTransform();
         });
     }
 
@@ -578,7 +573,7 @@ public class LorieView extends SurfaceView implements InputStub {
         if (hardwareKbdScancodesWorkaround)
             return false;
 
-        return MainActivity.getInstance().handleKey(event);
+        return activity.handleKey(event);
     }
 
     @Override

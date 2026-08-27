@@ -140,7 +140,7 @@ void Renderer::bindTexture(GLuint id) const {
 
 void Renderer::reportViewport(int dstX, int dstY, int dstW, int dstH, float left, float top, float width, float height) {
     JNIEnv* env = rendererEnv;
-    if (!env || !lorieViewClass || !setRendererViewportMethod)
+    if (!env || !thiz || !setRendererViewportMethod)
         return;
 
     if (reportedViewportX == dstX && reportedViewportY == dstY &&
@@ -149,7 +149,7 @@ void Renderer::reportViewport(int dstX, int dstY, int dstW, int dstH, float left
         reportedSourceWidth == width && reportedSourceHeight == height)
         return;
 
-    env->CallStaticVoidMethod(lorieViewClass, setRendererViewportMethod, dstX, dstY, dstW, dstH, left, top, width, height);
+    env->CallVoidMethod(thiz, setRendererViewportMethod, dstX, dstY, dstW, dstH, left, top, width, height);
     if (env->ExceptionCheck()) {
         env->ExceptionDescribe();
         env->ExceptionClear();
@@ -288,14 +288,15 @@ void* Renderer::initThread() {
     return nullptr;
 }
 
-void Renderer::init(JNIEnv* env) {
+void Renderer::init(JNIEnv* env, jobject view) {
     if (ctx)
         return;
 
     env->GetJavaVM(&jvm);
+    thiz = env->NewGlobalRef(view);
     jclass clazz = env->FindClass("com/termux/x11/LorieView");
     lorieViewClass = (jclass) env->NewGlobalRef(clazz);
-    setRendererViewportMethod = env->GetStaticMethodID(lorieViewClass, "setRendererViewport", "(IIIIFFFF)V");
+    setRendererViewportMethod = env->GetMethodID(lorieViewClass, "setRendererViewport", "(IIIIFFFF)V");
 
     pthread_mutex_init(&stateLock, nullptr);
 

@@ -14,6 +14,8 @@
 
 #include <sys/eventfd.h>
 #include <sys/errno.h>
+#include <sys/socket.h>
+#include <string.h>
 #include <libxcvt/libxcvt.h>
 #include <X11/X.h>
 #include <X11/Xmd.h>
@@ -1233,6 +1235,93 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
     return NULL;
 }
 
+// DRI3 fds_from_pixmap: hands back a plain dma-buf fd for any GPU-sampleable pixmap, which is
+// what every regular DRI3 consumer (Vulkan, unpatched mesa) expects. AHardwareBuffer doesn't
+// expose its underlying dma-buf through public NDK API, so it's extracted the same way
+// renderer.cpp already probes for dma-buf backing: hand the whole AHardwareBuffer to ourselves
+// over a socketpair and pick out whichever received fd actually is a dma-buf.
+static int lorieFdsFromPixmap(__unused ScreenPtr screen, PixmapPtr pixmap, int *fds, uint32_t *strides, uint32_t *offsets, uint64_t *modifier) {
+    LorieBuffer *buffer = lorieEnsureGpuSampleable(pixmap, LORIEBUFFER_AHARDWAREBUFFER);
+    const LorieBuffer_Desc *desc;
+    int sv[2] = { -1, -1 }, fd = -1;
+    struct cmsghdr *cmsg;
+
+    if (!buffer)
+        return 0;
+    desc = LorieBuffer_description(buffer);
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0)
+        return 0;
+
+    LorieBuffer_sendRawAHardwareBufferHandleToUnixSocket(desc->buffer, sv[0]);
+    shutdown(sv[0], SHUT_WR);
+
+    // Reads every fd handed over in ancillary data until EOF, keeping the first one that turns
+    // out to be backed by a dma-buf (identified through its /proc/self/fd/N symlink target, the
+    // same trick renderer.cpp uses for detecting dma-buf-backed AHardwareBuffers); the rest are
+    // just other planes/vendor metadata of the same native handle and get closed.
+    for (;;) {
+        uint8_t data[4096];
+        union { uint8_t buf[CMSG_SPACE(32 * sizeof(int))]; struct cmsghdr align; } control;
+        struct iovec iov = { .iov_base = data, .iov_len = sizeof(data) };
+        struct msghdr msg = { .msg_iov = &iov, .msg_iovlen = 1, .msg_control = control.buf, .msg_controllen = sizeof(control.buf) };
+        ssize_t n = recvmsg(sv[1], &msg, 0);
+        if (n <= 0)
+            break;
+
+        for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+            int *cfds, ncfds, i;
+            if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS)
+                continue;
+
+            cfds = (int *) CMSG_DATA(cmsg);
+            ncfds = (int) ((cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int));
+            for (i = 0; i < ncfds; i++) {
+                char path[32], target[256];
+                ssize_t len;
+                if (fd >= 0) {
+                    close(cfds[i]);
+                    continue;
+                }
+
+                snprintf(path, sizeof(path), "/proc/self/fd/%d", cfds[i]);
+                len = readlink(path, target, sizeof(target) - 1);
+                if (len > 0) {
+                    target[len] = '\0';
+                    if (strstr(target, "dmabuf") || strstr(target, "dma_heap") || strstr(target, "/dev/dma")) {
+                        fd = cfds[i];
+                        continue;
+                    }
+                }
+                close(cfds[i]);
+            }
+        }
+    }
+    close(sv[0]);
+    close(sv[1]);
+
+    if (fd < 0)
+        return 0;
+
+    fds[0] = fd;
+    strides[0] = desc->stride * 4;
+    offsets[0] = 0;
+    *modifier = DRM_FORMAT_MOD_LINEAR;
+    return 1;
+}
+
+// Serves the Lorie-private DRI3AHardwareBufferFromPixmap request: sends the pixmap's backing
+// AHardwareBuffer itself (as opposed to fds_from_pixmap's plain dma-buf) to clients that need
+// the full handle, e.g. GLES import via eglGetNativeClientBufferANDROID.
+int lorieSendAHardwareBufferForPixmap(PixmapPtr pixmap, int socketFd) {
+    LorieBuffer *buffer = lorieEnsureGpuSampleable(pixmap, LORIEBUFFER_AHARDWAREBUFFER);
+    if (!buffer)
+        return 0;
+
+    LorieBuffer_sendRawAHardwareBufferHandleToUnixSocket(LorieBuffer_description(buffer)->buffer, socketFd);
+    return 1;
+}
+
 static int lorieGetFormats(__unused ScreenPtr screen, CARD32 *num_formats, CARD32 **formats) {
     static CARD32 format = DRM_FORMAT_ARGB8888;
     *num_formats = 1;
@@ -1256,7 +1345,7 @@ static int lorieGetModifiers(__unused ScreenPtr screen, uint32_t format, uint32_
 
 static dri3_screen_info_rec lorieDri3Info = {
         .version = 2,
-        .fds_from_pixmap = FalseNoop,
+        .fds_from_pixmap = lorieFdsFromPixmap,
         .pixmap_from_fds = loriePixmapFromFds,
         .get_formats = lorieGetFormats,
         .get_modifiers = lorieGetModifiers,

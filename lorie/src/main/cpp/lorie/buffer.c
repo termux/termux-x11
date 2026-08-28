@@ -508,6 +508,11 @@ int LorieBuffer_recvAHardwareBufferHandleFromUnixSocket(int socketFd, AHardwareB
     return -ENOSYS;
 }
 
+__LIBC_HIDDEN__ void LorieBuffer_sendRawAHardwareBufferHandleToUnixSocket(AHardwareBuffer* buffer, int socketFd) {
+    if (__builtin_available(android 26, *))
+        AHardwareBuffer_sendHandleToUnixSocket(buffer, socketFd);
+}
+
 void LorieBuffer_describeAHardwareBuffer(AHardwareBuffer* buffer, AHardwareBuffer_Desc* outDesc) {
     if (__builtin_available(android 26, *))
         AHardwareBuffer_describe(buffer, outDesc);

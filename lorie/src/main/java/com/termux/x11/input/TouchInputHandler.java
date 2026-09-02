@@ -1028,6 +1028,13 @@ public class TouchInputHandler {
                 if (axis_relative_x || mouse_relative) {
                     float x = axis_relative_x ? e.getAxisValue(MotionEvent.AXIS_RELATIVE_X) : e.getX();
                     float y = axis_relative_x ? e.getAxisValue(MotionEvent.AXIS_RELATIVE_Y) : e.getY();
+
+                    int historySize = e.getHistorySize();
+                    for (int h = 0; h < historySize; h++) {
+                        x += e.getHistoricalAxisValue(MotionEvent.AXIS_RELATIVE_X, h);
+                        y += e.getHistoricalAxisValue(MotionEvent.AXIS_RELATIVE_Y, h);
+                    }
+
                     float temp;
 
                     switch (capturedPointerTransformation) {

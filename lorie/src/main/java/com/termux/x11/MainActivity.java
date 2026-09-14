@@ -115,14 +115,14 @@ public class MainActivity extends AppCompatActivity {
     private static final float MIN_PIP_ASPECT_RATIO = getSystemDimenFloat("config_pictureInPictureMinAspectRatio", 1.f / 2.39f);
     private static final float MAX_PIP_ASPECT_RATIO = getSystemDimenFloat("config_pictureInPictureMaxAspectRatio", 2.39f);
 
-    public static Prefs prefs = null;
+    public Prefs prefs;
 
     private boolean oldFullscreen = false, oldHideCutout = false;
     private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> onPreferencesChanged(key);
     private OrientationEventListener orientationListener;
 
     public void onBroadcastReceive(Context context, Intent intent) {
-        prefs.recheckStoringSecondaryDisplayPreferences();
+        prefs = ((TermuxX11Application) getApplication()).getPrefs(this);
         if (ACTION_START.equals(intent.getAction())) {
             try {
                 Log.v("LorieBroadcastReceiver", "Got new ACTION_START intent");
@@ -166,10 +166,6 @@ public class MainActivity extends AppCompatActivity {
         instance = this;
     }
 
-    public static Prefs getPrefs() {
-        return prefs;
-    }
-
     public static MainActivity getInstance() {
         return instance;
     }
@@ -189,7 +185,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        prefs = new Prefs(this);
+        prefs = ((TermuxX11Application) getApplication()).getPrefs(this);
         int modeValue = Integer.parseInt(prefs.touchMode.get()) - 1;
         if (modeValue > 2)
             prefs.touchMode.put("1");
@@ -645,7 +641,7 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint("UnsafeIntentLaunch")
     void onPreferencesChangedCallback() {
-        prefs.recheckStoringSecondaryDisplayPreferences();
+        prefs = ((TermuxX11Application) getApplication()).getPrefs(this);
 
         // There is no way back to the normal size from picture-in-picture, so the window is closed.
         if (isInPictureInPictureMode && !prefs.PIP.get()) {

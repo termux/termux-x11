@@ -2,7 +2,6 @@ package com.termux.x11.utils;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
-import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
@@ -28,30 +27,30 @@ public class KeyInterceptor extends AccessibilityService {
         self = this;
     }
 
-    public static void launch(@NonNull Context ctx) {
+    public static void launch(@NonNull MainActivity activity) {
         try {
-            String service = ctx.getPackageName() + "/" + KeyInterceptor.class.getName();
-            String enabled = Settings.Secure.getString(ctx.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            String service = activity.getPackageName() + "/" + KeyInterceptor.class.getName();
+            String enabled = Settings.Secure.getString(activity.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
 
             if (enabled == null || enabled.isEmpty())
                 enabled = service;
             else if (!enabled.contains(service))
                 enabled += ":" + service;
 
-            Settings.Secure.putString(ctx.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, enabled);
-            Settings.Secure.putString(ctx.getContentResolver(), Settings.Secure.ACCESSIBILITY_ENABLED, "1");
+            Settings.Secure.putString(activity.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, enabled);
+            Settings.Secure.putString(activity.getContentResolver(), Settings.Secure.ACCESSIBILITY_ENABLED, "1");
             launchedAutomatically = true;
         } catch (SecurityException e) {
-            new AlertDialog.Builder(ctx)
+            new AlertDialog.Builder(activity)
                     .setTitle("Permission denied")
                     .setMessage("Android requires WRITE_SECURE_SETTINGS permission to start accessibility service automatically.\n" +
                             "Please, launch this command using ADB:\n" +
-                            "adb shell pm grant " + ctx.getPackageName() + " android.permission.WRITE_SECURE_SETTINGS")
+                            "adb shell pm grant " + activity.getPackageName() + " android.permission.WRITE_SECURE_SETTINGS")
                     .setNegativeButton("OK", null)
                     .create()
                     .show();
 
-            MainActivity.prefs.enableAccessibilityServiceAutomatically.put(false);
+            activity.prefs.enableAccessibilityServiceAutomatically.put(false);
         }
     }
 

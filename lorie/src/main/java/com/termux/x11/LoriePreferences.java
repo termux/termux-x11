@@ -15,7 +15,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.database.ContentObserver;
@@ -36,7 +35,6 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
-import android.preference.PreferenceManager;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
@@ -58,11 +56,9 @@ import android.text.style.ForegroundColorSpan;
 import android.text.style.StyleSpan;
 import android.util.Log;
 import android.util.TypedValue;
-import android.view.Display;
 import android.view.InputDevice;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -86,7 +82,7 @@ import java.util.regex.PatternSyntaxException;
 @SuppressWarnings("deprecation")
 public class LoriePreferences extends AppCompatActivity implements PreferenceFragmentCompat.OnPreferenceStartFragmentCallback {
     static final String ACTION_PREFERENCES_CHANGED = "com.termux.x11.ACTION_PREFERENCES_CHANGED";
-    private static Prefs prefs = null;
+    private Prefs prefs;
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @SuppressLint("UnspecifiedRegisterReceiverFlag")
@@ -129,8 +125,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        if (prefs == null)
-            prefs = new Prefs(this);
+        prefs = ((TermuxX11Application) getApplication()).getPrefs(this);
         super.onCreate(savedInstanceState);
         getSupportFragmentManager().beginTransaction().replace(android.R.id.content, new LoriePreferenceFragment(null)).commit();
 
@@ -168,8 +163,6 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
     protected void onDestroy() {
         getContentResolver().unregisterContentObserver(accessibilityObserver);
         super.onDestroy();
-        if (prefs != null && prefs.ctx == this)
-            prefs = null;
     }
 
     @Override
@@ -206,6 +199,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
     public static class LoriePreferenceFragment extends PreferenceFragmentCompat implements OnPreferenceChangeListener {
         private final Runnable updateLayout = this::updatePreferencesLayout;
+        private Prefs prefs;
         private static final Method onSetInitialValue;
         static {
             try {
@@ -232,6 +226,12 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
         public LoriePreferenceFragment(String root) {
             this.root = root;
+        }
+
+        @Override
+        public void onAttach(@NonNull Context context) {
+            super.onAttach(context);
+            prefs = ((LoriePreferences) context).prefs;
         }
 
         @Override
@@ -578,7 +578,8 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
             try {
                 if (intent != null && intent.getExtras() != null) {
-                    Prefs p = (MainActivity.getInstance() != null) ? new Prefs(MainActivity.getInstance()) : (prefs != null ? prefs : new Prefs(context));
+                    Context targetCtx = MainActivity.getInstance() != null ? MainActivity.getInstance() : context;
+                    Prefs p = ((TermuxX11Application) context.getApplicationContext()).getPrefs(targetCtx);
                     if (intent.getStringExtra("list") != null) {
                         String result = "";
                         for (PrefsProto.Preference pref : p.keys.values()) {
@@ -643,6 +644,12 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                             }
                             case "extra_keys_config": {
                                 edit.putString(key, newValue);
+                                break;
+                            }
+                            case "storeSecondaryDisplayPreferencesSeparately": {
+                                // Always canonical, regardless of which display targetCtx resolved to.
+                                ((TermuxX11Application) context.getApplicationContext()).builtInPrefs.preferences.edit()
+                                        .putBoolean(key, "true".contentEquals(newValue)).commit();
                                 break;
                             }
                             default: {
@@ -819,18 +826,16 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             }
 
             public boolean get() {
+                checkAttached();
                 if ("storeSecondaryDisplayPreferencesSeparately".contentEquals(key))
-                    return builtInDisplayPreferences.getBoolean(key, (boolean) defValue);
-
+                    return ((TermuxX11Application) ctx.getApplicationContext()).builtInPrefs.preferences.getBoolean(key, (boolean) defValue);
                 return preferences.getBoolean(key, (boolean) defValue);
             }
 
             public void put(boolean v) {
-                if ("storeSecondaryDisplayPreferencesSeparately".contentEquals(key)) {
-                    builtInDisplayPreferences.edit().putBoolean(key, v).commit();
-                    recheckStoringSecondaryDisplayPreferences();
-                }
-
+                checkAttached();
+                if ("storeSecondaryDisplayPreferencesSeparately".contentEquals(key))
+                    ((TermuxX11Application) ctx.getApplicationContext()).builtInPrefs.preferences.edit().putBoolean(key, v).commit();
                 preferences.edit().putBoolean(key, v).commit();
             }
         }
@@ -841,10 +846,12 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             }
 
             public int get() {
+                checkAttached();
                 return preferences.getInt(key, (int) defValue);
             }
 
             public int defValue() {
+                checkAttached();
                 return preferences.getInt(key, (int) defValue);
             }
         }
@@ -855,10 +862,12 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             }
 
             public String get() {
+                checkAttached();
                 return preferences.getString(key, (String) defValue);
             }
 
             public void put(String v) {
+                checkAttached();
                 preferences.edit().putString(key, v).commit();
             }
         }
@@ -873,18 +882,22 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             }
 
             public String get() {
+                checkAttached();
                 return preferences.getString(key, (String) defValue);
             }
 
             public void put(String v) {
+                checkAttached();
                 preferences.edit().putString(key, v).commit();
             }
 
             public String[] getEntries() {
+                checkAttached();
                 return getArrayItems(entries, ctx.getResources());
             }
 
             public String[] getValues() {
+                checkAttached();
                 return getArrayItems(values, ctx.getResources());
             }
 
@@ -908,66 +921,48 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
         }
 
-        static boolean storeSecondaryDisplayPreferencesSeparately = false;
         protected Context ctx;
         protected SharedPreferences preferences;
-        protected SharedPreferences builtInDisplayPreferences;
-        protected SharedPreferences secondaryDisplayPreferences;
 
-        private PrefsProto() {} // No instantiation allowed
-        protected PrefsProto(Context ctx) {
-            this.ctx = ctx;
+        protected PrefsProto() {}
 
-            // A platform-supplied Context can identify as the host app's package in sharedUid builds.
-            Context prefsCtx = ctx;
-            if (!BuildConfig.APPLICATION_ID.equals(ctx.getPackageName())) {
-                try {
-                    prefsCtx = ctx.createPackageContext(BuildConfig.APPLICATION_ID, 0);
-                } catch (PackageManager.NameNotFoundException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            builtInDisplayPreferences = PreferenceManager.getDefaultSharedPreferences(prefsCtx);
-            secondaryDisplayPreferences = prefsCtx.getSharedPreferences("secondary", Context.MODE_PRIVATE);
-            recheckStoringSecondaryDisplayPreferences();
+        private void checkAttached() {
+            if (preferences == null)
+                throw new NullPointerException("Prefs used before attach() was called");
         }
 
-        protected void recheckStoringSecondaryDisplayPreferences() {
-            storeSecondaryDisplayPreferencesSeparately = builtInDisplayPreferences.getBoolean("storeSecondaryDisplayPreferencesSeparately", false);
-            boolean isExternalDisplay = ((WindowManager) ctx.getSystemService(WINDOW_SERVICE)).getDefaultDisplay().getDisplayId() != Display.DEFAULT_DISPLAY;
-            preferences = (storeSecondaryDisplayPreferencesSeparately && isExternalDisplay) ? secondaryDisplayPreferences : builtInDisplayPreferences;
+        protected void attach(Context ctx, SharedPreferences preferences) {
+            this.ctx = ctx;
+            this.preferences = preferences;
         }
 
         @Override public void putBoolean(String k, boolean v) {
-            if ("storeSecondaryDisplayPreferencesSeparately".contentEquals(k)) {
-                builtInDisplayPreferences.edit().putBoolean(k, v).commit();
-                recheckStoringSecondaryDisplayPreferences();
-            } else
+            checkAttached();
+            if ("storeSecondaryDisplayPreferencesSeparately".contentEquals(k))
+                ((TermuxX11Application) ctx.getApplicationContext()).builtInPrefs.preferences.edit().putBoolean(k, v).commit();
+            else
                 preferences.edit().putBoolean(k, v).commit();
         }
         @Override public boolean getBoolean(String k, boolean d) {
+            checkAttached();
             if ("storeSecondaryDisplayPreferencesSeparately".contentEquals(k))
-                return builtInDisplayPreferences.getBoolean(k, d);
+                return ((TermuxX11Application) ctx.getApplicationContext()).builtInPrefs.preferences.getBoolean(k, d);
             return preferences.getBoolean(k, d);
         }
-        @Override public void putString(String k, @Nullable String v) { prefs.get().edit().putString(k, v).commit(); }
-        @Override public void putStringSet(String k, @Nullable Set<String> v) { prefs.get().edit().putStringSet(k, v).commit(); }
-        @Override public void putInt(String k, int v) { prefs.get().edit().putInt(k, v).commit(); }
-        @Override public void putLong(String k, long v) { prefs.get().edit().putLong(k, v).commit(); }
-        @Override public void putFloat(String k, float v) { prefs.get().edit().putFloat(k, v).commit(); }
-        @Nullable @Override public String getString(String k, @Nullable String d) { return prefs.get().getString(k, d); }
-        @Nullable @Override public Set<String> getStringSet(String k, @Nullable Set<String> ds) { return prefs.get().getStringSet(k, ds); }
-        @Override public int getInt(String k, int d) { return prefs.get().getInt(k, d); }
-        @Override public long getLong(String k, long d) { return prefs.get().getLong(k, d); }
-        @Override public float getFloat(String k, float d) { return prefs.get().getFloat(k, d); }
+        @Override public void putString(String k, @Nullable String v) { get().edit().putString(k, v).commit(); }
+        @Override public void putStringSet(String k, @Nullable Set<String> v) { get().edit().putStringSet(k, v).commit(); }
+        @Override public void putInt(String k, int v) { get().edit().putInt(k, v).commit(); }
+        @Override public void putLong(String k, long v) { get().edit().putLong(k, v).commit(); }
+        @Override public void putFloat(String k, float v) { get().edit().putFloat(k, v).commit(); }
+        @Nullable @Override public String getString(String k, @Nullable String d) { return get().getString(k, d); }
+        @Nullable @Override public Set<String> getStringSet(String k, @Nullable Set<String> ds) { return get().getStringSet(k, ds); }
+        @Override public int getInt(String k, int d) { return get().getInt(k, d); }
+        @Override public long getLong(String k, long d) { return get().getLong(k, d); }
+        @Override public float getFloat(String k, float d) { return get().getFloat(k, d); }
 
         public SharedPreferences get() {
+            checkAttached();
             return preferences;
-        }
-
-        public boolean isSecondaryDisplayPreferences() {
-            return preferences == secondaryDisplayPreferences;
         }
     }
 }

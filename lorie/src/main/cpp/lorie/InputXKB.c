@@ -613,6 +613,18 @@ static void saveAddedKeysym(KeyCode code, KeySym sym)
 {
     AddedKeySym* item;
 
+    /* A keymap replacement can make a previously added key free again.
+     * Keep one entry per keycode; a duplicate left at the LRU tail could
+     * otherwise recycle a key that was just assigned and used. */
+    xorg_list_for_each_entry(item, &addedKeysyms, entry) {
+        if (item->keycode == code) {
+            item->keysym = sym;
+            xorg_list_del(&item->entry);
+            xorg_list_add(&item->entry, &addedKeysyms);
+            return;
+        }
+    }
+
     item = malloc(sizeof(AddedKeySym));
     if (!item)
         return;

@@ -619,7 +619,9 @@ void lorieListenForKnocks(void) {
             return;
         }
 
-        if ((count = read(client, buffer, sizeof(buffer))) > 0 && !memcmp(buffer, MAGIC, min(count, sizeof(MAGIC)))) {
+        if (poll((struct pollfd[]) {{ .fd = client, .events = POLLIN }}, 1, 200) > 0 &&
+            (count = recv(client, buffer, sizeof(buffer), MSG_DONTWAIT)) > 0 &&
+            !memcmp(buffer, MAGIC, min(count, sizeof(MAGIC)))) {
             log(DEBUG, "New client connection!\n");
             serverEnv->CallVoidMethod(thiz, sendBroadcast);
         }

@@ -380,13 +380,33 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 break;
             }
             case EVENT_KEY:
-                QueueKeyboardEvents(lorieKeyboard, e.key.state ? KeyPress : KeyRelease, e.key.key);
-                break;
             case EVENT_UNICODE: {
-                int ks = ucs2keysym((long) e.unicode.code);
-                __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d\n", ks);
-                lorieKeysymKeyboardEvent(ks, TRUE);
-                lorieKeysymKeyboardEvent(ks, FALSE);
+                auto *copy = (lorieEvent*) malloc(sizeof(lorieEvent));
+                if (!copy)
+                    FatalError("Failed to allocate keyboard event");
+                *copy = e;
+                if (!QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
+                    auto *e = (lorieEvent*) closure;
+                    // Unicode input changes the XKB map and delivers notifications to clients.
+                    // Both operations, including draining mieq, belong on the server thread.
+                    // Queue physical keys here too so modifiers and composition backspaces
+                    // cannot overtake an earlier Unicode event.
+                    if (e->type == EVENT_KEY) {
+                        QueueKeyboardEvents(lorieKeyboard, e->key.state ? KeyPress : KeyRelease, e->key.key);
+                        mieqProcessInputEvents();
+                    } else {
+                        int ks = ucs2keysym((long) e->unicode.code);
+                        __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d\n", ks);
+                        lorieKeysymKeyboardEvent(ks, TRUE);
+                        lorieKeysymKeyboardEvent(ks, FALSE);
+                    }
+                    free(e);
+                    return TRUE;
+                }, nullptr, copy)) {
+                    free(copy);
+                    FatalError("Failed to queue keyboard event");
+                }
+                lorieWakeServer();
                 break;
             }
             case EVENT_CLIPBOARD_ENABLE:

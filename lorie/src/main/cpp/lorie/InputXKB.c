@@ -613,6 +613,15 @@ static void saveAddedKeysym(KeyCode code, KeySym sym)
 {
     AddedKeySym* item;
 
+    xorg_list_for_each_entry(item, &addedKeysyms, entry) {
+        if (item->keycode == code) {
+            item->keysym = sym;
+            xorg_list_del(&item->entry);
+            xorg_list_add(&item->entry, &addedKeysyms);
+            return;
+        }
+    }
+
     item = malloc(sizeof(AddedKeySym));
     if (!item)
         return;

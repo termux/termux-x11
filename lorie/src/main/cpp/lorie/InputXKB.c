@@ -784,6 +784,25 @@ void lorieKeysymKeyboardEvent(KeySym keysym, int down) {
      */
     mieqProcessInputEvents();
 
+    /*
+     * A different slave (for example XTEST) may have been used since our
+     * last event. Process the device switch before looking up or adding a
+     * keysym: otherwise the first QueueKeyboardEvents() copies the slave's
+     * map over the master map we just modified.
+     */
+    {
+        InternalEvent event;
+        int count = 0;
+
+        input_lock();
+        UpdateFromMaster(&event, lorieKeyboard, DEVCHANGE_KEYBOARD_EVENT, &count);
+        if (count)
+            mieqEnqueue(lorieKeyboard, &event);
+        input_unlock();
+        if (count)
+            mieqProcessInputEvents();
+    }
+
     state = lorieGetKeyboardState();
 
     keycode = lorieKeysymToKeycode(keysym, state, &new_state);

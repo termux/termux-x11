@@ -35,9 +35,12 @@
 
 static inline void lorieConvertLF(const char* src, char *dst, size_t bytes) {
     size_t i = 0, j = 0;
-    for (; i < bytes; i++)
+    for (; i < bytes; i++) {
         if (src[i] != '\r')
             dst[j++] = src[i];
+        else if (bytes - i < 2 || src[i + 1] != '\n')
+            dst[j++] = '\n';
+    }
 }
 
 static inline void lorieLatin1ToUTF8(unsigned char* out, const unsigned char* in) {

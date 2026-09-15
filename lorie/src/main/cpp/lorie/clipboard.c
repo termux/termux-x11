@@ -560,6 +560,23 @@ void lorieHandleClipboardData(const char* data) {
 
 /* end functions related to clipboard announcing and sending */
 
+static void lorieClientStateCallback(__unused CallbackListPtr *callbacks, __unused void *data, void *args) {
+    ClientPtr client = ((NewClientInfoRec *) args)->client;
+    if (client->clientState != ClientStateGone)
+        return;
+
+    struct LorieDataTarget **next = &lorieDataTargetHead;
+    while (*next) {
+        struct LorieDataTarget *target = *next;
+        if (target->client == client) {
+            *next = target->next;
+            free(target);
+        } else {
+            next = &target->next;
+        }
+    }
+}
+
 void lorieInitClipboard(void) {
 #define ATOM(name) xa##name = MakeAtom(#name, strlen(#name), TRUE)
     ATOM(TIMESTAMP); ATOM(TEXT); ATOM(CLIPBOARD); ATOM(TARGETS); ATOM(STRING); ATOM(UTF8_STRING);
@@ -576,4 +593,6 @@ void lorieInitClipboard(void) {
 
     if (!AddCallback(&SelectionCallback, lorieSelectionCallback, NULL))
         FatalError("Adding SelectionCallback failed\n");
+    if (!AddCallback(&ClientStateCallback, lorieClientStateCallback, NULL))
+        FatalError("Adding ClientStateCallback failed\n");
 }

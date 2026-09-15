@@ -52,30 +52,37 @@ static inline void lorieLatin1ToUTF8(unsigned char* out, const unsigned char* in
 }
 
 static inline int lorieCheckUTF8(const unsigned char *utf, size_t size) {
-    size_t ix;
-    unsigned char c;
+    for (size_t ix = 0; ix < size;) {
+        unsigned char c = utf[ix];
+        size_t length;
 
-    for (ix = 0; ix < size && (c = utf[ix]);) {
-        if (c & 0x80) {
-            if (size - ix < 2 || (utf[ix + 1] & 0xc0) != 0x80)
-                return 0;
-            if ((c & 0xe0) == 0xe0) {
-                if (size - ix < 3 || (utf[ix + 2] & 0xc0) != 0x80)
-                    return 0;
-                if ((c & 0xf0) == 0xf0) {
-                    if (size - ix < 4 || (c & 0xf8) != 0xf0 || (utf[ix + 3] & 0xc0) != 0x80)
-                        return 0;
-                    ix += 4;
-                    /* 4-byte code */
-                } else
-                    /* 3-byte code */
-                    ix += 3;
-            } else
-                /* 2-byte code */
-                ix += 2;
-        } else
-            /* 1-byte code */
+        if (c < 0x80) {
             ix++;
+            continue;
+        } else if (c >= 0xc2 && c <= 0xdf) {
+            length = 2;
+        } else if (c >= 0xe0 && c <= 0xef) {
+            length = 3;
+        } else if (c >= 0xf0 && c <= 0xf4) {
+            length = 4;
+        } else {
+            return 0;
+        }
+
+        if (size - ix < length)
+            return 0;
+        for (size_t j = 1; j < length; j++)
+            if ((utf[ix + j] & 0xc0) != 0x80)
+                return 0;
+
+        unsigned char second = utf[ix + 1];
+        if ((c == 0xe0 && second < 0xa0) ||
+            (c == 0xed && second >= 0xa0) ||
+            (c == 0xf0 && second < 0x90) ||
+            (c == 0xf4 && second >= 0x90))
+            return 0;
+
+        ix += length;
     }
     return 1;
 }

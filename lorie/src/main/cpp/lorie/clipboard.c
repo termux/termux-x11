@@ -49,18 +49,18 @@ static inline void lorieLatin1ToUTF8(unsigned char* out, const unsigned char* in
 }
 
 static inline int lorieCheckUTF8(const unsigned char *utf, size_t size) {
-    int ix;
+    size_t ix;
     unsigned char c;
 
-    for (ix = 0; (c = utf[ix]) && ix < size;) {
+    for (ix = 0; ix < size && (c = utf[ix]);) {
         if (c & 0x80) {
-            if ((utf[ix + 1] & 0xc0) != 0x80)
+            if (size - ix < 2 || (utf[ix + 1] & 0xc0) != 0x80)
                 return 0;
             if ((c & 0xe0) == 0xe0) {
-                if ((utf[ix + 2] & 0xc0) != 0x80)
+                if (size - ix < 3 || (utf[ix + 2] & 0xc0) != 0x80)
                     return 0;
                 if ((c & 0xf0) == 0xf0) {
-                    if ((c & 0xf8) != 0xf0 || (utf[ix + 3] & 0xc0) != 0x80)
+                    if (size - ix < 4 || (c & 0xf8) != 0xf0 || (utf[ix + 3] & 0xc0) != 0x80)
                         return 0;
                     ix += 4;
                     /* 4-byte code */

@@ -165,8 +165,12 @@ static const char *lorieUtf8ToLatin1(const char *src) {
     }
 
     // Reserve space
-    unsigned char out[sz + 1];
-    memset(out, 0, sz + 1);
+    size_t capacity;
+    if (__builtin_add_overflow(sz, (size_t) 1, &capacity))
+        return NULL;
+    unsigned char *out = calloc(capacity, 1);
+    if (!out)
+        return NULL;
     size_t position = 0;
 
     // And convert
@@ -186,7 +190,7 @@ static const char *lorieUtf8ToLatin1(const char *src) {
             out[position++] = (unsigned char)ucs;
     }
 
-    return strdup((const char*) out);
+    return (const char*) out;
 }
 
 /* end utility functions */
@@ -257,29 +261,43 @@ static void lorieHandleSelection(Atom target) {
             lorieSelectionRequest(xaCLIPBOARD, xaSTRING);
     } else if (target == xaSTRING && prop->type == xaSTRING && prop->format == 8) {
         if (prop->format != 8 || prop->type != xaSTRING)
-            return;
+            return lorieSendClipboardData("");
 
-        char filtered[prop->size + 1], utf8[(prop->size + 1) * 2];
-        memset(filtered, 0, sizeof(filtered));
-        memset(utf8, 0, sizeof(utf8));
+        size_t capacity, utf8Capacity;
+        if (__builtin_add_overflow((size_t) prop->size, (size_t) 1, &capacity) ||
+            __builtin_mul_overflow(capacity, (size_t) 2, &utf8Capacity))
+            return lorieSendClipboardData("");
+        char *filtered = calloc(capacity, 1);
+        char *utf8 = calloc(utf8Capacity, 1);
+        if (!filtered || !utf8) {
+            free(filtered);
+            free(utf8);
+            return lorieSendClipboardData("");
+        }
 
         lorieConvertLF(prop->data,  filtered, prop->size);
         lorieLatin1ToUTF8((unsigned char*) utf8, (unsigned char*) filtered);
         log(DEBUG, "Sending clipboard to clients (%zu bytes)\n", strlen(utf8));
         lorieSendClipboardData(utf8);
+        free(filtered);
+        free(utf8);
     } else if (target == xaUTF8_STRING && prop->type == xaUTF8_STRING && prop->format == 8) {
-        char filtered[prop->size + 1];
-
         if (!lorieCheckUTF8(prop->data, prop->size)) {
             dprintf(2, "Invalid UTF-8 sequence in clipboard\n");
-            return;
+            return lorieSendClipboardData("");
         }
 
-        memset(filtered, 0, prop->size + 1);
+        size_t capacity;
+        if (__builtin_add_overflow((size_t) prop->size, (size_t) 1, &capacity))
+            return lorieSendClipboardData("");
+        char *filtered = calloc(capacity, 1);
+        if (!filtered)
+            return lorieSendClipboardData("");
         lorieConvertLF(prop->data, filtered, prop->size);
 
         log(DEBUG, "Sending clipboard to clients (%zu bytes)\n", strlen(filtered));
         lorieSendClipboardData(filtered);
+        free(filtered);
     }
 }
 

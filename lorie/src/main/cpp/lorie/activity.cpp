@@ -212,8 +212,14 @@ int LorieViewResources::xcallback(int fd, int events) {
                 case EVENT_CLIPBOARD_SEND: {
                     if (!e.clipboardSend.count)
                         break;
-                    char clipboard[e.clipboardSend.count + 1];
-                    memset(clipboard, 0, e.clipboardSend.count + 1);
+                    size_t capacity;
+                    if (__builtin_add_overflow((size_t) e.clipboardSend.count, (size_t) 1, &capacity))
+                        return xcallback(fd, ALOOPER_EVENT_HANGUP);
+                    char *clipboard = (char*) calloc(capacity, 1);
+                    if (!clipboard) {
+                        log(ERROR, "Could not allocate clipboard buffer");
+                        return xcallback(fd, ALOOPER_EVENT_HANGUP);
+                    }
                     read(connFd, clipboard, e.clipboardSend.count);
                     clipboard[e.clipboardSend.count] = 0;
                     log(DEBUG, "Clipboard content (%zu symbols) is %s", strlen(clipboard), clipboard);
@@ -225,6 +231,7 @@ int LorieViewResources::xcallback(int fd, int events) {
 
                     auto str = (jstring) env->CallObjectMethod(cb, CharBuffer.toString);
                     env->CallVoidMethod(thiz, id, str);
+                    free(clipboard);
                     break;
                 }
                 case EVENT_CLIPBOARD_REQUEST: {

@@ -389,8 +389,8 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                     auto *e = (lorieEvent*) closure;
                     // Unicode input changes the XKB map and delivers notifications to clients.
                     // Both operations, including draining mieq, belong on the server thread.
-                    // Queue physical keys here too so modifiers and composition backspaces
-                    // cannot overtake an earlier Unicode event.
+                    // Queue physical keys here too instead of delivering modifiers and
+                    // composition backspaces directly while Unicode events are deferred.
                     if (e->type == EVENT_KEY) {
                         QueueKeyboardEvents(lorieKeyboard, e->key.state ? KeyPress : KeyRelease, e->key.key);
                         mieqProcessInputEvents();

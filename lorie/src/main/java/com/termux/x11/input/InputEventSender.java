@@ -212,7 +212,14 @@ public final class InputEventSender {
             syncLockKeysState(e.getMetaState());
 
         if ((e.getFlags() & KeyEvent.FLAG_CANCELED) == KeyEvent.FLAG_CANCELED) {
-            android.util.Log.d("KeyEvent", "We've got key event with FLAG_CANCELED, it will not be consumed. Details: " + e);
+            // A canceled release must still balance a raw press already sent
+            // to X11, otherwise server-side autorepeat continues indefinitely.
+            if (e.getAction() == KeyEvent.ACTION_UP) {
+                mPressedTextKeys.remove(keyCode);
+                if (mPressedKeys.remove(keyCode))
+                    mInjector.sendKeyEvent(e.getScanCode(), keyCode, false);
+            }
+            android.util.Log.d("KeyEvent", "Canceled key event (tracked raw release balanced): " + e);
             return true;
         }
 
@@ -289,9 +296,12 @@ public final class InputEventSender {
         if (e.getRepeatCount() > 0 && mPressedKeys.contains(keyCode))
             return true;
 
-        if (pressed)
+        if (pressed) {
+            // An IME can consume the release of an earlier text event. A new
+            // raw press supersedes that marker; it must receive a raw release.
+            mPressedTextKeys.remove(keyCode);
             mPressedKeys.add(keyCode);
-        else
+        } else
             mPressedKeys.remove(keyCode);
 
         if (keyCode == KEYCODE_ESCAPE && !pressed && e.hasNoModifiers())

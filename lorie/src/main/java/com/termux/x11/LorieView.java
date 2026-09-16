@@ -40,6 +40,7 @@ import androidx.annotation.NonNull;
 import androidx.core.math.MathUtils;
 
 import com.termux.x11.input.InputStub;
+import com.termux.x11.input.HardwareCtrlShortcuts;
 import com.termux.x11.utils.SamsungDexUtils;
 
 import java.util.Set;
@@ -65,6 +66,7 @@ public class LorieView extends SurfaceView implements InputStub {
     private long mNativeContext;
     private boolean clipboardSyncEnabled = false;
     private boolean hardwareKbdScancodesWorkaround = false;
+    private final HardwareCtrlShortcuts hardwareCtrlShortcuts = new HardwareCtrlShortcuts();
     private final InputMethodManager mIMM = (InputMethodManager)getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
     private final MainActivity activity = MainActivity.findActivity(getContext());
     private Callback mCallback;
@@ -556,6 +558,12 @@ public class LorieView extends SurfaceView implements InputStub {
 
     @Override
     public boolean dispatchKeyEventPreIme(KeyEvent event) {
+        if (hardwareKbdScancodesWorkaround && hardwareCtrlShortcuts.intercept(event)) {
+            keyReleaseHandler.removeMessages(event.getKeyCode());
+            activity.handleKey(event);
+            return true;
+        }
+
         if (imeBuggyKeys.contains(event.getKeyCode())) {
             // IME does not handle/send events for some keys correctly correctly.
             // So we should send key release manually in the case if IME will not send it...
@@ -640,6 +648,9 @@ public class LorieView extends SurfaceView implements InputStub {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+
+        if (!hasFocus)
+            hardwareCtrlShortcuts.releaseAll(activity::handleKey);
 
         requestFocus();
 

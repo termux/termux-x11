@@ -19,3 +19,20 @@ For device testing, repeat Chinese IME commits in both a GTK editor and a
 Chromium/Electron input, including deletion/retyping and long commits that
 exhaust unused keycodes. Also switch between XTEST input (e.g. xdotool) and
 Android Unicode input to check the first character after a keyboard switch.
+
+## Hardware Ctrl shortcuts
+
+After building `:lorie-app:assembleSharedUidDebug`, run the Java regression on
+an attached Android device (the APK is loaded for testing, not installed):
+
+```sh
+python3 tests/run-input-shortcuts.py --sdk "$ANDROID_HOME" \
+  --java-home "$JAVA_HOME" --adb adb \
+  --apk lorie-app/build/intermediates/apk/sharedUid/debug/termux-x11-universal-sharedUid-debug.apk
+```
+
+The test uses Android's real `KeyEvent` and the production shortcut tracker and
+`InputEventSender`, with a recording injector instead of X11. It covers Ctrl
+being released before C/V, IME-consumed releases leaving stale text markers,
+canceled raw releases, focus loss, and distinct keyboard devices. A physical
+keyboard/IME retest is still required to verify Android's dispatch path.

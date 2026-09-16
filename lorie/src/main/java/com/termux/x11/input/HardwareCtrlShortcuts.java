@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.function.Consumer;
 
-/** Keep both halves of hardware Ctrl shortcuts out of IME processing. */
 public final class HardwareCtrlShortcuts {
     private final LinkedHashMap<Long, KeyEvent> pressed = new LinkedHashMap<>();
 
@@ -23,8 +22,7 @@ public final class HardwareCtrlShortcuts {
                 && event.getKeyCode() != KeyEvent.KEYCODE_CTRL_RIGHT)
             return false;
 
-        // Ctrl may already be up when the letter is released. Route that
-        // release exactly like its press, even if the IME would consume it.
+        // Track letter releases even after Ctrl is up or the IME consumes them.
         if (event.getAction() == KeyEvent.ACTION_DOWN)
             pressed.putIfAbsent(id, new KeyEvent(event));
         else

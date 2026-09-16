@@ -613,9 +613,7 @@ static void saveAddedKeysym(KeyCode code, KeySym sym)
 {
     AddedKeySym* item;
 
-    /* A keymap replacement can make a previously added key free again.
-     * Keep one entry per keycode; a duplicate left at the LRU tail could
-     * otherwise recycle a key that was just assigned and used. */
+    /* Reuse cache entries after keymap replacement to avoid duplicate keycodes. */
     xorg_list_for_each_entry(item, &addedKeysyms, entry) {
         if (item->keycode == code) {
             item->keysym = sym;
@@ -744,8 +742,7 @@ static KeyCode lorieAddKeysym(KeySym keysym, unused unsigned state) {
 	changes.map.num_key_syms = 1;
 
 	XkbSendNotification(master, &changes, &cause);
-	/* Events originate from the slave. Keep its map in step with the master,
-	 * both for device-specific clients and the next slave-to-master switch. */
+	/* Preserve mappings across the next slave-to-master switch. */
 	if (master != lorieKeyboard && !XkbCopyDeviceKeymap(lorieKeyboard, master))
 		FatalError("Failed to synchronize the Unicode keyboard map");
 
@@ -753,12 +750,8 @@ static KeyCode lorieAddKeysym(KeySym keysym, unused unsigned state) {
 }
 
 static void lorieActivateKeyboard(void) {
-    /*
-     * A different slave (for example XTEST) may have been used since our
-     * last event. Process the device switch before looking up or adding a
-     * keysym: otherwise the first QueueKeyboardEvents() copies the slave's
-     * map over the master map we just modified.
-     */
+    /* Process slave switches before modifying the master map, or the
+     * next key event can overwrite the new mapping with the slave map. */
     {
         InternalEvent event;
         int count = 0;

@@ -259,10 +259,7 @@ static Bool handleTouchEvent(__unused ClientPtr pClient, void *closure) {
     return TRUE;
 }
 
-// Preserve keyboard order while allowing clients to read dynamic keymaps between
-// Unicode characters. Waiting happens in the server event loop, never the UI or
-// input thread. A single scheduled consumer also avoids work-queue overflow
-// reordering a burst of composition deletes and replacement text.
+// Keep keyboard events ordered while yielding to client keymap requests.
 static pthread_mutex_t keyboardMutex = PTHREAD_MUTEX_INITIALIZER;
 struct KeyboardNode { lorieEvent event; KeyboardNode* next; };
 static KeyboardNode *keyboardHead = nullptr, *keyboardTail = nullptr;
@@ -276,7 +273,6 @@ static uint64_t keyboardGeneration = 0, preparedGeneration = 0;
 static Bool drainKeyboardEvents(ClientPtr, void*);
 
 static CARD32 keyboardDelayExpired(OsTimerPtr, CARD32, void*) {
-    // Resume through the work queue, between normal client requests.
     if (!QueueWorkProc(drainKeyboardEvents, nullptr, nullptr))
         FatalError("Failed to resume keyboard events");
     lorieWakeServer();
@@ -317,8 +313,7 @@ static Bool drainKeyboardEvents(ClientPtr, void*) {
         pthread_mutex_unlock(&keyboardMutex);
         KeyboardInputLock inputGuard;
         if (reset) {
-            // A disconnect discards queued releases too. Balance raw presses
-            // already delivered before accepting input from a new connection.
+            // Disconnect also discards releases, so balance already-delivered presses.
             for (int key = 8; key < 256; key++)
                 if (key_is_down(lorieKeyboard, key, KEY_POSTED))
                     QueueKeyboardEvents(lorieKeyboard, KeyRelease, key);

@@ -195,14 +195,18 @@ public class LorieView extends SurfaceView implements InputStub {
          *
          * @noinspection SameReturnValue*/
         boolean replaceText(CharSequence newText, boolean reuse) {
-            int oldLen = currentComposingText != null ? currentComposingText.length() : 0;
-            int newLen = newText != null ? newText.length() : 0;
+            // A supplementary character occupies two UTF-16 units, but is
+            // injected once and should not require two Backspace events.
+            int oldLen = currentComposingText != null
+                    ? Character.codePointCount(currentComposingText, 0, currentComposingText.length()) : 0;
+            int newLen = newText != null ? Character.codePointCount(newText, 0, newText.length()) : 0;
             if (oldLen > 0 && newLen > 0 && (currentComposingText.toString().startsWith(newText.toString())
                     || newText.toString().startsWith(currentComposingText.toString()))) {
                 for (int i=0; i < oldLen - newLen; i++)
                     sendKey(KeyEvent.KEYCODE_DEL);
-                for (int i=oldLen; i<newLen; i++)
-                    sendTextEvent(String.valueOf(newText.charAt(i)).getBytes(UTF_8));
+                if (newLen > oldLen)
+                    sendTextEvent(newText.subSequence(currentComposingText.length(), newText.length())
+                            .toString().getBytes(UTF_8));
             } else {
                 for (int i = 0; i < oldLen; i++)
                     sendKey(KeyEvent.KEYCODE_DEL);
@@ -210,7 +214,7 @@ public class LorieView extends SurfaceView implements InputStub {
                     sendTextEvent(newText.toString().getBytes(UTF_8));
             }
 
-            currentComposingText = reuse ? newText : null;
+            currentComposingText = reuse && newText != null ? newText.toString() : null;
 
             if (activity.useTermuxEKBarBehaviour && activity.mExtraKeys != null)
                 activity.mExtraKeys.unsetSpecialKeys();

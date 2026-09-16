@@ -329,17 +329,19 @@ static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jlong ptr, jbyteAr
     auto* r = (LorieViewResources*) ptr;
     if (r && r->connFd != -1 && text) {
         jsize length = env->GetArrayLength(text);
-        jbyte *str = env->GetByteArrayElements(text, nullptr);
-        char *p = (char*) str;
-        mbstate_t mbstate = { 0 };
         if (!length)
             return;
+        jbyte *str = env->GetByteArrayElements(text, nullptr);
+        if (!str)
+            return;
+        char *p = (char*) str;
+        mbstate_t mbstate = { 0 };
 
         log(DEBUG, "Parsing text: %.*s", length, str);
 
-        while (*p) {
+        while (p < (char*) str + length) {
             wchar_t wc;
-            size_t len = mbrtowc(&wc, p, MB_CUR_MAX, &mbstate);
+            size_t len = mbrtowc(&wc, p, length - (p - (char*) str), &mbstate);
 
             if (len == (size_t)-1 || len == (size_t)-2) {
                 log(ERROR, "Invalid UTF-8 sequence encountered");
@@ -353,9 +355,6 @@ static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jlong ptr, jbyteAr
             lorieEvent e = { .unicode = { .t = EVENT_UNICODE, .code = (uint32_t) wc } };
             write(r->connFd, &e, sizeof(e));
             p += len;
-            if (p - (char*) str >= length)
-                break;
-            usleep(2500);
         }
 
         env->ReleaseByteArrayElements(text, str, JNI_ABORT);

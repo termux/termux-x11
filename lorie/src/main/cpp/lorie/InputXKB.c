@@ -744,8 +744,45 @@ static KeyCode lorieAddKeysym(KeySym keysym, unused unsigned state) {
 	changes.map.num_key_syms = 1;
 
 	XkbSendNotification(master, &changes, &cause);
+	/* Events originate from the slave. Keep its map in step with the master,
+	 * both for device-specific clients and the next slave-to-master switch. */
+	if (master != lorieKeyboard && !XkbCopyDeviceKeymap(lorieKeyboard, master))
+		FatalError("Failed to synchronize the Unicode keyboard map");
 
 	return key;
+}
+
+static void lorieActivateKeyboard(void) {
+    /*
+     * A different slave (for example XTEST) may have been used since our
+     * last event. Process the device switch before looking up or adding a
+     * keysym: otherwise the first QueueKeyboardEvents() copies the slave's
+     * map over the master map we just modified.
+     */
+    {
+        InternalEvent event;
+        int count = 0;
+
+        input_lock();
+        UpdateFromMaster(&event, lorieKeyboard, DEVCHANGE_KEYBOARD_EVENT, &count);
+        if (count)
+            mieqEnqueue(lorieKeyboard, &event);
+        input_unlock();
+        if (count)
+            mieqProcessInputEvents();
+    }
+}
+
+/* Publish a new mapping separately from its first key event, so asynchronous
+ * clients can fetch it before interpreting the keycode. */
+Bool loriePrepareKeysym(KeySym keysym) {
+    unsigned state, new_state;
+    mieqProcessInputEvents();
+    lorieActivateKeyboard();
+    state = lorieGetKeyboardState();
+    if (lorieKeysymToKeycode(keysym, state, &new_state))
+        return FALSE;
+    return lorieAddKeysym(keysym, state) != 0;
 }
 
 /*
@@ -796,24 +833,7 @@ void lorieKeysymKeyboardEvent(KeySym keysym, int down) {
      */
     mieqProcessInputEvents();
 
-    /*
-     * A different slave (for example XTEST) may have been used since our
-     * last event. Process the device switch before looking up or adding a
-     * keysym: otherwise the first QueueKeyboardEvents() copies the slave's
-     * map over the master map we just modified.
-     */
-    {
-        InternalEvent event;
-        int count = 0;
-
-        input_lock();
-        UpdateFromMaster(&event, lorieKeyboard, DEVCHANGE_KEYBOARD_EVENT, &count);
-        if (count)
-            mieqEnqueue(lorieKeyboard, &event);
-        input_unlock();
-        if (count)
-            mieqProcessInputEvents();
-    }
+    lorieActivateKeyboard();
 
     state = lorieGetKeyboardState();
 

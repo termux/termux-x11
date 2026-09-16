@@ -1,0 +1,1220 @@
+[
+  {
+    "id": "raw-original",
+    "expected": "正在使用中文加磁吸键盘的输入方式",
+    "steps": [
+      {
+        "op": "raw",
+        "text": "正在使用中文加磁吸键盘的输入方式"
+      }
+    ]
+  },
+  {
+    "id": "raw-unique",
+    "expected": "天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜金生丽水玉出昆冈",
+    "steps": [
+      {
+        "op": "raw",
+        "text": "天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜金生丽水玉出昆冈"
+      }
+    ]
+  },
+  {
+    "id": "commit-original",
+    "expected": "正在使用中文加磁吸键盘的输入方式",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "正在使用中文加磁吸键盘的输入方式"
+      }
+    ]
+  },
+  {
+    "id": "pinyin-segments",
+    "expected": "正在使用中文加磁吸键盘的输入方式",
+    "steps": [
+      {
+        "op": "compose",
+        "text": "z",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zh",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zhe",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zhen",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zheng",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zhengz",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zhengza",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zhengzai",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "正在",
+        "delay": 80
+      },
+      {
+        "op": "compose",
+        "text": "s",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "sh",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "shi",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "shiy",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "shiyo",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "shiyon",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "shiyong",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "使用",
+        "delay": 80
+      },
+      {
+        "op": "compose",
+        "text": "z",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zh",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zho",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zhon",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zhong",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zhongw",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zhongwe",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "zhongwen",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "中文",
+        "delay": 80
+      },
+      {
+        "op": "compose",
+        "text": "j",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "ji",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "jia",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "加",
+        "delay": 80
+      },
+      {
+        "op": "compose",
+        "text": "c",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "ci",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "cix",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "cixi",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "磁吸",
+        "delay": 80
+      },
+      {
+        "op": "compose",
+        "text": "j",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "ji",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "jia",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "jian",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "jianp",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "jianpa",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "jianpan",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "键盘",
+        "delay": 80
+      },
+      {
+        "op": "compose",
+        "text": "d",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "de",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "的",
+        "delay": 80
+      },
+      {
+        "op": "compose",
+        "text": "s",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "sh",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "shu",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "shur",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "shuru",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "输入",
+        "delay": 80
+      },
+      {
+        "op": "compose",
+        "text": "f",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "fa",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "fan",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "fang",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "fangs",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "fangsh",
+        "delay": 30
+      },
+      {
+        "op": "compose",
+        "text": "fangshi",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "方式",
+        "delay": 80
+      }
+    ]
+  },
+  {
+    "id": "candidate-replacement",
+    "expected": "这是测试中文输入",
+    "steps": [
+      {
+        "op": "compose",
+        "text": "zhe"
+      },
+      {
+        "op": "compose",
+        "text": "这是"
+      },
+      {
+        "op": "commit",
+        "text": "这是"
+      },
+      {
+        "op": "compose",
+        "text": "ce"
+      },
+      {
+        "op": "compose",
+        "text": "测试"
+      },
+      {
+        "op": "commit",
+        "text": "测试"
+      },
+      {
+        "op": "compose",
+        "text": "中文输出"
+      },
+      {
+        "op": "compose",
+        "text": "中文输入"
+      },
+      {
+        "op": "commit",
+        "text": "中文输入"
+      }
+    ]
+  },
+  {
+    "id": "backspace-retype",
+    "expected": "正在使用中文",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "正在入用"
+      },
+      {
+        "op": "delete",
+        "text": "",
+        "before": 2
+      },
+      {
+        "op": "commit",
+        "text": "使用"
+      },
+      {
+        "op": "commit",
+        "text": "中文"
+      }
+    ]
+  },
+  {
+    "id": "mixed",
+    "expected": "Codex 开发 Android 17：修复输入，测试通过。",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "Codex 开发 Android 17："
+      },
+      {
+        "op": "compose",
+        "text": "xiufu"
+      },
+      {
+        "op": "commit",
+        "text": "修复输入，"
+      },
+      {
+        "op": "commit",
+        "text": "测试通过。"
+      }
+    ]
+  },
+  {
+    "id": "repeated",
+    "expected": "中文中文中文测试测试测试",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "中文",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "中文",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "中文",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "测试",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "测试",
+        "delay": 30
+      },
+      {
+        "op": "commit",
+        "text": "测试",
+        "delay": 30
+      }
+    ]
+  },
+  {
+    "id": "batch",
+    "expected": "拼音输入",
+    "steps": [
+      {
+        "op": "begin",
+        "text": ""
+      },
+      {
+        "op": "compose",
+        "text": "pinyin"
+      },
+      {
+        "op": "commit",
+        "text": "拼音"
+      },
+      {
+        "op": "end",
+        "text": ""
+      },
+      {
+        "op": "begin",
+        "text": ""
+      },
+      {
+        "op": "compose",
+        "text": "shuru"
+      },
+      {
+        "op": "commit",
+        "text": "输入"
+      },
+      {
+        "op": "end",
+        "text": ""
+      }
+    ]
+  },
+  {
+    "id": "short-commit",
+    "expected": "你能识别当前的设备和环境么",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "你",
+        "delay": 100
+      },
+      {
+        "op": "commit",
+        "text": "能",
+        "delay": 100
+      },
+      {
+        "op": "commit",
+        "text": "识别",
+        "delay": 100
+      },
+      {
+        "op": "commit",
+        "text": "当前",
+        "delay": 100
+      },
+      {
+        "op": "commit",
+        "text": "的",
+        "delay": 100
+      },
+      {
+        "op": "commit",
+        "text": "设备",
+        "delay": 100
+      },
+      {
+        "op": "commit",
+        "text": "和",
+        "delay": 100
+      },
+      {
+        "op": "commit",
+        "text": "环境",
+        "delay": 100
+      },
+      {
+        "op": "commit",
+        "text": "么",
+        "delay": 100
+      }
+    ]
+  },
+  {
+    "id": "compose-shrink",
+    "expected": "拼音",
+    "steps": [
+      {
+        "op": "compose",
+        "text": "pinyn"
+      },
+      {
+        "op": "compose",
+        "text": "piny"
+      },
+      {
+        "op": "compose",
+        "text": "pinyin"
+      },
+      {
+        "op": "commit",
+        "text": "拼音"
+      }
+    ]
+  },
+  {
+    "id": "emoji",
+    "expected": "中文🙂输入",
+    "steps": [
+      {
+        "op": "compose",
+        "text": "中文"
+      },
+      {
+        "op": "compose",
+        "text": "中文🙂"
+      },
+      {
+        "op": "commit",
+        "text": "中文🙂"
+      },
+      {
+        "op": "commit",
+        "text": "输入"
+      }
+    ]
+  },
+  {
+    "id": "long-repeat",
+    "expected": "正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式"
+      }
+    ]
+  },
+  {
+    "id": "long-unique",
+    "expected": "天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜金生丽水玉出昆冈天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜金生丽水玉出昆冈天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜金生丽水玉出昆冈天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜金生丽水玉出昆冈天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜金生丽水玉出昆冈",
+    "steps": [
+      {
+        "op": "raw",
+        "text": "天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜金生丽水玉出昆冈天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜金生丽水玉出昆冈天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜金生丽水玉出昆冈天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜金生丽水玉出昆冈天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜金生丽水玉出昆冈"
+      }
+    ]
+  },
+  {
+    "id": "single-char-burst",
+    "expected": "正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式正在使用中文加磁吸键盘的输入方式",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "正",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "在",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "使",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "用",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "中",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "文",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "加",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "磁",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "吸",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "键",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "盘",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "的",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "输",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "入",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "方",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "式",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "正",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "在",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "使",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "用",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "中",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "文",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "加",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "磁",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "吸",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "键",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "盘",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "的",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "输",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "入",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "方",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "式",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "正",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "在",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "使",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "用",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "中",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "文",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "加",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "磁",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "吸",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "键",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "盘",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "的",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "输",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "入",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "方",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "式",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "正",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "在",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "使",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "用",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "中",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "文",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "加",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "磁",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "吸",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "键",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "盘",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "的",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "输",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "入",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "方",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "式",
+        "delay": 0
+      }
+    ]
+  },
+  {
+    "id": "two-char-burst",
+    "expected": "天地玄黄宇宙洪荒日月盈昃辰宿列张寒来暑往秋收冬藏闰余成岁律吕调阳云腾致雨露结为霜金生丽水玉出昆冈",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "天地",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "玄黄",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "宇宙",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "洪荒",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "日月",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "盈昃",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "辰宿",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "列张",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "寒来",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "暑往",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "秋收",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "冬藏",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "闰余",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "成岁",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "律吕",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "调阳",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "云腾",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "致雨",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "露结",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "为霜",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "金生",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "丽水",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "玉出",
+        "delay": 0
+      },
+      {
+        "op": "commit",
+        "text": "昆冈",
+        "delay": 0
+      }
+    ]
+  },
+  {
+    "id": "ascii-symbols",
+    "expected": "abz09_+-() [] {} @ # $ = / \\ ' \" : ; < >",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "abz09_+-() [] {} @ # $ = / \\ ' \" : ; < >"
+      }
+    ]
+  },
+  {
+    "id": "code-mixed",
+    "expected": "const 中文 = \"你好🙂\"; // Android 17",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "const 中文 = \"你好🙂\"; // Android 17"
+      }
+    ]
+  },
+  {
+    "id": "emoji-replace",
+    "expected": "前缀中文",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "前缀"
+      },
+      {
+        "op": "compose",
+        "text": "🙂输入"
+      },
+      {
+        "op": "compose",
+        "text": "中文"
+      },
+      {
+        "op": "finish"
+      }
+    ]
+  },
+  {
+    "id": "emoji-shrink",
+    "expected": "前缀中",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "前缀"
+      },
+      {
+        "op": "compose",
+        "text": "中🙂"
+      },
+      {
+        "op": "compose",
+        "text": "中"
+      },
+      {
+        "op": "finish"
+      }
+    ]
+  },
+  {
+    "id": "supplementary",
+    "expected": "中文𠮷🙂测试",
+    "steps": [
+      {
+        "op": "compose",
+        "text": "中文"
+      },
+      {
+        "op": "compose",
+        "text": "中文𠮷🙂测试"
+      },
+      {
+        "op": "finish"
+      }
+    ]
+  },
+  {
+    "id": "delete-replace",
+    "expected": "正在使用中文",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "正在试用"
+      },
+      {
+        "op": "delete",
+        "before": 2
+      },
+      {
+        "op": "commit",
+        "text": "使用中文"
+      }
+    ]
+  },
+  {
+    "id": "punctuation",
+    "expected": "你好，世界！“中文”《测试》：；、（）【】￥……——",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "你好，世界！“中文”《测试》：；、（）【】￥……——"
+      }
+    ]
+  },
+  {
+    "id": "other-scripts",
+    "expected": "中文 日本語 한국어 Ελληνικά русский",
+    "steps": [
+      {
+        "op": "commit",
+        "text": "中文 日本語 한국어 Ελληνικά русский"
+      }
+    ]
+  },
+  {
+    "id": "long-compose-replacement",
+    "expected": "中文测试",
+    "steps": [
+      {
+        "op": "compose",
+        "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "delay": 0
+      },
+      {
+        "op": "compose",
+        "text": "中文测试",
+        "delay": 0
+      },
+      {
+        "op": "finish"
+      }
+    ]
+  },
+  {
+    "id": "empty-commit",
+    "expected": "你好",
+    "steps": [
+      {
+        "op": "raw",
+        "text": ""
+      },
+      {
+        "op": "commit",
+        "text": ""
+      },
+      {
+        "op": "commit",
+        "text": "你好"
+      }
+    ]
+  }
+]

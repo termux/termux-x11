@@ -149,7 +149,17 @@ public final class InputEventSender {
         mInjector.sendMouseWheelEvent(distanceX, distanceY);
     }
 
-    final boolean[] pointers = new boolean[10];
+    private final boolean[] pointers = new boolean[32];
+
+    private void releaseMissingPointers(MotionEvent event) {
+        for (int id = 0; id < pointers.length; id++) {
+            if (pointers[id] && (event == null || event.findPointerIndex(id) == -1)) {
+                pointers[id] = false;
+                mInjector.sendTouchEvent(XI_TouchEnd, id, 0, 0);
+            }
+        }
+    }
+
     /**
      * Extracts the touch point data from a MotionEvent, converts each point into a marshallable
      * object and passes the set of points to the JNI layer to be transmitted to the remote host.
@@ -160,28 +170,24 @@ public final class InputEventSender {
      */
     public void sendTouchEvent(MotionEvent event, RenderData renderData) {
         int action = event.getActionMasked();
+        releaseMissingPointers(action == MotionEvent.ACTION_DOWN || action == ACTION_CANCEL ? null : event);
+        if (action == ACTION_CANCEL)
+            return;
 
         if (action == ACTION_MOVE || action == ACTION_HOVER_MOVE || action == ACTION_HOVER_ENTER || action == ACTION_HOVER_EXIT) {
-            // In order to process all of the events associated with an ACTION_MOVE event, we need
-            // to walk the list of historical events in order and add each event to our list, then
-            // retrieve the current move event data.
             int pointerCount = event.getPointerCount();
 
-            for (int p = 0; p < pointerCount; p++)
-                pointers[event.getPointerId(p)] = false;
-
-            for (int p = 0; p < pointerCount; p++) {
-                renderData.mapScreenPoint(event.getX(p), event.getY(p), mappedPoint);
-                int x = clamp((int) mappedPoint[0], 0, renderData.screenWidth);
-                int y = clamp((int) mappedPoint[1], 0, renderData.screenHeight);
-                pointers[event.getPointerId(p)] = true;
-                mInjector.sendTouchEvent(XI_TouchUpdate, event.getPointerId(p), x, y);
-            }
-
-            // Sometimes Android does not send ACTION_POINTER_UP/ACTION_UP so some pointers are "stuck" in pressed state.
-            for (int p = 0; p < 10; p++) {
-                if (!pointers[p])
-                    mInjector.sendTouchEvent(XI_TouchEnd, p, 0, 0);
+            int historySize = event.getHistorySize();
+            for (int h = 0; h <= historySize; h++) {
+                for (int p = 0; p < pointerCount; p++) {
+                    float eventX = h < historySize ? event.getHistoricalX(p, h) : event.getX(p);
+                    float eventY = h < historySize ? event.getHistoricalY(p, h) : event.getY(p);
+                    renderData.mapScreenPoint(eventX, eventY, mappedPoint);
+                    int x = clamp((int) mappedPoint[0], 0, renderData.screenWidth);
+                    int y = clamp((int) mappedPoint[1], 0, renderData.screenHeight);
+                    pointers[event.getPointerId(p)] = true;
+                    mInjector.sendTouchEvent(XI_TouchUpdate, event.getPointerId(p), x, y);
+                }
             }
         } else {
             // For all other events, we only want to grab the current/active pointer.  The event
@@ -195,6 +201,7 @@ public final class InputEventSender {
             int a = (action == MotionEvent.ACTION_DOWN || action == ACTION_POINTER_DOWN) ? XI_TouchBegin : XI_TouchEnd;
             if (a == XI_TouchEnd)
                 mInjector.sendTouchEvent(XI_TouchUpdate, id, x, y);
+            pointers[id] = a == XI_TouchBegin;
             mInjector.sendTouchEvent(a, id, x, y);
         }
     }

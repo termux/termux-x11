@@ -588,6 +588,7 @@ public class LorieView extends SurfaceView implements InputStub {
     public void reloadPreferences(Prefs p) {
         String filtering = p.displayFilteringMode.get();
         setFiltering(mNativeContext, "nearest".equals(filtering) ? GLES20.GL_NEAREST : GLES20.GL_LINEAR);
+        setFollowCursorPan(mNativeContext, p.zoomFollowsCursor.get());
         hardwareKbdScancodesWorkaround = p.hardwareKbdScancodesWorkaround.get();
         clipboardSyncEnabled = p.clipboardEnable.get();
         setClipboardSyncEnabled(mNativeContext, clipboardSyncEnabled, clipboardSyncEnabled);
@@ -697,6 +698,7 @@ public class LorieView extends SurfaceView implements InputStub {
     @FastNative private native void setRendererZoom(long ptr, int percent);
     @FastNative private native void setZoomAnchor(long ptr, float sourceX, float sourceY, float fracX, float fracY);
     @FastNative private native void clearZoomAnchor(long ptr);
+    @FastNative private native void setFollowCursorPan(long ptr, boolean enabled);
     @FastNative private native long getCursorPosition(long ptr);
     @FastNative private native void sendSync(long ptr, int serial);
 

@@ -280,6 +280,7 @@ struct Renderer {
     // Source point a pinch wants kept at a given viewport fraction. Negative sourceX = no pinch.
     volatile float pinchAnchorSourceX = -1.f, pinchAnchorSourceY = -1.f;
     volatile float pinchAnchorFracX = 0.5f, pinchAnchorFracY = 0.5f;
+    volatile bool followCursorPan = true;
     float panSourceLeft = 0.f, panSourceTop = 0.f;
     float hiddenPanSourceTop = -1.f; // the vertical pan of the other keyboard state, negative until there was one
     bool bottomWasHidden = false;
@@ -342,6 +343,7 @@ struct Renderer {
     void setZoom(int percent);
     void setZoomAnchor(float sourceX, float sourceY, float fracX, float fracY);
     void clearZoomAnchor();
+    void setFollowCursorPan(bool enabled);
     void releaseWinAndSurface(ANativeWindow** anw, EGLSurface* esfc);
     void refreshContext();
     LorieBuffer* findBufferWithRetry(uint64_t id);

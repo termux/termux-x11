@@ -427,6 +427,11 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
                 if (!r || r->destroyed) return;
                 r->renderer.clearZoomAnchor();
             }},
+            {"setFollowCursorPan", "(JZ)V", (void *) +[](__unused JNIEnv *env, __unused jobject thiz, jlong ptr, jboolean enabled) {
+                auto* r = (LorieViewResources*) ptr;
+                if (!r || r->destroyed) return;
+                r->renderer.setFollowCursorPan(enabled);
+            }},
             {"getCursorPosition", "(J)J", (void *) +[](__unused JNIEnv *env, __unused jobject thiz, jlong ptr) -> jlong {
                 auto* r = (LorieViewResources*) ptr;
                 if (!r || r->destroyed || !r->renderer.state) return 0;

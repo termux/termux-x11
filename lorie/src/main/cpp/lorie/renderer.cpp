@@ -678,6 +678,15 @@ void Renderer::clearZoomAnchor() {
     pthread_mutex_unlock(&stateLock);
 }
 
+void Renderer::setFollowCursorPan(bool enabled) {
+    pthread_mutex_lock(&stateLock);
+    followCursorPan = enabled;
+    if (state)
+        state->drawRequested = true;
+    pthread_cond_signal(stateCond);
+    pthread_mutex_unlock(&stateLock);
+}
+
 void Renderer::refreshContext() {
     int width = pendingWin ? ANativeWindow_getWidth(pendingWin) : 0;
     int height = pendingWin ? ANativeWindow_getHeight(pendingWin) : 0;
@@ -985,12 +994,18 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
         panSourceLeft = fmaxf(0.f, fminf(pinchAnchorSourceX - pinchAnchorFracX * sourceWidth, (float) expectedW - sourceWidth));
         panSourceTop = fmaxf(0.f, fminf(pinchAnchorSourceY - pinchAnchorFracY * sourceHeight, (float) expectedH - sourceHeight));
     } else {
+        // Cursor tracking while zoomed in is opt-out; a vertical shrink caused by the keyboard
+        // hiding the bottom (rather than by zoom) always tracks the cursor regardless of that.
+        bool trackCursor = followCursorPan || zoomPercent == 100;
+
         // The buffer can be a few pixels narrower than the screen because of the mode granularity,
         // so panning horizontally only makes sense when zoomed in.
-        panSourceLeft = zoomPercent > 100
-                        ? panToCursor(panSourceLeft, cursorX, sourceWidth, (float) expectedW) : 0.f;
-        panSourceTop = sourceHeight < (float) expectedH
-                       ? panToCursor(panSourceTop, cursorY, sourceHeight, (float) expectedH) : 0.f;
+        panSourceLeft = zoomPercent > 100 && trackCursor
+                        ? panToCursor(panSourceLeft, cursorX, sourceWidth, (float) expectedW)
+                        : (zoomPercent > 100 ? panSourceLeft : 0.f);
+        panSourceTop = sourceHeight < (float) expectedH && trackCursor
+                       ? panToCursor(panSourceTop, cursorY, sourceHeight, (float) expectedH)
+                       : (sourceHeight < (float) expectedH ? panSourceTop : 0.f);
     }
     float sourceLeft = panSourceLeft, sourceTop = panSourceTop;
 

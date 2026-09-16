@@ -380,13 +380,23 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 break;
             }
             case EVENT_KEY:
-                QueueKeyboardEvents(lorieKeyboard, e.key.state ? KeyPress : KeyRelease, e.key.key);
-                break;
             case EVENT_UNICODE: {
-                int ks = ucs2keysym((long) e.unicode.code);
-                __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d\n", ks);
-                lorieKeysymKeyboardEvent(ks, TRUE);
-                lorieKeysymKeyboardEvent(ks, FALSE);
+                // UTF-32 code points span at most 21 bits (max 0x10FFFF), so shifting left by 1 is safe even on a 32-bit uintptr_t.
+                uintptr_t payload = e.type == EVENT_KEY ? 1u | ((uintptr_t) e.key.state << 1) | ((uintptr_t) e.key.key << 2) : ((uintptr_t) e.unicode.code << 1);
+                QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
+                    // This must be done only on X server thread (touches XKB state directly).
+                    uintptr_t payload = (uintptr_t) closure;
+                    if (payload & 1)
+                        QueueKeyboardEvents(lorieKeyboard, (payload >> 1 & 1) ? KeyPress : KeyRelease, payload >> 2);
+                    else {
+                        int ks = ucs2keysym((long) (payload >> 1));
+                        __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d\n", ks);
+                        lorieKeysymKeyboardEvent(ks, TRUE);
+                        lorieKeysymKeyboardEvent(ks, FALSE);
+                    }
+                    return TRUE;
+                }, nullptr, (void*) payload);
+                lorieWakeServer();
                 break;
             }
             case EVENT_CLIPBOARD_ENABLE:

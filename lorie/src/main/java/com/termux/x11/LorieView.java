@@ -199,8 +199,8 @@ public class LorieView extends SurfaceView implements InputStub {
                     || newText.toString().startsWith(currentComposingText.toString()))) {
                 for (int i=0; i < oldLen - newLen; i++)
                     sendKey(KeyEvent.KEYCODE_DEL);
-                for (int i=oldLen; i<newLen; i++)
-                    sendTextEvent(String.valueOf(newText.charAt(i)).getBytes(UTF_8));
+                if (newLen > oldLen)
+                    sendTextEvent(newText.subSequence(oldLen, newLen).toString().getBytes(UTF_8));
             } else {
                 for (int i = 0; i < oldLen; i++)
                     sendKey(KeyEvent.KEYCODE_DEL);

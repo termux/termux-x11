@@ -5,8 +5,6 @@ import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.os.Build.VERSION.SDK_INT;
 import static android.view.KeyEvent.*;
 import static android.view.WindowManager.LayoutParams.*;
-import static com.termux.x11.CmdEntryPoint.ACTION_START;
-import static com.termux.x11.LoriePreferences.ACTION_PREFERENCES_CHANGED;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
@@ -34,7 +32,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
-import android.os.RemoteException;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.service.notification.StatusBarNotification;
@@ -120,27 +117,6 @@ public class MainActivity extends AppCompatActivity {
     private boolean oldFullscreen = false, oldHideCutout = false;
     private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> onPreferencesChanged(key);
     private OrientationEventListener orientationListener;
-
-    public void onBroadcastReceive(Context context, Intent intent) {
-        prefs = ((TermuxX11Application) getApplication()).getPrefs(this);
-        if (ACTION_START.equals(intent.getAction())) {
-            try {
-                Log.v("LorieBroadcastReceiver", "Got new ACTION_START intent");
-                onReceiveConnection(intent);
-            } catch (Exception e) {
-                Log.e("MainActivity", "Something went wrong while we extracted connection details from binder.", e);
-            }
-        } else if (ACTION_STOP.equals(intent.getAction())) {
-            finishAffinity();
-        } else if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction())) {
-            Log.d("MainActivity", "preference: " + intent.getStringExtra("key"));
-            if (!"additionalKbdVisible".equals(intent.getStringExtra("key")))
-                onPreferencesChanged("");
-        } else if (ACTION_CUSTOM.equals(intent.getAction())) {
-            android.util.Log.d("ACTION_CUSTOM", "action " + intent.getStringExtra("what"));
-            mInputHandler.extractUserActionFromPreferences(prefs, intent.getStringExtra("what")).accept(0, true);
-        }
-    }
 
     ViewTreeObserver.OnPreDrawListener mOnPredrawListener = new ViewTreeObserver.OnPreDrawListener() {
         @Override
@@ -264,6 +240,11 @@ public class MainActivity extends AppCompatActivity {
         mNotification = buildNotification();
         mNotificationManager.notify(mNotificationId, mNotification);
 
+        if (LorieBroadcastReceiver.pendingConnection != null) {
+            connectToService(LorieBroadcastReceiver.pendingConnection);
+            LorieBroadcastReceiver.pendingConnection = null;
+        }
+
         if (tryConnect()) {
             final View content = findViewById(android.R.id.content);
             content.getViewTreeObserver().addOnPreDrawListener(mOnPredrawListener);
@@ -282,7 +263,6 @@ public class MainActivity extends AppCompatActivity {
             requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 0);
         }
 
-        onReceiveConnection(getIntent());
         findViewById(android.R.id.content).addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> makeSureHelpersAreVisibleAndInScreenBounds());
     }
 
@@ -561,37 +541,27 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    void onReceiveConnection(Intent intent) {
-        Bundle bundle = intent == null ? null : intent.getBundleExtra(null);
-        IBinder ibinder = bundle == null ? null : bundle.getBinder(null);
-        if (ibinder == null)
-            return;
-
+    void connectToService(IBinder ibinder) {
         service = ICmdEntryInterface.Stub.asInterface(ibinder);
         try {
-            service.asBinder().linkToDeath(() -> {
-                service = null;
-
-                Log.v("Lorie", "Disconnected");
-                runOnUiThread(() -> { getLorieView().connect(-1); clientConnectedStateChanged();} );
-            }, 0);
-        } catch (RemoteException ignored) {}
-
-        try {
             if (service != null && service.asBinder().isBinderAlive()) {
-                Log.v("LorieBroadcastReceiver", "Extracting logcat fd.");
+                Log.v("MainActivity", "Extracting logcat fd.");
                 ParcelFileDescriptor logcatOutput = service.getLogcatOutput();
                 if (logcatOutput != null)
                     getLorieView().startLogcat(logcatOutput.detachFd());
 
                 tryConnect();
-
-                if (intent != getIntent())
-                    getIntent().putExtra(null, bundle);
             }
         } catch (Exception e) {
             Log.e("MainActivity", "Something went wrong while we were establishing connection", e);
         }
+    }
+
+    void disconnectService() {
+        service = null;
+
+        Log.v("Lorie", "Disconnected");
+        runOnUiThread(() -> { getLorieView().connect(-1); clientConnectedStateChanged(); });
     }
 
     boolean tryConnect() {

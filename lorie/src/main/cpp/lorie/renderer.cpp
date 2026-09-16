@@ -37,6 +37,15 @@ __attribute__((weak)) EGLClientBuffer eglGetNativeClientBufferANDROID(const stru
 #define log(...) __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", __VA_ARGS__)
 #define loge(...) __android_log_print(ANDROID_LOG_ERROR, "gles-renderer", __VA_ARGS__)
 
+#define withStateLock(body) do { \
+    pthread_mutex_lock(&stateLock); \
+    body \
+    if (state) \
+        state->drawRequested = true; \
+    pthread_cond_signal(stateCond); \
+    pthread_mutex_unlock(&stateLock); \
+} while (0)
+
 static GLuint createProgram(const char* p_vertex_source, const char* p_fragment_source);
 
 static void* printEglError(const char* msg, int line) {
@@ -629,62 +638,43 @@ void Renderer::releaseWinAndSurface(ANativeWindow** anw, EGLSurface *esfc) {
 }
 
 void Renderer::setViewport(int x, int y, int w, int h, int ew, int eh, int hidden) {
-    pthread_mutex_lock(&stateLock);
-    viewportX = x;
-    viewportY = y;
-    viewportW = w;
-    viewportH = h;
-    expectedW = ew;
-    expectedH = eh;
-    hiddenBottom = hidden;
-    viewportChanged = true;
-    reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
-    reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
-    if (state)
-        state->drawRequested = true;
-    pthread_cond_signal(stateCond);
-    pthread_mutex_unlock(&stateLock);
+    withStateLock({
+        viewportX = x;
+        viewportY = y;
+        viewportW = w;
+        viewportH = h;
+        expectedW = ew;
+        expectedH = eh;
+        hiddenBottom = hidden;
+        viewportChanged = true;
+        reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
+        reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
+    });
 }
 
 void Renderer::setZoom(int percent) {
-    pthread_mutex_lock(&stateLock);
-    zoomPercent = percent < 100 ? 100 : (percent > 400 ? 400 : percent);
-    reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
-    reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
-    if (state)
-        state->drawRequested = true;
-    pthread_cond_signal(stateCond);
-    pthread_mutex_unlock(&stateLock);
+    withStateLock({
+        zoomPercent = percent < 100 ? 100 : (percent > 400 ? 400 : percent);
+        reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
+        reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
+    });
 }
 
 void Renderer::setZoomAnchor(float sourceX, float sourceY, float fracX, float fracY) {
-    pthread_mutex_lock(&stateLock);
-    pinchAnchorSourceX = sourceX;
-    pinchAnchorSourceY = sourceY;
-    pinchAnchorFracX = fracX;
-    pinchAnchorFracY = fracY;
-    if (state)
-        state->drawRequested = true;
-    pthread_cond_signal(stateCond);
-    pthread_mutex_unlock(&stateLock);
+    withStateLock({
+        pinchAnchorSourceX = sourceX;
+        pinchAnchorSourceY = sourceY;
+        pinchAnchorFracX = fracX;
+        pinchAnchorFracY = fracY;
+    });
 }
 
 void Renderer::clearZoomAnchor() {
-    pthread_mutex_lock(&stateLock);
-    pinchAnchorSourceX = -1.f;
-    if (state)
-        state->drawRequested = true;
-    pthread_cond_signal(stateCond);
-    pthread_mutex_unlock(&stateLock);
+    withStateLock({ pinchAnchorSourceX = -1.f; });
 }
 
 void Renderer::setFollowCursorPan(bool enabled) {
-    pthread_mutex_lock(&stateLock);
-    followCursorPan = enabled;
-    if (state)
-        state->drawRequested = true;
-    pthread_cond_signal(stateCond);
-    pthread_mutex_unlock(&stateLock);
+    withStateLock({ followCursorPan = enabled; });
 }
 
 void Renderer::refreshContext() {

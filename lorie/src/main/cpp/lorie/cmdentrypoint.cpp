@@ -386,9 +386,10 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
                     // This must be done only on X server thread (touches XKB state directly).
                     uintptr_t payload = (uintptr_t) closure;
-                    if (payload & 1)
+                    if (payload & 1) {
                         QueueKeyboardEvents(lorieKeyboard, (payload >> 1 & 1) ? KeyPress : KeyRelease, payload >> 2);
-                    else {
+                        mieqProcessInputEvents();
+                    } else {
                         int ks = ucs2keysym((long) (payload >> 1));
                         __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d\n", ks);
                         lorieKeysymKeyboardEvent(ks, TRUE);

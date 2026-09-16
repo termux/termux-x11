@@ -191,15 +191,14 @@ LorieViewResources::~LorieViewResources() {
 
 int LorieViewResources::xcallback(int fd, int events) {
     if (events & (ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP)) {
-        if (activity)
-            env->CallVoidMethod(activity, MainActivity.clientConnectedStateChanged);
-
         ALooper_removeFd(ALooper_forThread(), fd);
         close(connFd);
         connFd = -1;
         renderer.setSharedState(nullptr);
         renderer.removeAllBuffers();
         log(DEBUG, "disconnected");
+        if (activity)
+            env->CallVoidMethod(activity, MainActivity.clientConnectedStateChanged);
         return 1;
     }
 

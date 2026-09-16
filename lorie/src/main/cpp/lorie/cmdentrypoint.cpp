@@ -399,6 +399,9 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                         __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d\n", ks);
                         lorieKeysymKeyboardEvent(ks, TRUE);
                         lorieKeysymKeyboardEvent(ks, FALSE);
+                        // Do not retain map notifications and key events until
+                        // a later character has already recycled their keycode.
+                        FlushAllOutput();
                     }
                     free(e);
                     return TRUE;

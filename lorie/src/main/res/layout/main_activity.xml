@@ -60,35 +60,51 @@
             <Space
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:minHeight="40dp" />
+                android:minHeight="20dp" />
 
-            <Button
-                android:id="@+id/preferences_button"
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/preferences_button_text" />
+                android:orientation="horizontal">
 
-            <Space
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="10dp" />
+                <ImageButton
+                    android:id="@+id/preferences_button"
+                    style="@style/Widget.AppCompat.Button"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:padding="12dp"
+                    android:src="@drawable/ic_extra_key_settings"
+                    android:tint="?attr/colorControlNormal"
+                    android:contentDescription="@string/preferences_button_text" />
 
-            <Button
-                android:id="@+id/help_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/help_button_text" />
+                <Space
+                    android:layout_width="4dp"
+                    android:layout_height="wrap_content" />
 
-            <Space
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="10dp" />
+                <ImageButton
+                    android:id="@+id/help_button"
+                    style="@style/Widget.AppCompat.Button"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:padding="12dp"
+                    android:src="@drawable/lorie_ic_help"
+                    android:tint="?attr/colorControlNormal"
+                    android:contentDescription="@string/help_button_text" />
 
-            <Button
-                android:id="@+id/exit_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/exit_button_text" />
+                <Space
+                    android:layout_width="4dp"
+                    android:layout_height="wrap_content" />
+
+                <ImageButton
+                    android:id="@+id/exit_button"
+                    style="@style/Widget.AppCompat.Button"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:padding="12dp"
+                    android:src="@drawable/lorie_ic_exit"
+                    android:tint="?attr/colorControlNormal"
+                    android:contentDescription="@string/exit_button_text" />
+            </LinearLayout>
         </LinearLayout>
 
 

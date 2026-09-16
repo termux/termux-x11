@@ -16,6 +16,7 @@
 #include <sys/ioctl.h>
 #include <libgen.h>
 #include <cerrno>
+#include <pthread.h>
 extern "C" {
 #include <globals.h>
 #define class lorie_reserved_class
@@ -41,6 +42,7 @@ extern DeviceIntPtr lorieMouse, lorieTouch, lorieKeyboard, loriePen, lorieEraser
 extern ScreenPtr pScreenPtr;
 extern "C" int ucs2keysym(long ucs);
 extern "C" void lorieKeysymKeyboardEvent(KeySym keysym, int down);
+extern "C" Bool loriePrepareKeysym(KeySym keysym);
 
 char *xtrans_unix_path_x11 = nullptr;
 char *xtrans_unix_dir_x11 = nullptr;
@@ -257,6 +259,133 @@ static Bool handleTouchEvent(__unused ClientPtr pClient, void *closure) {
     return TRUE;
 }
 
+// Keep keyboard events ordered while yielding to client keymap requests.
+static pthread_mutex_t keyboardMutex = PTHREAD_MUTEX_INITIALIZER;
+struct KeyboardNode { lorieEvent event; KeyboardNode* next; };
+static KeyboardNode *keyboardHead = nullptr, *keyboardTail = nullptr;
+static bool keyboardScheduled = false;
+static bool keyboardNeedsReset = false;
+static OsTimerPtr keyboardTimer = nullptr;
+static constexpr CARD32 unicodeSettleMs = 30;
+static bool unicodePrepared = false;
+static lorieEvent preparedUnicode;
+static uint64_t keyboardGeneration = 0, preparedGeneration = 0;
+static Bool drainKeyboardEvents(ClientPtr, void*);
+
+static CARD32 keyboardDelayExpired(OsTimerPtr, CARD32, void*) {
+    if (!QueueWorkProc(drainKeyboardEvents, nullptr, nullptr))
+        FatalError("Failed to resume keyboard events");
+    lorieWakeServer();
+    return 0;
+}
+
+struct KeyboardInputLock {
+    KeyboardInputLock() { input_lock(); }
+    ~KeyboardInputLock() { input_unlock(); }
+};
+
+static Bool drainKeyboardEvents(ClientPtr, void*) {
+    for (;;) {
+        lorieEvent event;
+        pthread_mutex_lock(&keyboardMutex);
+        bool reset = keyboardNeedsReset;
+        keyboardNeedsReset = false;
+        bool prepared = !reset && unicodePrepared && preparedGeneration == keyboardGeneration;
+        unicodePrepared = false;
+        if (!reset && !prepared && !keyboardHead) {
+            keyboardScheduled = false;
+            pthread_mutex_unlock(&keyboardMutex);
+            return TRUE;
+        }
+        if (reset) {
+            event = {};
+        } else if (prepared) {
+            event = preparedUnicode;
+        } else {
+            KeyboardNode* node = keyboardHead;
+            keyboardHead = node->next;
+            if (!keyboardHead)
+                keyboardTail = nullptr;
+            event = node->event;
+            free(node);
+        }
+        uint64_t generation = keyboardGeneration;
+        pthread_mutex_unlock(&keyboardMutex);
+        KeyboardInputLock inputGuard;
+        if (reset) {
+            // Disconnect also discards releases, so balance already-delivered presses.
+            for (int key = 8; key < 256; key++)
+                if (key_is_down(lorieKeyboard, key, KEY_POSTED))
+                    QueueKeyboardEvents(lorieKeyboard, KeyRelease, key);
+            mieqProcessInputEvents();
+            FlushAllOutput();
+            continue;
+        }
+        switch (event.type) {
+        case EVENT_KEY:
+            QueueKeyboardEvents(lorieKeyboard, event.key.state ? KeyPress : KeyRelease, event.key.key);
+            mieqProcessInputEvents();
+            break;
+        case EVENT_LOCK_KEYS_STATE:
+            lorieSyncLockKeysState(event.lockKeysState.state);
+            break;
+        case EVENT_SYNC:
+            mieqProcessInputEvents();
+            FlushAllOutput();
+            lorieSendSyncReply(event.sync.serial);
+            break;
+        case EVENT_UNICODE: {
+            int keysym = ucs2keysym((long) event.unicode.code);
+            if (!prepared && event.unicode.code >= 128 && loriePrepareKeysym(keysym)) {
+                FlushAllOutput();
+                preparedUnicode = event;
+                preparedGeneration = generation;
+                unicodePrepared = true;
+                keyboardTimer = TimerSet(keyboardTimer, 0, unicodeSettleMs, keyboardDelayExpired, nullptr);
+                if (!keyboardTimer)
+                    FatalError("Failed to allocate keyboard timer");
+                return TRUE;
+            }
+            lorieKeysymKeyboardEvent(keysym, TRUE);
+            lorieKeysymKeyboardEvent(keysym, FALSE);
+            FlushAllOutput();
+            if (event.unicode.code >= 128) {
+                keyboardTimer = TimerSet(keyboardTimer, 0, unicodeSettleMs, keyboardDelayExpired, nullptr);
+                if (!keyboardTimer)
+                    FatalError("Failed to allocate keyboard timer");
+                return TRUE;
+            }
+            break;
+        }
+        }
+    }
+}
+
+static void enqueueKeyboardEvent(const lorieEvent& event) {
+    bool schedule = false;
+    auto* node = (KeyboardNode*) malloc(sizeof(KeyboardNode));
+    if (!node)
+        FatalError("Failed to allocate keyboard event");
+    node->event = event;
+    node->next = nullptr;
+    pthread_mutex_lock(&keyboardMutex);
+    if (keyboardTail)
+        keyboardTail->next = node;
+    else
+        keyboardHead = node;
+    keyboardTail = node;
+    if (!keyboardScheduled) {
+        keyboardScheduled = true;
+        schedule = true;
+    }
+    pthread_mutex_unlock(&keyboardMutex);
+    if (schedule) {
+        if (!QueueWorkProc(drainKeyboardEvents, nullptr, nullptr))
+            FatalError("Failed to queue keyboard events");
+        lorieWakeServer();
+    }
+}
+
 void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
     ValuatorMask mask;
     lorieEvent e = {0};
@@ -267,6 +396,23 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
         InputThreadUnregisterDev(fd);
         close(fd);
         conn_fd = -1;
+        pthread_mutex_lock(&keyboardMutex);
+        while (keyboardHead) {
+            KeyboardNode* node = keyboardHead;
+            keyboardHead = node->next;
+            free(node);
+        }
+        keyboardTail = nullptr;
+        keyboardGeneration++;
+        keyboardNeedsReset = true;
+        bool schedule = !keyboardScheduled;
+        keyboardScheduled = true;
+        pthread_mutex_unlock(&keyboardMutex);
+        if (schedule) {
+            if (!QueueWorkProc(drainKeyboardEvents, nullptr, nullptr))
+                FatalError("Failed to reset keyboard events");
+            lorieWakeServer();
+        }
         lorieEnableClipboardSync(FALSE);
         while ((buf = LorieBufferList_first(&registeredBuffers)))
             LorieBuffer_removeFromList(buf);
@@ -380,15 +526,11 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 break;
             }
             case EVENT_KEY:
-                QueueKeyboardEvents(lorieKeyboard, e.key.state ? KeyPress : KeyRelease, e.key.key);
+            case EVENT_UNICODE:
+            case EVENT_SYNC:
+            case EVENT_LOCK_KEYS_STATE:
+                enqueueKeyboardEvent(e);
                 break;
-            case EVENT_UNICODE: {
-                int ks = ucs2keysym((long) e.unicode.code);
-                __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d\n", ks);
-                lorieKeysymKeyboardEvent(ks, TRUE);
-                lorieKeysymKeyboardEvent(ks, FALSE);
-                break;
-            }
             case EVENT_CLIPBOARD_ENABLE:
                 lorieEnableClipboardSync(e.clipboardEnable.enable);
                 break;
@@ -426,32 +568,7 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 }, nullptr, nullptr);
                 lorieWakeServer();
                 break;
-            case EVENT_SYNC: {
-                auto serial = (uintptr_t) e.sync.serial;
-                QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
-                    // This must be done only on X server thread. Forces mieq to drain everything
-                    // enqueued before this marker, so the reply is a reliable "the server has
-                    // applied every event sent so far" barrier.
-                    mieqProcessInputEvents();
-                    lorieSendSyncReply((uint32_t) (uintptr_t) closure);
-                    return TRUE;
-                }, nullptr, (void*) serial);
-                lorieWakeServer();
-                break;
-            }
-            case EVENT_LOCK_KEYS_STATE: {
-                auto *copy = (lorieEvent*) calloc(1, sizeof(lorieEvent));
-                memcpy(copy, &e, sizeof(e));
-                QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
-                    // This must be done only on X server thread (touches XKB state directly).
-                    auto *e = (lorieEvent*) closure;
-                    lorieSyncLockKeysState(e->lockKeysState.state);
-                    free(e);
-                    return TRUE;
-                }, nullptr, copy);
-                lorieWakeServer();
-                break;
-            }
+
         }
 
         int n;

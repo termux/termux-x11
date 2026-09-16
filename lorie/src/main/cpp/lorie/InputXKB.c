@@ -613,6 +613,16 @@ static void saveAddedKeysym(KeyCode code, KeySym sym)
 {
     AddedKeySym* item;
 
+    /* Reuse cache entries after keymap replacement to avoid duplicate keycodes. */
+    xorg_list_for_each_entry(item, &addedKeysyms, entry) {
+        if (item->keycode == code) {
+            item->keysym = sym;
+            xorg_list_del(&item->entry);
+            xorg_list_add(&item->entry, &addedKeysyms);
+            return;
+        }
+    }
+
     item = malloc(sizeof(AddedKeySym));
     if (!item)
         return;
@@ -732,8 +742,40 @@ static KeyCode lorieAddKeysym(KeySym keysym, unused unsigned state) {
 	changes.map.num_key_syms = 1;
 
 	XkbSendNotification(master, &changes, &cause);
+	/* Preserve mappings across the next slave-to-master switch. */
+	if (master != lorieKeyboard && !XkbCopyDeviceKeymap(lorieKeyboard, master))
+		FatalError("Failed to synchronize the Unicode keyboard map");
 
 	return key;
+}
+
+static void lorieActivateKeyboard(void) {
+    /* Process slave switches before modifying the master map, or the
+     * next key event can overwrite the new mapping with the slave map. */
+    {
+        InternalEvent event;
+        int count = 0;
+
+        input_lock();
+        UpdateFromMaster(&event, lorieKeyboard, DEVCHANGE_KEYBOARD_EVENT, &count);
+        if (count)
+            mieqEnqueue(lorieKeyboard, &event);
+        input_unlock();
+        if (count)
+            mieqProcessInputEvents();
+    }
+}
+
+/* Publish a new mapping separately from its first key event, so asynchronous
+ * clients can fetch it before interpreting the keycode. */
+Bool loriePrepareKeysym(KeySym keysym) {
+    unsigned state, new_state;
+    mieqProcessInputEvents();
+    lorieActivateKeyboard();
+    state = lorieGetKeyboardState();
+    if (lorieKeysymToKeycode(keysym, state, &new_state))
+        return FALSE;
+    return lorieAddKeysym(keysym, state) != 0;
 }
 
 /*
@@ -783,6 +825,8 @@ void lorieKeysymKeyboardEvent(KeySym keysym, int down) {
      * stuck down.
      */
     mieqProcessInputEvents();
+
+    lorieActivateKeyboard();
 
     state = lorieGetKeyboardState();
 

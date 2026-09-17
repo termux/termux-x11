@@ -125,7 +125,7 @@ export CLASSPATH=$(/system/bin/pm path com.termux.x11 | cut -d: -f2)
 
 termux-x11's X server runs in process with name "termux-x11". You can kill it by
 ```
-pkill termux-x11
+pkill -f termux-x11
 ```
 
 ### Closing Android activity (running in foreground, not X server)

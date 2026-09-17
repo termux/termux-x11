@@ -118,7 +118,7 @@ public class LorieApp extends Application {
     }
 
     private Notification buildNotification(MainActivity activity) {
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, baseNotification);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, baseNotification).setSilent(true);
         return TouchInputHandler.setupNotification(activity, activity.prefs, builder).build();
     }
 

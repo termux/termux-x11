@@ -496,6 +496,7 @@ public class MainActivity extends AppCompatActivity {
                     break;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_POINTER_UP:
+                case MotionEvent.ACTION_CANCEL:
                     getLorieView().sendMouseEvent(0, 0, b, false, true);
                     v.setPressed(false);
                     break;
@@ -539,6 +540,9 @@ public class MainActivity extends AppCompatActivity {
                         }
                         break;
                     }
+                    case MotionEvent.ACTION_CANCEL:
+                        pos.setPressed(false);
+                        break;
                 }
                 return true;
             }

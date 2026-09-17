@@ -397,12 +397,16 @@ public class MainActivity extends AppCompatActivity {
         RectF result = new RectF(lorieView.getAvailableRect());
         result.offset(frm.getLeft() + lorieView.getLeft(), frm.getTop() + lorieView.getTop());
 
-        if (pager.getVisibility() == View.VISIBLE) {
-            // ekbar may not already be excluded from availableRect, so clamp against it separately.
-            int barThickness = pager.getMeasuredHeight();
+        // availableRect only excludes the IME when Reseed is on, so clamp against it unconditionally too.
+        result.bottom = Math.min(result.bottom, sharedParent.getHeight() - imeHeight);
+
+        // With adjustHeightForEK on, availableRect already excludes the bar's own space.
+        if (pager.getVisibility() == View.VISIBLE && !prefs.adjustHeightForEK.get()) {
+            // getLayoutParams() is up to date immediately; getWidth()/getHeight() lag until the next layout pass.
+            int barThickness = ((FrameLayout.LayoutParams) pager.getLayoutParams()).height;
             switch (getPagerPosition()) {
                 case PAGER_POSITION_TOP:    result.top    = Math.max(result.top, barThickness); break;
-                case PAGER_POSITION_BOTTOM: result.bottom = Math.min(result.bottom, sharedParent.getHeight() - barThickness); break;
+                case PAGER_POSITION_BOTTOM: result.bottom = Math.min(result.bottom, sharedParent.getHeight() - imeHeight - barThickness); break;
                 case PAGER_POSITION_LEFT:   result.left   = Math.max(result.left, barThickness); break;
                 case PAGER_POSITION_RIGHT:  result.right  = Math.min(result.right, sharedParent.getWidth() - barThickness); break;
             }
@@ -775,16 +779,21 @@ public class MainActivity extends AppCompatActivity {
     private int imeHeight = 0;
 
     private void applyContentInsets() {
-        int imeContentInset = prefs.Reseed.get() ? imeHeight : 0;
         int pos = getPagerPosition();
+        // Only a bar at the bottom has to step aside for the keyboard.
+        int bottomMargin = pos == PAGER_POSITION_BOTTOM ? imeHeight : 0;
+
+        // A bottom bar reserving its own space always sits right above the keyboard via bottomMargin,
+        // so content must stop there too, regardless of Reseed.
+        boolean barReservesKeyboardSpace = pos == PAGER_POSITION_BOTTOM && ekbarContentInset > 0;
+        int imeContentInset = barReservesKeyboardSpace ? bottomMargin : (prefs.Reseed.get() ? imeHeight : 0);
+
         getLorieView().setContentInsets(pos == PAGER_POSITION_LEFT ? ekbarContentInset : 0,
                 pos == PAGER_POSITION_TOP ? ekbarContentInset : 0,
                 pos == PAGER_POSITION_RIGHT ? ekbarContentInset : 0,
                 imeContentInset + (pos == PAGER_POSITION_BOTTOM ? ekbarContentInset : 0));
         getLorieView().setObscuredBottom(imeHeight - imeContentInset);
 
-        // Only a bar at the bottom has to step aside for the keyboard.
-        int bottomMargin = pos == PAGER_POSITION_BOTTOM ? imeHeight : 0;
         ViewPager pager = getTerminalToolbarViewPager();
         ViewGroup.MarginLayoutParams pagerParams = (ViewGroup.MarginLayoutParams) pager.getLayoutParams();
         if (pagerParams.bottomMargin != bottomMargin) {

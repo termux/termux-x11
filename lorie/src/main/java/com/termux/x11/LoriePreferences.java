@@ -827,14 +827,14 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
             public boolean get() {
                 checkAttached();
-                if ("storeSecondaryDisplayPreferencesSeparately".contentEquals(key))
+                if (isSharedAcrossDisplays(key))
                     return ((TermuxX11Application) ctx.getApplicationContext()).builtInPrefs.preferences.getBoolean(key, (boolean) defValue);
                 return preferences.getBoolean(key, (boolean) defValue);
             }
 
             public void put(boolean v) {
                 checkAttached();
-                if ("storeSecondaryDisplayPreferencesSeparately".contentEquals(key))
+                if (isSharedAcrossDisplays(key))
                     ((TermuxX11Application) ctx.getApplicationContext()).builtInPrefs.preferences.edit().putBoolean(key, v).commit();
                 preferences.edit().putBoolean(key, v).commit();
             }
@@ -931,6 +931,12 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                 throw new NullPointerException("Prefs used before attach() was called");
         }
 
+        /** Settings that must have a single value app-wide, regardless of which store is otherwise current. */
+        private static boolean isSharedAcrossDisplays(String key) {
+            return "storeSecondaryDisplayPreferencesSeparately".contentEquals(key)
+                    || "enableAccessibilityServiceAutomatically".contentEquals(key);
+        }
+
         protected void attach(Context ctx, SharedPreferences preferences) {
             this.ctx = ctx;
             this.preferences = preferences;
@@ -938,14 +944,14 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
         @Override public void putBoolean(String k, boolean v) {
             checkAttached();
-            if ("storeSecondaryDisplayPreferencesSeparately".contentEquals(k))
+            if (isSharedAcrossDisplays(k))
                 ((TermuxX11Application) ctx.getApplicationContext()).builtInPrefs.preferences.edit().putBoolean(k, v).commit();
             else
                 preferences.edit().putBoolean(k, v).commit();
         }
         @Override public boolean getBoolean(String k, boolean d) {
             checkAttached();
-            if ("storeSecondaryDisplayPreferencesSeparately".contentEquals(k))
+            if (isSharedAcrossDisplays(k))
                 return ((TermuxX11Application) ctx.getApplicationContext()).builtInPrefs.preferences.getBoolean(k, d);
             return preferences.getBoolean(k, d);
         }

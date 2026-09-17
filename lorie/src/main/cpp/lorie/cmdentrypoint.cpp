@@ -583,6 +583,18 @@ static jobject getLogcatOutput(JNIEnv *env, __unused jobject cls) {
     return nullptr;
 }
 
+static void reportFatalError(JNIEnv *env, __unused jobject cls, jstring message) {
+    const char *chars = env->GetStringUTFChars(message, nullptr);
+    char *copy = strdup(chars);
+    env->ReleaseStringUTFChars(message, chars);
+
+    QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
+        // Runs the same teardown as any other FatalError, on the server's own thread.
+        FatalError("%s", (char *) closure);
+    }, nullptr, copy);
+    lorieWakeServer();
+}
+
 void lorieListenForKnocks(void) {
     struct sockaddr_in address = { .sin_family = AF_INET, .sin_port = htons(PORT), .sin_addr = { .s_addr = INADDR_ANY } };
     int fd, reuse = 1;
@@ -647,6 +659,7 @@ void registerCmdEntryPointNatives(JNIEnv *env) {
             {"start", "([Ljava/lang/String;)Z", (void *) &start},
             {"getXConnection", "()Landroid/os/ParcelFileDescriptor;", (void *) &getXConnection},
             {"getLogcatOutput", "()Landroid/os/ParcelFileDescriptor;", (void *) &getLogcatOutput},
+            {"reportFatalError", "(Ljava/lang/String;)V", (void *) &reportFatalError},
             {"connected", "()Z", (void *) +[]() -> jboolean { return conn_fd != -1; }}, // @CriticalNative
     };
     jclass cls = env->FindClass("com/termux/x11/CmdEntryPoint");

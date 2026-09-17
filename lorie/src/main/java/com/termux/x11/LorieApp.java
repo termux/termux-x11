@@ -134,6 +134,15 @@ public class LorieApp extends Application {
                 IBinder binder = bundle == null ? null : bundle.getBinder(null);
                 if (binder == null)
                     break;
+
+                IBinder activeService = activity != null && activity.service != null ? activity.service.asBinder() : null;
+                if ((activeService != null && activeService.isBinderAlive()) || (pendingConnection != null && pendingConnection.isBinderAlive())) {
+                    try {
+                        ICmdEntryInterface.Stub.asInterface(binder).reportFatalError("Termux:X11 already has an active X server connection.");
+                    } catch (RemoteException ignored) {}
+                    break;
+                }
+
                 try {
                     binder.linkToDeath(() -> onConnectionDied(binder), 0);
                 } catch (RemoteException ignored) {}

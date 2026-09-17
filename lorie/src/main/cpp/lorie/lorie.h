@@ -35,7 +35,7 @@ void lorieSetStylusEnabled(Bool enabled);
 void lorieSyncLockKeysState(uint8_t state);
 void lorieWakeServer(void);
 void lorieRecheckGpuCopies(void);
-void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d);
+void lorieChoreographerFrameCallback(long t, AChoreographer* d);
 void lorieActivityConnected(void);
 void lorieSendSharedServerState(int memfd);
 void lorieRegisterBuffer(LorieBuffer* buffer);
@@ -235,6 +235,9 @@ struct lorie_shared_server_state {
      * To handle this, we use a waitForNextFrame flag, which we set after a successful render and clear from the AChoreographer’s frame callback.
      */
     volatile uint8_t waitForNextFrame;
+
+    volatile int64_t lastVsyncNanos; // Last vsync, CLOCK_MONOTONIC nanoseconds.
+    volatile int64_t vsyncIntervalNanos; // Frame period, nanoseconds. Bounds waitForFence().
 
     /* Needed to show FPS counter in logcat */
     volatile int renderedFrames;

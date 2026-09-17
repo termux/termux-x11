@@ -730,8 +730,11 @@ static void lorieWorkingQueueCallback(int fd, int __unused ready, void __unused 
     eventfd_read(fd, &dummy);
 }
 
-void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d) {
+void lorieChoreographerFrameCallback(long t, AChoreographer* d) {
     AChoreographer_postFrameCallback(d, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, d);
+    // Can fire before OsVendorInit has mapped the shared state.
+    if (pvfb->state)
+        pvfb->state->lastVsyncNanos = t;
     if (pScreenPtr) {
         QueueWorkProc(lorieRedraw, NULL, NULL);
         lorieWakeServer();
@@ -753,6 +756,7 @@ static Bool lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **ar
     pScreen->whitePixel = 1;
 
     pvfb->vblank_interval = 1000000 / pvfb->root.framerate;
+    pvfb->state->vsyncIntervalNanos = (int64_t) pvfb->vblank_interval * 1000;
 
     if (FALSE
           || !miSetVisualTypesAndMasks(24, ((1 << TrueColor) | (1 << DirectColor)), 8, TrueColor, 0xFF0000, 0x00FF00, 0x0000FF)
@@ -806,6 +810,7 @@ void lorieConfigureNotify(int width, int height, int framerate, size_t name_size
         log(VERBOSE, "New reported framerate is %d", framerate);
         pvfb->root.framerate = framerate;
         pvfb->vblank_interval = 1000000 / pvfb->root.framerate;
+        pvfb->state->vsyncIntervalNanos = (int64_t) pvfb->vblank_interval * 1000;
     }
 }
 

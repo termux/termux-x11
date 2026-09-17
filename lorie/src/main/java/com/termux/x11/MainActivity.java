@@ -104,6 +104,7 @@ public class MainActivity extends AppCompatActivity {
     private static final float MAX_PIP_ASPECT_RATIO = getSystemDimenFloat("config_pictureInPictureMaxAspectRatio", 2.39f);
 
     public Prefs prefs;
+    TermuxX11Application app;
 
     private boolean oldFullscreen = false, oldHideCutout = false;
     private OrientationEventListener orientationListener;
@@ -151,7 +152,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        prefs = ((TermuxX11Application) getApplication()).getPrefs(this);
+        app = (TermuxX11Application) getApplication();
+        prefs = app.getPrefs(this);
         int modeValue = Integer.parseInt(prefs.touchMode.get()) - 1;
         if (modeValue > 2)
             prefs.touchMode.put("1");
@@ -225,7 +227,6 @@ public class MainActivity extends AppCompatActivity {
 
         ImeHeightProvider.assistActivity(this);
 
-        TermuxX11Application app = (TermuxX11Application) getApplication();
         if (app.pendingConnection != null) {
             connectToService(app.pendingConnection);
             app.pendingConnection = null;
@@ -605,7 +606,7 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint("UnsafeIntentLaunch")
     void onPreferencesChangedCallback() {
-        prefs = ((TermuxX11Application) getApplication()).getPrefs(this);
+        prefs = app.getPrefs(this);
 
         // There is no way back to the normal size from picture-in-picture, so the window is closed.
         if (isInPictureInPictureMode && !prefs.PIP.get()) {
@@ -643,14 +644,14 @@ public class MainActivity extends AppCompatActivity {
         lorieView.requestLayout();
         lorieView.invalidate();
 
-        ((TermuxX11Application) getApplication()).refreshNotificationIfShown();
+        app.refreshNotificationIfShown();
     }
 
     @Override
     public void onResume() {
         super.onResume();
 
-        ((TermuxX11Application) getApplication()).onActivityResumed(this);
+        app.onActivityResumed(this);
 
         orientationListener.enable();
         setTerminalToolbarView();
@@ -664,7 +665,7 @@ public class MainActivity extends AppCompatActivity {
         orientationListener.disable();
         super.onPause();
 
-        ((TermuxX11Application) getApplication()).onActivityPaused();
+        app.onActivityPaused();
     }
 
     public LorieView getLorieView() {

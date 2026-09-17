@@ -841,7 +841,7 @@ public class MainActivity extends AppCompatActivity {
                 .setSilent(true)
                 .setShowWhen(false)
                 .setColor(0xFF607D8B);
-        return mInputHandler.setupNotification(prefs, builder).build();
+        return TouchInputHandler.setupNotification(this, prefs, builder).build();
     }
 
     private String getNotificationChannel(NotificationManager notificationManager){

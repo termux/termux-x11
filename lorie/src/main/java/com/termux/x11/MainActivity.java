@@ -9,9 +9,6 @@ import static android.view.WindowManager.LayoutParams.*;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.AppOpsManager;
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
 import android.app.PictureInPictureParams;
 import android.content.ClipData;
 import android.content.Context;
@@ -33,7 +30,6 @@ import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
 import android.provider.Settings;
-import android.service.notification.StatusBarNotification;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Rational;
@@ -64,7 +60,6 @@ import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.NotificationCompat;
 import androidx.core.math.MathUtils;
 import androidx.core.view.ViewCompat;
 import androidx.viewpager.widget.ViewPager;
@@ -93,9 +88,6 @@ public class MainActivity extends AppCompatActivity {
     TouchInputHandler mInputHandler;
     protected ICmdEntryInterface service = null;
     public TermuxX11ExtraKeys mExtraKeys;
-    private Notification mNotification;
-    private final int mNotificationId = 7892;
-    NotificationManager mNotificationManager;
     private DisplayManager displayManager;
     private boolean showIMEWhileExternalConnected = true;
     private boolean externalKeyboardConnected = false;
@@ -232,9 +224,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         ImeHeightProvider.assistActivity(this);
-        mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        mNotification = buildNotification();
-        mNotificationManager.notify(mNotificationId, mNotification);
 
         if (LorieBroadcastReceiver.pendingConnection != null) {
             connectToService(LorieBroadcastReceiver.pendingConnection);
@@ -653,19 +642,14 @@ public class MainActivity extends AppCompatActivity {
         lorieView.requestLayout();
         lorieView.invalidate();
 
-        for (StatusBarNotification notification: mNotificationManager.getActiveNotifications())
-            if (notification.getId() == mNotificationId) {
-                mNotification = buildNotification();
-                mNotificationManager.notify(mNotificationId, mNotification);
-            }
+        ((TermuxX11Application) getApplication()).refreshNotificationIfShown();
     }
 
     @Override
     public void onResume() {
         super.onResume();
 
-        mNotification = buildNotification();
-        mNotificationManager.notify(mNotificationId, mNotification);
+        ((TermuxX11Application) getApplication()).onActivityResumed(this);
 
         orientationListener.enable();
         setTerminalToolbarView();
@@ -676,12 +660,10 @@ public class MainActivity extends AppCompatActivity {
     public void onPause() {
         getLorieView().setKeyboardVisible(false);
 
-        for (StatusBarNotification notification: mNotificationManager.getActiveNotifications())
-            if (notification.getId() == mNotificationId)
-                mNotificationManager.cancel(mNotificationId);
-
         orientationListener.disable();
         super.onPause();
+
+        ((TermuxX11Application) getApplication()).onActivityPaused();
     }
 
     public LorieView getLorieView() {
@@ -828,33 +810,6 @@ public class MainActivity extends AppCompatActivity {
         if (filterOutWinKey && (e.getKeyCode() == KEYCODE_META_LEFT || e.getKeyCode() == KEYCODE_META_RIGHT || e.isMetaPressed()))
             return false;
         return mLorieKeyListener.onKey(getLorieView(), e.getKeyCode(), e);
-    }
-
-    @SuppressLint("ObsoleteSdkInt")
-    Notification buildNotification() {
-        NotificationCompat.Builder builder =  new NotificationCompat.Builder(this, getNotificationChannel(mNotificationManager))
-                .setContentTitle("Termux:X11")
-                .setSmallIcon(R.drawable.ic_x11_icon)
-                .setContentText(getResources().getText(R.string.lorie_notification_content_text))
-                .setOngoing(true)
-                .setPriority(Notification.PRIORITY_MAX)
-                .setSilent(true)
-                .setShowWhen(false)
-                .setColor(0xFF607D8B);
-        return TouchInputHandler.setupNotification(this, prefs, builder).build();
-    }
-
-    private String getNotificationChannel(NotificationManager notificationManager){
-        String channelId = getResources().getString(R.string.lorie_app_name);
-        if (SDK_INT >= VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(channelId, channelId, NotificationManager.IMPORTANCE_HIGH);
-            channel.setImportance(NotificationManager.IMPORTANCE_HIGH);
-            channel.setLockscreenVisibility(Notification.VISIBILITY_SECRET);
-            if (SDK_INT >= VERSION_CODES.Q)
-                channel.setAllowBubbles(false);
-            notificationManager.createNotificationChannel(channel);
-        }
-        return channelId;
     }
 
     int orientation, densityDpi;

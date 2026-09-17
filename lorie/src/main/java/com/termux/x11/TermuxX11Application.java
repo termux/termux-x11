@@ -27,6 +27,8 @@ public class TermuxX11Application extends Application {
     public final Prefs secondaryPrefs = new Prefs();
     public NotificationManager notificationManager;
 
+    private Notification baseNotification;
+
     private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> {
         MainActivity activity = MainActivity.getInstance();
         if (activity != null)
@@ -34,6 +36,7 @@ public class TermuxX11Application extends Application {
     };
 
     @Override
+    @SuppressLint("ObsoleteSdkInt")
     public void onCreate() {
         super.onCreate();
 
@@ -54,6 +57,28 @@ public class TermuxX11Application extends Application {
 
         builtInPrefs.get().registerOnSharedPreferenceChangeListener(preferencesChangedListener);
         secondaryPrefs.get().registerOnSharedPreferenceChangeListener(preferencesChangedListener);
+
+        String channelId = getResources().getString(R.string.lorie_app_name);
+        if (SDK_INT >= VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(channelId, channelId, NotificationManager.IMPORTANCE_HIGH);
+            channel.setImportance(NotificationManager.IMPORTANCE_HIGH);
+            channel.setLockscreenVisibility(Notification.VISIBILITY_SECRET);
+            if (SDK_INT >= VERSION_CODES.Q)
+                channel.setAllowBubbles(false);
+            notificationManager.createNotificationChannel(channel);
+        }
+
+        // The parts of the notification that don't depend on preferences, built once and reused as a template.
+        baseNotification = new NotificationCompat.Builder(this, channelId)
+                .setContentTitle("Termux:X11")
+                .setSmallIcon(R.drawable.ic_x11_icon)
+                .setContentText(getResources().getText(R.string.lorie_notification_content_text))
+                .setOngoing(true)
+                .setPriority(Notification.PRIORITY_MAX)
+                .setSilent(true)
+                .setShowWhen(false)
+                .setColor(0xFF607D8B)
+                .build();
     }
 
     /** Picks builtInPrefs or secondaryPrefs depending on which display ctx's window is on. */
@@ -83,30 +108,8 @@ public class TermuxX11Application extends Application {
             }
     }
 
-    @SuppressLint("ObsoleteSdkInt")
     private Notification buildNotification(MainActivity activity) {
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, getNotificationChannel())
-                .setContentTitle("Termux:X11")
-                .setSmallIcon(R.drawable.ic_x11_icon)
-                .setContentText(getResources().getText(R.string.lorie_notification_content_text))
-                .setOngoing(true)
-                .setPriority(Notification.PRIORITY_MAX)
-                .setSilent(true)
-                .setShowWhen(false)
-                .setColor(0xFF607D8B);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, baseNotification);
         return TouchInputHandler.setupNotification(activity, activity.prefs, builder).build();
-    }
-
-    private String getNotificationChannel() {
-        String channelId = getResources().getString(R.string.lorie_app_name);
-        if (SDK_INT >= VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(channelId, channelId, NotificationManager.IMPORTANCE_HIGH);
-            channel.setImportance(NotificationManager.IMPORTANCE_HIGH);
-            channel.setLockscreenVisibility(Notification.VISIBILITY_SECRET);
-            if (SDK_INT >= VERSION_CODES.Q)
-                channel.setAllowBubbles(false);
-            notificationManager.createNotificationChannel(channel);
-        }
-        return channelId;
     }
 }

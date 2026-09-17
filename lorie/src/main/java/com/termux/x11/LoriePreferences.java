@@ -125,7 +125,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        prefs = ((TermuxX11Application) getApplication()).getPrefs(this);
+        prefs = ((LorieApp) getApplication()).getPrefs(this);
         super.onCreate(savedInstanceState);
         getSupportFragmentManager().beginTransaction().replace(android.R.id.content, new LoriePreferenceFragment(null)).commit();
 
@@ -579,7 +579,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             try {
                 if (intent != null && intent.getExtras() != null) {
                     Context targetCtx = MainActivity.getInstance() != null ? MainActivity.getInstance() : context;
-                    Prefs p = ((TermuxX11Application) context.getApplicationContext()).getPrefs(targetCtx);
+                    Prefs p = ((LorieApp) context.getApplicationContext()).getPrefs(targetCtx);
                     if (intent.getStringExtra("list") != null) {
                         String result = "";
                         for (PrefsProto.Preference pref : p.keys.values()) {
@@ -648,7 +648,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                             }
                             case "storeSecondaryDisplayPreferencesSeparately": {
                                 // Always canonical, regardless of which display targetCtx resolved to.
-                                ((TermuxX11Application) context.getApplicationContext()).builtInPrefs.preferences.edit()
+                                ((LorieApp) context.getApplicationContext()).builtInPrefs.preferences.edit()
                                         .putBoolean(key, "true".contentEquals(newValue)).commit();
                                 break;
                             }
@@ -828,14 +828,14 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             public boolean get() {
                 checkAttached();
                 if (isSharedAcrossDisplays(key))
-                    return ((TermuxX11Application) ctx.getApplicationContext()).builtInPrefs.preferences.getBoolean(key, (boolean) defValue);
+                    return ((LorieApp) ctx.getApplicationContext()).builtInPrefs.preferences.getBoolean(key, (boolean) defValue);
                 return preferences.getBoolean(key, (boolean) defValue);
             }
 
             public void put(boolean v) {
                 checkAttached();
                 if (isSharedAcrossDisplays(key))
-                    ((TermuxX11Application) ctx.getApplicationContext()).builtInPrefs.preferences.edit().putBoolean(key, v).commit();
+                    ((LorieApp) ctx.getApplicationContext()).builtInPrefs.preferences.edit().putBoolean(key, v).commit();
                 preferences.edit().putBoolean(key, v).commit();
             }
         }
@@ -945,14 +945,14 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
         @Override public void putBoolean(String k, boolean v) {
             checkAttached();
             if (isSharedAcrossDisplays(k))
-                ((TermuxX11Application) ctx.getApplicationContext()).builtInPrefs.preferences.edit().putBoolean(k, v).commit();
+                ((LorieApp) ctx.getApplicationContext()).builtInPrefs.preferences.edit().putBoolean(k, v).commit();
             else
                 preferences.edit().putBoolean(k, v).commit();
         }
         @Override public boolean getBoolean(String k, boolean d) {
             checkAttached();
             if (isSharedAcrossDisplays(k))
-                return ((TermuxX11Application) ctx.getApplicationContext()).builtInPrefs.preferences.getBoolean(k, d);
+                return ((LorieApp) ctx.getApplicationContext()).builtInPrefs.preferences.getBoolean(k, d);
             return preferences.getBoolean(k, d);
         }
         @Override public void putString(String k, @Nullable String v) { get().edit().putString(k, v).commit(); }

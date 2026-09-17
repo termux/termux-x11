@@ -104,7 +104,7 @@ public class MainActivity extends AppCompatActivity {
     private static final float MAX_PIP_ASPECT_RATIO = getSystemDimenFloat("config_pictureInPictureMaxAspectRatio", 2.39f);
 
     public Prefs prefs;
-    TermuxX11Application app;
+    LorieApp app;
 
     private boolean oldFullscreen = false, oldHideCutout = false;
     private OrientationEventListener orientationListener;
@@ -152,7 +152,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        app = (TermuxX11Application) getApplication();
+        app = (LorieApp) getApplication();
         prefs = app.getPrefs(this);
         int modeValue = Integer.parseInt(prefs.touchMode.get()) - 1;
         if (modeValue > 2)

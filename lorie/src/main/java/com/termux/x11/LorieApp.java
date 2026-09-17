@@ -28,7 +28,7 @@ import androidx.core.app.NotificationCompat;
 
 import com.termux.x11.input.TouchInputHandler;
 
-public class TermuxX11Application extends Application {
+public class LorieApp extends Application {
     public static final int NOTIFICATION_ID = 7892;
 
     public final Prefs builtInPrefs = new Prefs();
@@ -140,10 +140,10 @@ public class TermuxX11Application extends Application {
 
                 if (activity != null) {
                     try {
-                        Log.v("TermuxX11Application", "Got new ACTION_START intent");
+                        Log.v("LorieApp", "Got new ACTION_START intent");
                         activity.connectToService(binder);
                     } catch (Exception e) {
-                        Log.e("TermuxX11Application", "Something went wrong while we extracted connection details from binder.", e);
+                        Log.e("LorieApp", "Something went wrong while we extracted connection details from binder.", e);
                     }
                 } else {
                     pendingConnection = binder;
@@ -166,7 +166,7 @@ public class TermuxX11Application extends Application {
         }
 
         if (activity == null && !ACTION_START.equals(action))
-            Log.w("TermuxX11Application", "Got " + action + " but no MainActivity instance in this process");
+            Log.w("LorieApp", "Got " + action + " but no MainActivity instance in this process");
     }
 
     private void onConnectionDied(IBinder binder) {
@@ -181,7 +181,7 @@ public class TermuxX11Application extends Application {
     public static class Receiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
-            ((TermuxX11Application) context.getApplicationContext()).onBroadcastReceive(intent);
+            ((LorieApp) context.getApplicationContext()).onBroadcastReceive(intent);
         }
     }
 }

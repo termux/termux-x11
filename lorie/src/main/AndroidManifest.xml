@@ -9,7 +9,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
-        android:name=".TermuxX11Application"
+        android:name=".LorieApp"
         android:allowBackup="false"
         tools:ignore="DataExtractionRules,GoogleAppIndexingWarning">
         <activity
@@ -68,7 +68,7 @@
             </intent-filter>
         </receiver>
 
-        <receiver android:name=".TermuxX11Application$Receiver" android:exported="true" tools:ignore="ExportedReceiver" android:enabled="true">
+        <receiver android:name=".LorieApp$Receiver" android:exported="true" tools:ignore="ExportedReceiver" android:enabled="true">
             <intent-filter>
                 <action android:name="com.termux.x11.CmdEntryPoint.ACTION_START" />
                 <action android:name="com.termux.x11.ACTION_STOP" />

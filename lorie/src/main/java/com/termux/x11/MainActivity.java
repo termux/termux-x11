@@ -17,7 +17,6 @@ import android.content.ClipData;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.content.res.Resources;
@@ -115,7 +114,6 @@ public class MainActivity extends AppCompatActivity {
     public Prefs prefs;
 
     private boolean oldFullscreen = false, oldHideCutout = false;
-    private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> onPreferencesChanged(key);
     private OrientationEventListener orientationListener;
 
     ViewTreeObserver.OnPreDrawListener mOnPredrawListener = new ViewTreeObserver.OnPreDrawListener() {
@@ -168,8 +166,6 @@ public class MainActivity extends AppCompatActivity {
 
         oldFullscreen = prefs.fullscreen.get();
         oldHideCutout = prefs.hideCutout.get();
-
-        prefs.get().registerOnSharedPreferenceChangeListener(preferencesChangedListener);
 
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);

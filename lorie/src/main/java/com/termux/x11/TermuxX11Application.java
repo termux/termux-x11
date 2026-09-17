@@ -12,6 +12,12 @@ public class TermuxX11Application extends Application {
     public final Prefs builtInPrefs = new Prefs();
     public final Prefs secondaryPrefs = new Prefs();
 
+    private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> {
+        MainActivity activity = MainActivity.getInstance();
+        if (activity != null)
+            activity.onPreferencesChanged(key);
+    };
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -28,6 +34,9 @@ public class TermuxX11Application extends Application {
 
         builtInPrefs.attach(prefsCtx, PreferenceManager.getDefaultSharedPreferences(prefsCtx));
         secondaryPrefs.attach(prefsCtx, prefsCtx.getSharedPreferences("secondary", Context.MODE_PRIVATE));
+
+        builtInPrefs.get().registerOnSharedPreferenceChangeListener(preferencesChangedListener);
+        secondaryPrefs.get().registerOnSharedPreferenceChangeListener(preferencesChangedListener);
     }
 
     /** Picks builtInPrefs or secondaryPrefs depending on which display ctx's window is on. */

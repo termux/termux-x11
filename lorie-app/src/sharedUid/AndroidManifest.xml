@@ -7,7 +7,7 @@
         <activity android:name="com.termux.x11.MainActivity" android:process="com.termux" />
         <activity android:name="com.termux.x11.LoriePreferences" android:process="com.termux" />
         <service android:name="com.termux.x11.utils.KeyInterceptor" android:process="com.termux" />
-        <receiver android:name="com.termux.x11.LorieBroadcastReceiver" android:process="com.termux" />
+        <receiver android:name="com.termux.x11.TermuxX11Application$Receiver" android:process="com.termux" />
         <receiver android:name="com.termux.x11.LoriePreferences$Receiver" android:process="com.termux" />
     </application>
 </manifest>

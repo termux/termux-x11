@@ -1,18 +1,26 @@
 package com.termux.x11;
 
 import static android.os.Build.VERSION.SDK_INT;
+import static com.termux.x11.CmdEntryPoint.ACTION_START;
+import static com.termux.x11.LoriePreferences.ACTION_PREFERENCES_CHANGED;
 
 import android.annotation.SuppressLint;
 import android.app.Application;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.os.Bundle;
 import android.os.Build.VERSION_CODES;
+import android.os.IBinder;
+import android.os.RemoteException;
 import android.preference.PreferenceManager;
 import android.service.notification.StatusBarNotification;
+import android.util.Log;
 import android.view.Display;
 import android.view.WindowManager;
 
@@ -26,6 +34,7 @@ public class TermuxX11Application extends Application {
     public final Prefs builtInPrefs = new Prefs();
     public final Prefs secondaryPrefs = new Prefs();
     public NotificationManager notificationManager;
+    public IBinder pendingConnection;
 
     private Notification baseNotification;
 
@@ -111,5 +120,68 @@ public class TermuxX11Application extends Application {
     private Notification buildNotification(MainActivity activity) {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, baseNotification);
         return TouchInputHandler.setupNotification(activity, activity.prefs, builder).build();
+    }
+
+    public void onBroadcastReceive(Intent intent) {
+        MainActivity activity = MainActivity.getInstance();
+        String action = intent.getAction();
+        if (activity != null)
+            activity.prefs = getPrefs(activity);
+
+        switch (action == null ? "" : action) {
+            case ACTION_START: {
+                Bundle bundle = intent.getBundleExtra(null);
+                IBinder binder = bundle == null ? null : bundle.getBinder(null);
+                if (binder == null)
+                    break;
+                try {
+                    binder.linkToDeath(() -> onConnectionDied(binder), 0);
+                } catch (RemoteException ignored) {}
+
+                if (activity != null) {
+                    try {
+                        Log.v("TermuxX11Application", "Got new ACTION_START intent");
+                        activity.connectToService(binder);
+                    } catch (Exception e) {
+                        Log.e("TermuxX11Application", "Something went wrong while we extracted connection details from binder.", e);
+                    }
+                } else {
+                    pendingConnection = binder;
+                }
+                break;
+            }
+            case MainActivity.ACTION_STOP:
+                if (activity != null)
+                    activity.finishAffinity();
+                break;
+            case ACTION_PREFERENCES_CHANGED:
+                if (activity != null)
+                    activity.onPreferencesChanged(intent.getStringExtra("key"));
+                break;
+            case MainActivity.ACTION_CUSTOM:
+                Log.d("ACTION_CUSTOM", "action " + intent.getStringExtra("what"));
+                if (activity != null)
+                    activity.mInputHandler.extractUserActionFromPreferences(activity.prefs, intent.getStringExtra("what")).accept(0, true);
+                break;
+        }
+
+        if (activity == null && !ACTION_START.equals(action))
+            Log.w("TermuxX11Application", "Got " + action + " but no MainActivity instance in this process");
+    }
+
+    private void onConnectionDied(IBinder binder) {
+        if (pendingConnection == binder)
+            pendingConnection = null;
+
+        MainActivity activity = MainActivity.getInstance();
+        if (activity != null && activity.service != null && activity.service.asBinder() == binder)
+            activity.disconnectService();
+    }
+
+    public static class Receiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            ((TermuxX11Application) context.getApplicationContext()).onBroadcastReceive(intent);
+        }
     }
 }

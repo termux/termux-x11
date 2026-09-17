@@ -225,9 +225,10 @@ public class MainActivity extends AppCompatActivity {
 
         ImeHeightProvider.assistActivity(this);
 
-        if (LorieBroadcastReceiver.pendingConnection != null) {
-            connectToService(LorieBroadcastReceiver.pendingConnection);
-            LorieBroadcastReceiver.pendingConnection = null;
+        TermuxX11Application app = (TermuxX11Application) getApplication();
+        if (app.pendingConnection != null) {
+            connectToService(app.pendingConnection);
+            app.pendingConnection = null;
         }
 
         if (tryConnect()) {

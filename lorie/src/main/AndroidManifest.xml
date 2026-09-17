@@ -68,7 +68,7 @@
             </intent-filter>
         </receiver>
 
-        <receiver android:name=".LorieBroadcastReceiver" android:exported="true" tools:ignore="ExportedReceiver" android:enabled="true">
+        <receiver android:name=".TermuxX11Application$Receiver" android:exported="true" tools:ignore="ExportedReceiver" android:enabled="true">
             <intent-filter>
                 <action android:name="com.termux.x11.CmdEntryPoint.ACTION_START" />
                 <action android:name="com.termux.x11.ACTION_STOP" />

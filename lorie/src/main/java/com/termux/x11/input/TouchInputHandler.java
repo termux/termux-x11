@@ -8,6 +8,7 @@ import static android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC;
 import static android.view.KeyEvent.KEYCODE_BACK;
 import static android.view.KeyEvent.KEYCODE_VOLUME_DOWN;
 import static android.view.KeyEvent.KEYCODE_VOLUME_UP;
+import static android.view.KeyEvent.KEYCODE_ESCAPE;
 
 import android.annotation.SuppressLint;
 import android.app.PendingIntent;
@@ -523,6 +524,7 @@ public class TouchInputHandler {
             case "send volume up": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_UP, down);
             case "send volume down": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_DOWN, down);
             case "send media action": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, key, down);
+            case "send escape": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_ESCAPE, down);
             default: return noAction;
         }
     }

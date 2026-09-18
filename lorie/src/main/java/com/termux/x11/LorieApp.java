@@ -141,6 +141,7 @@ public class LorieApp extends Application {
                     break;
 
                 IBinder activeService = activity != null && activity.service != null ? activity.service.asBinder() : null;
+                IBinder pendingConnection = pendingConnections.get(tag);
                 boolean sameConnection = binder.equals(activeService) || binder.equals(pendingConnection);
                 if (!sameConnection && ((activeService != null && activeService.isBinderAlive()) || (pendingConnection != null && pendingConnection.isBinderAlive()))) {
                     try {

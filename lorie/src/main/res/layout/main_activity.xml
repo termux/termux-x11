@@ -82,6 +82,20 @@
                     android:layout_height="wrap_content" />
 
                 <ImageButton
+                    android:id="@+id/displays_button"
+                    style="@style/Widget.AppCompat.Button"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:padding="12dp"
+                    android:src="@drawable/lorie_ic_displays"
+                    android:tint="?attr/colorControlNormal"
+                    android:contentDescription="@string/displays_button_text" />
+
+                <Space
+                    android:layout_width="4dp"
+                    android:layout_height="wrap_content" />
+
+                <ImageButton
                     android:id="@+id/help_button"
                     style="@style/Widget.AppCompat.Button"
                     android:layout_width="56dp"

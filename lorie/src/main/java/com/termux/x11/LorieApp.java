@@ -28,19 +28,21 @@ import androidx.core.app.NotificationCompat;
 
 import com.termux.x11.input.TouchInputHandler;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class LorieApp extends Application {
     public static final int NOTIFICATION_ID = 7892;
 
     public final Prefs builtInPrefs = new Prefs();
     public final Prefs secondaryPrefs = new Prefs();
     public NotificationManager notificationManager;
-    public IBinder pendingConnection;
+    public final Map<String, IBinder> pendingConnections = new HashMap<>();
 
     private Notification baseNotification;
 
     private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> {
-        MainActivity activity = MainActivity.getInstance();
-        if (activity != null)
+        for (MainActivity activity : MainActivity.getInstances())
             activity.onPreferencesChanged(key);
     };
 
@@ -107,7 +109,7 @@ public class LorieApp extends Application {
     }
 
     void refreshNotificationIfShown() {
-        MainActivity activity = MainActivity.getInstance();
+        MainActivity activity = MainActivity.getFocusedOrAnyInstance();
         if (activity == null)
             return;
         for (StatusBarNotification notification : notificationManager.getActiveNotifications())
@@ -123,8 +125,11 @@ public class LorieApp extends Application {
     }
 
     public void onBroadcastReceive(Intent intent) {
-        MainActivity activity = MainActivity.getInstance();
         String action = intent.getAction();
+        String extraTag = ACTION_START.equals(action) || MainActivity.ACTION_STOP.equals(action) || MainActivity.ACTION_CUSTOM.equals(action)
+                ? intent.getStringExtra(CmdEntryPoint.EXTRA_DOCUMENT_TAG) : null;
+        String tag = extraTag == null ? "" : extraTag;
+        MainActivity activity = MainActivity.getInstance(tag);
         if (activity != null)
             activity.prefs = getPrefs(activity);
 
@@ -136,6 +141,7 @@ public class LorieApp extends Application {
                     break;
 
                 IBinder activeService = activity != null && activity.service != null ? activity.service.asBinder() : null;
+                IBinder pendingConnection = pendingConnections.get(tag);
                 boolean sameConnection = binder.equals(activeService) || binder.equals(pendingConnection);
                 if (!sameConnection && ((activeService != null && activeService.isBinderAlive()) || (pendingConnection != null && pendingConnection.isBinderAlive()))) {
                     try {
@@ -145,7 +151,7 @@ public class LorieApp extends Application {
                 }
 
                 try {
-                    binder.linkToDeath(() -> onConnectionDied(binder), 0);
+                    binder.linkToDeath(() -> onConnectionDied(tag, binder), 0);
                 } catch (RemoteException ignored) {}
 
                 if (activity != null) {
@@ -156,7 +162,7 @@ public class LorieApp extends Application {
                         Log.e("LorieApp", "Something went wrong while we extracted connection details from binder.", e);
                     }
                 } else {
-                    pendingConnection = binder;
+                    pendingConnections.put(tag, binder);
                 }
                 break;
             }
@@ -165,8 +171,10 @@ public class LorieApp extends Application {
                     activity.finishAffinity();
                 break;
             case ACTION_PREFERENCES_CHANGED:
-                if (activity != null)
-                    activity.onPreferencesChanged(intent.getStringExtra("key"));
+                for (MainActivity a : MainActivity.getInstances()) {
+                    a.prefs = getPrefs(a);
+                    a.onPreferencesChanged(intent.getStringExtra("key"));
+                }
                 break;
             case MainActivity.ACTION_CUSTOM:
                 Log.d("ACTION_CUSTOM", "action " + intent.getStringExtra("what"));
@@ -175,15 +183,14 @@ public class LorieApp extends Application {
                 break;
         }
 
-        if (activity == null && !ACTION_START.equals(action))
+        if (activity == null && !ACTION_START.equals(action) && !ACTION_PREFERENCES_CHANGED.equals(action))
             Log.w("LorieApp", "Got " + action + " but no MainActivity instance in this process");
     }
 
-    private void onConnectionDied(IBinder binder) {
-        if (pendingConnection == binder)
-            pendingConnection = null;
+    private void onConnectionDied(String tag, IBinder binder) {
+        pendingConnections.remove(tag, binder);
 
-        MainActivity activity = MainActivity.getInstance();
+        MainActivity activity = MainActivity.getInstance(tag);
         if (activity != null && activity.service != null && activity.service.asBinder() == binder)
             activity.disconnectService();
     }

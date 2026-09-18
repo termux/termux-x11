@@ -584,6 +584,9 @@ static jobject getLogcatOutput(JNIEnv *env, __unused jobject cls) {
 }
 
 static void reportFatalError(JNIEnv *env, __unused jobject cls, jstring message) {
+    if (conn_fd != -1)
+        return;
+
     const char *chars = env->GetStringUTFChars(message, nullptr);
     char *copy = strdup(chars);
     env->ReleaseStringUTFChars(message, chars);

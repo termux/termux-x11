@@ -136,7 +136,8 @@ public class LorieApp extends Application {
                     break;
 
                 IBinder activeService = activity != null && activity.service != null ? activity.service.asBinder() : null;
-                if ((activeService != null && activeService.isBinderAlive()) || (pendingConnection != null && pendingConnection.isBinderAlive())) {
+                boolean sameConnection = binder.equals(activeService) || binder.equals(pendingConnection);
+                if (!sameConnection && ((activeService != null && activeService.isBinderAlive()) || (pendingConnection != null && pendingConnection.isBinderAlive()))) {
                     try {
                         ICmdEntryInterface.Stub.asInterface(binder).reportFatalError("Termux:X11 already has an active X server connection.");
                     } catch (RemoteException ignored) {}

@@ -28,6 +28,8 @@ import androidx.core.app.NotificationCompat;
 
 import com.termux.x11.input.TouchInputHandler;
 
+import java.lang.ref.WeakReference;
+
 public class LorieApp extends Application {
     public static final int NOTIFICATION_ID = 7892;
 
@@ -145,7 +147,14 @@ public class LorieApp extends Application {
                 }
 
                 try {
-                    binder.linkToDeath(() -> onConnectionDied(binder), 0);
+                    if (!sameConnection) {
+                        WeakReference<IBinder> binderRef = new WeakReference<>(binder);
+                        binder.linkToDeath(() -> {
+                            IBinder deadBinder = binderRef.get();
+                            if (deadBinder != null)
+                                onConnectionDied(deadBinder);
+                        }, 0);
+                    }
                 } catch (RemoteException ignored) {}
 
                 if (activity != null) {

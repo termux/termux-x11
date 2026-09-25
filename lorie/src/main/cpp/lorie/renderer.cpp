@@ -27,6 +27,7 @@
 #include <cstring>
 #include <sys/mman.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <unistd.h>
 #include "list.h"
 #include "lorie.h"
@@ -83,6 +84,30 @@ static void* printEglError(const char* msg, int line) {
 
 static inline __always_inline void vprintEglError(const char* msg, int line) {
     printEglError(msg, line);
+}
+
+// Waits for a GPU fence, bounded to (roughly) one vsync period instead of EGL_FOREVER: some
+// GPU drivers lose a fence's signal across a power state transition, wedging the caller forever.
+static void waitForFence(EGLDisplay egl_display, EGLSync fence, lorie_shared_server_state* state) {
+    const int64_t defaultIntervalNanos = 1000000000LL / 30; // no vsync tick observed yet
+    int64_t interval = state->vsyncIntervalNanos > 0 ? state->vsyncIntervalNanos : defaultIntervalNanos;
+    int64_t budget = interval;
+    if (state->vsyncIntervalNanos > 0) {
+        struct timespec now{};
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        int64_t nowNanos = (int64_t) now.tv_sec * 1000000000LL + now.tv_nsec;
+        // If we're already past the vsync this was aiming for, defer to the next
+        // one instead of giving up immediately - it still deserves a chance to draw.
+        int64_t nextVsync = state->lastVsyncNanos + interval;
+        while (nextVsync <= nowNanos)
+            nextVsync += interval;
+        budget = nextVsync - nowNanos;
+    }
+    budget -= budget / 10;
+    EGLTimeKHR timeout = (EGLTimeKHR) (budget > 0 ? budget : 0);
+    if (eglClientWaitSyncKHR(egl_display, fence, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, timeout) == EGL_TIMEOUT_EXPIRED_KHR)
+        loge("Xlorie: GPU fence wasn't signalled within %lldns, proceeding without it\n", (long long) timeout);
+    eglDestroySyncKHR(egl_display, fence);
 }
 
 static void checkGlError(int line) {
@@ -861,9 +886,7 @@ void Renderer::applyPendingGpuCopies() {
     serial = applyPendingGpuCopiesLocked();
     if (serial) {
         EGLSync fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
-        glFlush();
-        eglClientWaitSyncKHR(egl_display, fence, 0, EGL_FOREVER);
-        eglDestroySyncKHR(egl_display, fence);
+        waitForFence(egl_display, fence, state);
         // Only now that the GPU has actually finished (not just been told to start) is it safe to
         // let present_execute_copy release/idle the source pixmap back to the client.
         __atomic_store_n(&state->gpuCopyQueue.completedSerial, serial, __ATOMIC_RELEASE);
@@ -1036,11 +1059,9 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
 
     state->cursor.moved = FALSE;
     drawCursor(sourceWidth, sourceHeight, sourceLeft, sourceTop, cursorX, cursorY);
-    glFlush();
 
-    // Wait until root window drawing is finished before giving control back to X server
-    eglClientWaitSyncKHR(egl_display, fence, 0, EGL_FOREVER);
-    eglDestroySyncKHR(egl_display, fence);
+    // Wait until root window drawing is finished before giving control back to X server.
+    waitForFence(egl_display, fence, state);
     if (gpuCopySerial) {
         __atomic_store_n(&state->gpuCopyQueue.completedSerial, gpuCopySerial, __ATOMIC_RELEASE);
         notifyGpuCopyDone();
@@ -1058,8 +1079,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     glClear(GL_COLOR_BUFFER_BIT);
     glDisable(GL_SCISSOR_TEST);
     fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
-    eglClientWaitSyncKHR(egl_display, fence, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, EGL_FOREVER);
-    eglDestroySyncKHR(egl_display, fence);
+    waitForFence(egl_display, fence, state);
 
     state->renderedFrames++;
 }

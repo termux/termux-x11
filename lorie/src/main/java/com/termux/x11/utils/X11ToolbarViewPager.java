@@ -1,6 +1,7 @@
 package com.termux.x11.utils;
 
 import static android.os.Build.VERSION.SDK_INT;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import android.annotation.SuppressLint;
 import android.graphics.Color;
@@ -10,8 +11,6 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.KeyEvent;
-import android.view.KeyCharacterMap;
 
 import android.widget.Button;
 import android.widget.EditText;
@@ -66,8 +65,7 @@ public class X11ToolbarViewPager {
                 editText.setOnEditorActionListener((v, actionId, event) -> {
                     String textToSend = editText.getText().toString();
                     if (textToSend.isEmpty()) textToSend = "\r";
-                    KeyEvent e = new KeyEvent(0, textToSend, KeyCharacterMap.VIRTUAL_KEYBOARD, 0);
-                    mEventListener.onKey(mActivity.getLorieView(), 0, e);
+                    mActivity.getLorieView().sendTextEvent(textToSend.getBytes(UTF_8));
 
                     editText.setText("");
                     return true;

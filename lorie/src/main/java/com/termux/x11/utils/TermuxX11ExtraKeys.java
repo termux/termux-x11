@@ -10,7 +10,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.text.TextUtils;
 import android.util.Log;
-import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.Button;
@@ -49,7 +48,6 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
         mClipboardManager = (ClipboardManager) mActivity.getSystemService(Context.CLIPBOARD_SERVICE);
     }
 
-    private final KeyCharacterMap mVirtualKeyboardKeyCharacterMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD);
     static final String ACTION_START_PREFERENCES_ACTIVITY = "com.termux.x11.start_preferences_activity";
 
     @Override
@@ -179,12 +177,8 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
             ClipData clipData = mClipboardManager.getPrimaryClip();
             if (clipData != null) {
                 CharSequence pasted = clipData.getItemAt(0).coerceToText(mActivity);
-                if (!TextUtils.isEmpty(pasted)) {
-                    KeyEvent[] events = mVirtualKeyboardKeyCharacterMap.getEvents(pasted.toString().toCharArray());
-                    if (events != null)
-                        for (KeyEvent event : events)
-                            mEventListener.onKey(mActivity.getLorieView(), event.getKeyCode(), event);
-                }
+                if (!TextUtils.isEmpty(pasted))
+                    mActivity.getLorieView().sendTextEvent(pasted.toString().getBytes(UTF_8));
             }
         } else if ("MOUSE_HELPER".equals(key))
             mActivity.toggleMouseAuxButtons();

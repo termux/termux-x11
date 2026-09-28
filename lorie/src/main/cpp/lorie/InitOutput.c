@@ -22,6 +22,8 @@
 #include <sys/mman.h>
 #include <dri3.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <dlfcn.h>
 #include "fb.h"
 #include "inputstr.h"
@@ -1254,8 +1256,16 @@ static int lorieGetModifiers(__unused ScreenPtr screen, uint32_t format, uint32_
     return TRUE;
 }
 
+static int lorieDri3OpenClient(__unused ClientPtr client, __unused ScreenPtr screen, __unused RRProviderPtr provider, int *fd) {
+    *fd = open("/dev/dri/renderD128", O_RDWR | O_CLOEXEC);
+    if (*fd < 0)
+        return BadMatch;
+    return Success;
+}
+
 static dri3_screen_info_rec lorieDri3Info = {
         .version = 2,
+        .open_client = lorieDri3OpenClient,
         .fds_from_pixmap = FalseNoop,
         .pixmap_from_fds = loriePixmapFromFds,
         .get_formats = lorieGetFormats,

@@ -732,8 +732,13 @@ static void lorieWorkingQueueCallback(int fd, int __unused ready, void __unused 
     eventfd_read(fd, &dummy);
 }
 
-void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d) {
+/* VSYNC_TIMESTAMP: timestamp do vsync real (do Choreographer), compartilhado
+ * com o renderer via pvfb->state para eglPresentationTimeANDROID. */
+uint64_t lorieLastVsyncNs = 0;
+
+void lorieChoreographerFrameCallback(long t, AChoreographer* d) {
     AChoreographer_postFrameCallback(d, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, d);
+    __atomic_store_n(&lorieLastVsyncNs, (uint64_t) t, __ATOMIC_RELEASE);
     if (pScreenPtr) {
         QueueWorkProc(lorieRedraw, NULL, NULL);
         lorieWakeServer();

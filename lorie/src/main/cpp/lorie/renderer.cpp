@@ -231,7 +231,8 @@ static ANativeWindow* createDefaultWindow(JNIEnv* env) {
 }
 
 void* Renderer::initThread() {
-    if (jvm->AttachCurrentThread(&rendererEnv, nullptr) != JNI_OK) {
+    JavaVMAttachArgs attachArgs = { JNI_VERSION_1_6, "LorieRendererThread", nullptr };
+    if (jvm->AttachCurrentThread(&rendererEnv, &attachArgs) != JNI_OK) {
         log("Failed to attach renderer thread to JVM");
         return nullptr;
     }
@@ -239,8 +240,6 @@ void* Renderer::initThread() {
     EGLint major, minor;
     EGLint numConfigs;
     EGLint *const alphaAttrib = &configAttribs[11];
-
-    pthread_setname_np(pthread_self(), "LorieRendererThread");
 
     xorg_list_init(&addedBuffers);
     xorg_list_init(&buffers);

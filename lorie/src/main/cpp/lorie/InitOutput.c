@@ -1026,12 +1026,16 @@ void lorieGpuCopyAck(PixmapPtr pixmap, void *dst_buffer) {
 }
 
 Bool loriePresentFlip(__unused RRCrtcPtr crtc, __unused uint64_t event_id, __unused uint64_t target_msc, PixmapPtr pixmap, __unused Bool sync_flip) {
+    /* FLIP_DEBUG */
+    static int _p; if (!_p) { _p = 1; __android_log_print(ANDROID_LOG_DEBUG, "lorie", "FLIP_DEBUG entry force=%s", getenv("TERMUX_X11_FORCE_FLIP") ? getenv("TERMUX_X11_FORCE_FLIP") : "unset"); }
     LoriePixmapPriv* priv = (LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap);
     if (!priv || !priv->buffer || priv->mem || pvfb->root.width != pixmap->drawable.width || pvfb->root.height != pixmap->drawable.height)
         return FALSE;
 
     const LorieBuffer_Desc *desc = LorieBuffer_description(priv->buffer);
     char *forceFlip = getenv("TERMUX_X11_FORCE_FLIP");
+    /* FORCE_FLIP_HARDCODED: teste temporario */
+    static char _ff[] = "1"; forceFlip = _ff;
     if (desc->type == LORIEBUFFER_FD && priv->imported && !(forceFlip && strcmp(forceFlip, "1") == 0))
         return FALSE; // For some reason it does not work fine with turnip.
 

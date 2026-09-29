@@ -1048,6 +1048,21 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     state->waitForNextFrame = true;
     lorie_mutex_unlock(&state->lock, &state->lockingPid);
 
+    /* PRESENTATION_TIME: informa ao SurfaceFlinger a qual vsync este frame pertence.
+     * Sem isso, frames produzidos em rajada (cliente unlocked) podem ser exibidos fora
+     * de ordem/fase - causa visivel de piscar com swap_interval=0. */
+    {
+        static PFNEGLPRESENTATIONTIMEANDROIDPROC pPT = nullptr;
+        if (!pPT) pPT = (PFNEGLPRESENTATIONTIMEANDROIDPROC) eglGetProcAddress("eglPresentationTimeANDROID");
+        if (pPT && state) {
+            uint64_t last = __atomic_load_n(&state->lastVsyncNs, __ATOMIC_ACQUIRE);
+            uint64_t prev = __atomic_load_n(&state->prevVsyncNs, __ATOMIC_ACQUIRE);
+            if (last) {
+                uint64_t period = (prev && last > prev && (last - prev) < 33333333ull) ? (last - prev) : 8333333ull;
+                pPT(egl_display, last + period); // proximo vsync esperado
+            }
+        }
+    }
     if (eglSwapBuffers(egl_display, sfc) != EGL_TRUE)
         printEglError("Failed to swap buffers", __LINE__);
 

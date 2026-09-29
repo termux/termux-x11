@@ -239,6 +239,12 @@ struct lorie_shared_server_state {
     /* Needed to show FPS counter in logcat */
     volatile int renderedFrames;
 
+    /* VSYNC_TIMESTAMP: nanossegundos do ultimo vsync real, escrito pelo
+     * callback do Choreographer (processo do X server), lido pelo renderer
+     * (processo do app) para eglPresentationTimeANDROID. */
+    volatile uint64_t lastVsyncNs;
+    volatile uint64_t prevVsyncNs;
+
     struct {
         // We should not allow updating cursor content the same time renderer draws it.
         // locking the mutex protecting the root window can cause waiting for the frame to be drawn which is unacceptable

@@ -41,6 +41,7 @@
 #include "drm_fourcc.h"
 
 #include "lorie.h"
+#include <android/log.h>
 
 #define DRM_FORMAT_MOD_LINEAR 0
 
@@ -732,13 +733,8 @@ static void lorieWorkingQueueCallback(int fd, int __unused ready, void __unused 
     eventfd_read(fd, &dummy);
 }
 
-/* VSYNC_TIMESTAMP: timestamp do vsync real (do Choreographer), compartilhado
- * com o renderer via pvfb->state para eglPresentationTimeANDROID. */
-uint64_t lorieLastVsyncNs = 0;
-
-void lorieChoreographerFrameCallback(long t, AChoreographer* d) {
+void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d) {
     AChoreographer_postFrameCallback(d, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, d);
-    __atomic_store_n(&lorieLastVsyncNs, (uint64_t) t, __ATOMIC_RELEASE);
     if (pScreenPtr) {
         QueueWorkProc(lorieRedraw, NULL, NULL);
         lorieWakeServer();
@@ -1032,7 +1028,7 @@ void lorieGpuCopyAck(PixmapPtr pixmap, void *dst_buffer) {
 
 Bool loriePresentFlip(__unused RRCrtcPtr crtc, __unused uint64_t event_id, __unused uint64_t target_msc, PixmapPtr pixmap, __unused Bool sync_flip) {
     /* FLIP_DEBUG */
-    static int _p; if (!_p) { _p = 1; __android_log_print(ANDROID_LOG_DEBUG, "lorie", "FLIP_DEBUG entry force=%s", getenv("TERMUX_X11_FORCE_FLIP") ? getenv("TERMUX_X11_FORCE_FLIP") : "unset"); }
+    static int _p; if (!_p) { _p = 1; ErrorF("loriePresentFlip: called, force=%s\n", getenv("TERMUX_X11_FORCE_FLIP") ? getenv("TERMUX_X11_FORCE_FLIP") : "unset"); }
     LoriePixmapPriv* priv = (LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap);
     if (!priv || !priv->buffer || priv->mem || pvfb->root.width != pixmap->drawable.width || pvfb->root.height != pixmap->drawable.height)
         return FALSE;

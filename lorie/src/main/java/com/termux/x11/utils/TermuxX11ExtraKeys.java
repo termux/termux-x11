@@ -38,7 +38,7 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
     private boolean metaDown;
 
     /** Defines the key for extra keys */
-    public static final String DEFAULT_IVALUE_EXTRA_KEYS = "[['ESC','/',{key: '-', popup: '|'},'HOME','UP',{key: 'END', popup: 'ZOOM_IN'},{key: 'PGUP', popup: 'ZOOM_OUT'},{key: 'PREFERENCES', popup: 'ZOOM_RESET'}], ['TAB','CTRL','ALT','LEFT','DOWN','RIGHT','PGDN','KEYBOARD']]"; // Double row
+    public static final String DEFAULT_IVALUE_EXTRA_KEYS = "[['ESC','/',{key: '-', popup: '|'},'HOME','UP',{key: 'END', popup: 'ZOOM_IN'},{key: 'PGUP', popup: 'ZOOM_OUT'},{key: 'KEYBOARD', popup: 'ZOOM_RESET'}], ['TAB','CTRL','ALT','LEFT','DOWN','RIGHT','PGDN','PREFERENCES']]"; // Double row
 
     public TermuxX11ExtraKeys(@NonNull View.OnKeyListener eventlistener, MainActivity activity, ExtraKeysView extrakeysview) {
         mEventListener = eventlistener;

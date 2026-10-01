@@ -228,6 +228,10 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             this.root = root;
         }
 
+        private Prefs prefs() {
+            return ((LoriePreferences) getActivity()).prefs;
+        }
+
         @Override
         public void onAttach(@NonNull Context context) {
             super.onAttach(context);
@@ -257,10 +261,10 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
         /** @noinspection DataFlowIssue*/
         @Override @SuppressLint("ApplySharedPref")
         public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
-            getPreferenceManager().setPreferenceDataStore(prefs);
+            getPreferenceManager().setPreferenceDataStore(prefs());
 
-            if ((Integer.parseInt(prefs.touchMode.get()) - 1) > 2)
-                prefs.touchMode.put("1");
+            if ((Integer.parseInt(prefs().touchMode.get()) - 1) > 2)
+                prefs().touchMode.put("1");
 
             setPreferencesFromResource(R.xml.preferences, root == null ? "main" : root);
 
@@ -271,7 +275,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             for (int i=0; i<getPreferenceScreen().getPreferenceCount(); i++) {
                 Preference p = screen.getPreference(i);
                 p.setOnPreferenceChangeListener(this);
-                p.setPreferenceDataStore(prefs);
+                p.setPreferenceDataStore(prefs());
 
                 if ((id = findId(p.getKey())) != 0)
                     p.setTitle(getResources().getString(id));
@@ -281,8 +285,8 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
                 if (p instanceof ListPreference) {
                     ListPreference list = (ListPreference) p;
-                    list.setEntries(prefs.keys.get(p.getKey()).asList().getEntries());
-                    list.setEntryValues(prefs.keys.get(p.getKey()).asList().getValues());
+                    list.setEntries(prefs().keys.get(p.getKey()).asList().getEntries());
+                    list.setEntryValues(prefs().keys.get(p.getKey()).asList().getValues());
                     list.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
                 }
             }
@@ -348,31 +352,31 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             if (getContext() == null)
                 return;
 
-            for (String key : prefs.keys.keySet()) {
+            for (String key : prefs().keys.keySet()) {
                 Preference p = findPreference(key);
                 if (p != null)
                     onSetInitialValue(p);
             }
 
-            String displayResMode = prefs.displayResolutionMode.get();
+            String displayResMode = prefs().displayResolutionMode.get();
             setVisible("displayScale", displayResMode.contentEquals("scaled"));
             setVisible("displayResolutionExact", displayResMode.contentEquals("exact"));
             setVisible("displayResolutionCustom", displayResMode.contentEquals("custom"));
 
-            setEnabled("dexMetaKeyCapture", !prefs.enableAccessibilityServiceAutomatically.get());
-            setEnabled("enableAccessibilityServiceAutomatically", !prefs.dexMetaKeyCapture.get());
-            setEnabled("pauseKeyInterceptingWithEsc", prefs.dexMetaKeyCapture.get() ||
-                    prefs.enableAccessibilityServiceAutomatically.get() ||
+            setEnabled("dexMetaKeyCapture", !prefs().enableAccessibilityServiceAutomatically.get());
+            setEnabled("enableAccessibilityServiceAutomatically", !prefs().dexMetaKeyCapture.get());
+            setEnabled("pauseKeyInterceptingWithEsc", prefs().dexMetaKeyCapture.get() ||
+                    prefs().enableAccessibilityServiceAutomatically.get() ||
                     KeyInterceptor.isLaunched());
-            setEnabled("enableAccessibilityServiceAutomatically", prefs.enableAccessibilityServiceAutomatically.get() || KeyInterceptor.isLaunched());
-            setEnabled("filterOutWinkey", prefs.enableAccessibilityServiceAutomatically.get() || KeyInterceptor.isLaunched());
+            setEnabled("enableAccessibilityServiceAutomatically", prefs().enableAccessibilityServiceAutomatically.get() || KeyInterceptor.isLaunched());
+            setEnabled("filterOutWinkey", prefs().enableAccessibilityServiceAutomatically.get() || KeyInterceptor.isLaunched());
 
-            boolean displayStretchEnabled = "exact".contentEquals(prefs.displayResolutionMode.get()) || "custom".contentEquals(prefs.displayResolutionMode.get());
+            boolean displayStretchEnabled = "exact".contentEquals(prefs().displayResolutionMode.get()) || "custom".contentEquals(prefs().displayResolutionMode.get());
             setEnabled("displayStretch", displayStretchEnabled);
             setEnabled("adjustResolution", displayStretchEnabled);
 
-            setEnabled("scaleTouchpad", "1".equals(prefs.touchMode.get()) && !"native".equals(prefs.displayResolutionMode.get()));
-            setEnabled("showMouseHelper", "1".equals(prefs.touchMode.get()));
+            setEnabled("scaleTouchpad", "1".equals(prefs().touchMode.get()) && !"native".equals(prefs().displayResolutionMode.get()));
+            setEnabled("showMouseHelper", "1".equals(prefs().touchMode.get()));
 
             boolean requestNotificationPermissionVisible =
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
@@ -409,7 +413,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             long systemTimeoutMs = Settings.System.getInt(getContext().getContentResolver(), Settings.System.SCREEN_OFF_TIMEOUT, 0);
             setSystemOptionText(p, formatTimeout(systemTimeoutMs));
 
-            String mode = prefs.screenIdleTimeout.get();
+            String mode = prefs().screenIdleTimeout.get();
             if ("never".equals(mode) || "system".equals(mode)) {
                 p.setSummary(p.getEntry());
                 return;
@@ -501,7 +505,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
             }
 
             if ("showAdditionalKbd".contentEquals(key) && (Boolean) newValue)
-                prefs.additionalKbdVisible.put(true);
+                prefs().additionalKbdVisible.put(true);
 
             if ("enableAccessibilityServiceAutomatically".contentEquals(key)) {
                 if (!((Boolean) newValue))
@@ -535,7 +539,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                 View view = getLayoutInflater().inflate(R.layout.extra_keys_config, null, false);
                 EditText config = view.findViewById(R.id.extra_keys_config);
                 config.setTypeface(Typeface.MONOSPACE);
-                config.setText(prefs.extra_keys_config.get());
+                config.setText(prefs().extra_keys_config.get());
                 TextView desc = view.findViewById(R.id.extra_keys_config_description);
                 desc.setLinksClickable(true);
                 desc.setText(R.string.extra_keys_config_desc);
@@ -546,11 +550,11 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
                         .setPositiveButton("OK",
                                 (dialog, whichButton) -> {
                                     String text = config.getText().toString();
-                                    prefs.extra_keys_config.put(!text.isEmpty() ? text : TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS);
+                                    prefs().extra_keys_config.put(!text.isEmpty() ? text : TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS);
                                 }
                         )
                         .setNeutralButton("Reset",
-                                (dialog, whichButton) -> prefs.extra_keys_config.put(TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS))
+                                (dialog, whichButton) -> prefs().extra_keys_config.put(TermuxX11ExtraKeys.DEFAULT_IVALUE_EXTRA_KEYS))
                         .setNegativeButton("Cancel", (dialog, whichButton) -> dialog.dismiss())
                         .create()
                         .show();
@@ -578,8 +582,8 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
 
             try {
                 if (intent != null && intent.getExtras() != null) {
-                    Context targetCtx = MainActivity.getInstance() != null ? MainActivity.getInstance() : context;
-                    Prefs p = ((LorieApp) context.getApplicationContext()).getPrefs(targetCtx);
+                    MainActivity activity = MainActivity.getFocusedOrAnyInstance();
+                    Prefs p = ((LorieApp) context.getApplicationContext()).getPrefs(activity != null ? activity : context);
                     if (intent.getStringExtra("list") != null) {
                         String result = "";
                         for (PrefsProto.Preference pref : p.keys.values()) {

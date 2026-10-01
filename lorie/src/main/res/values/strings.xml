@@ -10,6 +10,9 @@
     <string name="preferences_button_text">Preferences</string>
     <string name="help_button_text">Help</string>
     <string name="exit_button_text">Exit</string>
+    <string name="displays_button_text">Displays</string>
+    <string name="displays_dialog_title">Displays</string>
+    <string name="displays_dialog_empty">No other displays are open</string>
     <string name="extra_keys_config_desc">Here you can set value of extra-keys variable like in Termux app (read <a href="http://wiki.termux.com/wiki/Touch_Keyboard#Extra_Keys_Row">this</a>) and more \n
 E.g. <b>META</b> for <i>META key</i>, \n
 <b>KEYBOARD</b> for <i>soft keyboard toggling key</i>, \n

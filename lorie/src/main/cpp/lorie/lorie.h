@@ -16,6 +16,7 @@
 #include "buffer.h"
 
 #define PORT 7892
+#define DOCUMENT_PORT_BASE 7900
 #define MAGIC "0xDEADBEEF"
 
 #ifdef __cplusplus
@@ -46,7 +47,7 @@ void lorieSetRendererWakeupCond(int fd);
 void lorieSetCursorVisible(Bool visible);
 void lorieSendSyncReply(uint32_t serial);
 void registerCmdEntryPointNatives(JNIEnv *env);
-void lorieListenForKnocks(void);
+void lorieListenForKnocks(int port, const char *tag);
 
 __unused void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled);
 

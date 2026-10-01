@@ -37,6 +37,7 @@
 #include "inpututils.h"
 #include "exa.h"
 #include "drm_fourcc.h"
+#include "opaque.h"
 
 #include "lorie.h"
 
@@ -100,6 +101,7 @@ static lorieScreenInfo lorieScreen = {
 }, *pvfb = &lorieScreen;
 static char *xstartup = NULL;
 static char **xstartupArgv = NULL;
+static char *documentTag = NULL;
 
 // Owned by the activity process, handed to us over the connection socket. Points at a placeholder until
 // the first connection so callers don't need a NULL check.
@@ -162,7 +164,7 @@ void OsVendorInit(void) {
     pthread_mutex_init(&lorieScreen.state->cursor.lock, &mutex_attr);
     lorieScreen.state->cursor.visible = TRUE;
 
-    lorieListenForKnocks();
+    lorieListenForKnocks(documentTag ? DOCUMENT_PORT_BASE + atoi(display) : PORT, documentTag);
 }
 
 // Queued from handleLorieEvents (input thread) to run on the main thread, i.e. the same thread that
@@ -326,6 +328,7 @@ void ddxUseMsg(void) {
     ErrorF("-force-sysvshm         force using SysV shm syscalls\n");
     ErrorF("-check-drawing         run server only able to draw some test image (for testing if rendering root window works or not),\n");
     ErrorF("-disable-gpu-present   disable offloading Present copies to the GPU, always use the CPU path\n");
+    ErrorF("-tag tag               open this display in a separate Android window identified by tag\n");
 }
 
 int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
@@ -378,6 +381,12 @@ int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
     if (strcmp(argv[i], "-disable-gpu-present") == 0) {
         pvfb->gpuPresentDisabled = TRUE;
         return 1;
+    }
+
+    if (strcmp(argv[i], "-tag") == 0) {  /* -tag tag */
+        CHECK_FOR_REQUIRED_ARGUMENTS(1);
+        documentTag = argv[++i];
+        return 2;
     }
 
     return 0;

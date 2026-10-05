@@ -37,6 +37,14 @@ __attribute__((weak)) EGLClientBuffer eglGetNativeClientBufferANDROID(const stru
 #define log(...) __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", __VA_ARGS__)
 #define loge(...) __android_log_print(ANDROID_LOG_ERROR, "gles-renderer", __VA_ARGS__)
 
+static constexpr EGLTimeKHR FENCE_TIMEOUT_NANOS = 100000000;
+
+static void waitForFence(EGLDisplay egl_display, EGLSync fence, EGLint flags) {
+    if (eglClientWaitSyncKHR(egl_display, fence, flags, FENCE_TIMEOUT_NANOS) == EGL_TIMEOUT_EXPIRED_KHR)
+        loge("GPU fence wasn't signalled within %lldns, proceeding without it", (long long) FENCE_TIMEOUT_NANOS);
+    eglDestroySyncKHR(egl_display, fence);
+}
+
 #define withStateLock(body) do { \
     pthread_mutex_lock(&stateLock); \
     body \
@@ -861,8 +869,7 @@ void Renderer::applyPendingGpuCopies() {
     if (serial) {
         EGLSync fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
         glFlush();
-        eglClientWaitSyncKHR(egl_display, fence, 0, EGL_FOREVER);
-        eglDestroySyncKHR(egl_display, fence);
+        waitForFence(egl_display, fence, 0);
         // Only now that the GPU has actually finished (not just been told to start) is it safe to
         // let present_execute_copy release/idle the source pixmap back to the client.
         __atomic_store_n(&state->gpuCopyQueue.completedSerial, serial, __ATOMIC_RELEASE);
@@ -1038,8 +1045,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     glFlush();
 
     // Wait until root window drawing is finished before giving control back to X server
-    eglClientWaitSyncKHR(egl_display, fence, 0, EGL_FOREVER);
-    eglDestroySyncKHR(egl_display, fence);
+    waitForFence(egl_display, fence, 0);
     if (gpuCopySerial) {
         __atomic_store_n(&state->gpuCopyQueue.completedSerial, gpuCopySerial, __ATOMIC_RELEASE);
         notifyGpuCopyDone();
@@ -1057,8 +1063,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     glClear(GL_COLOR_BUFFER_BIT);
     glDisable(GL_SCISSOR_TEST);
     fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
-    eglClientWaitSyncKHR(egl_display, fence, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, EGL_FOREVER);
-    eglDestroySyncKHR(egl_display, fence);
+    waitForFence(egl_display, fence, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR);
 
     state->renderedFrames++;
 }

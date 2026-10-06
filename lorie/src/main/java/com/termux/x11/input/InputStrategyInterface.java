@@ -91,6 +91,10 @@ public interface InputStrategyInterface {
         /** Mouse-button currently held down, or BUTTON_UNDEFINED otherwise. */
         private int mHeldButton = InputStub.BUTTON_UNDEFINED;
 
+        private final int mTouchSlop;
+        private float mDownX, mDownY;
+        private boolean mSingleFinger;
+
         public SimulatedTouchInputStrategy(
                 RenderData renderData, InputEventSender injector, Context context) {
             if (injector == null)
@@ -121,6 +125,7 @@ public interface InputStrategyInterface {
             int scaledDoubleTapSlopInPx = config.getScaledDoubleTapSlop();
             scaledDoubleTapSlopInPx = (int) (scaledDoubleTapSlopInPx * DOUBLE_TAP_SLOP_SCALE_FACTOR);
             mDoubleTapSlopSquareInPx = scaledDoubleTapSlopInPx * scaledDoubleTapSlopInPx;
+            mTouchSlop = config.getScaledTouchSlop();
         }
 
         @Override
@@ -137,8 +142,7 @@ public interface InputStrategyInterface {
                 // attempting a double tap, we use the original event's location for that second tap.
                 long tapInterval = SystemClock.uptimeMillis() - mLastTapTimeInMs;
                 if (isDoubleTap(currentTapPoint.x, currentTapPoint.y, tapInterval)) {
-                    if (mRenderData.setCursorPosition(mLastTapPoint.x, mLastTapPoint.y))
-                        mInjector.sendCursorMove((int) mLastTapPoint.x, (int) mLastTapPoint.y, false);
+                    moveCursor(mLastTapPoint.x, mLastTapPoint.y);
                     mLastTapPoint = null;
                     mLastTapTimeInMs = 0;
                 } else {
@@ -167,11 +171,51 @@ public interface InputStrategyInterface {
 
         @Override
         public void onMotionEvent(MotionEvent event) {
-            int action = event.getActionMasked();
-            if ((action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_DOWN) && mHeldButton != InputStub.BUTTON_UNDEFINED) {
-                mInjector.sendMouseUp(mHeldButton, false);
-                mHeldButton = InputStub.BUTTON_UNDEFINED;
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    mDownX = event.getX();
+                    mDownY = event.getY();
+                    mSingleFinger = true;
+                    break;
+
+                case MotionEvent.ACTION_MOVE:
+                    if (!mSingleFinger || event.getPointerCount() != 1)
+                        break;
+
+                    // Presses the left button once the finger leaves the touch slop and moves the cursor along with it.
+                    if (mHeldButton == InputStub.BUTTON_UNDEFINED) {
+                        if (Math.hypot(event.getX() - mDownX, event.getY() - mDownY) <= mTouchSlop)
+                            break;
+
+                        moveCursorToScreenPoint(mDownX, mDownY);
+                        onPressAndHold(InputStub.BUTTON_LEFT, false);
+                    }
+                    moveCursorToScreenPoint(event.getX(), event.getY());
+                    break;
+
+                case MotionEvent.ACTION_POINTER_DOWN:
+                    mSingleFinger = false;
+                    // fall through
+                case MotionEvent.ACTION_UP:
+                    if (mHeldButton != InputStub.BUTTON_UNDEFINED) {
+                        mInjector.sendMouseUp(mHeldButton, false);
+                        mHeldButton = InputStub.BUTTON_UNDEFINED;
+                    }
+                    break;
+
+                default:
+                    break;
             }
+        }
+
+        private void moveCursorToScreenPoint(float screenX, float screenY) {
+            PointF point = mRenderData.mapScreenPoint(screenX, screenY);
+            moveCursor(point.x, point.y);
+        }
+
+        private void moveCursor(float x, float y) {
+            if (mRenderData.setCursorPosition(x, y))
+                mInjector.sendCursorMove((int) x, (int) y, false);
         }
 
         private boolean isDoubleTap(float currentX, float currentY, long tapInterval) {

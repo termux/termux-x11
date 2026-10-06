@@ -137,6 +137,8 @@ public interface InputStrategyInterface {
                 // attempting a double tap, we use the original event's location for that second tap.
                 long tapInterval = SystemClock.uptimeMillis() - mLastTapTimeInMs;
                 if (isDoubleTap(currentTapPoint.x, currentTapPoint.y, tapInterval)) {
+                    if (mRenderData.setCursorPosition(mLastTapPoint.x, mLastTapPoint.y))
+                        mInjector.sendCursorMove((int) mLastTapPoint.x, (int) mLastTapPoint.y, false);
                     mLastTapPoint = null;
                     mLastTapTimeInMs = 0;
                 } else {

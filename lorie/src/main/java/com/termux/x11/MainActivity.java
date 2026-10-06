@@ -140,6 +140,7 @@ public class MainActivity extends AppCompatActivity {
     // held so a window that dies without deregistering isn't pinned in memory.
     private static final Map<String, WeakReference<MainActivity>> instances = new HashMap<>();
     private String tag = "";
+    private boolean redirected;
 
     /** Redirects a tagged intent that landed on plain MainActivity to MainActivityTagged. Returns the parsed tag, or null if it relaunched. */
     private String relaunchAsTaggedIfNeeded(Intent intent, boolean finishSelf) {
@@ -295,8 +296,10 @@ public class MainActivity extends AppCompatActivity {
         app = (LorieApp) getApplication();
 
         String parsedTag = relaunchAsTaggedIfNeeded(getIntent(), true);
-        if (parsedTag == null)
+        if (parsedTag == null) {
+            redirected = true;
             return;
+        }
         tag = parsedTag;
 
         instances.put(tag, new WeakReference<>(this));
@@ -804,6 +807,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onResume() {
         super.onResume();
+        if (redirected)
+            return;
 
         app.onActivityResumed(this);
 
@@ -814,6 +819,11 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onPause() {
+        if (redirected) {
+            super.onPause();
+            return;
+        }
+
         getLorieView().setKeyboardVisible(false);
 
         orientationListener.disable();
@@ -973,6 +983,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        if (redirected)
+            return;
 
         if (newConfig.orientation != orientation)
             getLorieView().setKeyboardVisible(false);
@@ -993,7 +1005,7 @@ public class MainActivity extends AppCompatActivity {
         KeyInterceptor.recheck();
 
         // The system bars come back when the window loses focus.
-        if (hasFocus) {
+        if (hasFocus && !redirected) {
             applyImmersiveMode();
             LorieView.markUserActivity();
             handler.removeCallbacks(screenIdleTimeoutCheck);
@@ -1004,6 +1016,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onUserInteraction() {
         super.onUserInteraction();
+        if (redirected)
+            return;
+
         LorieView.markUserActivity();
         handler.removeCallbacks(screenIdleTimeoutCheck);
         checkScreenIdleTimeout();
@@ -1164,7 +1179,7 @@ public class MainActivity extends AppCompatActivity {
     @RequiresApi(api = VERSION_CODES.O)
     @Override
     public void onUserLeaveHint() {
-        if (!prefs.PIP.get() || !hasPipPermission(this) || !getLorieView().connected())
+        if (redirected || !prefs.PIP.get() || !hasPipPermission(this) || !getLorieView().connected())
             return;
 
         PictureInPictureParams.Builder params = new PictureInPictureParams.Builder();

@@ -167,7 +167,8 @@ public interface InputStrategyInterface {
 
         @Override
         public void onMotionEvent(MotionEvent event) {
-            if (event.getActionMasked() == MotionEvent.ACTION_UP && mHeldButton != InputStub.BUTTON_UNDEFINED) {
+            int action = event.getActionMasked();
+            if ((action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_DOWN) && mHeldButton != InputStub.BUTTON_UNDEFINED) {
                 mInjector.sendMouseUp(mHeldButton, false);
                 mHeldButton = InputStub.BUTTON_UNDEFINED;
             }

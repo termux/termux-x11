@@ -13,6 +13,7 @@
 #include <pixman.h>
 #include <stdbool.h>
 #include <linux/memfd.h>
+#include <poll.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
@@ -87,6 +88,19 @@ static int memfd_create(const char *name, unsigned int flags) {
 static inline size_t alignToPage(size_t size) {
     size_t page_size = sysconf(_SC_PAGE_SIZE);
     return (size + page_size - 1) & ~(page_size - 1);
+}
+
+// A pixmap's buffer can end up exported to a foreign GPU consumer (DRI3 fds_from_pixmap) that
+// reads the raw dma-buf directly, bypassing AHardwareBuffer's own implicit-sync bookkeeping.
+// Requesting an explicit release fence from AHardwareBuffer_unlock and waiting on it here, instead
+// of letting AHardwareBuffer_unlock(..., NULL) block internally, exercises the same kernel-level
+// dma-buf fence a foreign consumer would itself wait on.
+static void waitFence(int32_t fence) {
+    if (fence < 0)
+        return;
+    struct pollfd pfd = { .fd = fence, .events = POLLIN };
+    poll(&pfd, 1, -1);
+    close(fence);
 }
 
 #pragma clang diagnostic push
@@ -269,8 +283,10 @@ __LIBC_HIDDEN__ void LorieBuffer_convert(LorieBuffer* buffer, int8_t type, int8_
 
         if (__builtin_available(android 26, *)) {
             if (AHardwareBuffer_lock(b, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1, NULL, &data) == 0) {
+                int32_t fence = -1;
                 pixman_blt(buffer->desc.data, data, buffer->desc.stride, (int) desc.stride, 32, 32, 0, 0, 0, 0, buffer->desc.width, buffer->desc.height);
-                AHardwareBuffer_unlock(b, NULL);
+                AHardwareBuffer_unlock(b, &fence);
+                waitFence(fence);
             }
         }
 
@@ -358,8 +374,11 @@ __LIBC_HIDDEN__ int LorieBuffer_unlock(LorieBuffer* buffer) {
     }
 
     if (buffer->desc.type == LORIEBUFFER_AHARDWAREBUFFER) {
-        if (__builtin_available(android 26, *))
-            ret = AHardwareBuffer_unlock(buffer->desc.buffer, NULL);
+        if (__builtin_available(android 26, *)) {
+            int32_t fence = -1;
+            ret = AHardwareBuffer_unlock(buffer->desc.buffer, &fence);
+            waitFence(fence);
+        }
     }
 
     buffer->lockedData = NULL;
@@ -506,6 +525,11 @@ int LorieBuffer_recvAHardwareBufferHandleFromUnixSocket(int socketFd, AHardwareB
     if (__builtin_available(android 26, *))
         return AHardwareBuffer_recvHandleFromUnixSocket(socketFd, outBuffer);
     return -ENOSYS;
+}
+
+__LIBC_HIDDEN__ void LorieBuffer_sendRawAHardwareBufferHandleToUnixSocket(AHardwareBuffer* buffer, int socketFd) {
+    if (__builtin_available(android 26, *))
+        AHardwareBuffer_sendHandleToUnixSocket(buffer, socketFd);
 }
 
 void LorieBuffer_describeAHardwareBuffer(AHardwareBuffer* buffer, AHardwareBuffer_Desc* outDesc) {

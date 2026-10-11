@@ -14,6 +14,8 @@
 
 #include <sys/eventfd.h>
 #include <sys/errno.h>
+#include <sys/socket.h>
+#include <string.h>
 #include <libxcvt/libxcvt.h>
 #include <X11/X.h>
 #include <X11/Xmd.h>
@@ -1052,6 +1054,81 @@ Bool loriePresentFlip(__unused RRCrtcPtr crtc, __unused uint64_t event_id, __unu
     return TRUE;
 }
 
+// DRI3 fds_from_pixmap: hands back a plain dma-buf fd for any GPU-sampleable pixmap, which is
+// what every regular DRI3 consumer (Vulkan, unpatched mesa) expects. AHardwareBuffer doesn't
+// expose its underlying dma-buf through public NDK API, so it's extracted the same way
+// renderer.cpp already probes for dma-buf backing: hand the whole AHardwareBuffer to ourselves
+// over a socketpair and pick out whichever received fd actually is a dma-buf.
+static int lorieFdsFromPixmap(__unused ScreenPtr screen, PixmapPtr pixmap, int *fds, uint32_t *strides, uint32_t *offsets, uint64_t *modifier) {
+    LorieBuffer *buffer = lorieEnsureGpuSampleable(pixmap, LORIEBUFFER_AHARDWAREBUFFER);
+    const LorieBuffer_Desc *desc;
+    int sv[2] = { -1, -1 }, fd = -1;
+    struct cmsghdr *cmsg;
+
+    if (!buffer)
+        return 0;
+    desc = LorieBuffer_description(buffer);
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0)
+        return 0;
+
+    LorieBuffer_sendRawAHardwareBufferHandleToUnixSocket(desc->buffer, sv[0]);
+    shutdown(sv[0], SHUT_WR);
+
+    // Reads every fd handed over in ancillary data until EOF, keeping the first one that turns
+    // out to be backed by a dma-buf (identified through its /proc/self/fd/N symlink target, the
+    // same trick renderer.cpp uses for detecting dma-buf-backed AHardwareBuffers); the rest are
+    // just other planes/vendor metadata of the same native handle and get closed.
+    for (;;) {
+        uint8_t data[4096];
+        union { uint8_t buf[CMSG_SPACE(32 * sizeof(int))]; struct cmsghdr align; } control;
+        struct iovec iov = { .iov_base = data, .iov_len = sizeof(data) };
+        struct msghdr msg = { .msg_iov = &iov, .msg_iovlen = 1, .msg_control = control.buf, .msg_controllen = sizeof(control.buf) };
+        ssize_t n = recvmsg(sv[1], &msg, 0);
+        if (n <= 0)
+            break;
+
+        for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+            int *cfds, ncfds, i;
+            if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS)
+                continue;
+
+            cfds = (int *) CMSG_DATA(cmsg);
+            ncfds = (int) ((cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int));
+            for (i = 0; i < ncfds; i++) {
+                char path[32], target[256];
+                ssize_t len;
+                if (fd >= 0) {
+                    close(cfds[i]);
+                    continue;
+                }
+
+                snprintf(path, sizeof(path), "/proc/self/fd/%d", cfds[i]);
+                len = readlink(path, target, sizeof(target) - 1);
+                if (len > 0) {
+                    target[len] = '\0';
+                    if (strstr(target, "dmabuf") || strstr(target, "dma_heap") || strstr(target, "/dev/dma")) {
+                        fd = cfds[i];
+                        continue;
+                    }
+                }
+                close(cfds[i]);
+            }
+        }
+    }
+    close(sv[0]);
+    close(sv[1]);
+
+    if (fd < 0)
+        return 0;
+
+    fds[0] = fd;
+    strides[0] = desc->stride * 4;
+    offsets[0] = 0;
+    *modifier = DRM_FORMAT_MOD_LINEAR;
+    return 1;
+}
+
 void loriePresentAfterFlip(__unused RRCrtcPtr crtc, uint64_t event_id, uint64_t ust, uint64_t target_msc, __unused PixmapPtr pixmap) {
     // X server was patched to call this function right after finishing all present_flip shenanigans
     // Since we do not invoke DRM API or anything similar we do not need to implement this as callback
@@ -1290,7 +1367,7 @@ static int lorieGetModifiers(__unused ScreenPtr screen, uint32_t format, uint32_
 
 static dri3_screen_info_rec lorieDri3Info = {
         .version = 2,
-        .fds_from_pixmap = FalseNoop,
+        .fds_from_pixmap = lorieFdsFromPixmap,
         .pixmap_from_fds = loriePixmapFromFds,
         .get_formats = lorieGetFormats,
         .get_modifiers = lorieGetModifiers,

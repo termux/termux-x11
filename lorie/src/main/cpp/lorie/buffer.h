@@ -170,6 +170,17 @@ void LorieBuffer_sendHandleToUnixSocket(LorieBuffer* _Nonnull buffer, int socket
 void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuffer* _Nullable * _Nullable outBuffer);
 
 /**
+ * Send a raw AHardwareBuffer handle (not wrapped into a LorieBuffer) to an AF_UNIX socket.
+ * Unlike LorieBuffer_sendHandleToUnixSocket, this does not also transmit Lorie's own private
+ * LorieBuffer framing, so it can be received by a plain AHardwareBuffer_recvHandleFromUnixSocket
+ * call on the other end (e.g. a DRI3 client that only knows about AHardwareBuffer).
+ *
+ * @param buffer buffer to send.
+ * @param socketFd socket to send the handle over.
+ */
+void LorieBuffer_sendRawAHardwareBufferHandleToUnixSocket(AHardwareBuffer* _Nonnull buffer, int socketFd);
+
+/**
  * Attach buffer to GL. Must be done on GL thread.
  * After attaching subsequent call to LorieBuffer_release must be done only from GL thread.
  *

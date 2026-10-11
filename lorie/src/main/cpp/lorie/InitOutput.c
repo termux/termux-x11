@@ -1057,10 +1057,35 @@ void loriePresentAfterFlip(__unused RRCrtcPtr crtc, uint64_t event_id, uint64_t 
     // Since we do not invoke DRM API or anything similar we do not need to implement this as callback
     // For some reason calling present_event_notify in BlockHandler or as QueueWorkProc/eventfd callback
     // adds some delay which may be easily avoided this way.
+    // Dri3Open-IdleNotify-fix: notifying here releases the back buffer (IdleNotify) BEFORE the
+    // Android Choreographer has consumed/presented the frame. At high FPS (zero-copy DRI3/dmabuf,
+    // 1000+ FPS) the client rewrites the buffer while it is still on screen -> flicker/tearing.
+    // Defer the CompleteNotify/IdleNotify to the next lorieRedraw (next Android vsync) by queueing
+    // it in the vblank_queue, drained by loriePerformVblanks() on the next frame.
+    // TERMUX_X11_DEFER_AFTER_FLIP=0 restores the original immediate-notify behaviour (A/B testing).
     static BoxRec box = { 0, 0, 1, 1 }; // lorieRedraw only checks if it is empty or not.
     RegionReset(DamageRegion(pvfb->damage), &box);
-    pvfb->current_msc = min(pvfb->current_msc + 1, target_msc);
-    present_event_notify(event_id, ust, pvfb->current_msc);
+
+    char *deferEnv = getenv("TERMUX_X11_DEFER_AFTER_FLIP");
+    Bool defer = deferEnv ? atoi(deferEnv) != 0 : TRUE;
+
+    if (!defer) {
+        pvfb->current_msc = min(pvfb->current_msc + 1, target_msc);
+        present_event_notify(event_id, ust, pvfb->current_msc);
+        return;
+    }
+
+    struct vblank* vblank = calloc (1, sizeof (*vblank));
+    if (vblank) {
+        // Notify on the NEXT lorieRedraw (next Android vsync). current_msc+1 drains on the next
+        // frame, giving the display one vsync to consume the buffer before the client reuses it.
+        *vblank = (struct vblank) { .id = event_id, .msc = pvfb->current_msc + 1 };
+        xorg_list_add(&vblank->link, &pvfb->vblank_queue);
+    } else {
+        // Fallback: if we can not queue, notify now so the client is not stuck forever.
+        pvfb->current_msc = min(pvfb->current_msc + 1, target_msc);
+        present_event_notify(event_id, ust, pvfb->current_msc);
+    }
 }
 
 void loriePresentUnflip(__unused ScreenPtr screen, uint64_t event_id) {

@@ -1057,11 +1057,11 @@ void loriePresentAfterFlip(__unused RRCrtcPtr crtc, uint64_t event_id, uint64_t 
     // Since we do not invoke DRM API or anything similar we do not need to implement this as callback
     // For some reason calling present_event_notify in BlockHandler or as QueueWorkProc/eventfd callback
     // adds some delay which may be easily avoided this way.
-    // Dri3Open-IdleNotify-fix: notifying here releases the back buffer (IdleNotify) BEFORE the
-    // Android Choreographer has consumed/presented the frame. At high FPS (zero-copy DRI3/dmabuf,
-    // 1000+ FPS) the client rewrites the buffer while it is still on screen -> flicker/tearing.
-    // Defer the CompleteNotify/IdleNotify to the next lorieRedraw (next Android vsync) by queueing
-    // it in the vblank_queue, drained by loriePerformVblanks() on the next frame.
+    // IdleNotify-fix v2 (force recompile): notifying here releases the back buffer (IdleNotify)
+    // BEFORE the Android Choreographer has consumed/presented the frame. At high FPS (zero-copy
+    // DRI3/dmabuf, 1000+ FPS) the client rewrites the buffer while it is still on screen ->
+    // flicker/tearing. Defer the CompleteNotify/IdleNotify to the next lorieRedraw (next Android
+    // vsync) by queueing it in the vblank_queue, drained by loriePerformVblanks() on the next frame.
     // TERMUX_X11_DEFER_AFTER_FLIP=0 restores the original immediate-notify behaviour (A/B testing).
     static BoxRec box = { 0, 0, 1, 1 }; // lorieRedraw only checks if it is empty or not.
     RegionReset(DamageRegion(pvfb->damage), &box);

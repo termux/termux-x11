@@ -1057,10 +1057,31 @@ void loriePresentAfterFlip(__unused RRCrtcPtr crtc, uint64_t event_id, uint64_t 
     // Since we do not invoke DRM API or anything similar we do not need to implement this as callback
     // For some reason calling present_event_notify in BlockHandler or as QueueWorkProc/eventfd callback
     // adds some delay which may be easily avoided this way.
+    // IdleNotify-fix: notifying here releases the back buffer (IdleNotify) BEFORE the Android
+    // Choreographer has consumed the frame. At high FPS (DRI3/dmabuf, 1000+ FPS) the client
+    // rewrites the buffer while it is still on screen -> flicker. Defer the notify to the next
+    // lorieRedraw (next vsync) by queueing in vblank_queue, drained by loriePerformVblanks().
+    // TERMUX_X11_DEFER_AFTER_FLIP=0 restores immediate notify (A/B).
     static BoxRec box = { 0, 0, 1, 1 }; // lorieRedraw only checks if it is empty or not.
     RegionReset(DamageRegion(pvfb->damage), &box);
-    pvfb->current_msc = min(pvfb->current_msc + 1, target_msc);
-    present_event_notify(event_id, ust, pvfb->current_msc);
+
+    char *deferEnv = getenv("TERMUX_X11_DEFER_AFTER_FLIP");
+    Bool defer = deferEnv ? atoi(deferEnv) != 0 : TRUE;
+
+    if (!defer) {
+        pvfb->current_msc = min(pvfb->current_msc + 1, target_msc);
+        present_event_notify(event_id, ust, pvfb->current_msc);
+        return;
+    }
+
+    struct vblank* vblank = calloc (1, sizeof (*vblank));
+    if (vblank) {
+        *vblank = (struct vblank) { .id = event_id, .msc = pvfb->current_msc + 1 };
+        xorg_list_add(&vblank->link, &pvfb->vblank_queue);
+    } else {
+        pvfb->current_msc = min(pvfb->current_msc + 1, target_msc);
+        present_event_notify(event_id, ust, pvfb->current_msc);
+    }
 }
 
 void loriePresentUnflip(__unused ScreenPtr screen, uint64_t event_id) {

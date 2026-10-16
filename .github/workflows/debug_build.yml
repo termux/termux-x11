@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - master
+      - dri3-idlefix-clean
     paths-ignore:
       - '**.md'
       - 'img/**'

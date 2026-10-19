@@ -333,7 +333,7 @@
  
      /* If present_flip failed, we may have to requeue for the next MSC */
      if (vblank->exec_msc == crtc_msc + 1 &&
-@@ -79,12 +95,59 @@
+@@ -79,12 +95,66 @@
          return;
      }
  
@@ -361,11 +361,18 @@
 +        /* lorie: our GPU blit writes the destination pixmap directly, bypassing the normal GC
 +         * ops that Damage tracking hooks into, so report it manually - same drawable and region
 +         * present_scmd.c's flip success path already uses, so this also reaches Composite's
-+         * per-window damage for redirected windows, not just lorie's own root damage. */
-+        RegionPtr damage = vblank->update ? vblank->update : &window->clipList;
-+        if (vblank->update)
-+            RegionIntersect(damage, damage, &window->clipList);
-+        DamageDamageRegion(&window->drawable, damage);
++         * per-window damage for redirected windows, not just lorie's own root damage.
++         * vblank->update is in pixmap coordinates, damage and clipList are in screen coordinates. */
++        if (vblank->update) {
++            RegionPtr damage = RegionDuplicate(vblank->update);
++            if (damage) {
++                RegionTranslate(damage, vblank->x_off + window->drawable.x, vblank->y_off + window->drawable.y);
++                RegionIntersect(damage, damage, &window->clipList);
++                DamageDamageRegion(&window->drawable, damage);
++                RegionDestroy(damage);
++            }
++        } else
++            DamageDamageRegion(&window->drawable, &window->clipList);
 +
 +        /* lorie: copy offloaded to the renderer's GPU context. The region was already
 +         * consumed (copied into the shared command queue), so free it like

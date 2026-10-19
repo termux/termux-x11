@@ -1023,6 +1023,15 @@ Bool lorieGpuCopyIsDone(uint64_t serial) {
     return __atomic_load_n(&pvfb->state->gpuCopyQueue.completedSerial, __ATOMIC_ACQUIRE) >= serial;
 }
 
+void lorieGpuCopyFlush(void) {
+    uint64_t serial = pvfb->gpuCopySerialCounter;
+    for (int i = 0; i < 500 && !lorieGpuCopyIsDone(serial); i++) {
+        if (!lorieConnectionAlive() || !lorieRendererAvailable())
+            return;
+        usleep(200);
+    }
+}
+
 void lorieGpuCopyAck(PixmapPtr pixmap, void *dst_buffer) {
     LoriePixmapPriv *priv = LORIE_PIXMAP_PRIV_FROM_PIXMAP(pixmap);
     if (priv && priv->buffer)

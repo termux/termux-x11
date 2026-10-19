@@ -333,7 +333,7 @@
  
      /* If present_flip failed, we may have to requeue for the next MSC */
      if (vblank->exec_msc == crtc_msc + 1 &&
-@@ -79,12 +95,75 @@
+@@ -79,12 +95,76 @@
          return;
      }
  
@@ -399,6 +399,7 @@
 +            vblank->gpu_copy_damage = NULL;
 +        }
 +    } else {
++        lorieGpuCopyFlush();
 +        present_copy_region(&window->drawable, vblank->pixmap, vblank->update, vblank->x_off, vblank->y_off);
 +
 +        /* present_copy_region sticks the region into a scratch GC,
@@ -423,7 +424,7 @@
  #include <X11/X.h>
  #include "scrnintstr.h"
  #include "misc.h"
-@@ -90,8 +91,32 @@
+@@ -90,8 +91,34 @@
      Bool                abort_flip;     /* aborting this flip */
      PresentFlipReason   reason;         /* reason for which flip is not possible */
      Bool                has_suboptimal; /* whether client can support SuboptimalCopy mode */
@@ -443,6 +444,8 @@
 +                                     uint64_t *out_serial, void **out_dst_buffer);
 +extern Bool lorieGpuCopyIsDone(uint64_t serial);
 +extern void lorieGpuCopyAck(PixmapPtr pixmap, void *dst_buffer);
++/* lorie: waits for all queued GPU copies, so a CPU copy done after them can not be overwritten by an older one. */
++extern void lorieGpuCopyFlush(void);
 +/* lorie: implemented in lorie/cmdentrypoint.c. Avoids waiting forever on a GPU copy that a dead renderer will never finish. */
 +extern bool lorieConnectionAlive(void);
 +/* lorie: implemented in lorie/InitOutput.c. Renderer can be connected but still unable to

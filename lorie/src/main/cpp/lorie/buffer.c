@@ -12,6 +12,7 @@
 #include <math.h>
 #include <pixman.h>
 #include <stdbool.h>
+#include <linux/dma-buf.h>
 #include <linux/memfd.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -40,6 +41,7 @@ struct LorieBuffer {
     int fd;
     size_t size;
     off_t offset;
+    int8_t dmaBufSyncSupport;
 
     GLuint id;
     EGLImage image;
@@ -47,6 +49,38 @@ struct LorieBuffer {
 
     int32_t gpuCopyPending;
 };
+
+enum {
+    DMA_BUF_SYNC_UNKNOWN = 0,
+    DMA_BUF_SYNC_SUPPORTED = 1,
+    DMA_BUF_SYNC_UNSUPPORTED = -1,
+};
+
+static bool dmaBufCpuReadBegin(LorieBuffer *buffer) {
+    if (!buffer || buffer->desc.type != LORIEBUFFER_FD ||
+        buffer->dmaBufSyncSupport == DMA_BUF_SYNC_UNSUPPORTED)
+        return false;
+
+    struct dma_buf_sync sync = {
+        .flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+    };
+    if (ioctl(buffer->fd, DMA_BUF_IOCTL_SYNC, &sync) == 0) {
+        buffer->dmaBufSyncSupport = DMA_BUF_SYNC_SUPPORTED;
+        return true;
+    }
+
+    if (buffer->dmaBufSyncSupport == DMA_BUF_SYNC_UNKNOWN &&
+        (errno == ENOTTY || errno == EINVAL || errno == ENOSYS))
+        buffer->dmaBufSyncSupport = DMA_BUF_SYNC_UNSUPPORTED;
+    return false;
+}
+
+static void dmaBufCpuReadEnd(LorieBuffer *buffer) {
+    struct dma_buf_sync sync = {
+        .flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+    };
+    ioctl(buffer->fd, DMA_BUF_IOCTL_SYNC, &sync);
+}
 
 void LorieBuffer_gpuCopyPendingInc(LorieBuffer* buffer) {
     if (buffer)
@@ -396,6 +430,7 @@ __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuf
 
     read(socketFd, &buffer, sizeof(buffer));
     buffer.image = NULL; // Only for process-local use
+    buffer.dmaBufSyncSupport = DMA_BUF_SYNC_UNKNOWN;
     if (buffer.desc.type == LORIEBUFFER_FD) {
         size_t size = buffer.desc.stride * buffer.desc.height * sizeof(uint32_t);
         buffer.fd = ancil_recv_fd(socketFd);
@@ -466,8 +501,12 @@ __LIBC_HIDDEN__ void LorieBuffer_bindTexture(LorieBuffer *buffer) {
         return;
 
     glBindTexture(GL_TEXTURE_2D, buffer->id);
-    if (buffer->desc.type == LORIEBUFFER_FD)
+    if (buffer->desc.type == LORIEBUFFER_FD) {
+        bool dmaBufRead = dmaBufCpuReadBegin(buffer);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, buffer->desc.stride, buffer->desc.height, buffer->desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, buffer->desc.data);
+        if (dmaBufRead)
+            dmaBufCpuReadEnd(buffer);
+    }
 }
 
 __LIBC_HIDDEN__ unsigned int LorieBuffer_getGLTextureId(LorieBuffer *buffer) {

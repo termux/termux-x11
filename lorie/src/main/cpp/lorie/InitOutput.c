@@ -603,15 +603,19 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
 }
 
 static uint64_t gpuCopyAttempts = 0, gpuCopyOffloads = 0;
+static uint64_t gpuCopyFallbackRects = 0, gpuCopyFallbackQueueFull = 0, gpuCopyFallbackOther = 0;
 
 static CARD32 lorieFramecounter(unused OsTimerPtr timer, unused CARD32 time, unused void *arg) {
     if (pvfb->state->renderedFrames || gpuCopyAttempts)
-        log(INFO, gpuCopyAttempts ? "%d frames in 5.0 seconds = %.1f FPS, %llu/%llu present copies offloaded to GPU"
+        log(INFO, gpuCopyAttempts ? "%d frames in 5.0 seconds = %.1f FPS, %llu/%llu present copies offloaded to GPU (CPU fallback: %llu too many rects, %llu queue full, %llu other)"
                                    : "%d frames in 5.0 seconds = %.1f FPS",
             pvfb->state->renderedFrames, ((float) pvfb->state->renderedFrames) / 5,
-            (unsigned long long) gpuCopyOffloads, (unsigned long long) gpuCopyAttempts);
+            (unsigned long long) gpuCopyOffloads, (unsigned long long) gpuCopyAttempts,
+            (unsigned long long) gpuCopyFallbackRects, (unsigned long long) gpuCopyFallbackQueueFull,
+            (unsigned long long) gpuCopyFallbackOther);
     pvfb->state->renderedFrames = 0;
     gpuCopyAttempts = gpuCopyOffloads = 0;
+    gpuCopyFallbackRects = gpuCopyFallbackQueueFull = gpuCopyFallbackOther = 0;
     return 5000;
 }
 
@@ -970,18 +974,21 @@ Bool lorieTryScheduleGpuCopy(PixmapPtr pixmap, PixmapPtr dst, RegionPtr update, 
 
     if (pvfb->gpuPresentDisabled || pvfb->root.legacyDrawing) {
         gpuCopyAttempts++;
+        gpuCopyFallbackOther++;
         return FALSE;
     }
 
     if (!lorieConnectionAlive() || !lorieRendererAvailable()) {
         // No renderer to drain the queue, so fall back to CPU copy.
         gpuCopyAttempts++;
+        gpuCopyFallbackOther++;
         return FALSE;
     }
 
     if (!(srcBuffer = lorieEnsureGpuSampleable(pixmap, LORIEBUFFER_AHARDWAREBUFFER)) ||
         !(dstBuffer = lorieEnsureGpuSampleable(dst, LORIEBUFFER_AHARDWAREBUFFER))) {
         gpuCopyAttempts++;
+        gpuCopyFallbackOther++;
         return FALSE;
     }
     priv = LORIE_PIXMAP_PRIV_FROM_PIXMAP(pixmap);
@@ -1006,6 +1013,7 @@ Bool lorieTryScheduleGpuCopy(PixmapPtr pixmap, PixmapPtr dst, RegionPtr update, 
 
     if (numRects <= 0 || numRects > LORIE_GPU_COPY_MAX_RECTS) {
         gpuCopyAttempts++;
+        gpuCopyFallbackRects++;
         return FALSE;
     }
 
@@ -1013,6 +1021,7 @@ Bool lorieTryScheduleGpuCopy(PixmapPtr pixmap, PixmapPtr dst, RegionPtr update, 
     readIndex = pvfb->state->gpuCopyQueue.readIndex;
     if (writeIndex - readIndex >= LORIE_GPU_COPY_QUEUE_CAPACITY) {
         gpuCopyAttempts++;
+        gpuCopyFallbackQueueFull++;
         return FALSE;
     }
 

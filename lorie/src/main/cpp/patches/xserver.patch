@@ -359,7 +359,7 @@
  
      /* If present_flip failed, we may have to requeue for the next MSC */
      if (vblank->exec_msc == crtc_msc + 1 &&
-@@ -79,12 +95,66 @@
+@@ -79,12 +95,75 @@
          return;
      }
  
@@ -382,6 +382,11 @@
 +            screen_priv->flush(window);
 +            return;
 +        }
++        if (vblank->gpu_copy_damage) {
++            DamageDamageRegion(&window->drawable, vblank->gpu_copy_damage);
++            RegionDestroy(vblank->gpu_copy_damage);
++            vblank->gpu_copy_damage = NULL;
++        }
 +    } else if (lorieTryScheduleGpuCopy(vblank->pixmap, gpuCopyDst, vblank->update, gpuCopyXOff, gpuCopyYOff,
 +                                        &vblank->gpu_copy_serial, &vblank->gpu_copy_dst_buffer)) {
 +        /* lorie: our GPU blit writes the destination pixmap directly, bypassing the normal GC
@@ -389,16 +394,16 @@
 +         * present_scmd.c's flip success path already uses, so this also reaches Composite's
 +         * per-window damage for redirected windows, not just lorie's own root damage.
 +         * vblank->update is in pixmap coordinates, damage and clipList are in screen coordinates. */
-+        if (vblank->update) {
-+            RegionPtr damage = RegionDuplicate(vblank->update);
-+            if (damage) {
++        RegionPtr damage = RegionDuplicate(vblank->update ? vblank->update : &window->clipList);
++        if (damage) {
++            if (vblank->update) {
 +                RegionTranslate(damage, vblank->x_off + window->drawable.x, vblank->y_off + window->drawable.y);
 +                RegionIntersect(damage, damage, &window->clipList);
-+                DamageDamageRegion(&window->drawable, damage);
-+                RegionDestroy(damage);
 +            }
-+        } else
-+            DamageDamageRegion(&window->drawable, &window->clipList);
++            DamageDamageRegion(&window->drawable, damage);
++            /* A compositor may have read the destination before the GPU copy finished: report again once done. */
++            vblank->gpu_copy_damage = damage;
++        }
 +
 +        /* lorie: copy offloaded to the renderer's GPU context. The region was already
 +         * consumed (copied into the shared command queue), so free it like
@@ -415,6 +420,10 @@
 +        /* Failed to requeue for polling (e.g. OOM) - release our extra ref and treat the
 +         * presumably still in-flight GPU copy as done; same best-effort fallback as above. */
 +        lorieGpuCopyAck(vblank->pixmap, vblank->gpu_copy_dst_buffer);
++        if (vblank->gpu_copy_damage) {
++            RegionDestroy(vblank->gpu_copy_damage);
++            vblank->gpu_copy_damage = NULL;
++        }
 +    } else {
 +        present_copy_region(&window->drawable, vblank->pixmap, vblank->update, vblank->x_off, vblank->y_off);
 +
@@ -440,7 +449,7 @@
  #include <X11/X.h>
  #include "scrnintstr.h"
  #include "misc.h"
-@@ -90,8 +91,31 @@
+@@ -90,8 +91,32 @@
      Bool                abort_flip;     /* aborting this flip */
      PresentFlipReason   reason;         /* reason for which flip is not possible */
      Bool                has_suboptimal; /* whether client can support SuboptimalCopy mode */
@@ -450,6 +459,7 @@
 +    Bool                gpu_copy_pending;
 +    uint64_t            gpu_copy_serial;
 +    void                *gpu_copy_dst_buffer; /* opaque LorieBuffer*, held for lorieGpuCopyAck */
++    RegionPtr           gpu_copy_damage; /* reported as damaged once the GPU copy has finished */
  };
  
 +/* lorie: hooks implemented in lorie/InitOutput.c, used by present_execute_copy() to offload the
@@ -505,7 +515,7 @@
              }
  
 +++ ./present/present_vblank.c
-@@ -188,6 +188,14 @@
+@@ -188,6 +188,18 @@
                    vblank->pixmap->drawable.id, vblank->window->drawable.id,
                    vblank->crtc));
  
@@ -515,12 +525,16 @@
 +    if (vblank->gpu_copy_pending) {
 +        lorieGpuCopyAck(vblank->pixmap, vblank->gpu_copy_dst_buffer);
 +        vblank->gpu_copy_pending = FALSE;
++        if (vblank->gpu_copy_damage) {
++            RegionDestroy(vblank->gpu_copy_damage);
++            vblank->gpu_copy_damage = NULL;
++        }
 +    }
 +
      present_pixmap_idle(vblank->pixmap, vblank->window, vblank->serial, vblank->idle_fence);
      present_fence_destroy(vblank->idle_fence);
      dixDestroyPixmap(vblank->pixmap, vblank->pixmap->drawable.id);
-@@ -200,6 +208,13 @@
+@@ -200,6 +212,17 @@
  void
  present_vblank_destroy(present_vblank_ptr vblank)
  {
@@ -529,6 +543,10 @@
 +    if (vblank->gpu_copy_pending) {
 +        lorieGpuCopyAck(vblank->pixmap, vblank->gpu_copy_dst_buffer);
 +        vblank->gpu_copy_pending = FALSE;
++        if (vblank->gpu_copy_damage) {
++            RegionDestroy(vblank->gpu_copy_damage);
++            vblank->gpu_copy_damage = NULL;
++        }
 +    }
 +
      /* Remove vblank from window and screen lists */

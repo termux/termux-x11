@@ -112,7 +112,7 @@ static pthread_cond_t* volatile rendererCond = &rendererCondPlaceholder;
 
 typedef struct {
     LorieBuffer *buffer;
-    bool flipped, wasLocked, imported;
+    bool flipped, wasLocked, imported, gpuOnly;
     void *locked;
     void *mem;
 } LoriePixmapPriv;
@@ -1075,6 +1075,11 @@ Bool lorieGpuCopyIsDone(uint64_t serial) {
     return __atomic_load_n(&pvfb->state->gpuCopyQueue.completedSerial, __ATOMIC_ACQUIRE) >= serial;
 }
 
+Bool loriePixmapIsGpuOnly(PixmapPtr pixmap) {
+    LoriePixmapPriv *priv = LORIE_PIXMAP_PRIV_FROM_PIXMAP(pixmap);
+    return priv && priv->gpuOnly;
+}
+
 void lorieGpuCopyAck(PixmapPtr pixmap, void *dst_buffer) {
     LoriePixmapPriv *priv = LORIE_PIXMAP_PRIV_FROM_PIXMAP(pixmap);
     if (priv && priv->buffer)
@@ -1297,9 +1302,13 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
         buffer = NULL;
         check(!priv->buffer, "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");
 
+        void *probe = NULL;
+        priv->gpuOnly = LorieBuffer_lock(priv->buffer, &probe) != 0;
+        LorieBuffer_unlock(priv->buffer);
+
         screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, desc.stride * 4, NULL);
         if (lorieServerDebugEnabled)
-            log(INFO, "DRI3: imported AHardwareBuffer, modifier %llu, %ux%u stride %u", (unsigned long long) modifier, desc.width, desc.height, desc.stride);
+            log(INFO, "DRI3: imported AHardwareBuffer, modifier %llu, %ux%u stride %u%s", (unsigned long long) modifier, desc.width, desc.height, desc.stride, priv->gpuOnly ? ", not lockable" : "");
     }
 
     return pixmap;

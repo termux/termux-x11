@@ -187,7 +187,7 @@ typedef union {
 
 typedef struct { int16_t x1, y1, x2, y2; } LorieGpuCopyRect;
 
-#define LORIE_GPU_COPY_MAX_RECTS 16
+#define LORIE_GPU_COPY_MAX_RECTS 64
 #define LORIE_GPU_COPY_QUEUE_CAPACITY 8
 
 typedef struct {

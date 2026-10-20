@@ -307,6 +307,21 @@
         android:layoutDirection="ltr"
         android:layout_gravity="bottom|center"/>
 
+    <TextView
+        android:id="@+id/no_server_signal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="10dp"
+        android:background="@drawable/no_server_signal_background"
+        android:clickable="false"
+        android:focusable="false"
+        android:text="@string/no_server_signal"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:visibility="gone" />
+
     <View
         android:id="@+id/activity_termux_bottom_space_view"
         android:layout_width="match_parent"

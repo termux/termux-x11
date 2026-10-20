@@ -46,6 +46,7 @@ extern bool lorieDebugEnabled; // Set in activity.cpp's startLogcat, only called
 void lorieSetRendererWakeupCond(int fd);
 void lorieSetCursorVisible(Bool visible);
 void lorieSendSyncReply(uint32_t serial);
+void lorieSendHeartbeat(void);
 void registerCmdEntryPointNatives(JNIEnv *env);
 void lorieListenForKnocks(int port, const char *tag);
 
@@ -115,6 +116,7 @@ typedef enum {
     EVENT_LOCK_KEYS_STATE,
     EVENT_SYNC,
     EVENT_SYNC_REPLY,
+    EVENT_HEARTBEAT,
 } eventType;
 
 typedef union {

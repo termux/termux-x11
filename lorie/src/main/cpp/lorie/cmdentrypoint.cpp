@@ -489,6 +489,13 @@ void lorieSendSyncReply(uint32_t serial) {
     }
 }
 
+void lorieSendHeartbeat(void) {
+    if (conn_fd != -1) {
+        lorieEvent e = { .type = EVENT_HEARTBEAT };
+        write(conn_fd, &e, sizeof(e));
+    }
+}
+
 void lorieRequestClipboard(void) {
     if (conn_fd != -1) {
         lorieEvent e = { .type = EVENT_CLIPBOARD_REQUEST };

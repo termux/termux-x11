@@ -573,6 +573,11 @@ static CARD32 lorieFramecounter(unused OsTimerPtr timer, unused CARD32 time, unu
     return 5000;
 }
 
+static CARD32 lorieHeartbeat(unused OsTimerPtr timer, unused CARD32 time, unused void *arg) {
+    lorieSendHeartbeat();
+    return 1000;
+}
+
 static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     pScreen->devPrivate = pScreen->CreatePixmap(pScreen, pScreen->width, pScreen->height, pScreen->rootDepth, CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED);
 
@@ -582,6 +587,7 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
 
     DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->damage);
     pvfb->fpsTimer = TimerSet(NULL, 0, 5000, lorieFramecounter, pScreen);
+    TimerSet(NULL, 0, 1000, lorieHeartbeat, NULL);
 
     lorieRegisterBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate));
 

@@ -97,3 +97,27 @@ jobs:
           ./lorie-app/build/outputs/apk/sharedUid/debug/termux-x11-universal-sharedUid-debug.apk
           ./shell-loader/build/outputs/companion/termux-x11-*-all.deb
           ./shell-loader/build/outputs/companion/termux-x11-*-any.pkg.tar.xz
+
+  dependabot-merge:
+    name: "Dependabot merge"
+    needs: build
+    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    # pull_request caps the token at read-only for forks, and Dependabot runs start read-only too.
+    # Unlike a fork, a Dependabot branch lives in this repository, so the permissions below do apply.
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+    - name: Fetch Dependabot metadata
+      id: metadata
+      uses: dependabot/fetch-metadata@v2
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Merge
+      if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+      run: gh pr merge --rebase "$PR_URL"
+      env:
+        PR_URL: ${{ github.event.pull_request.html_url }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

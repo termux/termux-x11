@@ -111,6 +111,9 @@ static pthread_cond_t* volatile rendererCond = &rendererCondPlaceholder;
 typedef struct {
     LorieBuffer *buffer;
     bool flipped, wasLocked, imported, gpuOnly;
+    // Number of CPU accesses in progress that started a dma-buf sync, and whether one of them writes.
+    uint8_t dmaBufAccessDepth;
+    bool dmaBufAccessWrite;
     void *locked;
     void *mem;
 } LoriePixmapPriv;
@@ -1179,6 +1182,15 @@ Bool loriePrepareAccess(PixmapPtr pPix, int index) {
     } else
         priv->wasLocked = TRUE;
 
+    // Imported dma-bufs may be rendered into by another device, the CPU caches must be synced.
+    if (priv->buffer && !priv->mem) {
+        bool write = index == EXA_PREPARE_DEST || index == EXA_PREPARE_AUX_DEST;
+        if (priv->dmaBufAccessDepth || LorieBuffer_cpuAccessBegin(priv->buffer, write)) {
+            priv->dmaBufAccessDepth++;
+            priv->dmaBufAccessWrite |= write;
+        }
+    }
+
     pPix->devPrivate.ptr = priv->locked ?: priv->mem;
     return TRUE;
 }
@@ -1187,6 +1199,11 @@ void lorieFinishAccess(PixmapPtr pPix, int index) {
     LoriePixmapPriv *priv = exaGetPixmapDriverPrivate(pPix);
     if (lorieNeedsGpuLock(pPix, priv, index))
         lorie_mutex_unlock(&pvfb->state->lock, &pvfb->state->lockingPid);
+
+    if (priv->dmaBufAccessDepth && !--priv->dmaBufAccessDepth) {
+        LorieBuffer_cpuAccessEnd(priv->buffer, priv->dmaBufAccessWrite);
+        priv->dmaBufAccessWrite = false;
+    }
 
     if (!priv->wasLocked) {
         LorieBuffer_unlock(priv->buffer);

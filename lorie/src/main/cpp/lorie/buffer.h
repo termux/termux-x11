@@ -145,6 +145,17 @@ const LorieBuffer_Desc* _Nonnull LorieBuffer_description(LorieBuffer* _Nullable 
 int LorieBuffer_lock(LorieBuffer* _Nullable buffer, void* _Nullable * _Nonnull out);
 
 /**
+ * Bracket CPU access to a buffer backed by a dma-buf file descriptor. The caches have to be
+ * synchronized with the device that rendered into or will read the buffer, otherwise stale cache
+ * lines show up as partially updated rows. Does nothing for other kinds of buffers.
+ *
+ * @param write whether the CPU is going to write to the buffer
+ * @return true if the access was started and LorieBuffer_cpuAccessEnd has to be called
+ */
+bool LorieBuffer_cpuAccessBegin(LorieBuffer* _Nullable buffer, bool write);
+void LorieBuffer_cpuAccessEnd(LorieBuffer* _Nullable buffer, bool write);
+
+/**
  * Unlock the AHardwareBuffer from direct CPU access.
  * See AHardwareBuffer_unlock() description for details
  *

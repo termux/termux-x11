@@ -56,13 +56,13 @@ enum {
     DMA_BUF_SYNC_UNSUPPORTED = -1,
 };
 
-static bool dmaBufCpuReadBegin(LorieBuffer *buffer) {
+static bool dmaBufCpuAccessBegin(LorieBuffer *buffer, bool write) {
     if (!buffer || buffer->desc.type != LORIEBUFFER_FD ||
         buffer->dmaBufSyncSupport == DMA_BUF_SYNC_UNSUPPORTED)
         return false;
 
     struct dma_buf_sync sync = {
-        .flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ,
+        .flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ | (write ? DMA_BUF_SYNC_WRITE : 0),
     };
     if (ioctl(buffer->fd, DMA_BUF_IOCTL_SYNC, &sync) == 0) {
         buffer->dmaBufSyncSupport = DMA_BUF_SYNC_SUPPORTED;
@@ -75,11 +75,19 @@ static bool dmaBufCpuReadBegin(LorieBuffer *buffer) {
     return false;
 }
 
-static void dmaBufCpuReadEnd(LorieBuffer *buffer) {
+static void dmaBufCpuAccessEnd(LorieBuffer *buffer, bool write) {
     struct dma_buf_sync sync = {
-        .flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ,
+        .flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ | (write ? DMA_BUF_SYNC_WRITE : 0),
     };
     ioctl(buffer->fd, DMA_BUF_IOCTL_SYNC, &sync);
+}
+
+__LIBC_HIDDEN__ bool LorieBuffer_cpuAccessBegin(LorieBuffer *buffer, bool write) {
+    return dmaBufCpuAccessBegin(buffer, write);
+}
+
+__LIBC_HIDDEN__ void LorieBuffer_cpuAccessEnd(LorieBuffer *buffer, bool write) {
+    dmaBufCpuAccessEnd(buffer, write);
 }
 
 void LorieBuffer_gpuCopyPendingInc(LorieBuffer* buffer) {
@@ -502,10 +510,10 @@ __LIBC_HIDDEN__ void LorieBuffer_bindTexture(LorieBuffer *buffer) {
 
     glBindTexture(GL_TEXTURE_2D, buffer->id);
     if (buffer->desc.type == LORIEBUFFER_FD) {
-        bool dmaBufRead = dmaBufCpuReadBegin(buffer);
+        bool dmaBufRead = dmaBufCpuAccessBegin(buffer, false);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, buffer->desc.stride, buffer->desc.height, buffer->desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA, GL_UNSIGNED_BYTE, buffer->desc.data);
         if (dmaBufRead)
-            dmaBufCpuReadEnd(buffer);
+            dmaBufCpuAccessEnd(buffer, false);
     }
 }
 

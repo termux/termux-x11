@@ -109,15 +109,12 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-    - name: Fetch Dependabot metadata
-      id: metadata
-      uses: dependabot/fetch-metadata@v2
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-
     - name: Merge
-      if: steps.metadata.outputs.update-type != 'version-update:semver-major'
-      run: gh pr merge --rebase "$PR_URL"
+      run: |
+        if [[ "$PR_TITLE" =~ from\ v?([0-9]+)[^\ ]*\ to\ v?([0-9]+) && "${BASH_REMATCH[1]}" == "${BASH_REMATCH[2]}" ]]; then
+          gh pr merge --rebase "$PR_URL"
+        fi
       env:
         PR_URL: ${{ github.event.pull_request.html_url }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

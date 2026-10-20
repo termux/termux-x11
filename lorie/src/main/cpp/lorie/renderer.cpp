@@ -359,6 +359,82 @@ void Renderer::setFiltering(jint f) {
     filtering = f;
 }
 
+// Mimics what the X server and the renderer do to the root buffer: the server holds a CPU lock
+// while the renderer draws into the same buffer. Needs a current GLES context.
+static bool cpuAndGpuShareAhbMemory(EGLDisplay egl_display) {
+    const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
+    AHardwareBuffer_Desc desc = {
+            .width = 64,
+            .height = 64,
+            .layers = 1,
+            .format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM,
+            .usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER |
+                     AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN
+    };
+    AHardwareBuffer *buf = nullptr;
+    EGLImageKHR image = EGL_NO_IMAGE_KHR;
+    GLuint texture = 0, fbo = 0;
+    volatile uint32_t *pixels = nullptr;
+    bool result = true;
+
+    if (AHardwareBuffer_allocate(&desc, &buf) != 0 || !buf)
+        return true;
+
+    EGLClientBuffer clientBuffer = eglGetNativeClientBufferANDROID(buf);
+    if (clientBuffer)
+        image = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes);
+    if (image == EGL_NO_IMAGE_KHR)
+        goto out;
+
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        goto out;
+
+    if (AHardwareBuffer_lock(buf, AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
+                             -1, nullptr, (void **) &pixels) != 0 || !pixels)
+        goto out;
+    pixels[0] = 0;
+
+    // GPU writes while the buffer is locked by the CPU.
+    glClearColor(0x11 / 255.f, 0x22 / 255.f, 0x33 / 255.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFinish();
+
+    if ((pixels[0] & 0xffffff) != 0x332211) {
+        loge("CPU mapping does not see GPU writes (got %08x)", pixels[0]);
+        AHardwareBuffer_unlock(buf, nullptr);
+        result = false;
+        goto out;
+    }
+
+    // Unlocking must not bring back stale CPU data over what the GPU has written.
+    AHardwareBuffer_unlock(buf, nullptr);
+    {
+        uint8_t px[4] = {0, 0, 0, 0};
+        glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+        if (px[0] != 0x11 || px[1] != 0x22 || px[2] != 0x33) {
+            loge("CPU unlock overwrote GPU writes (got %02x%02x%02x)", px[0], px[1], px[2]);
+            result = false;
+        }
+    }
+
+out:
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (fbo)
+        glDeleteFramebuffers(1, &fbo);
+    if (texture)
+        glDeleteTextures(1, &texture);
+    if (image != EGL_NO_IMAGE_KHR)
+        eglDestroyImageKHR(egl_display, image);
+    AHardwareBuffer_release(buf);
+    return result;
+}
+
 void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) {
     // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
@@ -414,60 +490,6 @@ void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) 
         return;
     }
 
-    // Cross-process AHardwareBuffer sync relies on dma-buf. Send the buffer's handle through a
-    // local socketpair exactly as it would be sent to the X server, and check whether the fd(s)
-    // that come out are real dma-bufs. Skip if Present's GPU-copy offload is already off, since
-    // that's the only thing this depends on.
-    if (!*gpu_present_disabled) {
-        int sv[2] = { -1, -1 };
-        bool dmaBufFound = false;
-        if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0) {
-            AHardwareBuffer_sendHandleToUnixSocket(new_, sv[0]);
-            shutdown(sv[0], SHUT_WR);
-            for (;;) {
-                uint8_t data[4096];
-                union {
-                    uint8_t buf[CMSG_SPACE(32 * sizeof(int))];
-                    struct cmsghdr align;
-                } control = {};
-                struct iovec iov = { .iov_base = data, .iov_len = sizeof(data) };
-                struct msghdr msg = {
-                    .msg_iov = &iov, .msg_iovlen = 1,
-                    .msg_control = control.buf, .msg_controllen = sizeof(control.buf),
-                };
-                ssize_t n = recvmsg(sv[1], &msg, 0);
-                if (n <= 0)
-                    break;
-                for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-                    if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS)
-                        continue;
-                    int *fds = (int *) CMSG_DATA(cmsg);
-                    int nfds = (int) ((cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int));
-                    for (int i = 0; i < nfds; i++) {
-                        char path[32], target[256];
-                        snprintf(path, sizeof(path), "/proc/self/fd/%d", fds[i]);
-                        ssize_t len = readlink(path, target, sizeof(target) - 1);
-                        if (len > 0) {
-                            target[len] = '\0';
-                            if (strstr(target, "dmabuf") || strstr(target, "dma_heap") || strstr(target, "/dev/dma"))
-                                dmaBufFound = true;
-                        }
-                        close(fds[i]);
-                    }
-                }
-            }
-            close(sv[0]);
-            close(sv[1]);
-        } else {
-            dmaBufFound = true; // Can't check, assume the best rather than force a slower fallback.
-        }
-
-        if (!dmaBufFound) {
-            loge("AHardwareBuffer is not dma-buf-backed on this device, disabling Present GPU offload");
-            *gpu_present_disabled = 1;
-        }
-    }
-
     clientBuffer = eglGetNativeClientBufferANDROID(new_);
     if (!clientBuffer) {
         *legacy_drawing = 1;
@@ -507,14 +529,12 @@ void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) 
         if (eglMakeCurrent(egl_display, checksfc, checksfc, testctx) != EGL_TRUE)
             return vprintEglError("check eglMakeCurrent failed", __LINE__);
 
-        // Intel's Mesa driver has a race that makes dma-buf cross-process write visibility
-        // unreliable, so blacklist it outright.
-        if (!*gpu_present_disabled) {
-            const char *renderer = (const char *) glGetString(GL_RENDERER);
-            if (renderer && strstr(renderer, "Mesa") && strstr(renderer, "Intel")) {
-                loge("Detected Intel Mesa driver (GL_RENDERER=%s), disabling Present GPU offload", renderer);
-                *gpu_present_disabled = 1;
-            }
+        // Present's GPU offload writes the root buffer from the renderer while the X server keeps
+        // it locked for CPU drawing. That only works when the CPU and GPU views of an
+        // AHardwareBuffer are one memory, which is not the case on e.g. gfxstream.
+        if (!*gpu_present_disabled && !cpuAndGpuShareAhbMemory(egl_display)) {
+            loge("CPU and GPU views of AHardwareBuffer are not coherent on this device, disabling Present GPU offload");
+            *gpu_present_disabled = 1;
         }
 
         glActiveTexture(GL_TEXTURE0); checkGlError();

@@ -187,6 +187,10 @@ public class LorieView extends SurfaceView implements InputStub {
             return true;
         }
 
+        @Override public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
+            return deleteSurroundingText(beforeLength, afterLength);
+        }
+
         /**
          * X server itself does not provide any way to compose text.
          * But we can simply send text we want and erase it in the case if user does not need it.

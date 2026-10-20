@@ -47,6 +47,13 @@ void lorieSetRendererWakeupCond(int fd);
 void lorieSetCursorVisible(Bool visible);
 void lorieSendSyncReply(uint32_t serial);
 void lorieSendHeartbeat(void);
+
+typedef struct {
+    uint16_t code; // Linux key code that does not fit into X keycode range.
+    uint32_t keysym;
+} lorieExtendedKey;
+extern const lorieExtendedKey lorieExtendedKeys[];
+extern const size_t lorieExtendedKeysCount;
 void registerCmdEntryPointNatives(JNIEnv *env);
 void lorieListenForKnocks(int port, const char *tag);
 
@@ -367,8 +374,10 @@ struct Renderer {
 extern "C" {
 #endif
 
-static int android_to_linux_keycode[304] = {
+static int android_to_linux_keycode[320] = {
+        [ 3   /* ANDROID_KEYCODE_HOME */] = KEY_HOMEPAGE,
         [ 4   /* ANDROID_KEYCODE_BACK */] = KEY_ESC,
+        [ 5   /* ANDROID_KEYCODE_CALL */] = KEY_PHONE,
         [ 7   /* ANDROID_KEYCODE_0 */] = KEY_0,
         [ 8   /* ANDROID_KEYCODE_1 */] = KEY_1,
         [ 9   /* ANDROID_KEYCODE_2 */] = KEY_2,
@@ -437,11 +446,14 @@ static int android_to_linux_keycode[304] = {
         [ 74  /* ANDROID_KEYCODE_SEMICOLON */] = KEY_SEMICOLON,
         [ 75  /* ANDROID_KEYCODE_APOSTROPHE */] = KEY_APOSTROPHE,
         [ 76  /* ANDROID_KEYCODE_SLASH */] = KEY_SLASH,
+        [ 79  /* ANDROID_KEYCODE_HEADSETHOOK */] = KEY_MEDIA,
+        [ 80  /* ANDROID_KEYCODE_FOCUS */] = KEY_CAMERA_FOCUS,
         [ 81  /* ANDROID_KEYCODE_PLUS */] = KEY_KPPLUS,
         [ 82  /* ANDROID_KEYCODE_MENU */] = KEY_COMPOSE,
+        [ 83  /* ANDROID_KEYCODE_NOTIFICATION */] = KEY_DASHBOARD,
         [ 84  /* ANDROID_KEYCODE_SEARCH */] = KEY_SEARCH,
         [ 85  /* ANDROID_KEYCODE_MEDIA_PLAY_PAUSE */] = KEY_PLAYPAUSE,
-        [ 86  /* ANDROID_KEYCODE_MEDIA_STOP */] = KEY_STOP_RECORD,
+        [ 86  /* ANDROID_KEYCODE_MEDIA_STOP */] = KEY_STOPCD,
         [ 87  /* ANDROID_KEYCODE_MEDIA_NEXT */] = KEY_NEXTSONG,
         [ 88  /* ANDROID_KEYCODE_MEDIA_PREVIOUS */] = KEY_PREVIOUSSONG,
         [ 89  /* ANDROID_KEYCODE_MEDIA_REWIND */] = KEY_REWIND,
@@ -457,6 +469,7 @@ static int android_to_linux_keycode[304] = {
         [ 116  /* ANDROID_KEYCODE_SCROLL_LOCK */] = KEY_SCROLLLOCK,
         [ 117  /* ANDROID_KEYCODE_META_LEFT */] = KEY_LEFTMETA,
         [ 118  /* ANDROID_KEYCODE_META_RIGHT */] = KEY_RIGHTMETA,
+        [ 119  /* ANDROID_KEYCODE_FUNCTION */] = KEY_FN,
         [ 120  /* ANDROID_KEYCODE_SYSRQ */] = KEY_PRINT,
         [ 121  /* ANDROID_KEYCODE_BREAK */] = KEY_PAUSE,
         [ 122  /* ANDROID_KEYCODE_MOVE_HOME */] = KEY_HOME,
@@ -508,8 +521,48 @@ static int android_to_linux_keycode[304] = {
         [ 168  /* ANDROID_KEYCODE_ZOOM_IN */] = KEY_ZOOMIN,
         [ 169  /* ANDROID_KEYCODE_ZOOM_OUT */] = KEY_ZOOMOUT,
         [ 170  /* ANDROID_KEYCODE_TV */] = KEY_TV,
+        [ 172  /* ANDROID_KEYCODE_GUIDE */] = KEY_PROGRAM,
+        [ 173  /* ANDROID_KEYCODE_DVR */] = KEY_PVR,
+        [ 174  /* ANDROID_KEYCODE_BOOKMARK */] = KEY_BOOKMARKS,
+        [ 175  /* ANDROID_KEYCODE_CAPTIONS */] = KEY_SUBTITLE,
+        [ 183  /* ANDROID_KEYCODE_PROG_RED */] = KEY_RED,
+        [ 184  /* ANDROID_KEYCODE_PROG_GREEN */] = KEY_GREEN,
+        [ 185  /* ANDROID_KEYCODE_PROG_YELLOW */] = KEY_YELLOW,
+        [ 186  /* ANDROID_KEYCODE_PROG_BLUE */] = KEY_BLUE,
+        [ 187  /* ANDROID_KEYCODE_APP_SWITCH */] = KEY_APPSELECT,
+        [ 204  /* ANDROID_KEYCODE_LANGUAGE_SWITCH */] = KEY_LANGUAGE,
+        [ 207  /* ANDROID_KEYCODE_CONTACTS */] = KEY_ADDRESSBOOK,
         [ 208  /* ANDROID_KEYCODE_CALENDAR */] = KEY_CALENDAR,
+        [ 209  /* ANDROID_KEYCODE_MUSIC */] = KEY_SOUND,
         [ 210  /* ANDROID_KEYCODE_CALCULATOR */] = KEY_CALC,
+        [ 211  /* ANDROID_KEYCODE_ZENKAKU_HANKAKU */] = KEY_ZENKAKUHANKAKU,
+        [ 212  /* ANDROID_KEYCODE_EISU */] = KEY_HANJA,
+        [ 213  /* ANDROID_KEYCODE_MUHENKAN */] = KEY_MUHENKAN,
+        [ 214  /* ANDROID_KEYCODE_HENKAN */] = KEY_HENKAN,
+        [ 215  /* ANDROID_KEYCODE_KATAKANA_HIRAGANA */] = KEY_KATAKANAHIRAGANA,
+        [ 216  /* ANDROID_KEYCODE_YEN */] = KEY_YEN,
+        [ 217  /* ANDROID_KEYCODE_RO */] = KEY_RO,
+        [ 218  /* ANDROID_KEYCODE_KANA */] = KEY_HANGEUL,
+        [ 219  /* ANDROID_KEYCODE_ASSIST */] = KEY_ASSISTANT,
+        [ 220  /* ANDROID_KEYCODE_BRIGHTNESS_DOWN */] = KEY_BRIGHTNESSDOWN,
+        [ 221  /* ANDROID_KEYCODE_BRIGHTNESS_UP */] = KEY_BRIGHTNESSUP,
+        [ 223  /* ANDROID_KEYCODE_SLEEP */] = KEY_SLEEP,
+        [ 224  /* ANDROID_KEYCODE_WAKEUP */] = KEY_WAKEUP,
+        [ 229  /* ANDROID_KEYCODE_LAST_CHANNEL */] = KEY_LAST,
+        [ 231  /* ANDROID_KEYCODE_VOICE_ASSIST */] = KEY_VOICECOMMAND,
+        [ 277  /* ANDROID_KEYCODE_CUT */] = KEY_CUT,
+        [ 278  /* ANDROID_KEYCODE_COPY */] = KEY_COPY,
+        [ 279  /* ANDROID_KEYCODE_PASTE */] = KEY_PASTE,
+        [ 285  /* ANDROID_KEYCODE_REFRESH */] = KEY_REFRESH,
+        [ 305  /* ANDROID_KEYCODE_KEYBOARD_BACKLIGHT_DOWN */] = KEY_KBDILLUMDOWN,
+        [ 306  /* ANDROID_KEYCODE_KEYBOARD_BACKLIGHT_UP */] = KEY_KBDILLUMUP,
+        [ 307  /* ANDROID_KEYCODE_KEYBOARD_BACKLIGHT_TOGGLE */] = KEY_KBDILLUMTOGGLE,
+        [ 312  /* ANDROID_KEYCODE_RECENT_APPS */] = KEY_SCALE,
+        [ 313  /* ANDROID_KEYCODE_MACRO_1 */] = KEY_MACRO1,
+        [ 314  /* ANDROID_KEYCODE_MACRO_2 */] = KEY_MACRO2,
+        [ 315  /* ANDROID_KEYCODE_MACRO_3 */] = KEY_MACRO3,
+        [ 316  /* ANDROID_KEYCODE_MACRO_4 */] = KEY_MACRO4,
+        [ 317  /* ANDROID_KEYCODE_EMOJI_PICKER */] = KEY_EMOJI_PICKER,
 };
 
 #ifdef __cplusplus

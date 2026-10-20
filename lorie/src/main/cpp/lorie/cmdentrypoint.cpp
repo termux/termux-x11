@@ -389,7 +389,14 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                     // This must be done only on X server thread (touches XKB state directly).
                     uintptr_t payload = (uintptr_t) closure;
                     if (payload & 1) {
-                        QueueKeyboardEvents(lorieKeyboard, (payload >> 1 & 1) ? KeyPress : KeyRelease, payload >> 2);
+                        uintptr_t keycode = payload >> 2;
+                        if (keycode > 255) {
+                            for (size_t i = 0; i < lorieExtendedKeysCount; i++)
+                                if (lorieExtendedKeys[i].code == keycode - 8)
+                                    lorieKeysymKeyboardEvent(lorieExtendedKeys[i].keysym, payload >> 1 & 1);
+                            return TRUE;
+                        }
+                        QueueKeyboardEvents(lorieKeyboard, (payload >> 1 & 1) ? KeyPress : KeyRelease, keycode);
                         mieqProcessInputEvents();
                     } else {
                         int ks = ucs2keysym((long) (payload >> 1));

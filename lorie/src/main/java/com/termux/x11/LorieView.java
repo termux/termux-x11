@@ -159,6 +159,13 @@ public class LorieView extends SurfaceView implements InputStub {
             LorieView.this.sendKeyEvent(0, k, false);
         }
 
+        void sendKeysWithoutCtrlAlt(Runnable keys) {
+            if (activity.mExtraKeys != null)
+                activity.mExtraKeys.withoutCtrlAlt(keys);
+            else
+                keys.run();
+        }
+
         @Override public boolean deleteSurroundingText(int beforeLength, int afterLength) {
             if (requestedPos != -1 && requestedPos > currentPos && beforeLength > 0) {
                 // sometimes gboard sees following whitespace and wants to remove it.
@@ -175,10 +182,12 @@ public class LorieView extends SurfaceView implements InputStub {
                 keyReleaseHandler.removeMessages(KeyEvent.KEYCODE_DEL);
             }
 
-            for (int i=0; i<beforeLength; i++)
-                sendKey(KeyEvent.KEYCODE_DEL);
-            for (int i=0; i<afterLength; i++)
-                sendKey(KeyEvent.KEYCODE_FORWARD_DEL);
+            sendKeysWithoutCtrlAlt(() -> {
+                for (int i=0; i<beforeLength; i++)
+                    sendKey(KeyEvent.KEYCODE_DEL);
+                for (int i=0; i<afterLength; i++)
+                    sendKey(KeyEvent.KEYCODE_FORWARD_DEL);
+            });
 
             currentPos -= beforeLength;
             if (currentPos <= 1)
@@ -226,9 +235,9 @@ public class LorieView extends SurfaceView implements InputStub {
             if (mBatchEditNesting == 0) { // outside of batchedit so most likely cursor control
                 if (start == end) {
                     if (start < 1)
-                        sendKey(KeyEvent.KEYCODE_DPAD_LEFT);
+                        sendKeysWithoutCtrlAlt(() -> sendKey(KeyEvent.KEYCODE_DPAD_LEFT));
                     else if (start > 1)
-                        sendKey(KeyEvent.KEYCODE_DPAD_RIGHT);
+                        sendKeysWithoutCtrlAlt(() -> sendKey(KeyEvent.KEYCODE_DPAD_RIGHT));
                 }
 
                 mIMM.updateSelection(LorieView.this, -1, -1, -1, -1);

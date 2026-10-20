@@ -8,6 +8,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -136,6 +137,29 @@ public class TermuxX11ExtraKeys implements ExtraKeysView.IExtraKeysView {
             mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_SHIFT_LEFT, false);
         if (Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.META, true)))
             mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_META_LEFT, false);
+    }
+
+    public void withoutCtrlAlt(Runnable keys) {
+        boolean ctrl = mExtraKeysView != null && Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.CTRL, false));
+        boolean alt = mExtraKeysView != null && Boolean.TRUE.equals(mExtraKeysView.readSpecialButton(SpecialButton.ALT, false));
+
+        if (ctrl)
+            mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_CTRL_LEFT, false);
+        if (alt)
+            mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_ALT_LEFT, false);
+        if (ctrl || alt)
+            SystemClock.sleep(10);
+
+        keys.run();
+
+        if (!ctrl && !alt)
+            return;
+
+        SystemClock.sleep(10);
+        if (ctrl)
+            mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_CTRL_LEFT, true);
+        if (alt)
+            mActivity.getLorieView().sendKeyEvent(0, KeyEvent.KEYCODE_ALT_LEFT, true);
     }
 
     @Override

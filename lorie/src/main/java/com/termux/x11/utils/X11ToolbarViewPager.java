@@ -64,7 +64,7 @@ public class X11ToolbarViewPager {
 
                 editText.setOnEditorActionListener((v, actionId, event) -> {
                     String textToSend = editText.getText().toString();
-                    if (textToSend.isEmpty()) textToSend = "\r";
+                    if (textToSend.isEmpty()) textToSend = "\n";
                     mActivity.getLorieView().sendTextEvent(textToSend.getBytes(UTF_8));
 
                     editText.setText("");

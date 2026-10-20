@@ -366,9 +366,13 @@ static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jlong ptr, jbyteAr
             if (len == 0)
                 break;
 
-            log(DEBUG, "Sending unicode event: %lc (U+%X)", wc, wc);
-            lorieEvent e = { .unicode = { .t = EVENT_UNICODE, .code = (uint32_t) wc } };
-            write(r->connFd, &e, sizeof(e));
+            if (wc == L'\n') {
+                sendEvent(r, .key = { .t = EVENT_KEY, .key = KEY_ENTER + 8, .state = 1 });
+                sendEvent(r, .key = { .t = EVENT_KEY, .key = KEY_ENTER + 8, .state = 0 });
+            } else if (wc != L'\r') {
+                log(DEBUG, "Sending unicode event: %lc (U+%X)", wc, wc);
+                sendEvent(r, .unicode = { .t = EVENT_UNICODE, .code = (uint32_t) wc });
+            }
             p += len;
             if (p - (char*) str >= length)
                 break;

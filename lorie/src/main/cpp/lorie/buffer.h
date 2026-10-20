@@ -250,6 +250,11 @@ int LorieBuffer_recvAHardwareBufferHandleFromUnixSocket(int socketFd, AHardwareB
  */
 void LorieBuffer_describeAHardwareBuffer(AHardwareBuffer* _Nonnull buffer, AHardwareBuffer_Desc* _Nonnull outDesc);
 
+/**
+ * Releases a raw AHardwareBuffer, as obtained from LorieBuffer_recvAHardwareBufferHandleFromUnixSocket.
+ */
+void LorieBuffer_releaseAHardwareBuffer(AHardwareBuffer* _Nonnull buffer);
+
 #undef STATIC_INLINE
 
 int ancil_send_fd(int sock, int fd);

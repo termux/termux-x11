@@ -513,6 +513,11 @@ void LorieBuffer_describeAHardwareBuffer(AHardwareBuffer* buffer, AHardwareBuffe
         AHardwareBuffer_describe(buffer, outDesc);
 }
 
+void LorieBuffer_releaseAHardwareBuffer(AHardwareBuffer* buffer) {
+    if (__builtin_available(android 26, *))
+        AHardwareBuffer_release(buffer);
+}
+
 __LIBC_HIDDEN__ int ancil_send_fd(int sock, int fd) {
     char nothing = '!';
     struct iovec nothing_ptr = { .iov_base = &nothing, .iov_len = 1 };

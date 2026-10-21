@@ -20,6 +20,15 @@
  extern _X_EXPORT void
   ShmRegisterFuncs(ScreenPtr pScreen, ShmFuncsPtr funcs);
  
++++ ./dix/dispatch.c
+@@ -551,6 +551,7 @@
+                         result =
+                             (*client->requestVector[client->majorOp]) (client);
+                         currentClient = NULL;
++                        ddxRequestDone();
+                     }
+                 }
+                 if (!SmartScheduleSignalEnable)
 +++ ./dix/dixutils.c
 @@ -504,6 +504,11 @@
   * sleeps for input.
@@ -91,11 +100,13 @@
 -    exaFinishAccess(pDrawable, EXA_PREPARE_SRC);
 +    exaFinishAccess(pDrawable, EXA_PREPARE_DEST);
 +++ ./include/os.h
-@@ -557,6 +557,8 @@
+@@ -557,6 +557,10 @@
  extern _X_EXPORT void
  ddxGiveUp(enum ExitCode error);
  extern _X_EXPORT void
 +ddxReady(void);
++extern _X_EXPORT void
++ddxRequestDone(void);
 +extern _X_EXPORT void
  ddxInputThreadInit(void);
  extern _X_EXPORT int

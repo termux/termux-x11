@@ -857,6 +857,12 @@ uint64_t Renderer::applyPendingGpuCopiesLocked() {
     return lastSerial;
 }
 
+static void lockServerState(struct lorie_shared_server_state *state) {
+    state->rendererWaiting = TRUE;
+    lorie_mutex_lock(&state->lock, &state->lockingPid);
+    state->rendererWaiting = FALSE;
+}
+
 // Standalone entry point used by the renderer thread's main loop. Used when no redraw is going to
 // happen on this tick (rare for GPU copies in practice, since scheduling one also marks damage
 // non-empty - see lorieTryScheduleGpuCopy), so it has to take the lock and fence/unlock itself.
@@ -864,7 +870,7 @@ void Renderer::applyPendingGpuCopies() {
     uint64_t serial;
     if (!state || state->gpuCopyQueue.readIndex == state->gpuCopyQueue.writeIndex)
         return;
-    lorie_mutex_lock(&state->lock, &state->lockingPid);
+    lockServerState(state);
     serial = applyPendingGpuCopiesLocked();
     if (serial) {
         EGLSync fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
@@ -1015,7 +1021,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
                    sourceLeft, sourceTop, logicalSourceWidth, logicalSourceHeight);
 
     // We should signal X server to not use root window while we actively copy it
-    lorie_mutex_lock(&state->lock, &state->lockingPid);
+    lockServerState(state);
     // Share this draw's flush+fence below instead of a separate round trip per frame.
     uint64_t gpuCopySerial = applyPendingGpuCopiesLocked();
     state->drawRequested = FALSE;

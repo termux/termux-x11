@@ -75,6 +75,21 @@
  
          InputThreadInit();
  
++++ ./exa/exa_unaccel.c
+@@ -384,10 +384,10 @@
+-        pExaScr->prepare_access_reg(pPixmap, EXA_PREPARE_SRC, prgnSrc);
++        pExaScr->prepare_access_reg(pPixmap, EXA_PREPARE_DEST, prgnSrc);
+         RegionTranslate(prgnSrc, -xoff, -yoff);
+     }
+     else
+-        exaPrepareAccess(pDrawable, EXA_PREPARE_SRC);
++        exaPrepareAccess(pDrawable, EXA_PREPARE_DEST);
+
+     swap(pExaScr, pScreen, CopyWindow);
+     pScreen->CopyWindow(pWin, ptOldOrg, prgnSrc);
+     swap(pExaScr, pScreen, CopyWindow);
+-    exaFinishAccess(pDrawable, EXA_PREPARE_SRC);
++    exaFinishAccess(pDrawable, EXA_PREPARE_DEST);
 +++ ./include/os.h
 @@ -557,6 +557,8 @@
  extern _X_EXPORT void

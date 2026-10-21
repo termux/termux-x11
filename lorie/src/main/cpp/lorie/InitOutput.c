@@ -1288,7 +1288,7 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
         buffer = NULL;
         check(!priv->buffer, "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");
 
-        screen->ModifyPixmapHeader(pixmap, desc.width, desc.height, 0, 0, desc.stride * 4, NULL);
+        screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, desc.stride * 4, NULL);
         if (lorieServerDebugEnabled)
             log(INFO, "DRI3: imported AHardwareBuffer, modifier %llu, %ux%u stride %u", (unsigned long long) modifier, desc.width, desc.height, desc.stride);
     }

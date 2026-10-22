@@ -18,6 +18,8 @@
 #include <X11/X.h>
 #include <X11/Xmd.h>
 #include <sys/wait.h>
+#include <sys/syscall.h>
+#include <linux/futex.h>
 #include <present.h>
 #include <sys/mman.h>
 #include <dri3.h>
@@ -528,14 +530,17 @@ static void lorieRequestLockRelease(void) {
     if (!pvfb->state->rendererWaiting)
         return;
 
-    struct timespec start, now;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    do {
-        sched_yield();
-        usleep(20);
-        clock_gettime(CLOCK_MONOTONIC, &now);
-    } while (pvfb->state->rendererWaiting && lorieConnectionAlive() &&
-             (now.tv_sec - start.tv_sec) * 1000000000LL + (now.tv_nsec - start.tv_nsec) < 100000000LL);
+    struct timespec deadline;
+    clock_gettime(CLOCK_MONOTONIC, &deadline);
+    deadline.tv_nsec += 100000000L;
+    if (deadline.tv_nsec >= 1000000000L) {
+        deadline.tv_sec++;
+        deadline.tv_nsec -= 1000000000L;
+    }
+
+    for (uint32_t v; (v = __atomic_load_n(&pvfb->state->rendererWaiting, __ATOMIC_ACQUIRE)) && lorieConnectionAlive(); )
+        if (syscall(SYS_futex, &pvfb->state->rendererWaiting, FUTEX_WAIT_BITSET, v, &deadline, NULL, FUTEX_BITSET_MATCH_ANY) == -1 && errno == ETIMEDOUT)
+            break;
 
     pvfb->state->rendererWaiting = FALSE;
 }

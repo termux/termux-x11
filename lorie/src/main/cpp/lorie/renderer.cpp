@@ -27,6 +27,8 @@
 #include <cstring>
 #include <sys/mman.h>
 #include <sys/socket.h>
+#include <sys/syscall.h>
+#include <linux/futex.h>
 #include <unistd.h>
 #include "list.h"
 #include "lorie.h"
@@ -880,7 +882,8 @@ uint64_t Renderer::applyPendingGpuCopiesLocked() {
 static void lockServerState(struct lorie_shared_server_state *state) {
     state->rendererWaiting = TRUE;
     lorie_mutex_lock(&state->lock, &state->lockingPid);
-    state->rendererWaiting = FALSE;
+    __atomic_store_n(&state->rendererWaiting, 0, __ATOMIC_RELEASE);
+    syscall(SYS_futex, &state->rendererWaiting, FUTEX_WAKE, 1, nullptr, nullptr, 0);
 }
 
 // Standalone entry point used by the renderer thread's main loop. Used when no redraw is going to

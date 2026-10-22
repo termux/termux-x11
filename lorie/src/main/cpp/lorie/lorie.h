@@ -228,7 +228,7 @@ struct lorie_shared_server_state {
     volatile uint8_t drawRequested;
 
     /* Renderer is waiting for `lock`, the X server hands it over when the current request is done */
-    volatile uint8_t rendererWaiting;
+    volatile uint32_t rendererWaiting;
 
     /* We should avoid triggering renderer if there is no output surface */
     volatile uint8_t surfaceAvailable;

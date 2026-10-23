@@ -421,6 +421,12 @@ public class MainActivity extends AppCompatActivity {
         handler.removeCallbacks(serverWatchdog);
         if (mInputHandler != null)
             mInputHandler.onDestroy();
+
+        // Reset special keys to prevent phantom modifiers (e.g. Ctrl+D) after app is destroyed
+        if (mExtraKeys != null) {
+            mExtraKeys.unsetSpecialKeys();
+        }
+
         instances.values().removeIf(ref -> ref.get() == this);
         super.onDestroy();
     }
@@ -855,11 +861,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         getLorieView().setKeyboardVisible(false);
-
-        // Fix phantom modifier keys on restart (only when exiting, not just backgrounding)
-        if (isFinishing() && mExtraKeys != null) {
-            mExtraKeys.unsetSpecialKeys();
-        }
 
         handler.removeCallbacks(serverWatchdog);
         findViewById(R.id.no_server_signal).setVisibility(View.GONE);

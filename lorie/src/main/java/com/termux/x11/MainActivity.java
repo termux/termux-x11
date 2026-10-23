@@ -421,6 +421,12 @@ public class MainActivity extends AppCompatActivity {
         handler.removeCallbacks(serverWatchdog);
         if (mInputHandler != null)
             mInputHandler.onDestroy();
+
+        // Reset special keys to prevent phantom modifiers (e.g. Ctrl+D) after app is destroyed
+        if (mExtraKeys != null) {
+            mExtraKeys.unsetSpecialKeys();
+        }
+
         instances.values().removeIf(ref -> ref.get() == this);
         super.onDestroy();
     }

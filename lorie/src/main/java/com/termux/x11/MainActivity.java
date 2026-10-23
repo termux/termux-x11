@@ -856,6 +856,11 @@ public class MainActivity extends AppCompatActivity {
 
         getLorieView().setKeyboardVisible(false);
 
+        // Fix phantom modifier keys on restart
+        if (mExtraKeys != null) {
+            mExtraKeys.unsetSpecialKeys();
+        }
+
         handler.removeCallbacks(serverWatchdog);
         findViewById(R.id.no_server_signal).setVisibility(View.GONE);
         orientationListener.disable();

@@ -480,7 +480,7 @@ static void lorieSetCursor(DeviceIntPtr pDev, unused ScreenPtr pScr, CursorPtr p
         // We do not have enough memory allocated for such a big cursor, let's display default "X" cursor
         pCurs = rootCursor;
 
-    lorie_mutex_lock(&pvfb->state->cursor.lock, &pvfb->state->cursor.lockingPid);
+    lorie_mutex_lock(&pvfb->state->cursor.lock, &pvfb->state->cursor.lockingPid, conn_fd);
     if (pCurs && bits) {
         pvfb->state->cursor.xhot = bits->xhot;
         pvfb->state->cursor.yhot = bits->yhot;
@@ -517,7 +517,7 @@ static void loriePerformVblanks(void);
 static void lorieRequestLockTake(void) {
     if (pvfb->requestLockHeld)
         return;
-    lorie_mutex_lock(&pvfb->state->lock, &pvfb->state->lockingPid);
+    lorie_mutex_lock(&pvfb->state->lock, &pvfb->state->lockingPid, conn_fd);
     pvfb->requestLockHeld = TRUE;
 }
 
@@ -538,7 +538,7 @@ static void lorieRequestLockRelease(void) {
         deadline.tv_nsec -= 1000000000L;
     }
 
-    for (uint32_t v; (v = __atomic_load_n(&pvfb->state->rendererWaiting, __ATOMIC_ACQUIRE)) && lorieConnectionAlive(); )
+    for (uint32_t v; (v = __atomic_load_n(&pvfb->state->rendererWaiting, __ATOMIC_ACQUIRE)) && lorieConnectionAlive(conn_fd); )
         if (syscall(SYS_futex, &pvfb->state->rendererWaiting, FUTEX_WAIT_BITSET, v, &deadline, NULL, FUTEX_BITSET_MATCH_ANY) == -1 && errno == ETIMEDOUT)
             break;
 
@@ -567,7 +567,7 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
 
     pvfb->state->waitForNextFrame = false;
 
-    if (!lorieConnectionAlive() || !pvfb->state->surfaceAvailable)
+    if (!lorieConnectionAlive(conn_fd) || !pvfb->state->surfaceAvailable)
         return TRUE;
 
     nonEmpty = RegionNotEmpty(DamageRegion(pvfb->damage));
@@ -983,7 +983,7 @@ Bool lorieTryScheduleGpuCopy(PixmapPtr pixmap, PixmapPtr dst, RegionPtr update, 
         return FALSE;
     }
 
-    if (!lorieConnectionAlive() || !lorieRendererAvailable()) {
+    if (!lorieConnectionAlive(conn_fd) || !lorieRendererAvailable()) {
         // No renderer to drain the queue, so fall back to CPU copy.
         gpuCopyAttempts++;
         gpuCopyFallbackOther++;
@@ -1214,7 +1214,7 @@ Bool loriePrepareAccess(PixmapPtr pPix, int index) {
         if (lorieKeepLockUntilRequestEnd(pPix, index))
             lorieRequestLockTake();
         else
-            lorie_mutex_lock(&pvfb->state->lock, &pvfb->state->lockingPid);
+            lorie_mutex_lock(&pvfb->state->lock, &pvfb->state->lockingPid, conn_fd);
     }
 
     if (!priv->locked && !priv->mem) {

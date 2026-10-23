@@ -510,12 +510,12 @@ void lorieRequestClipboard(void) {
     }
 }
 
-bool lorieConnectionAlive(void) {
-    if (conn_fd == -1)
+bool lorieConnectionAlive(int fd) {
+    if (fd == -1)
         return false;
 
     // Check if socket is closed or has errors.
-    struct pollfd p = { .fd = conn_fd, .events = POLLIN | POLLHUP | POLLERR | POLLRDHUP };
+    struct pollfd p = { .fd = fd, .events = POLLIN | POLLHUP | POLLERR | POLLRDHUP };
     return !(poll(&p, 1, 0) == 1 && (p.revents & (POLLERR | POLLNVAL | POLLRDHUP | POLLHUP)));
 }
 

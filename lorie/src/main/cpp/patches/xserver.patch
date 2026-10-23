@@ -355,7 +355,7 @@
 +    int16_t                     gpuCopyYOff = (int16_t) (vblank->y_off + window->drawable.y - gpuCopyDst->screen_y);
 +    /* lorie: renderer can be connected but still unable to ever finish a pending GPU copy
 +     * (e.g. activity backgrounded, no surface) - completedSerial won't advance either way. */
-+    Bool                         gpuCopyStalled = !lorieConnectionAlive() || !lorieRendererAvailable();
++    Bool                         gpuCopyStalled = !lorieConnectionAlive(conn_fd) || !lorieRendererAvailable();
  
      /* If present_flip failed, we may have to requeue for the next MSC */
      if (vblank->exec_msc == crtc_msc + 1 &&
@@ -459,7 +459,7 @@
  #include <X11/X.h>
  #include "scrnintstr.h"
  #include "misc.h"
-@@ -90,8 +91,34 @@
+@@ -90,8 +91,35 @@
      Bool                abort_flip;     /* aborting this flip */
      PresentFlipReason   reason;         /* reason for which flip is not possible */
      Bool                has_suboptimal; /* whether client can support SuboptimalCopy mode */
@@ -482,7 +482,8 @@
 +/* lorie: the pixmap's buffer can not be locked for the CPU, so Present must never use a CPU copy for it. */
 +extern Bool loriePixmapIsGpuOnly(PixmapPtr pixmap);
 +/* lorie: implemented in lorie/cmdentrypoint.c. Avoids waiting forever on a GPU copy that a dead renderer will never finish. */
-+extern bool lorieConnectionAlive(void);
++extern bool lorieConnectionAlive(int fd);
++extern volatile int conn_fd;
 +/* lorie: implemented in lorie/InitOutput.c. Renderer can be connected but still unable to
 + * draw (e.g. activity backgrounded, no surface) - same "give up on this GPU copy" cases as
 + * lorieConnectionAlive() need to check this too. */
@@ -506,7 +507,7 @@
 +lorieRecheckGpuCopies(void)
 +{
 +    present_vblank_ptr vblank, tmp;
-+    Bool gpuCopyStalled = !lorieConnectionAlive() || !lorieRendererAvailable();
++    Bool gpuCopyStalled = !lorieConnectionAlive(conn_fd) || !lorieRendererAvailable();
 +
 +    xorg_list_for_each_entry_safe(vblank, tmp, &present_exec_queue, event_queue) {
 +        if (vblank->gpu_copy_pending && (lorieGpuCopyIsDone(vblank->gpu_copy_serial) || gpuCopyStalled))

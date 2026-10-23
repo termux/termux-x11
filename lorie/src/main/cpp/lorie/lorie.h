@@ -41,7 +41,7 @@ void lorieActivityConnected(void);
 void lorieSendSharedServerState(int memfd);
 void lorieRegisterBuffer(LorieBuffer* buffer);
 void lorieUnregisterBuffer(LorieBuffer* buffer);
-bool lorieConnectionAlive(void);
+bool lorieConnectionAlive(int fd);
 extern bool lorieDebugEnabled; // Set in activity.cpp's startLogcat, only called when TERMUX_X11_DEBUG=1.
 void lorieSetRendererWakeupCond(int fd);
 void lorieSetCursorVisible(Bool visible);
@@ -59,14 +59,14 @@ void lorieListenForKnocks(int port, const char *tag);
 
 __unused void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled);
 
-static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_t* lockingPid) {
+static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_t* lockingPid, int connFd) {
     // Unfortunately there is no robust mutexes in bionic.
     // Posix does not define any valid way to unlock stuck non-robust mutex
     // so in the case if renderer or X server process unexpectedly die with locked mutex
     // we will simply reinitialize it.
     struct timespec ts = {0};
     while(true) {
-        clock_gettime(CLOCK_MONOTONIC, &ts);
+        clock_gettime(CLOCK_REALTIME, &ts);
 
         // 33 msec is enough to complete any drawing operation on both X server and renderer side
         // In the case if mutex is locked most likely other thread died with the mutex locked
@@ -78,7 +78,7 @@ static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_
 
         int ret = pthread_mutex_timedlock(mutex, &ts);
         if (ret == ETIMEDOUT) {
-            if (*lockingPid == getpid() || lorieConnectionAlive())
+            if (*lockingPid == getpid() || lorieConnectionAlive(connFd))
                 continue;
 
             pthread_mutexattr_t attr;
@@ -340,6 +340,7 @@ struct Renderer {
     uint64_t lastRequestedBufferId = 0;
 
     volatile int* connFdPtr = nullptr;
+    int connFd() const { return connFdPtr ? *connFdPtr : -1; }
 
     void init(JNIEnv* env, jobject thiz);
     void destroy();

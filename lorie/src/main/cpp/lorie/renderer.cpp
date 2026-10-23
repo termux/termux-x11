@@ -879,9 +879,9 @@ uint64_t Renderer::applyPendingGpuCopiesLocked() {
     return lastSerial;
 }
 
-static void lockServerState(struct lorie_shared_server_state *state) {
+static void lockServerState(struct lorie_shared_server_state *state, int connFd) {
     state->rendererWaiting = TRUE;
-    lorie_mutex_lock(&state->lock, &state->lockingPid);
+    lorie_mutex_lock(&state->lock, &state->lockingPid, connFd);
     __atomic_store_n(&state->rendererWaiting, 0, __ATOMIC_RELEASE);
     syscall(SYS_futex, &state->rendererWaiting, FUTEX_WAKE, 1, nullptr, nullptr, 0);
 }
@@ -893,7 +893,7 @@ void Renderer::applyPendingGpuCopies() {
     uint64_t serial;
     if (!state || state->gpuCopyQueue.readIndex == state->gpuCopyQueue.writeIndex)
         return;
-    lockServerState(state);
+    lockServerState(state, connFd());
     serial = applyPendingGpuCopiesLocked();
     if (serial) {
         EGLSync fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
@@ -1044,7 +1044,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
                    sourceLeft, sourceTop, logicalSourceWidth, logicalSourceHeight);
 
     // We should signal X server to not use root window while we actively copy it
-    lockServerState(state);
+    lockServerState(state, connFd());
     // Share this draw's flush+fence below instead of a separate round trip per frame.
     uint64_t gpuCopySerial = applyPendingGpuCopiesLocked();
     state->drawRequested = FALSE;
@@ -1062,7 +1062,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
 
     if (state->cursor.updated) {
         log("Xlorie: updating cursor\n");
-        lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid);
+        lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid, connFd());
         state->cursor.updated = false;
         bindTexture(cursor.id);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);

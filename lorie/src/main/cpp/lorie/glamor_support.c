@@ -168,6 +168,13 @@ int lorieGlamorExportFence(void) {
     return fd;
 }
 
+void lorieGlamorSwapRedBlue(unsigned int texture) {
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_BLUE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 Bool lorieGlamorInit(ScreenPtr screen) {
     if (!lorieGlamorEglInit()) {
         glog("EGL init failed: 0x%x", eglGetError());

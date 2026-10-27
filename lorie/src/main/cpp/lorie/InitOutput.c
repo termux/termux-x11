@@ -66,6 +66,9 @@ static dri3_screen_info_rec lorieDri3Info;
 static ExaDriverRec lorieExa;
 static LorieBuffer *lorieGlamorRootBuffer;
 #define lorieRootBuffer() (pvfb->glamor ? lorieGlamorRootBuffer : LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate))
+static DevPrivateKeyRec lorieGlamorBufferKey;
+static DestroyPixmapProcPtr lorieGlamorSavedDestroyPixmap;
+static Bool lorieGlamorDestroyPixmap(PixmapPtr pixmap);
 
 typedef struct {
     DamagePtr damage;
@@ -860,7 +863,9 @@ static Bool lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **ar
           || !(pScreen->CreateScreenResources = lorieCreateScreenResources) // Simply replace unneeded function
           || !(!pvfb->dri3 || dri3_screen_init(pScreen, &lorieDri3Info))
           || !fbPictureInit(pScreen, 0, 0)
-          || !(glamor ? lorieGlamorInit(pScreen) : exaDriverInit(pScreen, &lorieExa))
+          || !(glamor ? lorieGlamorInit(pScreen) && dixRegisterPrivateKey(&lorieGlamorBufferKey, PRIVATE_PIXMAP, 0) &&
+                        (lorieGlamorSavedDestroyPixmap = pScreen->DestroyPixmap, pScreen->DestroyPixmap = lorieGlamorDestroyPixmap, TRUE)
+                      : exaDriverInit(pScreen, &lorieExa))
           || !lorieRandRInit(pScreen)
           || !miPointerInitialize(pScreen, &loriePointerSpriteFuncs, &loriePointerCursorFuncs, TRUE)
           || !fbCreateDefColormap(pScreen)
@@ -990,6 +995,8 @@ static void loriePerformVblanks(void) {
 }
 
 Bool loriePresentFlip(__unused RRCrtcPtr crtc, __unused uint64_t event_id, __unused uint64_t target_msc, PixmapPtr pixmap, __unused Bool sync_flip) {
+    if (pvfb->glamor)
+        return FALSE;
     LoriePixmapPriv* priv = (LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap);
     if (!priv || !priv->buffer || priv->mem || pvfb->root.width != pixmap->drawable.width || pvfb->root.height != pixmap->drawable.height)
         return FALSE;
@@ -1131,6 +1138,21 @@ Bool lorieCopyFenceSignaled(int fd) {
     return poll(&pfd, 1, 0) != 0;
 }
 
+static Bool lorieGlamorDestroyPixmap(PixmapPtr pixmap) {
+    ScreenPtr screen = pixmap->drawable.pScreen;
+    LoriePixmapPriv *priv = pixmap->refcnt == 1 ? dixLookupPrivate(&pixmap->devPrivates, &lorieGlamorBufferKey) : NULL;
+    Bool ret;
+
+    screen->DestroyPixmap = lorieGlamorSavedDestroyPixmap;
+    ret = screen->DestroyPixmap(pixmap);
+    lorieGlamorSavedDestroyPixmap = screen->DestroyPixmap;
+    screen->DestroyPixmap = lorieGlamorDestroyPixmap;
+
+    if (priv)
+        lorieExaDestroyPixmap(screen, priv);
+    return ret;
+}
+
 static LorieBuffer *lorieReceiveSocketBuffer(int fd, AHardwareBuffer_Desc *desc) {
     AHardwareBuffer *ahb = NULL;
     struct stat info;
@@ -1168,23 +1190,27 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
     const CARD64 AHARDWAREBUFFER_SOCKET_FD = 1255;
     const CARD64 AHARDWAREBUFFER_FLIPPED_SOCKET_FD = 1256;
     const CARD64 RAW_MMAPPABLE_FD = 1274;
+    const Bool glamor = pvfb->glamor;
+    const Bool rawFd = modifier == DRM_FORMAT_MOD_INVALID || modifier == DRM_FORMAT_MOD_LINEAR || modifier == RAW_MMAPPABLE_FD;
     AHardwareBuffer_Desc desc = {0};
     PixmapPtr pixmap = NullPixmap;
     LoriePixmapPriv *priv = NULL;
 
     check(num_fds > 1, "DRI3: More than 1 fd");
-    check(modifier != RAW_MMAPPABLE_FD && modifier != AHARDWAREBUFFER_SOCKET_FD && modifier != AHARDWAREBUFFER_FLIPPED_SOCKET_FD &&
-          modifier != DRM_FORMAT_MOD_INVALID && modifier != DRM_FORMAT_MOD_LINEAR, "DRI3: Modifier is not RAW_MMAPPABLE_FD or AHARDWAREBUFFER_SOCKET_FD");
+    check(!rawFd && modifier != AHARDWAREBUFFER_SOCKET_FD && modifier != AHARDWAREBUFFER_FLIPPED_SOCKET_FD,
+          "DRI3: Modifier is not RAW_MMAPPABLE_FD or AHARDWAREBUFFER_SOCKET_FD");
+    check(glamor && rawFd, "DRI3: raw fd buffers are not supported with glamor");
 
-    pixmap = screen->CreatePixmap(screen, 0, 0, depth, 0);
+    pixmap = glamor ? screen->CreatePixmap(screen, width, height, depth, GLAMOR_CREATE_PIXMAP_NO_TEXTURE)
+                    : screen->CreatePixmap(screen, 0, 0, depth, 0);
     check(!pixmap, "DRI3: failed to create pixmap");
 
-    priv = exaGetPixmapDriverPrivate(pixmap);
+    priv = glamor ? calloc(1, sizeof(LoriePixmapPriv)) : exaGetPixmapDriverPrivate(pixmap);
     check(!priv, "DRI3: failed to obtain pixmap private");
 
     priv->imported = true;
 
-    if (modifier == DRM_FORMAT_MOD_INVALID || modifier == DRM_FORMAT_MOD_LINEAR || modifier == RAW_MMAPPABLE_FD) {
+    if (rawFd) {
         check(!(priv->buffer = LorieBuffer_wrapFileDescriptor(width, strides[0]/4, height, AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM, fds[0], offsets[0])), "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");
         screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, strides[0], NULL);
         if (lorieServerDebugEnabled)
@@ -1192,20 +1218,31 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
         return pixmap;
     }
 
-    if (modifier == AHARDWAREBUFFER_SOCKET_FD || modifier == AHARDWAREBUFFER_FLIPPED_SOCKET_FD) {
-        priv->flipped = modifier == AHARDWAREBUFFER_FLIPPED_SOCKET_FD;
-        check(!(priv->buffer = lorieReceiveSocketBuffer(fds[0], &desc)), "DRI3: failed to import AHardwareBuffer");
+    priv->flipped = modifier == AHARDWAREBUFFER_FLIPPED_SOCKET_FD;
+    check(!(priv->buffer = lorieReceiveSocketBuffer(fds[0], &desc)), "DRI3: failed to import AHardwareBuffer");
 
+    if (glamor) {
+        LorieBuffer_attachToGL(priv->buffer);
+        if (LorieBuffer_isRgba(priv->buffer))
+            lorieGlamorSwapRedBlue(LorieBuffer_getGLTextureId(priv->buffer));
+        glamor_set_pixmap_texture(pixmap, LorieBuffer_getGLTextureId(priv->buffer));
+        dixSetPrivate(&pixmap->devPrivates, &lorieGlamorBufferKey, priv);
+    } else
         screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, desc.stride * 4, NULL);
-        if (lorieServerDebugEnabled)
-            log(INFO, "DRI3: imported AHardwareBuffer, modifier %llu, %ux%u stride %u", (unsigned long long) modifier, desc.width, desc.height, desc.stride);
-    }
+
+    if (lorieServerDebugEnabled)
+        log(INFO, "DRI3: imported AHardwareBuffer, modifier %llu, %ux%u stride %u", (unsigned long long) modifier, desc.width, desc.height, desc.stride);
 
     return pixmap;
 
     fail:
     if (pixmap)
         screen->DestroyPixmap(pixmap);
+    if (glamor && priv) {
+        if (priv->buffer)
+            LorieBuffer_release(priv->buffer);
+        free(priv);
+    }
 
     return NULL;
 }

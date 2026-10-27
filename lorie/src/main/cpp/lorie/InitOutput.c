@@ -614,8 +614,12 @@ static CARD32 lorieHeartbeat(unused OsTimerPtr timer, unused CARD32 time, unused
     return 1000;
 }
 
+static PixmapPtr lorieCreateRootPixmap(ScreenPtr pScreen, int width, int height) {
+    return pScreen->CreatePixmap(pScreen, width, height, pScreen->rootDepth, CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED);
+}
+
 static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
-    pScreen->devPrivate = pScreen->CreatePixmap(pScreen, pScreen->width, pScreen->height, pScreen->rootDepth, CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED);
+    pScreen->devPrivate = lorieCreateRootPixmap(pScreen, pScreen->width, pScreen->height);
 
     pvfb->damage = DamageCreate(NULL, NULL, DamageReportNone, TRUE, pScreen, NULL);
     if (!pvfb->damage)
@@ -692,7 +696,7 @@ static Bool lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height,
     pScreen->mmHeight = ((double) (height)) * 25.4 / monitorResolution;
 
     oldPixmap = pScreen->GetScreenPixmap(pScreen);
-    newPixmap = pScreen->CreatePixmap(pScreen, width, height, pScreen->rootDepth, CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED);
+    newPixmap = lorieCreateRootPixmap(pScreen, width, height);
     pScreen->SetScreenPixmap(newPixmap);
     if (pvfb->damage) {
         DamageUnregister(pvfb->damage);

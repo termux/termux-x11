@@ -291,6 +291,9 @@ __LIBC_HIDDEN__ void __LorieBuffer_free(LorieBuffer* buffer) {
 
     xorg_list_del(&buffer->link);
 
+    if (buffer->locked)
+        LorieBuffer_unlock(buffer);
+
     if (eglGetCurrentContext())
         glDeleteTextures(1, &buffer->id);
 
@@ -345,6 +348,10 @@ __LIBC_HIDDEN__ int LorieBuffer_lock(LorieBuffer* buffer, void** out) {
     buffer->locked = 1;
 
     return ret;
+}
+
+__LIBC_HIDDEN__ bool LorieBuffer_isLocked(LorieBuffer* buffer) {
+    return buffer && buffer->locked;
 }
 
 __LIBC_HIDDEN__ int LorieBuffer_unlock(LorieBuffer* buffer) {

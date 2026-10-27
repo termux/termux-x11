@@ -27,6 +27,7 @@ extern "C" {
 #undef class
 #undef public
 }
+#include <dlfcn.h>
 #include <linux/in.h>
 #include <arpa/inet.h>
 #include <poll.h>
@@ -508,6 +509,17 @@ void lorieRequestClipboard(void) {
         lorieEvent e = { .type = EVENT_CLIPBOARD_REQUEST };
         write(conn_fd, &e, sizeof(e));
     }
+}
+
+// Preloaded by rendererCanRelockWhileLocked(): swaps the executable's main() for the probe.
+extern "C" __attribute__((visibility("default"))) void __libc_init(void *rawArgs, void (*onExit)(void), int (*mainFn)(int, char **, char **), void *structors) {
+    static int (*realMain)(int, char **, char **);
+    realMain = mainFn;
+    ((__typeof__(__libc_init) *) dlsym(RTLD_NEXT, "__libc_init"))(rawArgs, onExit, [](int argc, char **argv, char **envp) {
+        if (argc == 3 && !strcmp(argv[1], "--relock-probe"))
+            return rendererRelockProbeChild(atoi(argv[2]));
+        return realMain(argc, argv, envp);
+    }, structors);
 }
 
 bool lorieConnectionAlive(int fd) {

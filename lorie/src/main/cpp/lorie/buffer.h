@@ -154,6 +154,11 @@ int LorieBuffer_lock(LorieBuffer* _Nullable buffer, void* _Nullable * _Nonnull o
 int LorieBuffer_unlock(LorieBuffer* _Nullable buffer);
 
 /**
+ * Whether the buffer is locked with LorieBuffer_lock.
+ */
+bool LorieBuffer_isLocked(LorieBuffer* _Nullable buffer);
+
+/**
  * Send the AHardwareBuffer to an AF_UNIX socket.
  *
  * @param buffer

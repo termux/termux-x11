@@ -57,7 +57,8 @@ extern const size_t lorieExtendedKeysCount;
 void registerCmdEntryPointNatives(JNIEnv *env);
 void lorieListenForKnocks(int port, const char *tag);
 
-__unused void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled);
+__unused void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled, int* renderer_relock);
+int rendererRelockProbeChild(int fd);
 
 static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_t* lockingPid, int connFd) {
     // Unfortunately there is no robust mutexes in bionic.
@@ -230,6 +231,9 @@ struct lorie_shared_server_state {
     /* Renderer is waiting for `lock`, the X server hands it over when the current request is done */
     volatile uint32_t rendererWaiting;
 
+    /* The renderer may lock the root buffer again while the X server holds it locked for writing */
+    volatile uint8_t rendererRelock;
+
     /* We should avoid triggering renderer if there is no output surface */
     volatile uint8_t surfaceAvailable;
 
@@ -347,7 +351,7 @@ struct Renderer {
     void* initThread();
     int getWakeupCondFd() const;
     void setFiltering(jint f);
-    void testCapabilities(int* legacy_drawing, int* gpu_present_disabled);
+    void testCapabilities(int* legacy_drawing, int* gpu_present_disabled, int* renderer_relock);
     void setSharedState(struct lorie_shared_server_state* newState);
     void addBuffer(LorieBuffer* buf);
     void removeBuffer(uint64_t id);

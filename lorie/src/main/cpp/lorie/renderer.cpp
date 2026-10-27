@@ -25,8 +25,14 @@
 #include <dlfcn.h>
 #include <cmath>
 #include <cstring>
+#include <fcntl.h>
+#include <limits.h>
+#include <poll.h>
+#include <signal.h>
+#include <spawn.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <sys/syscall.h>
 #include <linux/futex.h>
 #include <unistd.h>
@@ -361,6 +367,107 @@ void Renderer::setFiltering(jint f) {
     filtering = f;
 }
 
+static const int relockProbeSize = 64;
+static const uint64_t relockProbeCpuUsage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN;
+
+static const uint32_t relockProbeRed = 0xff0000ff, relockProbeBlue = 0xffff0000;
+
+// Probe process: locks the parent's red buffer, paints it blue and sends back verdict bits (locked, saw red).
+int rendererRelockProbeChild(int fd) {
+    AHardwareBuffer *buf = nullptr;
+    AHardwareBuffer_Desc desc;
+    volatile uint32_t *pixels = nullptr;
+    uint8_t verdict = 0;
+
+    if (__builtin_available(android 26, *)) {
+        if (AHardwareBuffer_recvHandleFromUnixSocket(fd, &buf) == 0) {
+            AHardwareBuffer_describe(buf, &desc);
+            if (AHardwareBuffer_lock(buf, relockProbeCpuUsage, -1, nullptr, (void **) &pixels) == 0 && pixels) {
+                verdict = 1;
+                bool red = true;
+                for (int y = 0; y < relockProbeSize; y++)
+                    for (int x = 0; x < relockProbeSize; x++) {
+                        red &= pixels[(size_t) y * desc.stride + x] == relockProbeRed;
+                        pixels[(size_t) y * desc.stride + x] = relockProbeBlue;
+                    }
+                if (red)
+                    verdict |= 2;
+            }
+        }
+    }
+    write(fd, &verdict, 1);
+    pause(); // keeps the lock until the parent kills us
+    return verdict == 3 ? 0 : 1;
+}
+
+// Whether a second process can lock a write-locked AHardwareBuffer coherently.
+static bool rendererCanRelockWhileLocked() {
+    AHardwareBuffer_Desc desc = {.width = relockProbeSize, .height = relockProbeSize, .layers = 1,
+            .format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM,
+            .usage = relockProbeCpuUsage | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER};
+    AHardwareBuffer *buf = nullptr;
+    volatile uint32_t *pixels = nullptr;
+    uint8_t verdict = 0;
+    bool coherent = false;
+    Dl_info info;
+
+    if (!__builtin_available(android 26, *) || !dladdr((void *) rendererCanRelockWhileLocked, &info) || !info.dli_fname)
+        return false;
+    if (AHardwareBuffer_allocate(&desc, &buf) != 0 || !buf)
+        return false;
+    AHardwareBuffer_describe(buf, &desc);
+    if (AHardwareBuffer_lock(buf, relockProbeCpuUsage, -1, nullptr, (void **) &pixels) != 0 || !pixels) {
+        AHardwareBuffer_release(buf);
+        return false;
+    }
+    for (int y = 0; y < relockProbeSize; y++)
+        for (int x = 0; x < relockProbeSize; x++)
+            pixels[(size_t) y * desc.stride + x] = relockProbeRed;
+
+    char preload[PATH_MAX + 16];
+    snprintf(preload, sizeof(preload), "LD_PRELOAD=%s", info.dli_fname);
+    char *env[] = {preload, nullptr};
+    int sv[2];
+    pid_t pid = -1;
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0) {
+        if (AHardwareBuffer_sendHandleToUnixSocket(buf, sv[0]) == 0) {
+            char fdArg[16];
+            snprintf(fdArg, sizeof(fdArg), "%d", sv[1]);
+            char *argv[] = {(char *) "sh", (char *) "--relock-probe", fdArg, nullptr};
+            pid = vfork();
+            if (pid == 0) {
+                // Without exec, gfxstream usually crashes the whole emulator on a probe like this.
+#ifdef __LP64__
+                execve("/system/bin/sh", argv, env);
+                execve("/system/bin/app_process64", argv, env);
+#else
+                execve("/system/bin/app_process32", argv, env);
+#endif
+                _exit(1);
+            }
+        }
+        close(sv[1]);
+        if (pid > 0) {
+            struct pollfd pfd = {sv[0], POLLIN, 0};
+            // Both processes still hold their locks here.
+            coherent = poll(&pfd, 1, 3000) > 0 && read(sv[0], &verdict, 1) == 1 && verdict == 3;
+            for (int y = 0; y < relockProbeSize; y++)
+                for (int x = 0; x < relockProbeSize; x++)
+                    coherent &= pixels[(size_t) y * desc.stride + x] == relockProbeBlue;
+            kill(pid, SIGKILL);
+            waitpid(pid, nullptr, 0);
+        }
+        close(sv[0]);
+    }
+
+    AHardwareBuffer_unlock(buf, nullptr);
+    AHardwareBuffer_release(buf);
+    log("Xlorie: second process lock of a write-locked AHardwareBuffer: child verdict %d, data %s in both processes, preload %s",
+        verdict, coherent ? "coherent" : "not coherent", info.dli_fname);
+    return coherent;
+}
+
 // Mimics what the X server and the renderer do to the root buffer: the server holds a CPU lock
 // while the renderer draws into the same buffer. Needs a current GLES context.
 static bool cpuAndGpuShareAhbMemory(EGLDisplay egl_display) {
@@ -437,7 +544,8 @@ out:
     return result;
 }
 
-void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) {
+void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled, int* renderer_relock) {
+    *renderer_relock = 0;
     // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     EGLint numConfigs;
@@ -531,6 +639,8 @@ void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) 
         if (eglMakeCurrent(egl_display, checksfc, checksfc, testctx) != EGL_TRUE)
             return vprintEglError("check eglMakeCurrent failed", __LINE__);
 
+        *renderer_relock = rendererCanRelockWhileLocked();
+
         // Present's GPU offload writes the root buffer from the renderer while the X server keeps
         // it locked for CPU drawing. That only works when the CPU and GPU views of an
         // AHardwareBuffer are one memory, which is not the case on e.g. gfxstream.
@@ -560,9 +670,9 @@ void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) 
     }
 }
 
-void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled) {
+void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled, int* renderer_relock) {
     Renderer scratch;
-    scratch.testCapabilities(legacy_drawing, gpu_present_disabled);
+    scratch.testCapabilities(legacy_drawing, gpu_present_disabled, renderer_relock);
 }
 
 void Renderer::setSharedState(struct lorie_shared_server_state* newState) {
@@ -886,6 +996,15 @@ static void lockServerState(struct lorie_shared_server_state *state, int connFd)
     syscall(SYS_futex, &state->rendererWaiting, FUTEX_WAKE, 1, nullptr, nullptr, 0);
 }
 
+static void syncRootForGpu(LorieBuffer *root) {
+    void *mapped;
+    if (LorieBuffer_description(root)->type != LORIEBUFFER_AHARDWAREBUFFER)
+        return;
+    if (LorieBuffer_isLocked(root))
+        LorieBuffer_unlock(root);
+    LorieBuffer_lock(root, &mapped);
+}
+
 // Standalone entry point used by the renderer thread's main loop. Used when no redraw is going to
 // happen on this tick (rare for GPU copies in practice, since scheduling one also marks damage
 // non-empty - see lorieTryScheduleGpuCopy), so it has to take the lock and fence/unlock itself.
@@ -894,6 +1013,12 @@ void Renderer::applyPendingGpuCopies() {
     if (!state || state->gpuCopyQueue.readIndex == state->gpuCopyQueue.writeIndex)
         return;
     lockServerState(state, connFd());
+    if (state->rendererRelock) {
+        pthread_spin_lock(&bufferLock);
+        LorieBuffer *root = LorieBufferList_findById(&buffers, state->rootWindowTextureID);
+        pthread_spin_unlock(&bufferLock);
+        syncRootForGpu(root);
+    }
     serial = applyPendingGpuCopiesLocked();
     if (serial) {
         EGLSync fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
@@ -1045,6 +1170,8 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
 
     // We should signal X server to not use root window while we actively copy it
     lockServerState(state, connFd());
+    if (state->rendererRelock)
+        syncRootForGpu(buffer);
     // Share this draw's flush+fence below instead of a separate round trip per frame.
     uint64_t gpuCopySerial = applyPendingGpuCopiesLocked();
     state->drawRequested = FALSE;

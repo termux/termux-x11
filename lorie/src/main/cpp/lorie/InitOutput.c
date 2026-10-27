@@ -82,6 +82,7 @@ typedef struct {
 
     Bool dri3;
     Bool gpuPresentDisabled;
+    int rendererRelock;
 
     uint64_t vblank_interval;
     struct xorg_list vblank_queue;
@@ -200,6 +201,7 @@ void lorieSetRendererWakeupCond(int fd) {
 
 void lorieActivityConnected(void) {
     pvfb->state->drawRequested = pvfb->state->cursor.updated = true;
+    pvfb->state->rendererRelock = pvfb->rendererRelock;
     lorieSendSharedServerState(pvfb->stateFd);
     lorieRegisterBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate));
 }
@@ -582,8 +584,8 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
         // In most cases AHardwareBuffer uses DMA memory which is shared between CPU and GPU
         // and this is not needed. But according to docs we should do it for any case.
         // Also according to AHardwareBuffer docs simultaneous reading in rendering thread and
-        // locking for writing in other thread is fine.
-        if (priv->locked) {
+        // locking for writing in other thread is fine. Performing it on renderer side where possible.
+        if (!pvfb->rendererRelock && priv->locked) {
             LorieBuffer_unlock(priv->buffer);
             status = LorieBuffer_lock(priv->buffer, &priv->locked);
             if (status)
@@ -896,7 +898,7 @@ void InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     screen_info->bitmapBitOrder = BITMAP_BIT_ORDER;
     screen_info->numPixmapFormats = ARRAY_SIZE(depths);
 
-    rendererTestCapabilities(&pvfb->root.legacyDrawing, &pvfb->gpuPresentDisabled);
+    rendererTestCapabilities(&pvfb->root.legacyDrawing, &pvfb->gpuPresentDisabled, &pvfb->rendererRelock);
     xorgGlxCreateVendor();
     lorieInitClipboard();
 

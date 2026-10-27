@@ -1072,6 +1072,36 @@ static ExaDriverRec lorieExa = {
         .ModifyPixmapHeader = lorieModifyPixmapHeader,
 };
 
+static LorieBuffer *lorieReceiveSocketBuffer(int fd, AHardwareBuffer_Desc *desc) {
+    AHardwareBuffer *ahb = NULL;
+    struct stat info;
+    uint8_t request = 1;
+    int r;
+
+    if (fstat(fd, &info) != 0 || !S_ISSOCK(info.st_mode)) {
+        log(ERROR, "DRI3: AHARDWAREBUFFER_SOCKET_FD: fd is not a socket");
+        return NULL;
+    }
+    // Sending signal to other end of socket to send buffer.
+    if (write(fd, &request, 1) != 1) {
+        log(ERROR, "DRI3: AHARDWAREBUFFER_SOCKET_FD: failed to write to socket: %s", strerror(errno));
+        return NULL;
+    }
+    if ((r = LorieBuffer_recvAHardwareBufferHandleFromUnixSocket(fd, &ahb)) != 0 || !ahb) {
+        log(ERROR, "DRI3: AHARDWAREBUFFER_SOCKET_FD: failed to obtain AHardwareBuffer from socket: %d", r);
+        return NULL;
+    }
+    LorieBuffer_describeAHardwareBuffer(ahb, desc);
+    if (desc->format != AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM
+        && desc->format != AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM
+        && desc->format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM) {
+        log(ERROR, "DRI3: AHARDWAREBUFFER_SOCKET_FD: wrong format of AHardwareBuffer. Must be one of: AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM, AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM, AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM (stands for 5).");
+        LorieBuffer_releaseAHardwareBuffer(ahb);
+        return NULL;
+    }
+    return LorieBuffer_wrapAHardwareBuffer(ahb);
+}
+
 static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *fds, CARD16 width, CARD16 height,
                                     const CARD32 *strides, const CARD32 *offsets, CARD8 depth, __unused CARD8 bpp, CARD64 modifier) {
 #define fail(msg, ...) do { log(ERROR, msg, ##__VA_ARGS__); goto fail; } while(0)
@@ -1080,7 +1110,6 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
     const CARD64 AHARDWAREBUFFER_FLIPPED_SOCKET_FD = 1256;
     const CARD64 RAW_MMAPPABLE_FD = 1274;
     AHardwareBuffer_Desc desc = {0};
-    AHardwareBuffer* buffer = NULL;
     PixmapPtr pixmap = NullPixmap;
     LoriePixmapPriv *priv = NULL;
 
@@ -1105,26 +1134,8 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
     }
 
     if (modifier == AHARDWAREBUFFER_SOCKET_FD || modifier == AHARDWAREBUFFER_FLIPPED_SOCKET_FD) {
-        struct stat info;
-        uint8_t buf = 1;
-        int r;
-
         priv->flipped = modifier == AHARDWAREBUFFER_FLIPPED_SOCKET_FD;
-        check(fstat(fds[0], &info) != 0, "DRI3: fstat failed: %s", strerror(errno));
-        check(!S_ISSOCK(info.st_mode), "DRI3: modifier is AHARDWAREBUFFER_SOCKET_FD but fd is not a socket");
-        // Sending signal to other end of socket to send buffer.
-        check(write(fds[0], &buf, 1) != 1, "DRI3: AHARDWAREBUFFER_SOCKET_FD: failed to write to socket: %s", strerror(errno));
-        check((r = LorieBuffer_recvAHardwareBufferHandleFromUnixSocket(fds[0], &buffer)) != 0,
-              "DRI3: AHARDWAREBUFFER_SOCKET_FD: failed to obtain AHardwareBuffer from socket: %d", r);
-        check(!buffer, "DRI3: AHARDWAREBUFFER_SOCKET_FD: did not receive AHardwareSocket from buffer");
-        LorieBuffer_describeAHardwareBuffer(buffer, &desc);
-        check(desc.format != AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM
-            && desc.format != AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM
-            && desc.format != AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM,
-            "DRI3: AHARDWAREBUFFER_SOCKET_FD: wrong format of AHardwareBuffer. Must be one of: AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM, AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM, AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM (stands for 5).");
-        priv->buffer = LorieBuffer_wrapAHardwareBuffer(buffer);
-        buffer = NULL;
-        check(!priv->buffer, "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");
+        check(!(priv->buffer = lorieReceiveSocketBuffer(fds[0], &desc)), "DRI3: failed to import AHardwareBuffer");
 
         screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, desc.stride * 4, NULL);
         if (lorieServerDebugEnabled)
@@ -1134,8 +1145,6 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
     return pixmap;
 
     fail:
-    if (buffer)
-        LorieBuffer_releaseAHardwareBuffer(buffer);
     if (pixmap)
         screen->DestroyPixmap(pixmap);
 

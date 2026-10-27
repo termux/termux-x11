@@ -13,6 +13,10 @@
 
 #define glog(...) __android_log_print(ANDROID_LOG_ERROR, "lorie-glamor", __VA_ARGS__)
 
+static EGLDisplay lorieEglDisplay = EGL_NO_DISPLAY;
+static EGLContext lorieEglContext = EGL_NO_CONTEXT;
+static EGLSurface lorieEglSurface = EGL_NO_SURFACE;
+
 struct lorieGlFunctions lorieGl;
 
 int epoxy_gl_version(void) {
@@ -118,6 +122,52 @@ static Bool lorieGlLoad(EGLDisplay display) {
     return TRUE;
 }
 
+static void lorieGlamorMakeCurrent(struct glamor_context *ctx) {
+    eglMakeCurrent(ctx->display, ctx->drawable, ctx->drawable, ctx->ctx);
+}
+
+Bool lorieGlamorEglInit(void) {
+    static const EGLint configAttribs[] = {EGL_SURFACE_TYPE, EGL_PBUFFER_BIT, EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+                                           EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_NONE};
+    static const EGLint contextAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
+    static const EGLint pbufferAttribs[] = {EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE};
+    EGLConfig config;
+    EGLint major, minor, count;
+
+    if (lorieEglContext != EGL_NO_CONTEXT)
+        return eglMakeCurrent(lorieEglDisplay, lorieEglSurface, lorieEglSurface, lorieEglContext);
+
+    lorieEglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if (lorieEglDisplay == EGL_NO_DISPLAY || !eglInitialize(lorieEglDisplay, &major, &minor))
+        return FALSE;
+    eglBindAPI(EGL_OPENGL_ES_API);
+    if (!eglChooseConfig(lorieEglDisplay, configAttribs, &config, 1, &count) || !count)
+        return FALSE;
+    lorieEglContext = eglCreateContext(lorieEglDisplay, config, EGL_NO_CONTEXT, contextAttribs);
+    lorieEglSurface = eglCreatePbufferSurface(lorieEglDisplay, config, pbufferAttribs);
+    if (lorieEglContext == EGL_NO_CONTEXT || lorieEglSurface == EGL_NO_SURFACE)
+        return FALSE;
+    return eglMakeCurrent(lorieEglDisplay, lorieEglSurface, lorieEglSurface, lorieEglContext);
+}
+
+void lorieGlamorFinish(void) {
+    glFinish();
+}
+
+Bool lorieGlamorInit(ScreenPtr screen) {
+    if (!lorieGlamorEglInit()) {
+        glog("EGL init failed: 0x%x", eglGetError());
+        return FALSE;
+    }
+    if (!lorieGlLoad(lorieEglDisplay))
+        return FALSE;
+    if (!glamor_init(screen, GLAMOR_USE_EGL_SCREEN | GLAMOR_NO_DRI3)) {
+        glog("glamor_init failed");
+        return FALSE;
+    }
+    return TRUE;
+}
+
 void glTextureBarrierNV(void) {}
 void glClearTexImage(GLuint texture, GLint level, GLenum format, GLenum type, const void *data) {}
 void glLogicOp(GLenum op) {}
@@ -126,6 +176,10 @@ void glBindFragDataLocationIndexed(GLuint program, GLuint colorNumber, GLuint in
 void glBufferStorage(GLenum target, GLsizeiptr size, const void *data, GLbitfield flags) {}
 
 void glamor_egl_screen_init(ScreenPtr screen, struct glamor_context *glamor_ctx) {
+    glamor_ctx->display = lorieEglDisplay;
+    glamor_ctx->ctx = lorieEglContext;
+    glamor_ctx->drawable = lorieEglSurface;
+    glamor_ctx->make_current = lorieGlamorMakeCurrent;
 }
 
 Bool glamor_glx_screen_init(struct glamor_context *glamor_ctx) {

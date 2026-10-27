@@ -38,6 +38,7 @@
 #include "fbconfigs.h"
 #include "inpututils.h"
 #include "exa.h"
+#include "glamor.h"
 #include "drm_fourcc.h"
 #include "opaque.h"
 
@@ -62,6 +63,8 @@ struct vblank {
 static struct present_screen_info loriePresentInfo;
 static dri3_screen_info_rec lorieDri3Info;
 static ExaDriverRec lorieExa;
+static LorieBuffer *lorieGlamorRootBuffer;
+#define lorieRootBuffer() (pvfb->glamor ? lorieGlamorRootBuffer : LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate))
 
 typedef struct {
     DamagePtr damage;
@@ -81,6 +84,7 @@ typedef struct {
     } root;
 
     Bool dri3;
+    Bool glamor;
     int rendererRelock;
 
     uint64_t vblank_interval;
@@ -199,7 +203,7 @@ void lorieActivityConnected(void) {
     pvfb->state->drawRequested = pvfb->state->cursor.updated = true;
     pvfb->state->rendererRelock = pvfb->rendererRelock;
     lorieSendSharedServerState(pvfb->stateFd);
-    lorieRegisterBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate));
+    lorieRegisterBuffer(lorieRootBuffer());
 }
 
 static Bool TrueNoop() { return TRUE; }
@@ -326,6 +330,7 @@ void ddxUseMsg(void) {
     ErrorF("-disable-dri3          disabling DRI3 support (to let lavapipe work)\n");
     ErrorF("-force-sysvshm         force using SysV shm syscalls\n");
     ErrorF("-check-drawing         run server only able to draw some test image (for testing if rendering root window works or not),\n");
+    ErrorF("-glamor, -no-glamor    enable or disable glamor (GPU 2D acceleration), disabled by default\n");
     ErrorF("-tag tag               open this display in a separate Android window identified by tag\n");
 }
 
@@ -378,6 +383,11 @@ int ddxProcessArgument(unused int argc, unused char *argv[], unused int i) {
 
     if (strcmp(argv[i], "-disable-gpu-present") == 0) {
         log(WARN, "-disable-gpu-present is deprecated and should not be used, it does nothing");
+        return 1;
+    }
+
+    if (strcmp(argv[i], "-glamor") == 0 || strcmp(argv[i], "-no-glamor") == 0) {
+        pvfb->glamor = strcmp(argv[i], "-glamor") == 0;
         return 1;
     }
 
@@ -553,6 +563,7 @@ static void lorieBlockHandler(__unused void *data, __unused void *timeout) {
 static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     int status, nonEmpty;
     LoriePixmapPriv* priv;
+    LorieBuffer *buffer;
     PixmapPtr root = pScreenPtr && pScreenPtr->root ? pScreenPtr->GetWindowPixmap(pScreenPtr->root) : NULL;
 
     lorieRequestLockRelease();
@@ -565,19 +576,23 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
         return TRUE;
 
     nonEmpty = RegionNotEmpty(DamageRegion(pvfb->damage));
-    priv = root ? exaGetPixmapDriverPrivate(root) : NULL;
+    priv = root && !pvfb->glamor ? exaGetPixmapDriverPrivate(root) : NULL;
+    buffer = pvfb->glamor ? lorieGlamorRootBuffer : priv ? priv->buffer : NULL;
 
-    if (!priv)
+    if (!priv && !pvfb->glamor)
         // Impossible situation, but let's skip this step
         return TRUE;
 
-    if (nonEmpty && priv->buffer) {
+    if (nonEmpty && buffer) {
+        if (pvfb->glamor)
+            lorieGlamorFinish();
+
         // We should unlock and lock buffer in order to update texture content on some devices
         // In most cases AHardwareBuffer uses DMA memory which is shared between CPU and GPU
         // and this is not needed. But according to docs we should do it for any case.
         // Also according to AHardwareBuffer docs simultaneous reading in rendering thread and
         // locking for writing in other thread is fine. Performing it on renderer side where possible.
-        if (!pvfb->rendererRelock && priv->locked) {
+        if (priv && !pvfb->rendererRelock && priv->locked) {
             LorieBuffer_unlock(priv->buffer);
             status = LorieBuffer_lock(priv->buffer, &priv->locked);
             if (status)
@@ -589,7 +604,7 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     }
 
     if (pvfb->state->drawRequested || pvfb->state->cursor.moved || pvfb->state->cursor.updated) {
-        pvfb->state->rootWindowTextureID = LorieBuffer_description(priv->buffer)->id;
+        pvfb->state->rootWindowTextureID = LorieBuffer_description(buffer)->id;
 
         // Sending signal about pending root window changes to renderer thread.
         // We do not explicitly lock the pvfb->state->lock here because we do not want to wait
@@ -615,11 +630,25 @@ static CARD32 lorieHeartbeat(unused OsTimerPtr timer, unused CARD32 time, unused
 }
 
 static PixmapPtr lorieCreateRootPixmap(ScreenPtr pScreen, int width, int height) {
-    return pScreen->CreatePixmap(pScreen, width, height, pScreen->rootDepth, CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED);
+    PixmapPtr pixmap;
+
+    if (!pvfb->glamor)
+        return pScreen->CreatePixmap(pScreen, width, height, pScreen->rootDepth, CREATE_PIXMAP_USAGE_LORIEBUFFER_BACKED);
+
+    pixmap = pScreen->CreatePixmap(pScreen, width, height, pScreen->rootDepth, GLAMOR_CREATE_PIXMAP_NO_TEXTURE);
+    lorieGlamorRootBuffer = LorieBuffer_allocate(width, height, AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM, LORIEBUFFER_AHARDWAREBUFFER);
+    if (!pixmap || !lorieGlamorRootBuffer)
+        return NULL;
+    LorieBuffer_attachToGL(lorieGlamorRootBuffer);
+    glamor_set_pixmap_texture(pixmap, LorieBuffer_getGLTextureId(lorieGlamorRootBuffer));
+    pvfb->state->glDrawnBufferId = LorieBuffer_description(lorieGlamorRootBuffer)->id;
+    return pixmap;
 }
 
 static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     pScreen->devPrivate = lorieCreateRootPixmap(pScreen, pScreen->width, pScreen->height);
+    if (!pScreen->devPrivate)
+        FatalError("Couldn't create the root pixmap\n");
 
     pvfb->damage = DamageCreate(NULL, NULL, DamageReportNone, TRUE, pScreen, NULL);
     if (!pvfb->damage)
@@ -630,15 +659,21 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
     TimerSet(NULL, 0, 1000, lorieHeartbeat, NULL);
     RegisterBlockAndWakeupHandlers(lorieBlockHandler, (ServerWakeupHandlerProcPtr) NoopDDA, NULL);
 
-    lorieRegisterBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate));
+    lorieRegisterBuffer(lorieRootBuffer());
 
     return TRUE;
 }
 
 static Bool lorieCloseScreen(ScreenPtr pScreen) {
     pScreenPtr = NULL;
-    pScreen->DestroyPixmap(pScreen->devPrivate);
-    pScreen->devPrivate = NULL;
+    if (pvfb->glamor) {
+        lorieUnregisterBuffer(lorieGlamorRootBuffer);
+        LorieBuffer_release(lorieGlamorRootBuffer);
+        lorieGlamorRootBuffer = NULL;
+    } else {
+        pScreen->DestroyPixmap(pScreen->devPrivate);
+        pScreen->devPrivate = NULL;
+    }
     pScreen->CloseScreen = pvfb->CloseScreen;
     return pScreen->CloseScreen(pScreen);
 }
@@ -680,6 +715,7 @@ static int lorieSetPixmapVisitWindow(WindowPtr window, void *data) {
 
 static Bool lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height, unused CARD32 mmWidth, unused CARD32 mmHeight) {
     PixmapPtr oldPixmap, newPixmap;
+    LorieBuffer *oldBuffer;
     BoxRec box = { 0, 0, width, height };
 
     // Drain all pending vblanks.
@@ -696,6 +732,7 @@ static Bool lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height,
     pScreen->mmHeight = ((double) (height)) * 25.4 / monitorResolution;
 
     oldPixmap = pScreen->GetScreenPixmap(pScreen);
+    oldBuffer = lorieGlamorRootBuffer;
     newPixmap = lorieCreateRootPixmap(pScreen, width, height);
     pScreen->SetScreenPixmap(newPixmap);
     if (pvfb->damage) {
@@ -720,7 +757,11 @@ static Bool lorieRRScreenSetSize(ScreenPtr pScreen, CARD16 width, CARD16 height,
         pScreen->DestroyPixmap(oldPixmap);
     }
 
-    lorieRegisterBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate));
+    if (pvfb->glamor && oldBuffer) {
+        lorieUnregisterBuffer(oldBuffer);
+        LorieBuffer_release(oldBuffer);
+    }
+    lorieRegisterBuffer(lorieRootBuffer());
 
     pScreen->ResizeWindow(pScreen->root, 0, 0, width, height, NULL);
     RegionReset(&pScreen->root->winSize, &box);
@@ -796,6 +837,7 @@ void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d) {
 
 static Bool lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
     static int eventFd = -1;
+    Bool glamor = pvfb->glamor;
     pScreenPtr = pScreen;
 
     if (eventFd == -1)
@@ -817,17 +859,20 @@ static Bool lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **ar
           || !(pScreen->CreateScreenResources = lorieCreateScreenResources) // Simply replace unneeded function
           || !(!pvfb->dri3 || dri3_screen_init(pScreen, &lorieDri3Info))
           || !fbPictureInit(pScreen, 0, 0)
-          || !exaDriverInit(pScreen, &lorieExa)
+          || !(glamor ? lorieGlamorInit(pScreen) : exaDriverInit(pScreen, &lorieExa))
           || !lorieRandRInit(pScreen)
           || !miPointerInitialize(pScreen, &loriePointerSpriteFuncs, &loriePointerCursorFuncs, TRUE)
           || !fbCreateDefColormap(pScreen)
           || !present_screen_init(pScreen, &loriePresentInfo))
         return FALSE;
 
+    log(INFO, "glamor is %sabled", glamor ? "en" : "dis");
+
     pvfb->CloseScreen = pScreen->CloseScreen;
     pvfb->SetWindowPixmap = pScreenPtr->SetWindowPixmap;
     pScreen->CloseScreen = lorieCloseScreen;
-    pScreen->SetWindowPixmap = lorieSetWindowPixmap;
+    if (!glamor)
+        pScreen->SetWindowPixmap = lorieSetWindowPixmap;
 
     ShmRegisterFbFuncs(pScreen);
     miSyncShmScreenInit(pScreen);

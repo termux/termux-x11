@@ -35,14 +35,12 @@ void lorieHandleClipboardData(const char* data);
 void lorieSetStylusEnabled(Bool enabled);
 void lorieSyncLockKeysState(uint8_t state);
 void lorieWakeServer(void);
-void lorieRecheckGpuCopies(void);
 void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d);
 void lorieActivityConnected(void);
 void lorieSendSharedServerState(int memfd);
 void lorieRegisterBuffer(LorieBuffer* buffer);
 void lorieUnregisterBuffer(LorieBuffer* buffer);
 bool lorieConnectionAlive(int fd);
-extern bool lorieDebugEnabled; // Set in activity.cpp's startLogcat, only called when TERMUX_X11_DEBUG=1.
 void lorieSetRendererWakeupCond(int fd);
 void lorieSetCursorVisible(Bool visible);
 void lorieSendSyncReply(uint32_t serial);
@@ -57,7 +55,7 @@ extern const size_t lorieExtendedKeysCount;
 void registerCmdEntryPointNatives(JNIEnv *env);
 void lorieListenForKnocks(int port, const char *tag);
 
-__unused void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled, int* renderer_relock);
+__unused void rendererTestCapabilities(int* legacy_drawing, int* renderer_relock);
 int rendererRelockProbeChild(int fd);
 
 static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_t* lockingPid, int connFd) {
@@ -120,7 +118,6 @@ typedef enum {
     EVENT_CLIPBOARD_SEND,
     EVENT_WINDOW_FOCUS_CHANGED,
     EVENT_RENDERER_WAKEUP_COND,
-    EVENT_GPU_COPY_DONE,
     EVENT_LOCK_KEYS_STATE,
     EVENT_SYNC,
     EVENT_SYNC_REPLY,
@@ -186,20 +183,6 @@ typedef union {
     } sync;
 } lorieEvent;
 
-typedef struct { int16_t x1, y1, x2, y2; } LorieGpuCopyRect;
-
-#define LORIE_GPU_COPY_MAX_RECTS 64
-#define LORIE_GPU_COPY_QUEUE_CAPACITY 8
-
-typedef struct {
-    uint64_t serial;
-    uint64_t srcBufferId;
-    uint64_t dstBufferId;
-    int16_t xOff, yOff;
-    uint16_t numRects;
-    LorieGpuCopyRect rects[LORIE_GPU_COPY_MAX_RECTS];
-} LorieGpuCopyEntry;
-
 struct lorie_shared_server_state {
     /*
      * Renderer and X server are separated into 2 different processes.
@@ -209,18 +192,6 @@ struct lorie_shared_server_state {
      */
     pthread_mutex_t lock; // initialized at X server side.
     pid_t lockingPid;
-
-    /*
-     * Single-producer (X server, present_execute_copy)/single-consumer (renderer) ring buffer
-     * of deferred GPU copies to be applied to the root window texture before it is drawn to screen.
-     * X server only ever advances writeIndex, renderer only ever advances readIndex and completedSerial.
-     */
-    struct {
-        volatile uint32_t writeIndex;
-        volatile uint32_t readIndex;
-        volatile uint64_t completedSerial;
-        LorieGpuCopyEntry entries[LORIE_GPU_COPY_QUEUE_CAPACITY];
-    } gpuCopyQueue;
 
     /* ID of root window texture to be drawn. */
     uint64_t rootWindowTextureID;
@@ -322,9 +293,6 @@ struct Renderer {
         bool cursorChanged;
     } cursor{};
 
-    // FBO used to blit deferred Present "copy" entries (see lorieTryScheduleGpuCopy) into the root texture.
-    GLuint gpuCopyFbo = 0;
-
     GLuint g_texture_program = 0, gv_pos = 0, gv_coords = 0;
     GLuint g_texture_program_bgra = 0, gv_pos_bgra = 0, gv_coords_bgra = 0;
 
@@ -340,7 +308,6 @@ struct Renderer {
 
     // Formerly function-local statics; moved here for the same reason as everything else above -
     // they are per-instance state, not per-process.
-    uint64_t dstSizeLogCount = 0, srcSizeLogCount = 0;
     uint64_t lastRequestedBufferId = 0;
 
     volatile int* connFdPtr = nullptr;
@@ -351,7 +318,7 @@ struct Renderer {
     void* initThread();
     int getWakeupCondFd() const;
     void setFiltering(jint f);
-    void testCapabilities(int* legacy_drawing, int* gpu_present_disabled, int* renderer_relock);
+    void testCapabilities(int* legacy_drawing, int* renderer_relock);
     void setSharedState(struct lorie_shared_server_state* newState);
     void addBuffer(LorieBuffer* buf);
     void removeBuffer(uint64_t id);
@@ -364,14 +331,10 @@ struct Renderer {
     void setFollowCursorPan(bool enabled);
     void releaseWinAndSurface(ANativeWindow** anw, EGLSurface* esfc);
     void refreshContext();
-    LorieBuffer* findBufferWithRetry(uint64_t id);
-    uint64_t applyPendingGpuCopiesLocked();
-    void applyPendingGpuCopies();
     void redrawLocked(bool* waitingForBuffers);
     bool shouldWait(bool* waitingForBuffers);
     void threadLoop();
     void bindTexture(GLuint id) const;
-    void notifyGpuCopyDone() const;
     void reportViewport(int dstX, int dstY, int dstW, int dstH, float left, float top, float width, float height);
     void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip);
     void drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop, float cursorX, float cursorY);

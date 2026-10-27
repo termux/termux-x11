@@ -439,14 +439,6 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                     lorieSetRendererWakeupCond(wakeupFd);
                 break;
             }
-            case EVENT_GPU_COPY_DONE:
-                QueueWorkProc(+[](__unused ClientPtr pClient, __unused void *closure) -> Bool {
-                    // This must be done only on X server thread (touches present's internal vblank queue).
-                    lorieRecheckGpuCopies();
-                    return TRUE;
-                }, nullptr, nullptr);
-                lorieWakeServer();
-                break;
             case EVENT_SYNC: {
                 auto serial = (uintptr_t) e.sync.serial;
                 QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {

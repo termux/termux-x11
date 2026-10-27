@@ -38,6 +38,7 @@
 #include "fbconfigs.h"
 #include "inpututils.h"
 #include "exa.h"
+#include <poll.h>
 #include "glamor.h"
 #include "drm_fourcc.h"
 #include "opaque.h"
@@ -1120,6 +1121,15 @@ static ExaDriverRec lorieExa = {
         .CreatePixmap2 = lorieCreatePixmap, .DestroyPixmap = lorieExaDestroyPixmap,
         .ModifyPixmapHeader = lorieModifyPixmapHeader,
 };
+
+int lorieCopyFenceExport(void) {
+    return pvfb->glamor ? lorieGlamorExportFence() : -1;
+}
+
+Bool lorieCopyFenceSignaled(int fd) {
+    struct pollfd pfd = {.fd = fd, .events = POLLIN};
+    return poll(&pfd, 1, 0) != 0;
+}
 
 static LorieBuffer *lorieReceiveSocketBuffer(int fd, AHardwareBuffer_Desc *desc) {
     AHardwareBuffer *ahb = NULL;

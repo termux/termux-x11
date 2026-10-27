@@ -354,15 +354,73 @@
      present_check_flip2_ptr             check_flip2;
  
 +++ ./present/present_execute.c
-@@ -34,5 +34,7 @@
+@@ -20,6 +20,7 @@
+  * OF THIS SOFTWARE.
+  */
+ 
++#include <unistd.h>
+ #include "present_priv.h"
+ 
+ /*
+@@ -33,6 +34,17 @@
+     present_vblank_ptr      vblank = param;
      ScreenPtr               screen = vblank->screen;
      present_screen_priv_ptr screen_priv = present_screen_priv(screen);
--
 +    /* lorie: disarm, or miSyncTriggerFence()'s restart-scan re-fires this callback. */
 +    present_fence_set_callback(vblank->wait_fence, NULL, NULL);
 +
++    screen_priv->re_execute(vblank);
++}
++
++static void
++present_copy_fence_notify(int fd, int ready, void *param)
++{
++    present_vblank_ptr      vblank = param;
++    present_screen_priv_ptr screen_priv = present_screen_priv(vblank->screen);
+ 
      screen_priv->re_execute(vblank);
  }
+@@ -79,12 +91,40 @@
+         return;
+     }
+ 
++    if (vblank->copy_fence_fd >= 0) {
++        if (!lorieCopyFenceSignaled(vblank->copy_fence_fd) && lorieConnectionAlive(conn_fd) &&
++            Success == screen_priv->queue_vblank(screen, window, vblank->crtc, vblank->event_id, crtc_msc + 1)) {
++            vblank->queued = TRUE;
++            return;
++        }
++        present_copy_fence_clear(vblank);
++        screen_priv->flush(window);
++        present_pixmap_idle(vblank->pixmap, vblank->window, vblank->serial, vblank->idle_fence);
++        return;
++    }
++
+     present_copy_region(&window->drawable, vblank->pixmap, vblank->update, vblank->x_off, vblank->y_off);
+ 
+     /* present_copy_region sticks the region into a scratch GC,
+      * which is then freed, freeing the region
+      */
+     vblank->update = NULL;
++
++    int fence_fd = lorieCopyFenceExport();
++    if (fence_fd >= 0) {
++        if (SetNotifyFd(fence_fd, present_copy_fence_notify, X_NOTIFY_READ, vblank)) {
++            if (Success == screen_priv->queue_vblank(screen, window, vblank->crtc, vblank->event_id, crtc_msc + 1)) {
++                vblank->copy_fence_fd = fence_fd;
++                vblank->queued = TRUE;
++                return;
++            }
++            RemoveNotifyFd(fence_fd);
++        }
++        while (!lorieCopyFenceSignaled(fence_fd))
++            usleep(100);
++        close(fence_fd);
++    }
++
+     screen_priv->flush(window);
+ 
+     present_pixmap_idle(vblank->pixmap, vblank->window, vblank->serial, vblank->idle_fence);
 +++ ./present/present_priv.h
 @@ -24,6 +24,7 @@
  #define _PRESENT_PRIV_H_
@@ -372,12 +430,20 @@
  #include <X11/X.h>
  #include "scrnintstr.h"
  #include "misc.h"
-@@ -91,6 +92,9 @@
+@@ -91,6 +92,17 @@
      Bool                has_suboptimal; /* whether client can support SuboptimalCopy mode */
++
++    int                 copy_fence_fd;
  };
 
 +extern bool lorieConnectionAlive(int fd);
 +extern volatile int conn_fd;
++
++/* lorie: implemented in lorie/InitOutput.c. Returns a fence fd that signals once the GPU has
++ * finished the Present copy just issued, or -1 if there is none (the copy is then already complete). */
++extern int lorieCopyFenceExport(void);
++extern Bool lorieCopyFenceSignaled(int fd);
++extern void present_copy_fence_clear(present_vblank_ptr vblank);
 +
  typedef struct present_screen_priv present_screen_priv_rec, *present_screen_priv_ptr;
  typedef struct present_window_priv present_window_priv_rec, *present_window_priv_ptr;
@@ -392,6 +458,55 @@
                  return;
              }
  
++++ ./present/present_vblank.c
+@@ -20,6 +20,7 @@
+  * OF THIS SOFTWARE.
+  */
+ 
++#include <unistd.h>
+ #include "present_priv.h"
+ 
+ void
+@@ -170,6 +171,8 @@
+     if (!vblank)
+         return NULL;
+ 
++    vblank->copy_fence_fd = -1;
++
+     if (present_vblank_init(vblank, window, pixmap, serial, valid, update,
+                             x_off, y_off, target_crtc, wait_fence, idle_fence,
+                             options, capabilities, notifies, num_notifies,
+@@ -180,9 +183,21 @@
+     return NULL;
+ }
+ 
++void
++present_copy_fence_clear(present_vblank_ptr vblank)
++{
++    if (vblank->copy_fence_fd >= 0) {
++        RemoveNotifyFd(vblank->copy_fence_fd);
++        close(vblank->copy_fence_fd);
++        vblank->copy_fence_fd = -1;
++    }
++}
++
+ void
+ present_vblank_scrap(present_vblank_ptr vblank)
+ {
++    present_copy_fence_clear(vblank);
++
+     DebugPresent(("\tx %" PRIu64 " %p %" PRIu64 " %" PRIu64 ": %08" PRIx32 " -> %08" PRIx32 " (crtc %p)\n",
+                   vblank->event_id, vblank, vblank->exec_msc, vblank->target_msc,
+                   vblank->pixmap->drawable.id, vblank->window->drawable.id,
+@@ -200,6 +215,8 @@
+ void
+ present_vblank_destroy(present_vblank_ptr vblank)
+ {
++    present_copy_fence_clear(vblank);
++
+     /* Remove vblank from window and screen lists */
+     xorg_list_del(&vblank->window_list);
+     /* Also make sure vblank is removed from event queue (wnmd) */
 +++ ./xkb/ddxLoad.c
 @@ -56,6 +56,9 @@
  #define PATHSEPARATOR "/"

@@ -154,6 +154,20 @@ void lorieGlamorFinish(void) {
     glFinish();
 }
 
+int lorieGlamorExportFence(void) {
+    int fd = -1;
+    EGLSyncKHR sync = lorieGl.eglCreateSync(lorieEglDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
+
+    if (sync != EGL_NO_SYNC_KHR) {
+        glFlush();
+        fd = lorieGl.eglDupNativeFenceFd(lorieEglDisplay, sync);
+        lorieGl.eglDestroySync(lorieEglDisplay, sync);
+    }
+    if (fd == EGL_NO_NATIVE_FENCE_FD_ANDROID)
+        glFinish();
+    return fd;
+}
+
 Bool lorieGlamorInit(ScreenPtr screen) {
     if (!lorieGlamorEglInit()) {
         glog("EGL init failed: 0x%x", eglGetError());

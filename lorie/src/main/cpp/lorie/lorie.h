@@ -38,6 +38,7 @@ void lorieWakeServer(void);
 void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d);
 Bool lorieGlamorInit(ScreenPtr screen);
 void lorieGlamorFinish(void);
+int lorieGlamorExportFence(void);
 void lorieActivityConnected(void);
 void lorieSendSharedServerState(int memfd);
 void lorieRegisterBuffer(LorieBuffer* buffer);

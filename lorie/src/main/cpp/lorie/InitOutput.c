@@ -206,11 +206,6 @@ void lorieActivityConnected(void) {
     lorieRegisterBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate));
 }
 
-static LoriePixmapPriv* lorieRootWindowPixmapPriv(void) {
-    void* devPriv = pScreenPtr ? pScreenPtr->devPrivate : NULL;
-    return devPriv ? exaGetPixmapDriverPrivate(devPriv) : NULL;
-}
-
 static Bool TrueNoop() { return TRUE; }
 static Bool FalseNoop() { return FALSE; }
 static void VoidNoop() {}
@@ -273,23 +268,25 @@ static void* ddxReadyThread(unused void* cookie) {
     return NULL;
 }
 
-void drawSquare(int x, int y, int l, uint32_t color, uint32_t stride, uint32_t* pixels) {
-    for (int i=0; i<l; i++) for (int j=0; j<l; j++)
-        pixels[(j+y)*stride + x + i] = color;
-}
+Bool drawSquares(unused ClientPtr client, unused void *closure) {
+    static const CARD32 colors[] = {0xFF0000, 0x00FF00, 0x0000FF};
+    DrawablePtr root = &pScreenPtr->root->drawable;
+    GCPtr gc = GetScratchGC(root->depth, pScreenPtr);
+    int l = min(root->width, root->height) / 4;
 
-Bool drawSquares() {
-    LoriePixmapPriv* priv = lorieRootWindowPixmapPriv();
-    uint32_t* pixels = !priv ? NULL : priv->locked;
-    if (pixels) {
-        const LorieBuffer_Desc *d = LorieBuffer_description(priv->buffer);
-        int l = min(d->width, d->height) / 4, x = (d->width - l)/2, y = (d->height - l)/2;
+    if (!gc)
+        return FALSE;
 
-        drawSquare(x - l/3, y - l/3, l, 0x00FF0000, d->stride, pixels);
-        drawSquare(x, y, l, 0x0000FF00, d->stride, pixels);
-        drawSquare(x + l/3, y + l/3, l, 0x000000FF, d->stride, pixels);
+    for (int i = 0; i < 3; i++) {
+        ChangeGCVal foreground = { .val = colors[i] };
+        xRectangle rect = { (root->width - l) / 2 + (i - 1) * (l / 3), (root->height - l) / 2 + (i - 1) * (l / 3), l, l };
+
+        ChangeGC(NullClient, gc, GCForeground, &foreground);
+        ValidateGC(root, gc);
+        gc->ops->PolyFillRect(root, gc, 1, &rect);
     }
 
+    FreeScratchGC(gc);
     return FALSE;
 }
 

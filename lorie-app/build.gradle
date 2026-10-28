@@ -1,5 +1,25 @@
+import groovy.xml.XmlSlurper
+import com.android.build.api.artifact.SingleArtifact
+
 apply plugin: 'com.android.application'
 apply from: '../lorie/version.gradle'
+
+abstract class VerifySharedUidProcess extends DefaultTask {
+    @InputFile
+    abstract RegularFileProperty getManifest()
+
+    @TaskAction
+    void verify() {
+        def root = new XmlSlurper(false, false).parse(manifest.get().asFile)
+        def appProcess = root.application.@'android:process'.text()
+        def offenders = ['activity', 'activity-alias', 'service', 'receiver', 'provider'].collectMany { type ->
+            root.application."$type".findAll { (it.@'android:process'.text() ?: appProcess) != 'com.termux' }
+                .collect { "$type ${it.@'android:name'}" }
+        }
+        if (!offenders.isEmpty())
+            throw new GradleException("sharedUid components must run in process com.termux: ${offenders.join(', ')}")
+    }
+}
 
 android {
     namespace 'com.termux.x11.app'
@@ -47,6 +67,12 @@ androidComponents {
         def name = variant.flavorName == 'standalone' ? variant.buildType : "${variant.flavorName}-${variant.buildType}"
         variant.outputs.each { output ->
             output.outputFileName.set("termux-x11-universal-${name}.apk")
+        }
+        if (variant.flavorName == 'sharedUid') {
+            def verify = tasks.register("verify${variant.name.capitalize()}Process", VerifySharedUidProcess) {
+                manifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST.INSTANCE))
+            }
+            tasks.matching { it.name == "package${variant.name.capitalize()}" }.configureEach { dependsOn(verify) }
         }
     }
 }

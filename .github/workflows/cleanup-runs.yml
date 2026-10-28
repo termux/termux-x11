@@ -1,0 +1,55 @@
+name: Clean up workflow runs
+
+on:
+  schedule:
+    - cron: '41 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List matching runs without deleting them
+        type: boolean
+        default: true
+
+permissions:
+  actions: write
+
+concurrency:
+  group: cleanup-workflow-runs
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete expired and standalone Dependabot runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_ID: ${{ github.repository_id }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        shell: bash
+        run: |
+          runs="$RUNNER_TEMP/cleanup-runs.tsv"
+          gh api --paginate "repos/$REPOSITORY/actions/runs?per_page=100&exclude_pull_requests=false" |
+            jq -r --argjson repository_id "$REPOSITORY_ID" --argjson now "$(date +%s)" '
+              .workflow_runs[]
+              | select(.status == "completed")
+              | select(
+                  (.created_at | fromdateiso8601) < ($now - 13 * 7 * 86400)
+                  or (
+                    .event == "dynamic"
+                    and .path == "dynamic/dependabot/dependabot-updates"
+                    and (any(.pull_requests[]; .base.repo.id == $repository_id) | not)
+                  )
+                )
+              | [.id, .html_url] | @tsv
+            ' > "$runs"
+
+          while IFS=$'\t' read -r id url; do
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "Would delete $url"
+            else
+              echo "Deleting $url"
+              gh api --method DELETE "repos/$REPOSITORY/actions/runs/$id"
+            fi
+          done < "$runs"
+          echo "Matched $(wc -l < "$runs") runs"

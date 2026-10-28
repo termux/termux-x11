@@ -5,21 +5,16 @@ import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.os.Build.VERSION.SDK_INT;
 import static android.view.KeyEvent.*;
 import static android.view.WindowManager.LayoutParams.*;
-import static com.termux.x11.CmdEntryPoint.ACTION_START;
-import static com.termux.x11.LoriePreferences.ACTION_PREFERENCES_CHANGED;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.ActivityOptions;
 import android.app.AppOpsManager;
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
 import android.app.PictureInPictureParams;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.content.res.Resources;
@@ -34,10 +29,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
-import android.os.RemoteException;
 import android.os.SystemClock;
 import android.provider.Settings;
-import android.service.notification.StatusBarNotification;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Rational;
@@ -63,12 +56,13 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.Toast;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.NotificationCompat;
 import androidx.core.math.MathUtils;
 import androidx.core.view.ViewCompat;
 import androidx.viewpager.widget.ViewPager;
@@ -82,8 +76,15 @@ import com.termux.x11.utils.KeyInterceptor;
 import com.termux.x11.utils.TermuxX11ExtraKeys;
 import com.termux.x11.utils.X11ToolbarViewPager;
 
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 @Keep @SuppressLint("ApplySharedPref")
 @SuppressWarnings({"deprecation", "unused"})
@@ -97,9 +98,6 @@ public class MainActivity extends AppCompatActivity {
     TouchInputHandler mInputHandler;
     protected ICmdEntryInterface service = null;
     public TermuxX11ExtraKeys mExtraKeys;
-    private Notification mNotification;
-    private final int mNotificationId = 7892;
-    NotificationManager mNotificationManager;
     private DisplayManager displayManager;
     private boolean showIMEWhileExternalConnected = true;
     private boolean externalKeyboardConnected = false;
@@ -111,36 +109,19 @@ public class MainActivity extends AppCompatActivity {
     private Rect orientationDeniedAt = null;
     private String screenIdleTimeoutArmedMode = null; // numeric screenIdleTimeout mode the pending idle check reflects, or null if none pending
     private final Runnable screenIdleTimeoutCheck = this::checkScreenIdleTimeout;
+    private static final long SERVER_WATCHDOG_INTERVAL_MS = 200, SERVER_HEARTBEAT_TIMEOUT_MS = 3000;
+    private final Runnable serverWatchdog = this::checkServerHeartbeat;
+    @Keep private long lastServerHeartbeat;
+    private long lastServerWatchdogRun;
     /** Aspect ratios outside of the range the device is configured with are rejected by the system. */
     private static final float MIN_PIP_ASPECT_RATIO = getSystemDimenFloat("config_pictureInPictureMinAspectRatio", 1.f / 2.39f);
     private static final float MAX_PIP_ASPECT_RATIO = getSystemDimenFloat("config_pictureInPictureMaxAspectRatio", 2.39f);
 
-    public static Prefs prefs = null;
+    public Prefs prefs;
+    LorieApp app;
 
     private boolean oldFullscreen = false, oldHideCutout = false;
-    private final SharedPreferences.OnSharedPreferenceChangeListener preferencesChangedListener = (__, key) -> onPreferencesChanged(key);
     private OrientationEventListener orientationListener;
-
-    public void onBroadcastReceive(Context context, Intent intent) {
-        prefs.recheckStoringSecondaryDisplayPreferences();
-        if (ACTION_START.equals(intent.getAction())) {
-            try {
-                Log.v("LorieBroadcastReceiver", "Got new ACTION_START intent");
-                onReceiveConnection(intent);
-            } catch (Exception e) {
-                Log.e("MainActivity", "Something went wrong while we extracted connection details from binder.", e);
-            }
-        } else if (ACTION_STOP.equals(intent.getAction())) {
-            finishAffinity();
-        } else if (ACTION_PREFERENCES_CHANGED.equals(intent.getAction())) {
-            Log.d("MainActivity", "preference: " + intent.getStringExtra("key"));
-            if (!"additionalKbdVisible".equals(intent.getStringExtra("key")))
-                onPreferencesChanged("");
-        } else if (ACTION_CUSTOM.equals(intent.getAction())) {
-            android.util.Log.d("ACTION_CUSTOM", "action " + intent.getStringExtra("what"));
-            mInputHandler.extractUserActionFromPreferences(prefs, intent.getStringExtra("what")).accept(0, true);
-        }
-    }
 
     ViewTreeObserver.OnPreDrawListener mOnPredrawListener = new ViewTreeObserver.OnPreDrawListener() {
         @Override
@@ -159,19 +140,146 @@ public class MainActivity extends AppCompatActivity {
         content.invalidate();
     }
 
-    @SuppressLint("StaticFieldLeak")
-    private static MainActivity instance;
+    // "-tag <tag>" windows register here, keyed by tag ("" for the default window). Weakly
+    // held so a window that dies without deregistering isn't pinned in memory.
+    private static final Map<String, WeakReference<MainActivity>> instances = new HashMap<>();
+    private String tag = "";
+    private boolean redirected;
 
-    public MainActivity() {
-        instance = this;
+    /** Redirects a tagged intent that landed on plain MainActivity to MainActivityTagged. Returns the parsed tag, or null if it relaunched. */
+    private String relaunchAsTaggedIfNeeded(Intent intent, boolean finishSelf) {
+        // Tag comes from the launch Intent's data: either the host of a "termux-x11-window://<tag>"
+        // URI, or a bare schemeless value ("-d <tag>") used as the tag directly.
+        Uri docData = intent.getData();
+        String tag = docData != null && docData.getHost() != null ? docData.getHost()
+                : docData != null && docData.getScheme() == null ? docData.toString() : "";
+
+        if (tag.isEmpty() || this instanceof MainActivityTagged)
+            return tag;
+
+        if (finishSelf)
+            finish();
+        startTaggedActivity(new Intent(intent));
+        return null;
     }
 
-    public static Prefs getPrefs() {
-        return prefs;
+    public String getTag() {
+        return tag;
     }
 
-    public static MainActivity getInstance() {
-        return instance;
+    /** The window registered under the given "-tag" argument, or the default window for "". */
+    public static MainActivity getInstance(String tag) {
+        WeakReference<MainActivity> ref = instances.get(tag == null ? "" : tag);
+        return ref != null ? ref.get() : null;
+    }
+
+    /** Whichever window currently has input focus, or null if none does. */
+    public static MainActivity getFocusedInstance() {
+        for (WeakReference<MainActivity> ref : instances.values()) {
+            MainActivity a = ref.get();
+            if (a != null && a.hasWindowFocus())
+                return a;
+        }
+        return null;
+    }
+
+    /** All windows that are currently alive. */
+    public static List<MainActivity> getInstances() {
+        List<MainActivity> result = new ArrayList<>();
+        for (WeakReference<MainActivity> ref : instances.values()) {
+            MainActivity a = ref.get();
+            if (a != null)
+                result.add(a);
+        }
+        return result;
+    }
+
+    private void showDisplaysDialog() {
+        Set<String> tagSet = new TreeSet<>();
+        for (Map.Entry<String, WeakReference<MainActivity>> e : instances.entrySet()) {
+            MainActivity a = e.getValue().get();
+            if (a != null && a != this && !e.getKey().isEmpty())
+                tagSet.add(e.getKey());
+        }
+        for (String pendingTag : app.pendingConnections.keySet())
+            if (!pendingTag.isEmpty())
+                tagSet.add(pendingTag);
+        tagSet.remove(tag);
+        if (tagSet.isEmpty()) {
+            Toast.makeText(this, R.string.displays_dialog_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        List<String> tags = new ArrayList<>(tagSet);
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.displays_dialog_title)
+                .setItems(tags.toArray(new CharSequence[0]), (dialog, which) -> startTaggedActivity(new Intent().setData(Uri.parse(tags.get(which)))))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** Launches (or switches to) the MainActivityTagged window for the given intent's data. */
+    private void startTaggedActivity(Intent intent) {
+        intent.setClass(this, MainActivityTagged.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        startActivity(intent, freeformActivityOptions());
+    }
+
+    /** ActivityOptions requesting freeform windowing mode. */
+    private static Bundle freeformActivityOptions() {
+        ActivityOptions opts = ActivityOptions.makeBasic();
+        nativeSetLaunchWindowingModeFreeform(opts);
+        return opts.toBundle();
+    }
+
+    /** The focused window, or any window that hasn't been garbage-collected yet, or null if none are alive. */
+    public static MainActivity getFocusedOrAnyInstance() {
+        MainActivity focused = getFocusedInstance();
+        if (focused != null)
+            return focused;
+        for (WeakReference<MainActivity> ref : instances.values()) {
+            MainActivity a = ref.get();
+            if (a != null)
+                return a;
+        }
+        return null;
+    }
+
+    private final Set<Integer> pressedKeys = new LinkedHashSet<>();
+
+    public void markKeyPressed(int keyCode) {
+        pressedKeys.add(keyCode);
+    }
+
+    public void markKeyReleased(int keyCode) {
+        pressedKeys.remove(keyCode);
+    }
+
+    /** The window that considers the given key code held down, if any. */
+    public static MainActivity getInstanceWithPressedKey(int keyCode) {
+        for (WeakReference<MainActivity> ref : instances.values()) {
+            MainActivity a = ref.get();
+            if (a != null && a.pressedKeys.contains(keyCode))
+                return a;
+        }
+        return null;
+    }
+
+    /** Whether any window still has a key held down. */
+    public static boolean anyInstanceHasPressedKeys() {
+        for (WeakReference<MainActivity> ref : instances.values()) {
+            MainActivity a = ref.get();
+            if (a != null && !a.pressedKeys.isEmpty())
+                return true;
+        }
+        return false;
+    }
+
+    public static void clearAllPressedKeys() {
+        for (WeakReference<MainActivity> ref : instances.values()) {
+            MainActivity a = ref.get();
+            if (a != null)
+                a.pressedKeys.clear();
+        }
     }
 
     /** Unwraps the {@link MainActivity} a view's {@link Context} was inflated with, if any. */
@@ -189,15 +297,24 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        prefs = new Prefs(this);
+        app = (LorieApp) getApplication();
+
+        String parsedTag = relaunchAsTaggedIfNeeded(getIntent(), true);
+        if (parsedTag == null) {
+            redirected = true;
+            return;
+        }
+        tag = parsedTag;
+
+        instances.put(tag, new WeakReference<>(this));
+
+        prefs = app.getPrefs(this);
         int modeValue = Integer.parseInt(prefs.touchMode.get()) - 1;
         if (modeValue > 2)
             prefs.touchMode.put("1");
 
         oldFullscreen = prefs.fullscreen.get();
         oldHideCutout = prefs.hideCutout.get();
-
-        prefs.get().registerOnSharedPreferenceChangeListener(preferencesChangedListener);
 
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.main_activity);
@@ -207,6 +324,7 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.preferences_button).setOnClickListener((l) -> startActivity(new Intent(this, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}));
         findViewById(R.id.help_button).setOnClickListener((l) -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/termux/termux-x11/blob/master/README.md#running-graphical-applications"))));
         findViewById(R.id.exit_button).setOnClickListener((l) -> finish());
+        findViewById(R.id.displays_button).setOnClickListener((l) -> showDisplaysDialog());
 
         LorieView lorieView = findViewById(R.id.lorieView);
         View lorieParent = (View) lorieView.getParent();
@@ -264,9 +382,10 @@ public class MainActivity extends AppCompatActivity {
         });
 
         ImeHeightProvider.assistActivity(this);
-        mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        mNotification = buildNotification();
-        mNotificationManager.notify(mNotificationId, mNotification);
+
+        IBinder pendingConnection = app.pendingConnections.remove(tag);
+        if (pendingConnection != null)
+            connectToService(pendingConnection);
 
         if (tryConnect()) {
             final View content = findViewById(android.R.id.content);
@@ -286,17 +405,23 @@ public class MainActivity extends AppCompatActivity {
             requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 0);
         }
 
-        onReceiveConnection(getIntent());
         findViewById(android.R.id.content).addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> makeSureHelpersAreVisibleAndInScreenBounds());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        relaunchAsTaggedIfNeeded(intent, false);
     }
 
     @Override
     protected void onDestroy() {
         handler.removeCallbacks(screenIdleTimeoutCheck);
+        handler.removeCallbacks(serverWatchdog);
         if (mInputHandler != null)
             mInputHandler.onDestroy();
-        if (instance == this)
-            instance = null;
+        instances.values().removeIf(ref -> ref.get() == this);
         super.onDestroy();
     }
 
@@ -421,12 +546,16 @@ public class MainActivity extends AppCompatActivity {
         RectF result = new RectF(lorieView.getAvailableRect());
         result.offset(frm.getLeft() + lorieView.getLeft(), frm.getTop() + lorieView.getTop());
 
-        if (pager.getVisibility() == View.VISIBLE) {
-            // ekbar may not already be excluded from availableRect, so clamp against it separately.
-            int barThickness = pager.getMeasuredHeight();
+        // availableRect only excludes the IME when Reseed is on, so clamp against it unconditionally too.
+        result.bottom = Math.min(result.bottom, sharedParent.getHeight() - imeHeight);
+
+        // With adjustHeightForEK on, availableRect already excludes the bar's own space.
+        if (pager.getVisibility() == View.VISIBLE && !prefs.adjustHeightForEK.get()) {
+            // getLayoutParams() is up to date immediately; getWidth()/getHeight() lag until the next layout pass.
+            int barThickness = ((FrameLayout.LayoutParams) pager.getLayoutParams()).height;
             switch (getPagerPosition()) {
                 case PAGER_POSITION_TOP:    result.top    = Math.max(result.top, barThickness); break;
-                case PAGER_POSITION_BOTTOM: result.bottom = Math.min(result.bottom, sharedParent.getHeight() - barThickness); break;
+                case PAGER_POSITION_BOTTOM: result.bottom = Math.min(result.bottom, sharedParent.getHeight() - imeHeight - barThickness); break;
                 case PAGER_POSITION_LEFT:   result.left   = Math.max(result.left, barThickness); break;
                 case PAGER_POSITION_RIGHT:  result.right  = Math.min(result.right, sharedParent.getWidth() - barThickness); break;
             }
@@ -434,9 +563,18 @@ public class MainActivity extends AppCompatActivity {
         return result;
     }
 
+    private void positionNoServerSignal() {
+        final View parent = (View) frm.getParent();
+        final RectF rect = getVisibleFrmRect();
+        final View overlay = findViewById(R.id.no_server_signal);
+        overlay.setTranslationX(rect.centerX() - parent.getWidth() / 2f);
+        overlay.setTranslationY(rect.bottom - parent.getHeight() - 12 * getResources().getDisplayMetrics().density);
+    }
+
     private void makeSureHelpersAreVisibleAndInScreenBounds() {
         final ViewPager pager = getTerminalToolbarViewPager();
         final RectF frmRect = getVisibleFrmRect();
+        positionNoServerSignal();
         View mouseAuxButtons = findViewById(R.id.mouse_buttons);
         View stylusAuxButtons = findViewById(R.id.mouse_helper_visibility);
 
@@ -516,6 +654,7 @@ public class MainActivity extends AppCompatActivity {
                     break;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_POINTER_UP:
+                case MotionEvent.ACTION_CANCEL:
                     getLorieView().sendMouseEvent(0, 0, b, false, true);
                     v.setPressed(false);
                     break;
@@ -559,43 +698,36 @@ public class MainActivity extends AppCompatActivity {
                         }
                         break;
                     }
+                    case MotionEvent.ACTION_CANCEL:
+                        pos.setPressed(false);
+                        break;
                 }
                 return true;
             }
         });
     }
 
-    void onReceiveConnection(Intent intent) {
-        Bundle bundle = intent == null ? null : intent.getBundleExtra(null);
-        IBinder ibinder = bundle == null ? null : bundle.getBinder(null);
-        if (ibinder == null)
-            return;
-
+    void connectToService(IBinder ibinder) {
         service = ICmdEntryInterface.Stub.asInterface(ibinder);
         try {
-            service.asBinder().linkToDeath(() -> {
-                service = null;
-
-                Log.v("Lorie", "Disconnected");
-                runOnUiThread(() -> { getLorieView().connect(-1); clientConnectedStateChanged();} );
-            }, 0);
-        } catch (RemoteException ignored) {}
-
-        try {
             if (service != null && service.asBinder().isBinderAlive()) {
-                Log.v("LorieBroadcastReceiver", "Extracting logcat fd.");
+                Log.v("MainActivity", "Extracting logcat fd.");
                 ParcelFileDescriptor logcatOutput = service.getLogcatOutput();
                 if (logcatOutput != null)
                     getLorieView().startLogcat(logcatOutput.detachFd());
 
                 tryConnect();
-
-                if (intent != getIntent())
-                    getIntent().putExtra(null, bundle);
             }
         } catch (Exception e) {
             Log.e("MainActivity", "Something went wrong while we were establishing connection", e);
         }
+    }
+
+    void disconnectService() {
+        service = null;
+
+        Log.v("Lorie", "Disconnected");
+        runOnUiThread(() -> { getLorieView().connect(-1); clientConnectedStateChanged(); });
     }
 
     boolean tryConnect() {
@@ -645,7 +777,7 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint("UnsafeIntentLaunch")
     void onPreferencesChangedCallback() {
-        prefs.recheckStoringSecondaryDisplayPreferences();
+        prefs = app.getPrefs(this);
 
         // There is no way back to the normal size from picture-in-picture, so the window is closed.
         if (isInPictureInPictureMode && !prefs.PIP.get()) {
@@ -678,40 +810,58 @@ public class MainActivity extends AppCompatActivity {
         showMouseAuxButtons(prefs.showMouseHelper.get());
         showStylusAuxButtons(prefs.showStylusClickOverride.get());
 
-        getTerminalToolbarViewPager().setAlpha(isInPictureInPictureMode ? 0.f : ((float) prefs.opacityEKBar.get())/100);
+        getTerminalToolbarViewPager().setAlpha(isInPictureInPictureMode ? 0.f : prefs.adjustHeightForEK.get() ? 1.f : ((float) prefs.opacityEKBar.get())/100);
 
         lorieView.requestLayout();
         lorieView.invalidate();
 
-        for (StatusBarNotification notification: mNotificationManager.getActiveNotifications())
-            if (notification.getId() == mNotificationId) {
-                mNotification = buildNotification();
-                mNotificationManager.notify(mNotificationId, mNotification);
-            }
+        app.refreshNotificationIfShown();
     }
 
     @Override
     public void onResume() {
         super.onResume();
+        if (redirected)
+            return;
 
-        mNotification = buildNotification();
-        mNotificationManager.notify(mNotificationId, mNotification);
+        app.onActivityResumed(this);
 
         orientationListener.enable();
         setTerminalToolbarView();
         getLorieView().requestFocus();
+
+        lastServerHeartbeat = lastServerWatchdogRun = SystemClock.uptimeMillis();
+        handler.postDelayed(serverWatchdog, SERVER_WATCHDOG_INTERVAL_MS);
+    }
+
+    private void checkServerHeartbeat() {
+        long now = SystemClock.uptimeMillis();
+        // A late run means this thread was stalled, so queued heartbeats have not been read yet.
+        if (now - lastServerWatchdogRun > SERVER_HEARTBEAT_TIMEOUT_MS / 2)
+            lastServerHeartbeat = now;
+        lastServerWatchdogRun = now;
+
+        boolean silent = getLorieView().connected() && now - lastServerHeartbeat > SERVER_HEARTBEAT_TIMEOUT_MS;
+        positionNoServerSignal();
+        findViewById(R.id.no_server_signal).setVisibility(silent ? View.VISIBLE : View.GONE);
+        handler.postDelayed(serverWatchdog, SERVER_WATCHDOG_INTERVAL_MS);
     }
 
     @Override
     public void onPause() {
+        if (redirected) {
+            super.onPause();
+            return;
+        }
+
         getLorieView().setKeyboardVisible(false);
 
-        for (StatusBarNotification notification: mNotificationManager.getActiveNotifications())
-            if (notification.getId() == mNotificationId)
-                mNotificationManager.cancel(mNotificationId);
-
+        handler.removeCallbacks(serverWatchdog);
+        findViewById(R.id.no_server_signal).setVisibility(View.GONE);
         orientationListener.disable();
         super.onPause();
+
+        app.onActivityPaused();
     }
 
     public LorieView getLorieView() {
@@ -809,16 +959,21 @@ public class MainActivity extends AppCompatActivity {
     private int imeHeight = 0;
 
     private void applyContentInsets() {
-        int imeContentInset = prefs.Reseed.get() ? imeHeight : 0;
         int pos = getPagerPosition();
+        // Only a bar at the bottom has to step aside for the keyboard.
+        int bottomMargin = pos == PAGER_POSITION_BOTTOM ? imeHeight : 0;
+
+        // A bottom bar reserving its own space always sits right above the keyboard via bottomMargin,
+        // so content must stop there too, regardless of Reseed.
+        boolean barReservesKeyboardSpace = pos == PAGER_POSITION_BOTTOM && ekbarContentInset > 0;
+        int imeContentInset = barReservesKeyboardSpace ? bottomMargin : (prefs.Reseed.get() ? imeHeight : 0);
+
         getLorieView().setContentInsets(pos == PAGER_POSITION_LEFT ? ekbarContentInset : 0,
                 pos == PAGER_POSITION_TOP ? ekbarContentInset : 0,
                 pos == PAGER_POSITION_RIGHT ? ekbarContentInset : 0,
                 imeContentInset + (pos == PAGER_POSITION_BOTTOM ? ekbarContentInset : 0));
         getLorieView().setObscuredBottom(imeHeight - imeContentInset);
 
-        // Only a bar at the bottom has to step aside for the keyboard.
-        int bottomMargin = pos == PAGER_POSITION_BOTTOM ? imeHeight : 0;
         ViewPager pager = getTerminalToolbarViewPager();
         ViewGroup.MarginLayoutParams pagerParams = (ViewGroup.MarginLayoutParams) pager.getLayoutParams();
         if (pagerParams.bottomMargin != bottomMargin) {
@@ -855,38 +1010,13 @@ public class MainActivity extends AppCompatActivity {
         return mLorieKeyListener.onKey(getLorieView(), e.getKeyCode(), e);
     }
 
-    @SuppressLint("ObsoleteSdkInt")
-    Notification buildNotification() {
-        NotificationCompat.Builder builder =  new NotificationCompat.Builder(this, getNotificationChannel(mNotificationManager))
-                .setContentTitle("Termux:X11")
-                .setSmallIcon(R.drawable.ic_x11_icon)
-                .setContentText(getResources().getText(R.string.lorie_notification_content_text))
-                .setOngoing(true)
-                .setPriority(Notification.PRIORITY_MAX)
-                .setSilent(true)
-                .setShowWhen(false)
-                .setColor(0xFF607D8B);
-        return mInputHandler.setupNotification(prefs, builder).build();
-    }
-
-    private String getNotificationChannel(NotificationManager notificationManager){
-        String channelId = getResources().getString(R.string.lorie_app_name);
-        if (SDK_INT >= VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(channelId, channelId, NotificationManager.IMPORTANCE_HIGH);
-            channel.setImportance(NotificationManager.IMPORTANCE_HIGH);
-            channel.setLockscreenVisibility(Notification.VISIBILITY_SECRET);
-            if (SDK_INT >= VERSION_CODES.Q)
-                channel.setAllowBubbles(false);
-            notificationManager.createNotificationChannel(channel);
-        }
-        return channelId;
-    }
-
     int orientation, densityDpi;
 
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        if (redirected)
+            return;
 
         if (newConfig.orientation != orientation)
             getLorieView().setKeyboardVisible(false);
@@ -907,7 +1037,7 @@ public class MainActivity extends AppCompatActivity {
         KeyInterceptor.recheck();
 
         // The system bars come back when the window loses focus.
-        if (hasFocus) {
+        if (hasFocus && !redirected) {
             applyImmersiveMode();
             LorieView.markUserActivity();
             handler.removeCallbacks(screenIdleTimeoutCheck);
@@ -918,6 +1048,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onUserInteraction() {
         super.onUserInteraction();
+        if (redirected)
+            return;
+
         LorieView.markUserActivity();
         handler.removeCallbacks(screenIdleTimeoutCheck);
         checkScreenIdleTimeout();
@@ -1078,7 +1211,7 @@ public class MainActivity extends AppCompatActivity {
     @RequiresApi(api = VERSION_CODES.O)
     @Override
     public void onUserLeaveHint() {
-        if (!prefs.PIP.get() || !hasPipPermission(this) || !getLorieView().connected())
+        if (redirected || !prefs.PIP.get() || !hasPipPermission(this) || !getLorieView().connected())
             return;
 
         PictureInPictureParams.Builder params = new PictureInPictureParams.Builder();
@@ -1101,7 +1234,7 @@ public class MainActivity extends AppCompatActivity {
         this.isInPictureInPictureMode = isInPictureInPictureMode;
         getLorieView().onPictureInPictureModeChanged(isInPictureInPictureMode);
         final ViewPager pager = getTerminalToolbarViewPager();
-        pager.setAlpha(isInPictureInPictureMode ? 0.f : ((float) prefs.opacityEKBar.get())/100);
+        pager.setAlpha(isInPictureInPictureMode ? 0.f : prefs.adjustHeightForEK.get() ? 1.f : ((float) prefs.opacityEKBar.get())/100);
         findViewById(R.id.mouse_buttons).setAlpha(isInPictureInPictureMode ? 0.f : 0.7f);
         findViewById(R.id.mouse_helper_visibility).setAlpha(isInPictureInPictureMode ? 0.f : 1.f);
         setTerminalToolbarView();
@@ -1127,6 +1260,9 @@ public class MainActivity extends AppCompatActivity {
     void clientConnectedStateChanged() {
         runOnUiThread(()-> {
             boolean connected = getLorieView().connected();
+            lastServerHeartbeat = SystemClock.uptimeMillis();
+            if (!connected)
+                setCapturingEnabled(false);
 
             // A picture-in-picture window has nothing to show without a client, and there is no way
             // back to the normal size from it, so the window is closed.
@@ -1138,6 +1274,7 @@ public class MainActivity extends AppCompatActivity {
             setTerminalToolbarView();
             findViewById(R.id.mouse_buttons).setVisibility(prefs.showMouseHelper.get() && "1".equals(prefs.touchMode.get()) && connected ? View.VISIBLE : View.GONE);
             findViewById(R.id.stub).setVisibility(connected?View.INVISIBLE:View.VISIBLE);
+            findViewById(R.id.no_server_signal).setVisibility(View.GONE);
             getLorieView().setVisibility(connected?View.VISIBLE:View.INVISIBLE);
 
             // We should recover connection in the case if file descriptor for some reason was broken...
@@ -1176,5 +1313,14 @@ public class MainActivity extends AppCompatActivity {
         if (connected && !showIMEWhileExternalConnected)
             getLorieView().setKeyboardVisible(false);
         getLorieView().requestFocus();
+    }
+
+    private static native void nativeSetLaunchWindowingModeFreeform(Object activityOptions);
+
+    static {
+        System.loadLibrary("Xlorie");
+    }
+
+    public static class MainActivityTagged extends MainActivity {
     }
 }

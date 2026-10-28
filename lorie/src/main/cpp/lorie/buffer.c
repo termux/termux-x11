@@ -291,6 +291,9 @@ __LIBC_HIDDEN__ void __LorieBuffer_free(LorieBuffer* buffer) {
 
     xorg_list_del(&buffer->link);
 
+    if (buffer->locked)
+        LorieBuffer_unlock(buffer);
+
     if (eglGetCurrentContext())
         glDeleteTextures(1, &buffer->id);
 
@@ -347,6 +350,10 @@ __LIBC_HIDDEN__ int LorieBuffer_lock(LorieBuffer* buffer, void** out) {
     return ret;
 }
 
+__LIBC_HIDDEN__ bool LorieBuffer_isLocked(LorieBuffer* buffer) {
+    return buffer && buffer->locked;
+}
+
 __LIBC_HIDDEN__ int LorieBuffer_unlock(LorieBuffer* buffer) {
     int ret = 0;
     if (!buffer)
@@ -389,13 +396,13 @@ __LIBC_HIDDEN__ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuf
 
     // Reset process-specific data;
     buffer.refcount = 0;
-    buffer.locked = false;
     buffer.fd = -1;
-    buffer.lockedData = NULL;
     __sync_fetch_and_add(&buffer.refcount, 1); // refcount is the first object in the struct
 
     read(socketFd, &buffer, sizeof(buffer));
     buffer.image = NULL; // Only for process-local use
+    buffer.locked = false;
+    buffer.lockedData = NULL;
     if (buffer.desc.type == LORIEBUFFER_FD) {
         size_t size = buffer.desc.stride * buffer.desc.height * sizeof(uint32_t);
         buffer.fd = ancil_recv_fd(socketFd);
@@ -511,6 +518,11 @@ int LorieBuffer_recvAHardwareBufferHandleFromUnixSocket(int socketFd, AHardwareB
 void LorieBuffer_describeAHardwareBuffer(AHardwareBuffer* buffer, AHardwareBuffer_Desc* outDesc) {
     if (__builtin_available(android 26, *))
         AHardwareBuffer_describe(buffer, outDesc);
+}
+
+void LorieBuffer_releaseAHardwareBuffer(AHardwareBuffer* buffer) {
+    if (__builtin_available(android 26, *))
+        AHardwareBuffer_release(buffer);
 }
 
 __LIBC_HIDDEN__ int ancil_send_fd(int sock, int fd) {

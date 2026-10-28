@@ -29,7 +29,7 @@ jobs:
         submodules: false
         fetch-depth: 1
     - name: Validation
-      uses: gradle/actions/wrapper-validation@v6.3.0
+      uses: gradle/actions/wrapper-validation@v6.4.0
 
     - name: Java setup
       uses: actions/setup-java@v6
@@ -97,3 +97,24 @@ jobs:
           ./lorie-app/build/outputs/apk/sharedUid/debug/termux-x11-universal-sharedUid-debug.apk
           ./shell-loader/build/outputs/companion/termux-x11-*-all.deb
           ./shell-loader/build/outputs/companion/termux-x11-*-any.pkg.tar.xz
+
+  dependabot-merge:
+    name: "Dependabot merge"
+    needs: build
+    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    # pull_request caps the token at read-only for forks, and Dependabot runs start read-only too.
+    # Unlike a fork, a Dependabot branch lives in this repository, so the permissions below do apply.
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+    - name: Merge
+      run: |
+        if [[ "$PR_TITLE" =~ from\ v?([0-9]+)[^\ ]*\ to\ v?([0-9]+) && "${BASH_REMATCH[1]}" == "${BASH_REMATCH[2]}" ]]; then
+          gh pr merge --rebase "$PR_URL"
+        fi
+      env:
+        PR_URL: ${{ github.event.pull_request.html_url }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

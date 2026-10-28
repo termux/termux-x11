@@ -35,9 +35,12 @@
 
 static inline void lorieConvertLF(const char* src, char *dst, size_t bytes) {
     size_t i = 0, j = 0;
-    for (; i < bytes; i++)
+    for (; i < bytes; i++) {
         if (src[i] != '\r')
             dst[j++] = src[i];
+        else if (bytes - i < 2 || src[i + 1] != '\n')
+            dst[j++] = '\n';
+    }
 }
 
 static inline void lorieLatin1ToUTF8(unsigned char* out, const unsigned char* in) {
@@ -49,30 +52,37 @@ static inline void lorieLatin1ToUTF8(unsigned char* out, const unsigned char* in
 }
 
 static inline int lorieCheckUTF8(const unsigned char *utf, size_t size) {
-    int ix;
-    unsigned char c;
+    for (size_t ix = 0; ix < size;) {
+        unsigned char c = utf[ix];
+        size_t length;
 
-    for (ix = 0; (c = utf[ix]) && ix < size;) {
-        if (c & 0x80) {
-            if ((utf[ix + 1] & 0xc0) != 0x80)
-                return 0;
-            if ((c & 0xe0) == 0xe0) {
-                if ((utf[ix + 2] & 0xc0) != 0x80)
-                    return 0;
-                if ((c & 0xf0) == 0xf0) {
-                    if ((c & 0xf8) != 0xf0 || (utf[ix + 3] & 0xc0) != 0x80)
-                        return 0;
-                    ix += 4;
-                    /* 4-byte code */
-                } else
-                    /* 3-byte code */
-                    ix += 3;
-            } else
-                /* 2-byte code */
-                ix += 2;
-        } else
-            /* 1-byte code */
+        if (c < 0x80) {
             ix++;
+            continue;
+        } else if (c >= 0xc2 && c <= 0xdf) {
+            length = 2;
+        } else if (c >= 0xe0 && c <= 0xef) {
+            length = 3;
+        } else if (c >= 0xf0 && c <= 0xf4) {
+            length = 4;
+        } else {
+            return 0;
+        }
+
+        if (size - ix < length)
+            return 0;
+        for (size_t j = 1; j < length; j++)
+            if ((utf[ix + j] & 0xc0) != 0x80)
+                return 0;
+
+        unsigned char second = utf[ix + 1];
+        if ((c == 0xe0 && second < 0xa0) ||
+            (c == 0xed && second >= 0xa0) ||
+            (c == 0xf0 && second < 0x90) ||
+            (c == 0xf4 && second >= 0x90))
+            return 0;
+
+        ix += length;
     }
     return 1;
 }
@@ -155,8 +165,12 @@ static const char *lorieUtf8ToLatin1(const char *src) {
     }
 
     // Reserve space
-    unsigned char out[sz + 1];
-    memset(out, 0, sz + 1);
+    size_t capacity;
+    if (__builtin_add_overflow(sz, (size_t) 1, &capacity))
+        return NULL;
+    unsigned char *out = calloc(capacity, 1);
+    if (!out)
+        return NULL;
     size_t position = 0;
 
     // And convert
@@ -176,7 +190,7 @@ static const char *lorieUtf8ToLatin1(const char *src) {
             out[position++] = (unsigned char)ucs;
     }
 
-    return strdup((const char*) out);
+    return (const char*) out;
 }
 
 /* end utility functions */
@@ -247,29 +261,43 @@ static void lorieHandleSelection(Atom target) {
             lorieSelectionRequest(xaCLIPBOARD, xaSTRING);
     } else if (target == xaSTRING && prop->type == xaSTRING && prop->format == 8) {
         if (prop->format != 8 || prop->type != xaSTRING)
-            return;
+            return lorieSendClipboardData("");
 
-        char filtered[prop->size + 1], utf8[(prop->size + 1) * 2];
-        memset(filtered, 0, sizeof(filtered));
-        memset(utf8, 0, sizeof(utf8));
+        size_t capacity, utf8Capacity;
+        if (__builtin_add_overflow((size_t) prop->size, (size_t) 1, &capacity) ||
+            __builtin_mul_overflow(capacity, (size_t) 2, &utf8Capacity))
+            return lorieSendClipboardData("");
+        char *filtered = calloc(capacity, 1);
+        char *utf8 = calloc(utf8Capacity, 1);
+        if (!filtered || !utf8) {
+            free(filtered);
+            free(utf8);
+            return lorieSendClipboardData("");
+        }
 
         lorieConvertLF(prop->data,  filtered, prop->size);
         lorieLatin1ToUTF8((unsigned char*) utf8, (unsigned char*) filtered);
         log(DEBUG, "Sending clipboard to clients (%zu bytes)\n", strlen(utf8));
         lorieSendClipboardData(utf8);
+        free(filtered);
+        free(utf8);
     } else if (target == xaUTF8_STRING && prop->type == xaUTF8_STRING && prop->format == 8) {
-        char filtered[prop->size + 1];
-
         if (!lorieCheckUTF8(prop->data, prop->size)) {
             dprintf(2, "Invalid UTF-8 sequence in clipboard\n");
-            return;
+            return lorieSendClipboardData("");
         }
 
-        memset(filtered, 0, prop->size + 1);
+        size_t capacity;
+        if (__builtin_add_overflow((size_t) prop->size, (size_t) 1, &capacity))
+            return lorieSendClipboardData("");
+        char *filtered = calloc(capacity, 1);
+        if (!filtered)
+            return lorieSendClipboardData("");
         lorieConvertLF(prop->data, filtered, prop->size);
 
         log(DEBUG, "Sending clipboard to clients (%zu bytes)\n", strlen(filtered));
         lorieSendClipboardData(filtered);
+        free(filtered);
     }
 }
 
@@ -560,6 +588,23 @@ void lorieHandleClipboardData(const char* data) {
 
 /* end functions related to clipboard announcing and sending */
 
+static void lorieClientStateCallback(__unused CallbackListPtr *callbacks, __unused void *data, void *args) {
+    ClientPtr client = ((NewClientInfoRec *) args)->client;
+    if (client->clientState != ClientStateGone)
+        return;
+
+    struct LorieDataTarget **next = &lorieDataTargetHead;
+    while (*next) {
+        struct LorieDataTarget *target = *next;
+        if (target->client == client) {
+            *next = target->next;
+            free(target);
+        } else {
+            next = &target->next;
+        }
+    }
+}
+
 void lorieInitClipboard(void) {
 #define ATOM(name) xa##name = MakeAtom(#name, strlen(#name), TRUE)
     ATOM(TIMESTAMP); ATOM(TEXT); ATOM(CLIPBOARD); ATOM(TARGETS); ATOM(STRING); ATOM(UTF8_STRING);
@@ -576,4 +621,6 @@ void lorieInitClipboard(void) {
 
     if (!AddCallback(&SelectionCallback, lorieSelectionCallback, NULL))
         FatalError("Adding SelectionCallback failed\n");
+    if (!AddCallback(&ClientStateCallback, lorieClientStateCallback, NULL))
+        FatalError("Adding ClientStateCallback failed\n");
 }

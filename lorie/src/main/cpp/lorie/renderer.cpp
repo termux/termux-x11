@@ -25,8 +25,16 @@
 #include <dlfcn.h>
 #include <cmath>
 #include <cstring>
+#include <fcntl.h>
+#include <limits.h>
+#include <poll.h>
+#include <signal.h>
+#include <spawn.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
+#include <sys/syscall.h>
+#include <linux/futex.h>
 #include <unistd.h>
 #include "list.h"
 #include "lorie.h"
@@ -36,6 +44,23 @@ __attribute__((weak)) EGLClientBuffer eglGetNativeClientBufferANDROID(const stru
 
 #define log(...) __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", __VA_ARGS__)
 #define loge(...) __android_log_print(ANDROID_LOG_ERROR, "gles-renderer", __VA_ARGS__)
+
+static constexpr EGLTimeKHR FENCE_TIMEOUT_NANOS = 100000000;
+
+static void waitForFence(EGLDisplay egl_display, EGLSync fence, EGLint flags) {
+    if (eglClientWaitSyncKHR(egl_display, fence, flags, FENCE_TIMEOUT_NANOS) == EGL_TIMEOUT_EXPIRED_KHR)
+        loge("GPU fence wasn't signalled within %lldns, proceeding without it", (long long) FENCE_TIMEOUT_NANOS);
+    eglDestroySyncKHR(egl_display, fence);
+}
+
+#define withStateLock(body) do { \
+    pthread_mutex_lock(&stateLock); \
+    body \
+    if (state) \
+        state->drawRequested = true; \
+    pthread_cond_signal(stateCond); \
+    pthread_mutex_unlock(&stateLock); \
+} while (0)
 
 static GLuint createProgram(const char* p_vertex_source, const char* p_fragment_source);
 
@@ -222,7 +247,8 @@ static ANativeWindow* createDefaultWindow(JNIEnv* env) {
 }
 
 void* Renderer::initThread() {
-    if (jvm->AttachCurrentThread(&rendererEnv, nullptr) != JNI_OK) {
+    JavaVMAttachArgs attachArgs = { JNI_VERSION_1_6, "LorieRendererThread", nullptr };
+    if (jvm->AttachCurrentThread(&rendererEnv, &attachArgs) != JNI_OK) {
         log("Failed to attach renderer thread to JVM");
         return nullptr;
     }
@@ -230,8 +256,6 @@ void* Renderer::initThread() {
     EGLint major, minor;
     EGLint numConfigs;
     EGLint *const alphaAttrib = &configAttribs[11];
-
-    pthread_setname_np(pthread_self(), "LorieRendererThread");
 
     xorg_list_init(&addedBuffers);
     xorg_list_init(&buffers);
@@ -343,7 +367,185 @@ void Renderer::setFiltering(jint f) {
     filtering = f;
 }
 
-void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) {
+static const int relockProbeSize = 64;
+static const uint64_t relockProbeCpuUsage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN;
+
+static const uint32_t relockProbeRed = 0xff0000ff, relockProbeBlue = 0xffff0000;
+
+// Probe process: locks the parent's red buffer, paints it blue and sends back verdict bits (locked, saw red).
+int rendererRelockProbeChild(int fd) {
+    AHardwareBuffer *buf = nullptr;
+    AHardwareBuffer_Desc desc;
+    volatile uint32_t *pixels = nullptr;
+    uint8_t verdict = 0;
+
+    if (__builtin_available(android 26, *)) {
+        if (AHardwareBuffer_recvHandleFromUnixSocket(fd, &buf) == 0) {
+            AHardwareBuffer_describe(buf, &desc);
+            if (AHardwareBuffer_lock(buf, relockProbeCpuUsage, -1, nullptr, (void **) &pixels) == 0 && pixels) {
+                verdict = 1;
+                bool red = true;
+                for (int y = 0; y < relockProbeSize; y++)
+                    for (int x = 0; x < relockProbeSize; x++) {
+                        red &= pixels[(size_t) y * desc.stride + x] == relockProbeRed;
+                        pixels[(size_t) y * desc.stride + x] = relockProbeBlue;
+                    }
+                if (red)
+                    verdict |= 2;
+            }
+        }
+    }
+    write(fd, &verdict, 1);
+    pause(); // keeps the lock until the parent kills us
+    return verdict == 3 ? 0 : 1;
+}
+
+// Whether a second process can lock a write-locked AHardwareBuffer coherently.
+static bool rendererCanRelockWhileLocked() {
+    AHardwareBuffer_Desc desc = {.width = relockProbeSize, .height = relockProbeSize, .layers = 1,
+            .format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM,
+            .usage = relockProbeCpuUsage | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER};
+    AHardwareBuffer *buf = nullptr;
+    volatile uint32_t *pixels = nullptr;
+    uint8_t verdict = 0;
+    bool coherent = false;
+    Dl_info info;
+
+    if (!__builtin_available(android 26, *) || !dladdr((void *) rendererCanRelockWhileLocked, &info) || !info.dli_fname)
+        return false;
+    if (AHardwareBuffer_allocate(&desc, &buf) != 0 || !buf)
+        return false;
+    AHardwareBuffer_describe(buf, &desc);
+    if (AHardwareBuffer_lock(buf, relockProbeCpuUsage, -1, nullptr, (void **) &pixels) != 0 || !pixels) {
+        AHardwareBuffer_release(buf);
+        return false;
+    }
+    for (int y = 0; y < relockProbeSize; y++)
+        for (int x = 0; x < relockProbeSize; x++)
+            pixels[(size_t) y * desc.stride + x] = relockProbeRed;
+
+    char preload[PATH_MAX + 16];
+    snprintf(preload, sizeof(preload), "LD_PRELOAD=%s", info.dli_fname);
+    char *env[] = {preload, nullptr};
+    int sv[2];
+    pid_t pid = -1;
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0) {
+        if (AHardwareBuffer_sendHandleToUnixSocket(buf, sv[0]) == 0) {
+            char fdArg[16];
+            snprintf(fdArg, sizeof(fdArg), "%d", sv[1]);
+            char *argv[] = {(char *) "sh", (char *) "--relock-probe", fdArg, nullptr};
+            pid = vfork();
+            if (pid == 0) {
+                // Without exec, gfxstream usually crashes the whole emulator on a probe like this.
+#ifdef __LP64__
+                execve("/system/bin/sh", argv, env);
+                execve("/system/bin/app_process64", argv, env);
+#else
+                execve("/system/bin/app_process32", argv, env);
+#endif
+                _exit(1);
+            }
+        }
+        close(sv[1]);
+        if (pid > 0) {
+            struct pollfd pfd = {sv[0], POLLIN, 0};
+            // Both processes still hold their locks here.
+            coherent = poll(&pfd, 1, 3000) > 0 && read(sv[0], &verdict, 1) == 1 && verdict == 3;
+            for (int y = 0; y < relockProbeSize; y++)
+                for (int x = 0; x < relockProbeSize; x++)
+                    coherent &= pixels[(size_t) y * desc.stride + x] == relockProbeBlue;
+            kill(pid, SIGKILL);
+            waitpid(pid, nullptr, 0);
+        }
+        close(sv[0]);
+    }
+
+    AHardwareBuffer_unlock(buf, nullptr);
+    AHardwareBuffer_release(buf);
+    log("Xlorie: second process lock of a write-locked AHardwareBuffer: child verdict %d, data %s in both processes, preload %s",
+        verdict, coherent ? "coherent" : "not coherent", info.dli_fname);
+    return coherent;
+}
+
+// Mimics what the X server and the renderer do to the root buffer: the server holds a CPU lock
+// while the renderer draws into the same buffer. Needs a current GLES context.
+static bool cpuAndGpuShareAhbMemory(EGLDisplay egl_display) {
+    const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
+    AHardwareBuffer_Desc desc = {
+            .width = 64,
+            .height = 64,
+            .layers = 1,
+            .format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM,
+            .usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER |
+                     AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN
+    };
+    AHardwareBuffer *buf = nullptr;
+    EGLImageKHR image = EGL_NO_IMAGE_KHR;
+    GLuint texture = 0, fbo = 0;
+    volatile uint32_t *pixels = nullptr;
+    bool result = true;
+
+    if (AHardwareBuffer_allocate(&desc, &buf) != 0 || !buf)
+        return true;
+
+    EGLClientBuffer clientBuffer = eglGetNativeClientBufferANDROID(buf);
+    if (clientBuffer)
+        image = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes);
+    if (image == EGL_NO_IMAGE_KHR)
+        goto out;
+
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        goto out;
+
+    if (AHardwareBuffer_lock(buf, AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN | AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
+                             -1, nullptr, (void **) &pixels) != 0 || !pixels)
+        goto out;
+    pixels[0] = 0;
+
+    // GPU writes while the buffer is locked by the CPU.
+    glClearColor(0x11 / 255.f, 0x22 / 255.f, 0x33 / 255.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glFinish();
+
+    if ((pixels[0] & 0xffffff) != 0x332211) {
+        loge("CPU mapping does not see GPU writes (got %08x)", pixels[0]);
+        AHardwareBuffer_unlock(buf, nullptr);
+        result = false;
+        goto out;
+    }
+
+    // Unlocking must not bring back stale CPU data over what the GPU has written.
+    AHardwareBuffer_unlock(buf, nullptr);
+    {
+        uint8_t px[4] = {0, 0, 0, 0};
+        glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px);
+        if (px[0] != 0x11 || px[1] != 0x22 || px[2] != 0x33) {
+            loge("CPU unlock overwrote GPU writes (got %02x%02x%02x)", px[0], px[1], px[2]);
+            result = false;
+        }
+    }
+
+out:
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (fbo)
+        glDeleteFramebuffers(1, &fbo);
+    if (texture)
+        glDeleteTextures(1, &texture);
+    if (image != EGL_NO_IMAGE_KHR)
+        eglDestroyImageKHR(egl_display, image);
+    AHardwareBuffer_release(buf);
+    return result;
+}
+
+void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled, int* renderer_relock) {
+    *renderer_relock = 0;
     // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     EGLint numConfigs;
@@ -398,60 +600,6 @@ void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) 
         return;
     }
 
-    // Cross-process AHardwareBuffer sync relies on dma-buf. Send the buffer's handle through a
-    // local socketpair exactly as it would be sent to the X server, and check whether the fd(s)
-    // that come out are real dma-bufs. Skip if Present's GPU-copy offload is already off, since
-    // that's the only thing this depends on.
-    if (!*gpu_present_disabled) {
-        int sv[2] = { -1, -1 };
-        bool dmaBufFound = false;
-        if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0) {
-            AHardwareBuffer_sendHandleToUnixSocket(new_, sv[0]);
-            shutdown(sv[0], SHUT_WR);
-            for (;;) {
-                uint8_t data[4096];
-                union {
-                    uint8_t buf[CMSG_SPACE(32 * sizeof(int))];
-                    struct cmsghdr align;
-                } control = {};
-                struct iovec iov = { .iov_base = data, .iov_len = sizeof(data) };
-                struct msghdr msg = {
-                    .msg_iov = &iov, .msg_iovlen = 1,
-                    .msg_control = control.buf, .msg_controllen = sizeof(control.buf),
-                };
-                ssize_t n = recvmsg(sv[1], &msg, 0);
-                if (n <= 0)
-                    break;
-                for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-                    if (cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS)
-                        continue;
-                    int *fds = (int *) CMSG_DATA(cmsg);
-                    int nfds = (int) ((cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int));
-                    for (int i = 0; i < nfds; i++) {
-                        char path[32], target[256];
-                        snprintf(path, sizeof(path), "/proc/self/fd/%d", fds[i]);
-                        ssize_t len = readlink(path, target, sizeof(target) - 1);
-                        if (len > 0) {
-                            target[len] = '\0';
-                            if (strstr(target, "dmabuf") || strstr(target, "dma_heap") || strstr(target, "/dev/dma"))
-                                dmaBufFound = true;
-                        }
-                        close(fds[i]);
-                    }
-                }
-            }
-            close(sv[0]);
-            close(sv[1]);
-        } else {
-            dmaBufFound = true; // Can't check, assume the best rather than force a slower fallback.
-        }
-
-        if (!dmaBufFound) {
-            loge("AHardwareBuffer is not dma-buf-backed on this device, disabling Present GPU offload");
-            *gpu_present_disabled = 1;
-        }
-    }
-
     clientBuffer = eglGetNativeClientBufferANDROID(new_);
     if (!clientBuffer) {
         *legacy_drawing = 1;
@@ -491,14 +639,14 @@ void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) 
         if (eglMakeCurrent(egl_display, checksfc, checksfc, testctx) != EGL_TRUE)
             return vprintEglError("check eglMakeCurrent failed", __LINE__);
 
-        // Intel's Mesa driver has a race that makes dma-buf cross-process write visibility
-        // unreliable, so blacklist it outright.
-        if (!*gpu_present_disabled) {
-            const char *renderer = (const char *) glGetString(GL_RENDERER);
-            if (renderer && strstr(renderer, "Mesa") && strstr(renderer, "Intel")) {
-                loge("Detected Intel Mesa driver (GL_RENDERER=%s), disabling Present GPU offload", renderer);
-                *gpu_present_disabled = 1;
-            }
+        *renderer_relock = rendererCanRelockWhileLocked();
+
+        // Present's GPU offload writes the root buffer from the renderer while the X server keeps
+        // it locked for CPU drawing. That only works when the CPU and GPU views of an
+        // AHardwareBuffer are one memory, which is not the case on e.g. gfxstream.
+        if (!*gpu_present_disabled && !cpuAndGpuShareAhbMemory(egl_display)) {
+            loge("CPU and GPU views of AHardwareBuffer are not coherent on this device, disabling Present GPU offload");
+            *gpu_present_disabled = 1;
         }
 
         glActiveTexture(GL_TEXTURE0); checkGlError();
@@ -522,9 +670,9 @@ void Renderer::testCapabilities(int* legacy_drawing, int* gpu_present_disabled) 
     }
 }
 
-void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled) {
+void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled, int* renderer_relock) {
     Renderer scratch;
-    scratch.testCapabilities(legacy_drawing, gpu_present_disabled);
+    scratch.testCapabilities(legacy_drawing, gpu_present_disabled, renderer_relock);
 }
 
 void Renderer::setSharedState(struct lorie_shared_server_state* newState) {
@@ -629,53 +777,43 @@ void Renderer::releaseWinAndSurface(ANativeWindow** anw, EGLSurface *esfc) {
 }
 
 void Renderer::setViewport(int x, int y, int w, int h, int ew, int eh, int hidden) {
-    pthread_mutex_lock(&stateLock);
-    viewportX = x;
-    viewportY = y;
-    viewportW = w;
-    viewportH = h;
-    expectedW = ew;
-    expectedH = eh;
-    hiddenBottom = hidden;
-    viewportChanged = true;
-    reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
-    reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
-    if (state)
-        state->drawRequested = true;
-    pthread_cond_signal(stateCond);
-    pthread_mutex_unlock(&stateLock);
+    withStateLock({
+        viewportX = x;
+        viewportY = y;
+        viewportW = w;
+        viewportH = h;
+        expectedW = ew;
+        expectedH = eh;
+        hiddenBottom = hidden;
+        viewportChanged = true;
+        reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
+        reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
+    });
 }
 
 void Renderer::setZoom(int percent) {
-    pthread_mutex_lock(&stateLock);
-    zoomPercent = percent < 100 ? 100 : (percent > 400 ? 400 : percent);
-    reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
-    reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
-    if (state)
-        state->drawRequested = true;
-    pthread_cond_signal(stateCond);
-    pthread_mutex_unlock(&stateLock);
+    withStateLock({
+        zoomPercent = percent < 100 ? 100 : (percent > 400 ? 400 : percent);
+        reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
+        reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
+    });
 }
 
 void Renderer::setZoomAnchor(float sourceX, float sourceY, float fracX, float fracY) {
-    pthread_mutex_lock(&stateLock);
-    pinchAnchorSourceX = sourceX;
-    pinchAnchorSourceY = sourceY;
-    pinchAnchorFracX = fracX;
-    pinchAnchorFracY = fracY;
-    if (state)
-        state->drawRequested = true;
-    pthread_cond_signal(stateCond);
-    pthread_mutex_unlock(&stateLock);
+    withStateLock({
+        pinchAnchorSourceX = sourceX;
+        pinchAnchorSourceY = sourceY;
+        pinchAnchorFracX = fracX;
+        pinchAnchorFracY = fracY;
+    });
 }
 
 void Renderer::clearZoomAnchor() {
-    pthread_mutex_lock(&stateLock);
-    pinchAnchorSourceX = -1.f;
-    if (state)
-        state->drawRequested = true;
-    pthread_cond_signal(stateCond);
-    pthread_mutex_unlock(&stateLock);
+    withStateLock({ pinchAnchorSourceX = -1.f; });
+}
+
+void Renderer::setFollowCursorPan(bool enabled) {
+    withStateLock({ followCursorPan = enabled; });
 }
 
 void Renderer::refreshContext() {
@@ -851,6 +989,22 @@ uint64_t Renderer::applyPendingGpuCopiesLocked() {
     return lastSerial;
 }
 
+static void lockServerState(struct lorie_shared_server_state *state, int connFd) {
+    state->rendererWaiting = TRUE;
+    lorie_mutex_lock(&state->lock, &state->lockingPid, connFd);
+    __atomic_store_n(&state->rendererWaiting, 0, __ATOMIC_RELEASE);
+    syscall(SYS_futex, &state->rendererWaiting, FUTEX_WAKE, 1, nullptr, nullptr, 0);
+}
+
+static void syncRootForGpu(LorieBuffer *root) {
+    void *mapped;
+    if (LorieBuffer_description(root)->type != LORIEBUFFER_AHARDWAREBUFFER)
+        return;
+    if (LorieBuffer_isLocked(root))
+        LorieBuffer_unlock(root);
+    LorieBuffer_lock(root, &mapped);
+}
+
 // Standalone entry point used by the renderer thread's main loop. Used when no redraw is going to
 // happen on this tick (rare for GPU copies in practice, since scheduling one also marks damage
 // non-empty - see lorieTryScheduleGpuCopy), so it has to take the lock and fence/unlock itself.
@@ -858,13 +1012,18 @@ void Renderer::applyPendingGpuCopies() {
     uint64_t serial;
     if (!state || state->gpuCopyQueue.readIndex == state->gpuCopyQueue.writeIndex)
         return;
-    lorie_mutex_lock(&state->lock, &state->lockingPid);
+    lockServerState(state, connFd());
+    if (state->rendererRelock) {
+        pthread_spin_lock(&bufferLock);
+        LorieBuffer *root = LorieBufferList_findById(&buffers, state->rootWindowTextureID);
+        pthread_spin_unlock(&bufferLock);
+        syncRootForGpu(root);
+    }
     serial = applyPendingGpuCopiesLocked();
     if (serial) {
         EGLSync fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
         glFlush();
-        eglClientWaitSyncKHR(egl_display, fence, 0, EGL_FOREVER);
-        eglDestroySyncKHR(egl_display, fence);
+        waitForFence(egl_display, fence, 0);
         // Only now that the GPU has actually finished (not just been told to start) is it safe to
         // let present_execute_copy release/idle the source pixmap back to the client.
         __atomic_store_n(&state->gpuCopyQueue.completedSerial, serial, __ATOMIC_RELEASE);
@@ -985,12 +1144,18 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
         panSourceLeft = fmaxf(0.f, fminf(pinchAnchorSourceX - pinchAnchorFracX * sourceWidth, (float) expectedW - sourceWidth));
         panSourceTop = fmaxf(0.f, fminf(pinchAnchorSourceY - pinchAnchorFracY * sourceHeight, (float) expectedH - sourceHeight));
     } else {
+        // Cursor tracking while zoomed in is opt-out; a vertical shrink caused by the keyboard
+        // hiding the bottom (rather than by zoom) always tracks the cursor regardless of that.
+        bool trackCursor = followCursorPan || zoomPercent == 100;
+
         // The buffer can be a few pixels narrower than the screen because of the mode granularity,
         // so panning horizontally only makes sense when zoomed in.
-        panSourceLeft = zoomPercent > 100
-                        ? panToCursor(panSourceLeft, cursorX, sourceWidth, (float) expectedW) : 0.f;
-        panSourceTop = sourceHeight < (float) expectedH
-                       ? panToCursor(panSourceTop, cursorY, sourceHeight, (float) expectedH) : 0.f;
+        panSourceLeft = zoomPercent > 100 && trackCursor
+                        ? panToCursor(panSourceLeft, cursorX, sourceWidth, (float) expectedW)
+                        : (zoomPercent > 100 ? panSourceLeft : 0.f);
+        panSourceTop = sourceHeight < (float) expectedH && trackCursor
+                       ? panToCursor(panSourceTop, cursorY, sourceHeight, (float) expectedH)
+                       : (sourceHeight < (float) expectedH ? panSourceTop : 0.f);
     }
     float sourceLeft = panSourceLeft, sourceTop = panSourceTop;
 
@@ -1004,7 +1169,9 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
                    sourceLeft, sourceTop, logicalSourceWidth, logicalSourceHeight);
 
     // We should signal X server to not use root window while we actively copy it
-    lorie_mutex_lock(&state->lock, &state->lockingPid);
+    lockServerState(state, connFd());
+    if (state->rendererRelock)
+        syncRootForGpu(buffer);
     // Share this draw's flush+fence below instead of a separate round trip per frame.
     uint64_t gpuCopySerial = applyPendingGpuCopiesLocked();
     state->drawRequested = FALSE;
@@ -1022,7 +1189,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
 
     if (state->cursor.updated) {
         log("Xlorie: updating cursor\n");
-        lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid);
+        lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid, connFd());
         state->cursor.updated = false;
         bindTexture(cursor.id);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
@@ -1034,8 +1201,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     glFlush();
 
     // Wait until root window drawing is finished before giving control back to X server
-    eglClientWaitSyncKHR(egl_display, fence, 0, EGL_FOREVER);
-    eglDestroySyncKHR(egl_display, fence);
+    waitForFence(egl_display, fence, 0);
     if (gpuCopySerial) {
         __atomic_store_n(&state->gpuCopyQueue.completedSerial, gpuCopySerial, __ATOMIC_RELEASE);
         notifyGpuCopyDone();
@@ -1053,8 +1219,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     glClear(GL_COLOR_BUFFER_BIT);
     glDisable(GL_SCISSOR_TEST);
     fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
-    eglClientWaitSyncKHR(egl_display, fence, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR, EGL_FOREVER);
-    eglDestroySyncKHR(egl_display, fence);
+    waitForFence(egl_display, fence, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR);
 
     state->renderedFrames++;
 }

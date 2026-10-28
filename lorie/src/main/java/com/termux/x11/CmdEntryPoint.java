@@ -31,6 +31,7 @@ import java.net.URL;
 @Keep @SuppressLint({"StaticFieldLeak", "UnsafeDynamicallyLoadedCode"})
 public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public static final String ACTION_START = "com.termux.x11.CmdEntryPoint.ACTION_START";
+    public static final String EXTRA_DOCUMENT_TAG = "document_tag";
     static final Handler handler;
     public static Context ctx;
     private final Intent intent = createIntent();
@@ -51,6 +52,12 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     CmdEntryPoint(String[] args) {
         if (!start(args))
             System.exit(1);
+    }
+
+    // Called from native once OsVendorInit() resolves the "-tag" argument, if any.
+    void setDocumentTag(String tag) {
+        if (tag != null)
+            intent.putExtra(EXTRA_DOCUMENT_TAG, tag);
     }
 
     @SuppressLint({"WrongConstant", "PrivateApi"})
@@ -173,6 +180,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     public native boolean start(String[] args);
     public native ParcelFileDescriptor getXConnection();
     public native ParcelFileDescriptor getLogcatOutput();
+    public native void reportFatalError(String message);
     @CriticalNative private static native boolean connected();
 
     static {
@@ -188,7 +196,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
     private static void initEntryPoint() {
         ctx = createContext();
 
-        String path = "lib/" + Build.SUPPORTED_ABIS[0] + "/libXlorie.so";
+        String path = "lib/" + (android.os.Process.is64Bit() ? Build.SUPPORTED_64_BIT_ABIS[0] : Build.SUPPORTED_32_BIT_ABIS[0]) + "/libXlorie.so";
         ClassLoader loader = CmdEntryPoint.class.getClassLoader();
         URL res = loader != null ? loader.getResource(path) : null;
         String libPath = res != null ? res.getFile().replace("file:", "") : null;

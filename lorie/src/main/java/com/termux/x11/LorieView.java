@@ -159,6 +159,13 @@ public class LorieView extends SurfaceView implements InputStub {
             LorieView.this.sendKeyEvent(0, k, false);
         }
 
+        void sendKeysWithoutCtrlAlt(Runnable keys) {
+            if (activity.mExtraKeys != null)
+                activity.mExtraKeys.withoutCtrlAlt(keys);
+            else
+                keys.run();
+        }
+
         @Override public boolean deleteSurroundingText(int beforeLength, int afterLength) {
             if (requestedPos != -1 && requestedPos > currentPos && beforeLength > 0) {
                 // sometimes gboard sees following whitespace and wants to remove it.
@@ -175,16 +182,22 @@ public class LorieView extends SurfaceView implements InputStub {
                 keyReleaseHandler.removeMessages(KeyEvent.KEYCODE_DEL);
             }
 
-            for (int i=0; i<beforeLength; i++)
-                sendKey(KeyEvent.KEYCODE_DEL);
-            for (int i=0; i<afterLength; i++)
-                sendKey(KeyEvent.KEYCODE_FORWARD_DEL);
+            sendKeysWithoutCtrlAlt(() -> {
+                for (int i=0; i<beforeLength; i++)
+                    sendKey(KeyEvent.KEYCODE_DEL);
+                for (int i=0; i<afterLength; i++)
+                    sendKey(KeyEvent.KEYCODE_FORWARD_DEL);
+            });
 
             currentPos -= beforeLength;
             if (currentPos <= 1)
                 resetCursorPosition = true;
 
             return true;
+        }
+
+        @Override public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
+            return deleteSurroundingText(beforeLength, afterLength);
         }
 
         /**
@@ -199,8 +212,8 @@ public class LorieView extends SurfaceView implements InputStub {
                     || newText.toString().startsWith(currentComposingText.toString()))) {
                 for (int i=0; i < oldLen - newLen; i++)
                     sendKey(KeyEvent.KEYCODE_DEL);
-                for (int i=oldLen; i<newLen; i++)
-                    sendTextEvent(String.valueOf(newText.charAt(i)).getBytes(UTF_8));
+                if (newLen > oldLen)
+                    sendTextEvent(newText.subSequence(oldLen, newLen).toString().getBytes(UTF_8));
             } else {
                 for (int i = 0; i < oldLen; i++)
                     sendKey(KeyEvent.KEYCODE_DEL);
@@ -222,9 +235,9 @@ public class LorieView extends SurfaceView implements InputStub {
             if (mBatchEditNesting == 0) { // outside of batchedit so most likely cursor control
                 if (start == end) {
                     if (start < 1)
-                        sendKey(KeyEvent.KEYCODE_DPAD_LEFT);
+                        sendKeysWithoutCtrlAlt(() -> sendKey(KeyEvent.KEYCODE_DPAD_LEFT));
                     else if (start > 1)
-                        sendKey(KeyEvent.KEYCODE_DPAD_RIGHT);
+                        sendKeysWithoutCtrlAlt(() -> sendKey(KeyEvent.KEYCODE_DPAD_RIGHT));
                 }
 
                 mIMM.updateSelection(LorieView.this, -1, -1, -1, -1);
@@ -355,7 +368,7 @@ public class LorieView extends SurfaceView implements InputStub {
     }
 
     void getDimensionsFromSettings(int width, int height) {
-        Prefs prefs = MainActivity.getPrefs();
+        Prefs prefs = activity.prefs;
         int w = width;
         int h = height;
         switch(prefs.displayResolutionMode.get()) {
@@ -479,7 +492,7 @@ public class LorieView extends SurfaceView implements InputStub {
     }
 
     private void updateViewport() {
-        Prefs prefs = MainActivity.getPrefs();
+        Prefs prefs = activity.prefs;
 
         int surfaceW = getMeasuredWidth(), surfaceH = getMeasuredHeight();
         // Views the insets reserve room for are hidden while the dimensions are frozen.
@@ -588,6 +601,7 @@ public class LorieView extends SurfaceView implements InputStub {
     public void reloadPreferences(Prefs p) {
         String filtering = p.displayFilteringMode.get();
         setFiltering(mNativeContext, "nearest".equals(filtering) ? GLES20.GL_NEAREST : GLES20.GL_LINEAR);
+        setFollowCursorPan(mNativeContext, p.zoomFollowsCursor.get());
         hardwareKbdScancodesWorkaround = p.hardwareKbdScancodesWorkaround.get();
         clipboardSyncEnabled = p.clipboardEnable.get();
         setClipboardSyncEnabled(mNativeContext, clipboardSyncEnabled, clipboardSyncEnabled);
@@ -654,7 +668,7 @@ public class LorieView extends SurfaceView implements InputStub {
 
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
-        if (MainActivity.getPrefs().enforceCharBasedInput.get())
+        if (activity.prefs.enforceCharBasedInput.get())
             outAttrs.inputType = InputType.TYPE_NULL;
         else
             outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_VARIATION_NORMAL;
@@ -697,6 +711,7 @@ public class LorieView extends SurfaceView implements InputStub {
     @FastNative private native void setRendererZoom(long ptr, int percent);
     @FastNative private native void setZoomAnchor(long ptr, float sourceX, float sourceY, float fracX, float fracY);
     @FastNative private native void clearZoomAnchor(long ptr);
+    @FastNative private native void setFollowCursorPan(long ptr, boolean enabled);
     @FastNative private native long getCursorPosition(long ptr);
     @FastNative private native void sendSync(long ptr, int serial);
 

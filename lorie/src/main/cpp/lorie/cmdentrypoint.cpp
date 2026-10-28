@@ -27,6 +27,7 @@ extern "C" {
 #undef class
 #undef public
 }
+#include <dlfcn.h>
 #include <linux/in.h>
 #include <arpa/inet.h>
 #include <poll.h>
@@ -51,6 +52,7 @@ static JNIEnv* serverEnv = nullptr;
 static jobject thiz = nullptr;
 static jmethodID sendBroadcast = nullptr;
 static jmethodID sendBroadcastDelayed = nullptr;
+static jmethodID setDocumentTag = nullptr;
 
 static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
     pthread_t t;
@@ -61,6 +63,7 @@ static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
         FatalError("Failed to create a global reference for the CmdEntryPoint instance");
     sendBroadcast = env->GetMethodID(env->GetObjectClass(self), "sendBroadcast", "()V");
     sendBroadcastDelayed = env->GetMethodID(env->GetObjectClass(self), "sendBroadcastDelayed", "()V");
+    setDocumentTag = env->GetMethodID(env->GetObjectClass(self), "setDocumentTag", "(Ljava/lang/String;)V");
     auto detectTracer = []() -> Bool {
         FILE *fp;
         char line[256];
@@ -380,13 +383,31 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 break;
             }
             case EVENT_KEY:
-                QueueKeyboardEvents(lorieKeyboard, e.key.state ? KeyPress : KeyRelease, e.key.key);
-                break;
             case EVENT_UNICODE: {
-                int ks = ucs2keysym((long) e.unicode.code);
-                __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d\n", ks);
-                lorieKeysymKeyboardEvent(ks, TRUE);
-                lorieKeysymKeyboardEvent(ks, FALSE);
+                // UTF-32 code points span at most 21 bits (max 0x10FFFF), so shifting left by 1 is safe even on a 32-bit uintptr_t.
+                uintptr_t payload = e.type == EVENT_KEY ? 1u | ((uintptr_t) e.key.state << 1) | ((uintptr_t) e.key.key << 2) : ((uintptr_t) e.unicode.code << 1);
+                QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
+                    // This must be done only on X server thread (touches XKB state directly).
+                    uintptr_t payload = (uintptr_t) closure;
+                    if (payload & 1) {
+                        uintptr_t keycode = payload >> 2;
+                        if (keycode > 255) {
+                            for (size_t i = 0; i < lorieExtendedKeysCount; i++)
+                                if (lorieExtendedKeys[i].code == keycode - 8)
+                                    lorieKeysymKeyboardEvent(lorieExtendedKeys[i].keysym, payload >> 1 & 1);
+                            return TRUE;
+                        }
+                        QueueKeyboardEvents(lorieKeyboard, (payload >> 1 & 1) ? KeyPress : KeyRelease, keycode);
+                        mieqProcessInputEvents();
+                    } else {
+                        int ks = ucs2keysym((long) (payload >> 1));
+                        __android_log_print(ANDROID_LOG_DEBUG, "LorieNative", "Trying to input keysym %d\n", ks);
+                        lorieKeysymKeyboardEvent(ks, TRUE);
+                        lorieKeysymKeyboardEvent(ks, FALSE);
+                    }
+                    return TRUE;
+                }, nullptr, (void*) payload);
+                lorieWakeServer();
                 break;
             }
             case EVENT_CLIPBOARD_ENABLE:
@@ -476,6 +497,13 @@ void lorieSendSyncReply(uint32_t serial) {
     }
 }
 
+void lorieSendHeartbeat(void) {
+    if (conn_fd != -1) {
+        lorieEvent e = { .type = EVENT_HEARTBEAT };
+        write(conn_fd, &e, sizeof(e));
+    }
+}
+
 void lorieRequestClipboard(void) {
     if (conn_fd != -1) {
         lorieEvent e = { .type = EVENT_CLIPBOARD_REQUEST };
@@ -483,12 +511,23 @@ void lorieRequestClipboard(void) {
     }
 }
 
-bool lorieConnectionAlive(void) {
-    if (conn_fd == -1)
+// Preloaded by rendererCanRelockWhileLocked(): swaps the executable's main() for the probe.
+extern "C" __attribute__((visibility("default"))) void __libc_init(void *rawArgs, void (*onExit)(void), int (*mainFn)(int, char **, char **), void *structors) {
+    static int (*realMain)(int, char **, char **);
+    realMain = mainFn;
+    ((__typeof__(__libc_init) *) dlsym(RTLD_NEXT, "__libc_init"))(rawArgs, onExit, [](int argc, char **argv, char **envp) {
+        if (argc == 3 && !strcmp(argv[1], "--relock-probe"))
+            return rendererRelockProbeChild(atoi(argv[2]));
+        return realMain(argc, argv, envp);
+    }, structors);
+}
+
+bool lorieConnectionAlive(int fd) {
+    if (fd == -1)
         return false;
 
     // Check if socket is closed or has errors.
-    struct pollfd p = { .fd = conn_fd, .events = POLLIN | POLLHUP | POLLERR | POLLRDHUP };
+    struct pollfd p = { .fd = fd, .events = POLLIN | POLLHUP | POLLERR | POLLRDHUP };
     return !(poll(&p, 1, 0) == 1 && (p.revents & (POLLERR | POLLNVAL | POLLRDHUP | POLLHUP)));
 }
 
@@ -572,9 +611,28 @@ static jobject getLogcatOutput(JNIEnv *env, __unused jobject cls) {
     return nullptr;
 }
 
-void lorieListenForKnocks(void) {
-    struct sockaddr_in address = { .sin_family = AF_INET, .sin_port = htons(PORT), .sin_addr = { .s_addr = INADDR_ANY } };
+static void reportFatalError(JNIEnv *env, __unused jobject cls, jstring message) {
+    if (conn_fd != -1)
+        return;
+
+    const char *chars = env->GetStringUTFChars(message, nullptr);
+    char *copy = strdup(chars);
+    env->ReleaseStringUTFChars(message, chars);
+
+    QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
+        // Runs the same teardown as any other FatalError, on the server's own thread.
+        FatalError("%s", (char *) closure);
+    }, nullptr, copy);
+    lorieWakeServer();
+}
+
+// Called from OsVendorInit() once the display number and "-tag" argument (if any) are resolved,
+// so the port to knock on and the tag to report back to Java are already known.
+void lorieListenForKnocks(int port, const char *tag) {
+    struct sockaddr_in address = { .sin_family = AF_INET, .sin_port = htons(port), .sin_addr = { .s_addr = INADDR_ANY } };
     int fd, reuse = 1;
+
+    serverEnv->CallVoidMethod(thiz, setDocumentTag, tag ? serverEnv->NewStringUTF(tag) : nullptr);
 
     // Even in the case if it will fail for some reason everything will work fine
     // But connection will be delayed a bit
@@ -589,7 +647,7 @@ void lorieListenForKnocks(void) {
     setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse));
 
     if (bind(fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
-        log(ERROR, "Failed to bind the knock-listening socket to port %d: %s", PORT, strerror(errno));
+        log(ERROR, "Failed to bind the knock-listening socket to port %d: %s", port, strerror(errno));
         close(fd);
         serverEnv->CallVoidMethod(thiz, sendBroadcastDelayed);
         return;
@@ -619,7 +677,9 @@ void lorieListenForKnocks(void) {
             return;
         }
 
-        if ((count = read(client, buffer, sizeof(buffer))) > 0 && !memcmp(buffer, MAGIC, min(count, sizeof(MAGIC)))) {
+        if (poll((struct pollfd[]) {{ .fd = client, .events = POLLIN }}, 1, 200) > 0 &&
+            (count = recv(client, buffer, sizeof(buffer), MSG_DONTWAIT)) > 0 &&
+            !memcmp(buffer, MAGIC, min(count, sizeof(MAGIC)))) {
             log(DEBUG, "New client connection!\n");
             serverEnv->CallVoidMethod(thiz, sendBroadcast);
         }
@@ -634,6 +694,7 @@ void registerCmdEntryPointNatives(JNIEnv *env) {
             {"start", "([Ljava/lang/String;)Z", (void *) &start},
             {"getXConnection", "()Landroid/os/ParcelFileDescriptor;", (void *) &getXConnection},
             {"getLogcatOutput", "()Landroid/os/ParcelFileDescriptor;", (void *) &getLogcatOutput},
+            {"reportFatalError", "(Ljava/lang/String;)V", (void *) &reportFatalError},
             {"connected", "()Z", (void *) +[]() -> jboolean { return conn_fd != -1; }}, // @CriticalNative
     };
     jclass cls = env->FindClass("com/termux/x11/CmdEntryPoint");

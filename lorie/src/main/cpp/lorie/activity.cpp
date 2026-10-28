@@ -39,6 +39,7 @@ static int64_t nowMs() {
 static struct {
     jclass self;
     jmethodID clientConnectedStateChanged, resetIme;
+    jfieldID lastServerHeartbeat;
 } MainActivity = {nullptr};
 
 static struct {
@@ -51,6 +52,10 @@ static struct {
     jclass self;
     jmethodID toString;
 } CharBuffer = {nullptr};
+
+static struct {
+    jmethodID setLaunchWindowingMode;
+} ActivityOptions = {nullptr};
 
 // Bundles the native state belonging to the current LorieView instance so it can be released
 // as a unit when that instance is torn down, instead of leaking as scattered process globals.
@@ -143,6 +148,7 @@ static jlong nativeInit(JNIEnv *env, jobject thiz) {
 
         MainActivity.self = FindClassOrDie(env,  "com/termux/x11/MainActivity");
         MainActivity.clientConnectedStateChanged = FindMethodOrDie(env, MainActivity.self, "clientConnectedStateChanged", "()V", JNI_FALSE);
+        MainActivity.lastServerHeartbeat = env->GetFieldID(MainActivity.self, "lastServerHeartbeat", "J");
         MainActivity.resetIme = FindMethodOrDie(env, env->GetObjectClass(thiz), "resetIme", "()V", JNI_FALSE);
     }
 
@@ -191,15 +197,14 @@ LorieViewResources::~LorieViewResources() {
 
 int LorieViewResources::xcallback(int fd, int events) {
     if (events & (ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP)) {
-        if (activity)
-            env->CallVoidMethod(activity, MainActivity.clientConnectedStateChanged);
-
         ALooper_removeFd(ALooper_forThread(), fd);
         close(connFd);
         connFd = -1;
         renderer.setSharedState(nullptr);
         renderer.removeAllBuffers();
         log(DEBUG, "disconnected");
+        if (activity)
+            env->CallVoidMethod(activity, MainActivity.clientConnectedStateChanged);
         return 1;
     }
 
@@ -212,9 +217,15 @@ int LorieViewResources::xcallback(int fd, int events) {
                 case EVENT_CLIPBOARD_SEND: {
                     if (!e.clipboardSend.count)
                         break;
-                    char clipboard[e.clipboardSend.count + 1];
-                    memset(clipboard, 0, e.clipboardSend.count + 1);
-                    read(connFd, clipboard, sizeof(clipboard));
+                    size_t capacity;
+                    if (__builtin_add_overflow((size_t) e.clipboardSend.count, (size_t) 1, &capacity))
+                        return xcallback(fd, ALOOPER_EVENT_HANGUP);
+                    char *clipboard = (char*) calloc(capacity, 1);
+                    if (!clipboard) {
+                        log(ERROR, "Could not allocate clipboard buffer");
+                        return xcallback(fd, ALOOPER_EVENT_HANGUP);
+                    }
+                    read(connFd, clipboard, e.clipboardSend.count);
                     clipboard[e.clipboardSend.count] = 0;
                     log(DEBUG, "Clipboard content (%zu symbols) is %s", strlen(clipboard), clipboard);
                     jmethodID id = env->GetMethodID(env->GetObjectClass(thiz), "setClipboardText","(Ljava/lang/String;)V");
@@ -225,6 +236,7 @@ int LorieViewResources::xcallback(int fd, int events) {
 
                     auto str = (jstring) env->CallObjectMethod(cb, CharBuffer.toString);
                     env->CallVoidMethod(thiz, id, str);
+                    free(clipboard);
                     break;
                 }
                 case EVENT_CLIPBOARD_REQUEST: {
@@ -264,6 +276,11 @@ int LorieViewResources::xcallback(int fd, int events) {
                 }
                 case EVENT_WINDOW_FOCUS_CHANGED: {
                     env->CallVoidMethod(thiz, MainActivity.resetIme);
+                    break;
+                }
+                case EVENT_HEARTBEAT: {
+                    if (activity)
+                        env->SetLongField(activity, MainActivity.lastServerHeartbeat, nowMs());
                     break;
                 }
                 case EVENT_SYNC_REPLY: {
@@ -349,9 +366,13 @@ static void sendTextEvent(JNIEnv *env, __unused jobject thiz, jlong ptr, jbyteAr
             if (len == 0)
                 break;
 
-            log(DEBUG, "Sending unicode event: %lc (U+%X)", wc, wc);
-            lorieEvent e = { .unicode = { .t = EVENT_UNICODE, .code = (uint32_t) wc } };
-            write(r->connFd, &e, sizeof(e));
+            if (wc == L'\n') {
+                sendEvent(r, .key = { .t = EVENT_KEY, .key = KEY_ENTER + 8, .state = 1 });
+                sendEvent(r, .key = { .t = EVENT_KEY, .key = KEY_ENTER + 8, .state = 0 });
+            } else if (wc != L'\r') {
+                log(DEBUG, "Sending unicode event: %lc (U+%X)", wc, wc);
+                sendEvent(r, .unicode = { .t = EVENT_UNICODE, .code = (uint32_t) wc });
+            }
             p += len;
             if (p - (char*) str >= length)
                 break;
@@ -420,6 +441,11 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
                 auto* r = (LorieViewResources*) ptr;
                 if (!r || r->destroyed) return;
                 r->renderer.clearZoomAnchor();
+            }},
+            {"setFollowCursorPan", "(JZ)V", (void *) +[](__unused JNIEnv *env, __unused jobject thiz, jlong ptr, jboolean enabled) {
+                auto* r = (LorieViewResources*) ptr;
+                if (!r || r->destroyed) return;
+                r->renderer.setFollowCursorPan(enabled);
             }},
             {"getCursorPosition", "(J)J", (void *) +[](__unused JNIEnv *env, __unused jobject thiz, jlong ptr) -> jlong {
                 auto* r = (LorieViewResources*) ptr;
@@ -510,7 +536,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
                 lastInputTimestampMs = nowMs();
                 auto* r = (LorieViewResources*) ptr;
                 if (r && r->connFd != -1) {
-                    int code = (scan_code) ?: android_to_linux_keycode[key_code];
+                    int code = scan_code ?: (key_code >= 0 && key_code < (jint) (sizeof(android_to_linux_keycode) / sizeof(*android_to_linux_keycode)) ? android_to_linux_keycode[key_code] : 0);
                     sendEvent(r, .key = { .t = EVENT_KEY, .key = (uint16_t) (code + 8), .state = key_down });
                 }
                 return true;
@@ -527,6 +553,31 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
     vm->AttachCurrentThread(&env, nullptr);
     jclass cls = env->FindClass("com/termux/x11/LorieView");
     env->RegisterNatives(cls, methods, sizeof(methods)/sizeof(methods[0]));
+
+    pthread_t freeformLookupThread;
+    pthread_create(&freeformLookupThread, nullptr, +[](void* arg) -> void* {
+        auto* vm = (JavaVM*) arg;
+        JNIEnv* threadEnv;
+        vm->AttachCurrentThread(&threadEnv, nullptr);
+        jclass activityOptionsClass = threadEnv->FindClass("android/app/ActivityOptions");
+        jmethodID method = activityOptionsClass ? threadEnv->GetMethodID(activityOptionsClass, "setLaunchWindowingMode", "(I)V") : nullptr;
+        threadEnv->ExceptionClear();
+        vm->DetachCurrentThread();
+        return (void*) method;
+    }, vm);
+    void* freeformMethod;
+    pthread_join(freeformLookupThread, &freeformMethod);
+    ActivityOptions.setLaunchWindowingMode = (jmethodID) freeformMethod;
+    if (!ActivityOptions.setLaunchWindowingMode)
+        log(ERROR, "ActivityOptions.setLaunchWindowingMode(int) not found");
+
+    static JNINativeMethod mainActivityMethods[] = {
+            {"nativeSetLaunchWindowingModeFreeform", "(Ljava/lang/Object;)V", (void *) +[](JNIEnv *env, __unused jclass clazz, jobject options) {
+                if (ActivityOptions.setLaunchWindowingMode)
+                    env->CallVoidMethod(options, ActivityOptions.setLaunchWindowingMode, 5); // WINDOWING_MODE_FREEFORM
+            }},
+    };
+    env->RegisterNatives(env->FindClass("com/termux/x11/MainActivity"), mainActivityMethods, sizeof(mainActivityMethods)/sizeof(mainActivityMethods[0]));
 
     registerCmdEntryPointNatives(env);
 

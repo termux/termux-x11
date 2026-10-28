@@ -9,6 +9,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
+        android:name=".LorieApp"
         android:allowBackup="false"
         tools:ignore="DataExtractionRules,GoogleAppIndexingWarning">
         <activity
@@ -33,6 +34,17 @@
             </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/lorie_shortcuts" />
         </activity>
+        <activity
+            android:name=".MainActivity$MainActivityTagged"
+            android:taskAffinity=""
+            android:theme="@style/LorieAppTheme"
+            android:documentLaunchMode="intoExisting"
+            android:supportsPictureInPicture="true"
+            android:autoRemoveFromRecents="true"
+            android:configChanges="fontScale|orientation|screenSize|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|screenLayout|touchscreen|uiMode|smallestScreenSize|density"
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="stateHidden|adjustNothing"
+            android:exported="false" />
         <activity
             android:theme="@style/Theme.AppCompat.DayNight"
             android:excludeFromRecents="true"
@@ -67,7 +79,7 @@
             </intent-filter>
         </receiver>
 
-        <receiver android:name=".LorieBroadcastReceiver" android:exported="true" tools:ignore="ExportedReceiver" android:enabled="true">
+        <receiver android:name=".LorieApp$Receiver" android:exported="true" tools:ignore="ExportedReceiver" android:enabled="true">
             <intent-filter>
                 <action android:name="com.termux.x11.CmdEntryPoint.ACTION_START" />
                 <action android:name="com.termux.x11.ACTION_STOP" />

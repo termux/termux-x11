@@ -16,6 +16,7 @@
 #include "buffer.h"
 
 #define PORT 7892
+#define DOCUMENT_PORT_BASE 7900
 #define MAGIC "0xDEADBEEF"
 
 #ifdef __cplusplus
@@ -40,24 +41,33 @@ void lorieActivityConnected(void);
 void lorieSendSharedServerState(int memfd);
 void lorieRegisterBuffer(LorieBuffer* buffer);
 void lorieUnregisterBuffer(LorieBuffer* buffer);
-bool lorieConnectionAlive(void);
+bool lorieConnectionAlive(int fd);
 extern bool lorieDebugEnabled; // Set in activity.cpp's startLogcat, only called when TERMUX_X11_DEBUG=1.
 void lorieSetRendererWakeupCond(int fd);
 void lorieSetCursorVisible(Bool visible);
 void lorieSendSyncReply(uint32_t serial);
+void lorieSendHeartbeat(void);
+
+typedef struct {
+    uint16_t code; // Linux key code that does not fit into X keycode range.
+    uint32_t keysym;
+} lorieExtendedKey;
+extern const lorieExtendedKey lorieExtendedKeys[];
+extern const size_t lorieExtendedKeysCount;
 void registerCmdEntryPointNatives(JNIEnv *env);
-void lorieListenForKnocks(void);
+void lorieListenForKnocks(int port, const char *tag);
 
-__unused void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled);
+__unused void rendererTestCapabilities(int* legacy_drawing, int* gpu_present_disabled, int* renderer_relock);
+int rendererRelockProbeChild(int fd);
 
-static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_t* lockingPid) {
+static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_t* lockingPid, int connFd) {
     // Unfortunately there is no robust mutexes in bionic.
     // Posix does not define any valid way to unlock stuck non-robust mutex
     // so in the case if renderer or X server process unexpectedly die with locked mutex
     // we will simply reinitialize it.
     struct timespec ts = {0};
     while(true) {
-        clock_gettime(CLOCK_MONOTONIC, &ts);
+        clock_gettime(CLOCK_REALTIME, &ts);
 
         // 33 msec is enough to complete any drawing operation on both X server and renderer side
         // In the case if mutex is locked most likely other thread died with the mutex locked
@@ -69,7 +79,7 @@ static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_
 
         int ret = pthread_mutex_timedlock(mutex, &ts);
         if (ret == ETIMEDOUT) {
-            if (*lockingPid == getpid() || lorieConnectionAlive())
+            if (*lockingPid == getpid() || lorieConnectionAlive(connFd))
                 continue;
 
             pthread_mutexattr_t attr;
@@ -114,6 +124,7 @@ typedef enum {
     EVENT_LOCK_KEYS_STATE,
     EVENT_SYNC,
     EVENT_SYNC_REPLY,
+    EVENT_HEARTBEAT,
 } eventType;
 
 typedef union {
@@ -177,7 +188,7 @@ typedef union {
 
 typedef struct { int16_t x1, y1, x2, y2; } LorieGpuCopyRect;
 
-#define LORIE_GPU_COPY_MAX_RECTS 16
+#define LORIE_GPU_COPY_MAX_RECTS 64
 #define LORIE_GPU_COPY_QUEUE_CAPACITY 8
 
 typedef struct {
@@ -216,6 +227,12 @@ struct lorie_shared_server_state {
 
     /* A signal to renderer to update root window texture content from shared fragment if needed */
     volatile uint8_t drawRequested;
+
+    /* Renderer is waiting for `lock`, the X server hands it over when the current request is done */
+    volatile uint32_t rendererWaiting;
+
+    /* The renderer may lock the root buffer again while the X server holds it locked for writing */
+    volatile uint8_t rendererRelock;
 
     /* We should avoid triggering renderer if there is no output surface */
     volatile uint8_t surfaceAvailable;
@@ -280,6 +297,7 @@ struct Renderer {
     // Source point a pinch wants kept at a given viewport fraction. Negative sourceX = no pinch.
     volatile float pinchAnchorSourceX = -1.f, pinchAnchorSourceY = -1.f;
     volatile float pinchAnchorFracX = 0.5f, pinchAnchorFracY = 0.5f;
+    volatile bool followCursorPan = true;
     float panSourceLeft = 0.f, panSourceTop = 0.f;
     float hiddenPanSourceTop = -1.f; // the vertical pan of the other keyboard state, negative until there was one
     bool bottomWasHidden = false;
@@ -326,13 +344,14 @@ struct Renderer {
     uint64_t lastRequestedBufferId = 0;
 
     volatile int* connFdPtr = nullptr;
+    int connFd() const { return connFdPtr ? *connFdPtr : -1; }
 
     void init(JNIEnv* env, jobject thiz);
     void destroy();
     void* initThread();
     int getWakeupCondFd() const;
     void setFiltering(jint f);
-    void testCapabilities(int* legacy_drawing, int* gpu_present_disabled);
+    void testCapabilities(int* legacy_drawing, int* gpu_present_disabled, int* renderer_relock);
     void setSharedState(struct lorie_shared_server_state* newState);
     void addBuffer(LorieBuffer* buf);
     void removeBuffer(uint64_t id);
@@ -342,6 +361,7 @@ struct Renderer {
     void setZoom(int percent);
     void setZoomAnchor(float sourceX, float sourceY, float fracX, float fracY);
     void clearZoomAnchor();
+    void setFollowCursorPan(bool enabled);
     void releaseWinAndSurface(ANativeWindow** anw, EGLSurface* esfc);
     void refreshContext();
     LorieBuffer* findBufferWithRetry(uint64_t id);
@@ -362,8 +382,10 @@ struct Renderer {
 extern "C" {
 #endif
 
-static int android_to_linux_keycode[304] = {
+static int android_to_linux_keycode[320] = {
+        [ 3   /* ANDROID_KEYCODE_HOME */] = KEY_HOMEPAGE,
         [ 4   /* ANDROID_KEYCODE_BACK */] = KEY_ESC,
+        [ 5   /* ANDROID_KEYCODE_CALL */] = KEY_PHONE,
         [ 7   /* ANDROID_KEYCODE_0 */] = KEY_0,
         [ 8   /* ANDROID_KEYCODE_1 */] = KEY_1,
         [ 9   /* ANDROID_KEYCODE_2 */] = KEY_2,
@@ -432,11 +454,14 @@ static int android_to_linux_keycode[304] = {
         [ 74  /* ANDROID_KEYCODE_SEMICOLON */] = KEY_SEMICOLON,
         [ 75  /* ANDROID_KEYCODE_APOSTROPHE */] = KEY_APOSTROPHE,
         [ 76  /* ANDROID_KEYCODE_SLASH */] = KEY_SLASH,
+        [ 79  /* ANDROID_KEYCODE_HEADSETHOOK */] = KEY_MEDIA,
+        [ 80  /* ANDROID_KEYCODE_FOCUS */] = KEY_CAMERA_FOCUS,
         [ 81  /* ANDROID_KEYCODE_PLUS */] = KEY_KPPLUS,
-        [ 82  /* ANDROID_KEYCODE_MENU */] = KEY_CONTEXT_MENU,
+        [ 82  /* ANDROID_KEYCODE_MENU */] = KEY_COMPOSE,
+        [ 83  /* ANDROID_KEYCODE_NOTIFICATION */] = KEY_DASHBOARD,
         [ 84  /* ANDROID_KEYCODE_SEARCH */] = KEY_SEARCH,
         [ 85  /* ANDROID_KEYCODE_MEDIA_PLAY_PAUSE */] = KEY_PLAYPAUSE,
-        [ 86  /* ANDROID_KEYCODE_MEDIA_STOP */] = KEY_STOP_RECORD,
+        [ 86  /* ANDROID_KEYCODE_MEDIA_STOP */] = KEY_STOPCD,
         [ 87  /* ANDROID_KEYCODE_MEDIA_NEXT */] = KEY_NEXTSONG,
         [ 88  /* ANDROID_KEYCODE_MEDIA_PREVIOUS */] = KEY_PREVIOUSSONG,
         [ 89  /* ANDROID_KEYCODE_MEDIA_REWIND */] = KEY_REWIND,
@@ -452,8 +477,9 @@ static int android_to_linux_keycode[304] = {
         [ 116  /* ANDROID_KEYCODE_SCROLL_LOCK */] = KEY_SCROLLLOCK,
         [ 117  /* ANDROID_KEYCODE_META_LEFT */] = KEY_LEFTMETA,
         [ 118  /* ANDROID_KEYCODE_META_RIGHT */] = KEY_RIGHTMETA,
+        [ 119  /* ANDROID_KEYCODE_FUNCTION */] = KEY_FN,
         [ 120  /* ANDROID_KEYCODE_SYSRQ */] = KEY_PRINT,
-        [ 121  /* ANDROID_KEYCODE_BREAK */] = KEY_BREAK,
+        [ 121  /* ANDROID_KEYCODE_BREAK */] = KEY_PAUSE,
         [ 122  /* ANDROID_KEYCODE_MOVE_HOME */] = KEY_HOME,
         [ 123  /* ANDROID_KEYCODE_MOVE_END */] = KEY_END,
         [ 124  /* ANDROID_KEYCODE_INSERT */] = KEY_INSERT,
@@ -503,8 +529,48 @@ static int android_to_linux_keycode[304] = {
         [ 168  /* ANDROID_KEYCODE_ZOOM_IN */] = KEY_ZOOMIN,
         [ 169  /* ANDROID_KEYCODE_ZOOM_OUT */] = KEY_ZOOMOUT,
         [ 170  /* ANDROID_KEYCODE_TV */] = KEY_TV,
+        [ 172  /* ANDROID_KEYCODE_GUIDE */] = KEY_PROGRAM,
+        [ 173  /* ANDROID_KEYCODE_DVR */] = KEY_PVR,
+        [ 174  /* ANDROID_KEYCODE_BOOKMARK */] = KEY_BOOKMARKS,
+        [ 175  /* ANDROID_KEYCODE_CAPTIONS */] = KEY_SUBTITLE,
+        [ 183  /* ANDROID_KEYCODE_PROG_RED */] = KEY_RED,
+        [ 184  /* ANDROID_KEYCODE_PROG_GREEN */] = KEY_GREEN,
+        [ 185  /* ANDROID_KEYCODE_PROG_YELLOW */] = KEY_YELLOW,
+        [ 186  /* ANDROID_KEYCODE_PROG_BLUE */] = KEY_BLUE,
+        [ 187  /* ANDROID_KEYCODE_APP_SWITCH */] = KEY_APPSELECT,
+        [ 204  /* ANDROID_KEYCODE_LANGUAGE_SWITCH */] = KEY_LANGUAGE,
+        [ 207  /* ANDROID_KEYCODE_CONTACTS */] = KEY_ADDRESSBOOK,
         [ 208  /* ANDROID_KEYCODE_CALENDAR */] = KEY_CALENDAR,
+        [ 209  /* ANDROID_KEYCODE_MUSIC */] = KEY_SOUND,
         [ 210  /* ANDROID_KEYCODE_CALCULATOR */] = KEY_CALC,
+        [ 211  /* ANDROID_KEYCODE_ZENKAKU_HANKAKU */] = KEY_ZENKAKUHANKAKU,
+        [ 212  /* ANDROID_KEYCODE_EISU */] = KEY_HANJA,
+        [ 213  /* ANDROID_KEYCODE_MUHENKAN */] = KEY_MUHENKAN,
+        [ 214  /* ANDROID_KEYCODE_HENKAN */] = KEY_HENKAN,
+        [ 215  /* ANDROID_KEYCODE_KATAKANA_HIRAGANA */] = KEY_KATAKANAHIRAGANA,
+        [ 216  /* ANDROID_KEYCODE_YEN */] = KEY_YEN,
+        [ 217  /* ANDROID_KEYCODE_RO */] = KEY_RO,
+        [ 218  /* ANDROID_KEYCODE_KANA */] = KEY_HANGEUL,
+        [ 219  /* ANDROID_KEYCODE_ASSIST */] = KEY_ASSISTANT,
+        [ 220  /* ANDROID_KEYCODE_BRIGHTNESS_DOWN */] = KEY_BRIGHTNESSDOWN,
+        [ 221  /* ANDROID_KEYCODE_BRIGHTNESS_UP */] = KEY_BRIGHTNESSUP,
+        [ 223  /* ANDROID_KEYCODE_SLEEP */] = KEY_SLEEP,
+        [ 224  /* ANDROID_KEYCODE_WAKEUP */] = KEY_WAKEUP,
+        [ 229  /* ANDROID_KEYCODE_LAST_CHANNEL */] = KEY_LAST,
+        [ 231  /* ANDROID_KEYCODE_VOICE_ASSIST */] = KEY_VOICECOMMAND,
+        [ 277  /* ANDROID_KEYCODE_CUT */] = KEY_CUT,
+        [ 278  /* ANDROID_KEYCODE_COPY */] = KEY_COPY,
+        [ 279  /* ANDROID_KEYCODE_PASTE */] = KEY_PASTE,
+        [ 285  /* ANDROID_KEYCODE_REFRESH */] = KEY_REFRESH,
+        [ 305  /* ANDROID_KEYCODE_KEYBOARD_BACKLIGHT_DOWN */] = KEY_KBDILLUMDOWN,
+        [ 306  /* ANDROID_KEYCODE_KEYBOARD_BACKLIGHT_UP */] = KEY_KBDILLUMUP,
+        [ 307  /* ANDROID_KEYCODE_KEYBOARD_BACKLIGHT_TOGGLE */] = KEY_KBDILLUMTOGGLE,
+        [ 312  /* ANDROID_KEYCODE_RECENT_APPS */] = KEY_SCALE,
+        [ 313  /* ANDROID_KEYCODE_MACRO_1 */] = KEY_MACRO1,
+        [ 314  /* ANDROID_KEYCODE_MACRO_2 */] = KEY_MACRO2,
+        [ 315  /* ANDROID_KEYCODE_MACRO_3 */] = KEY_MACRO3,
+        [ 316  /* ANDROID_KEYCODE_MACRO_4 */] = KEY_MACRO4,
+        [ 317  /* ANDROID_KEYCODE_EMOJI_PICKER */] = KEY_EMOJI_PICKER,
 };
 
 #ifdef __cplusplus

@@ -20,6 +20,7 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.hardware.display.DisplayManager;
 import android.hardware.input.InputManager;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Build;
 import android.util.DisplayMetrics;
@@ -36,6 +37,7 @@ import androidx.annotation.IntDef;
 import androidx.core.app.NotificationCompat;
 import androidx.core.math.MathUtils;
 
+import com.termux.x11.CmdEntryPoint;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.LorieView;
 import com.termux.x11.MainActivity;
@@ -429,6 +431,7 @@ public class TouchInputHandler {
     }
 
     public void setCapturingEnabled(boolean enabled) {
+        enabled &= mActivity.getLorieView().connected();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (mInjector.pointerCapture && enabled)
                 mActivity.getLorieView().requestPointerCapture();
@@ -517,7 +520,7 @@ public class TouchInputHandler {
             case "toggle additional key bar": return (key, down) -> { if (down) mActivity.toggleExtraKeys(); };
             case "open preferences": return (key, down) -> { if (down) mActivity.startActivity(new Intent(mActivity, LoriePreferences.class) {{ setAction(Intent.ACTION_MAIN); }}); };
             case "release pointer and keyboard capture": return (key, down) -> { if (down) setCapturingEnabled(false); };
-            case "toggle fullscreen": return (key, down) -> { if (down) MainActivity.prefs.fullscreen.put(!MainActivity.prefs.fullscreen.get()); };
+            case "toggle fullscreen": return (key, down) -> { if (down) mActivity.prefs.fullscreen.put(!mActivity.prefs.fullscreen.get()); };
             case "exit": return (key, down) -> { if (down) mActivity.finish(); };
             case "send volume up": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_UP, down);
             case "send volume down": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_DOWN, down);
@@ -527,55 +530,60 @@ public class TouchInputHandler {
         }
     }
 
-    public PendingIntent extractIntentFromPreferences(Prefs p, String name, int requestCode) {
+    public static PendingIntent extractIntentFromPreferences(Context ctx, Prefs p, String name, int requestCode) {
         LoriePreferences.PrefsProto.Preference pref = p.keys.get(name + "Action");
         if (pref == null)
             return null;
 
         switch(pref.asList().get()) {
             case "open preferences":
-                return PendingIntent.getActivity(mActivity, requestCode, new Intent(mActivity, LoriePreferences.class) {{
+                return PendingIntent.getActivity(ctx, requestCode, new Intent(ctx, LoriePreferences.class) {{
                     putExtra("key", "value");
-                    setPackage(mActivity.getPackageName());
+                    setPackage(ctx.getPackageName());
                     setAction(Intent.ACTION_MAIN);
                 }}, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            case "restart activity":
-                return PendingIntent.getActivity(mActivity, requestCode,
-                        Intent.makeRestartActivityTask(mActivity.getComponentName()), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            case "restart activity": {
+                MainActivity activity = (MainActivity) ctx;
+                return PendingIntent.getActivity(activity, requestCode,
+                        Intent.makeRestartActivityTask(activity.getComponentName())
+                                .setData(activity.getTag().isEmpty() ? null : Uri.parse(activity.getTag())),
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            }
             case "exit":
             case "toggle soft keyboard":
             case "toggle additional key bar":
             case "release pointer and keyboard capture":
-                return PendingIntent.getBroadcast(mActivity, requestCode, new Intent(MainActivity.ACTION_CUSTOM) {{
+                return PendingIntent.getBroadcast(ctx, requestCode, new Intent(MainActivity.ACTION_CUSTOM) {{
                     putExtra("what", name);
-                    setPackage(mActivity.getPackageName());
+                    putExtra(CmdEntryPoint.EXTRA_DOCUMENT_TAG, ((MainActivity) ctx).getTag());
+                    setPackage(ctx.getPackageName());
                 }}, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             default: return null;
         }
     }
 
     @SuppressLint("DiscouragedApi")
-    public String extractTitleFromPreferences(Prefs p, String name) {
+    public static String extractTitleFromPreferences(Context ctx, Prefs p, String name) {
         LoriePreferences.PrefsProto.Preference pref = p.keys.get(name + "Action");
         if (pref == null)
             return null;
 
         String key = pref.asList().get().replace(' ', '_');
-        int id = mActivity.getResources().getIdentifier("lorie_notification_" + key, "string", mActivity.getPackageName());
-        return id == 0 ? null : mActivity.getResources().getString(id);
+        int id = ctx.getResources().getIdentifier("lorie_notification_" + key, "string", ctx.getPackageName());
+        return id == 0 ? null : ctx.getResources().getString(id);
     }
 
-    public NotificationCompat.Builder setupNotification(Prefs prefs, NotificationCompat.Builder builder) {
+    public static NotificationCompat.Builder setupNotification(Context ctx, Prefs prefs, NotificationCompat.Builder builder) {
         PendingIntent i;
 
-        if ((i = extractIntentFromPreferences(prefs, "notificationTap", 0)) != null)
+        if ((i = extractIntentFromPreferences(ctx, prefs, "notificationTap", 0)) != null)
             builder.setContentIntent(i);
 
-        if ((i = extractIntentFromPreferences(prefs, "notificationButton0", 1)) != null)
-            builder.addAction(0, extractTitleFromPreferences(prefs, "notificationButton0"), i);
+        if ((i = extractIntentFromPreferences(ctx, prefs, "notificationButton0", 1)) != null)
+            builder.addAction(0, extractTitleFromPreferences(ctx, prefs, "notificationButton0"), i);
 
-        if ((i = extractIntentFromPreferences(prefs, "notificationButton1", 2)) != null)
-            builder.addAction(0, extractTitleFromPreferences(prefs, "notificationButton1"), i);
+        if ((i = extractIntentFromPreferences(ctx, prefs, "notificationButton1", 2)) != null)
+            builder.addAction(0, extractTitleFromPreferences(ctx, prefs, "notificationButton1"), i);
 
         return builder;
     }
@@ -693,11 +701,6 @@ public class TouchInputHandler {
             }
 
             if (pointerCount == 2 && mSwipePinchDetector.isSwiping()) {
-                if (!(mInputStrategy instanceof InputStrategyInterface.TrackpadInputStrategy)) {
-                    // Ensure the cursor is located at the coordinates of the original event,
-                    // otherwise the target window may not receive the scroll event correctly.
-                    moveCursorToScreenPoint(e1.getX(), e1.getY());
-                }
                 mInputStrategy.onScroll(distanceX, distanceY);
 
                 // Prevent the cursor being moved or flung by the gesture.
@@ -1028,8 +1031,14 @@ public class TouchInputHandler {
                 boolean axis_relative_x = e.getDevice().getMotionRange(MotionEvent.AXIS_RELATIVE_X) != null;
                 boolean mouse_relative = (e.getSource() & InputDevice.SOURCE_MOUSE_RELATIVE) == InputDevice.SOURCE_MOUSE_RELATIVE;
                 if (axis_relative_x || mouse_relative) {
-                    float x = axis_relative_x ? e.getAxisValue(MotionEvent.AXIS_RELATIVE_X) : e.getX();
-                    float y = axis_relative_x ? e.getAxisValue(MotionEvent.AXIS_RELATIVE_Y) : e.getY();
+                    int axisX = axis_relative_x ? MotionEvent.AXIS_RELATIVE_X : MotionEvent.AXIS_X;
+                    int axisY = axis_relative_x ? MotionEvent.AXIS_RELATIVE_Y : MotionEvent.AXIS_Y;
+                    float x = e.getAxisValue(axisX);
+                    float y = e.getAxisValue(axisY);
+                    for (int h = 0; h < e.getHistorySize(); h++) {
+                        x += e.getHistoricalAxisValue(axisX, h);
+                        y += e.getHistoricalAxisValue(axisY, h);
+                    }
                     float temp;
 
                     switch (capturedPointerTransformation) {

@@ -14,7 +14,7 @@
         <SeekBarPreference app:key="displayScale" app:defaultValue="100" app:min="30" android:max="300" app:seekBarIncrement="10" app:showSeekBarValue="true" app:updatesContinuously="true" />
         <ListPreference app:key="displayResolutionExact" app:defaultValue="1280x1024" app:entries="@array/displayResolution" app:entryValues="@array/displayResolution" tools:ignore="DuplicateSpeakableTextCheck" />
         <EditTextPreference app:key="displayResolutionCustom" app:defaultValue="1280x1024" app:useSimpleSummaryProvider="true" />
-        <ListPreference app:key="displayFilteringMode" app:defaultValue="nearest" app:entries="@array/displayFilteringVariants" app:entryValues="@array/displayFilteringVariants"  />
+        <ListPreference app:key="displayFilteringMode" app:defaultValue="bilinear" app:entries="@array/displayFilteringVariants" app:entryValues="@array/displayFilteringVariants"  />
         <SwitchPreferenceCompat app:key="adjustResolution" app:defaultValue="false" />
         <SwitchPreferenceCompat app:key="displayStretch" app:defaultValue="false" />
         <SwitchPreferenceCompat app:key="Reseed" app:defaultValue="false" />
@@ -34,8 +34,9 @@
         <SwitchPreferenceCompat app:key="pointerCapture" app:defaultValue="false" />
         <ListPreference app:key="transformCapturedPointer" app:defaultValue="no" app:entries="@array/transformCapturedPointerEntries" app:entryValues="@array/transformCapturedPointerValues" />
         <SeekBarPreference app:key="capturedPointerSpeedFactor" app:defaultValue="100" app:min="1" android:max="300" app:seekBarIncrement="1" app:showSeekBarValue="true" app:updatesContinuously="true" />
-        <SwitchPreferenceCompat app:key="tapToMove" app:defaultValue="false" />
+        <SwitchPreferenceCompat app:key="tapToMove" app:defaultValue="true" />
         <SwitchPreferenceCompat app:key="ignoreGamepadEvents" app:defaultValue="false" />
+        <SwitchPreferenceCompat app:key="zoomFollowsCursor" app:defaultValue="true" />
     </PreferenceScreen>
     <PreferenceScreen app:key="kbd">
         <SwitchPreferenceCompat app:key="showAdditionalKbd" app:defaultValue="true" />
@@ -61,7 +62,7 @@
     </PreferenceScreen>
     <PreferenceScreen app:key="ekbar">
         <SwitchPreferenceCompat app:key="adjustHeightForEK" app:defaultValue="true" />
-        <SwitchPreferenceCompat app:key="useTermuxEKBarBehaviour" app:defaultValue="false" />
+        <SwitchPreferenceCompat app:key="useTermuxEKBarBehaviour" app:defaultValue="true" />
         <ListPreference app:key="ekbarPosition" app:defaultValue="bottom" app:entries="@array/ekbarPositionValues" app:entryValues="@array/ekbarPositionValues" />
         <SwitchPreferenceCompat app:key="ekbarPositionIgnoreOrientation" app:defaultValue="false" />
         <SeekBarPreference app:key="opacityEKBar" app:defaultValue="100" app:min="1" android:max="100" app:seekBarIncrement="1" app:showSeekBarValue="true" app:updatesContinuously="true" />

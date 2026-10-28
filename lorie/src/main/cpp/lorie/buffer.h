@@ -154,6 +154,11 @@ int LorieBuffer_lock(LorieBuffer* _Nullable buffer, void* _Nullable * _Nonnull o
 int LorieBuffer_unlock(LorieBuffer* _Nullable buffer);
 
 /**
+ * Whether the buffer is locked with LorieBuffer_lock.
+ */
+bool LorieBuffer_isLocked(LorieBuffer* _Nullable buffer);
+
+/**
  * Send the AHardwareBuffer to an AF_UNIX socket.
  *
  * @param buffer
@@ -249,6 +254,11 @@ int LorieBuffer_recvAHardwareBufferHandleFromUnixSocket(int socketFd, AHardwareB
  * Describes a raw AHardwareBuffer, as obtained from LorieBuffer_recvAHardwareBufferHandleFromUnixSocket.
  */
 void LorieBuffer_describeAHardwareBuffer(AHardwareBuffer* _Nonnull buffer, AHardwareBuffer_Desc* _Nonnull outDesc);
+
+/**
+ * Releases a raw AHardwareBuffer, as obtained from LorieBuffer_recvAHardwareBufferHandleFromUnixSocket.
+ */
+void LorieBuffer_releaseAHardwareBuffer(AHardwareBuffer* _Nonnull buffer);
 
 #undef STATIC_INLINE
 

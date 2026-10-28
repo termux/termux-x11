@@ -613,6 +613,15 @@ static void saveAddedKeysym(KeyCode code, KeySym sym)
 {
     AddedKeySym* item;
 
+    xorg_list_for_each_entry(item, &addedKeysyms, entry) {
+        if (item->keycode == code) {
+            item->keysym = sym;
+            xorg_list_del(&item->entry);
+            xorg_list_add(&item->entry, &addedKeysyms);
+            return;
+        }
+    }
+
     item = malloc(sizeof(AddedKeySym));
     if (!item)
         return;
@@ -783,6 +792,25 @@ void lorieKeysymKeyboardEvent(KeySym keysym, int down) {
      * stuck down.
      */
     mieqProcessInputEvents();
+
+    /*
+     * A different slave (for example XTEST) may have been used since our
+     * last event. Process the device switch before looking up or adding a
+     * keysym: otherwise the first QueueKeyboardEvents() copies the slave's
+     * map over the master map we just modified.
+     */
+    {
+        InternalEvent event;
+        int count = 0;
+
+        input_lock();
+        UpdateFromMaster(&event, lorieKeyboard, DEVCHANGE_KEYBOARD_EVENT, &count);
+        if (count)
+            mieqEnqueue(lorieKeyboard, &event);
+        input_unlock();
+        if (count)
+            mieqProcessInputEvents();
+    }
 
     state = lorieGetKeyboardState();
 

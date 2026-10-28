@@ -7,9 +7,13 @@
     <string name="lorie_app_name">&TERMUX_X11_APP_NAME;</string>
 
     <string name="not_connected">Not connected</string>
-    <string name="preferences_button_text">   PREFERENCES   </string>
-    <string name="help_button_text">   HELP   </string>
-    <string name="exit_button_text">   EXIT   </string>
+    <string name="no_server_signal">X server stalled</string>
+    <string name="preferences_button_text">Preferences</string>
+    <string name="help_button_text">Help</string>
+    <string name="exit_button_text">Exit</string>
+    <string name="displays_button_text">Displays</string>
+    <string name="displays_dialog_title">Displays</string>
+    <string name="displays_dialog_empty">No other displays are open</string>
     <string name="extra_keys_config_desc">Here you can set value of extra-keys variable like in Termux app (read <a href="http://wiki.termux.com/wiki/Touch_Keyboard#Extra_Keys_Row">this</a>) and more \n
 E.g. <b>META</b> for <i>META key</i>, \n
 <b>KEYBOARD</b> for <i>soft keyboard toggling key</i>, \n
@@ -72,6 +76,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_tapToMove">Enable tap-to-move for touchpads</string>
     <string name="lorie_pref_ignoreGamepadEvents">Ignore gamepad input events</string>
     <string name="lorie_pref_ignoreGamepadEvents_summary">Prevent gamepad and joystick events from being forwarded to X server</string>
+    <string name="lorie_pref_zoomFollowsCursor">Pan to follow cursor while zoomed in</string>
 
     <string name="lorie_pref_showAdditionalKbd">Show additional keyboard</string>
     <string name="lorie_pref_showAdditionalKbd_summary">Show keyboard with additional keys.</string>

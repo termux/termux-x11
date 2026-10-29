@@ -382,7 +382,7 @@ struct Renderer {
 extern "C" {
 #endif
 
-static int android_to_linux_keycode[320] = {
+static int android_to_linux_keycode[338] = {
         [ 3   /* ANDROID_KEYCODE_HOME */] = KEY_HOMEPAGE,
         [ 4   /* ANDROID_KEYCODE_BACK */] = KEY_ESC,
         [ 5   /* ANDROID_KEYCODE_CALL */] = KEY_PHONE,
@@ -571,6 +571,18 @@ static int android_to_linux_keycode[320] = {
         [ 315  /* ANDROID_KEYCODE_MACRO_3 */] = KEY_MACRO3,
         [ 316  /* ANDROID_KEYCODE_MACRO_4 */] = KEY_MACRO4,
         [ 317  /* ANDROID_KEYCODE_EMOJI_PICKER */] = KEY_EMOJI_PICKER,
+        [ 326  /* ANDROID_KEYCODE_F13 */] = KEY_F13,
+        [ 327  /* ANDROID_KEYCODE_F14 */] = KEY_F14,
+        [ 328  /* ANDROID_KEYCODE_F15 */] = KEY_F15,
+        [ 329  /* ANDROID_KEYCODE_F16 */] = KEY_F16,
+        [ 330  /* ANDROID_KEYCODE_F17 */] = KEY_F17,
+        [ 331  /* ANDROID_KEYCODE_F18 */] = KEY_F18,
+        [ 332  /* ANDROID_KEYCODE_F19 */] = KEY_F19,
+        [ 333  /* ANDROID_KEYCODE_F20 */] = KEY_F20,
+        [ 334  /* ANDROID_KEYCODE_F21 */] = KEY_F21,
+        [ 335  /* ANDROID_KEYCODE_F22 */] = KEY_F22,
+        [ 336  /* ANDROID_KEYCODE_F23 */] = KEY_F23,
+        [ 337  /* ANDROID_KEYCODE_F24 */] = KEY_F24,
 };
 
 #ifdef __cplusplus

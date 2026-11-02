@@ -927,7 +927,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
                sourceLeft / (float) desc->width * xfactor, sourceTop / (float) desc->height,
                (sourceLeft + sourceWidth) / (float) desc->width * xfactor,
                (sourceTop + sourceHeight) / (float) desc->height,
-               LorieBuffer_isRgba(buffer));
+               LorieBuffer_isRgba(buffer) && desc->id != state->glDrawnBufferId);
     fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
     glFlush();
 

@@ -35,7 +35,7 @@
 #include "misyncshm.h"
 #include "glxserver.h"
 #include "glxutil.h"
-#include "fbconfigs.h"
+#include "glxconfigs.h"
 #include "inpututils.h"
 #include "exa.h"
 #include "drm_fourcc.h"
@@ -1222,7 +1222,7 @@ static __GLXscreen *glXDRIscreenProbe(ScreenPtr pScreen) {
     screen->destroy = glXDRIscreenDestroy;
     screen->createDrawable = createDrawable;
     screen->pScreen = pScreen;
-    screen->fbconfigs = configs;
+    screen->fbconfigs = lorieGlxConfigs();
     screen->glvnd = "mesa";
 
     __glXInitExtensionEnableBits(screen->glx_enable_bits);

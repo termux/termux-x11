@@ -126,6 +126,7 @@ typedef struct {
 
 #define LORIE_PIXMAP_PRIV_FROM_PIXMAP(pixmap) (pixmap ? ((LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap)) : NULL)
 #define LORIE_BUFFER_FROM_PIXMAP(pixmap) (pixmap ? ((LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap))->buffer : NULL)
+#define LORIE_GLAMOR_PRIV_FROM_PIXMAP(pixmap) ((LoriePixmapPriv*) dixLookupPrivate(&(pixmap)->devPrivates, &lorieGlamorBufferKey))
 
 static LorieBuffer *lorieEnsureGpuSampleable(PixmapPtr pixmap, int8_t type) {
     LoriePixmapPriv *priv = LORIE_PIXMAP_PRIV_FROM_PIXMAP(pixmap);
@@ -580,8 +581,8 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
         return TRUE;
 
     nonEmpty = RegionNotEmpty(DamageRegion(pvfb->damage));
-    priv = root && !pvfb->glamor ? exaGetPixmapDriverPrivate(root) : NULL;
-    buffer = pvfb->glamor ? lorieGlamorRootBuffer : priv ? priv->buffer : NULL;
+    priv = !root ? NULL : pvfb->glamor ? LORIE_GLAMOR_PRIV_FROM_PIXMAP(root) : exaGetPixmapDriverPrivate(root);
+    buffer = priv && priv->buffer ? priv->buffer : pvfb->glamor ? lorieGlamorRootBuffer : NULL;
 
     if (!priv && !pvfb->glamor)
         // Impossible situation, but let's skip this step
@@ -995,9 +996,7 @@ static void loriePerformVblanks(void) {
 }
 
 Bool loriePresentFlip(__unused RRCrtcPtr crtc, __unused uint64_t event_id, __unused uint64_t target_msc, PixmapPtr pixmap, __unused Bool sync_flip) {
-    if (pvfb->glamor)
-        return FALSE;
-    LoriePixmapPriv* priv = (LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap);
+    LoriePixmapPriv* priv = pvfb->glamor ? LORIE_GLAMOR_PRIV_FROM_PIXMAP(pixmap) : (LoriePixmapPriv*) exaGetPixmapDriverPrivate(pixmap);
     if (!priv || !priv->buffer || priv->mem || pvfb->root.width != pixmap->drawable.width || pvfb->root.height != pixmap->drawable.height)
         return FALSE;
 
@@ -1007,7 +1006,8 @@ Bool loriePresentFlip(__unused RRCrtcPtr crtc, __unused uint64_t event_id, __unu
         return FALSE; // For some reason it does not work fine with turnip.
 
     // Regular buffers can not be shared to activity, we must explicitly convert LorieBuffer to FD or AHardwareBuffer
-    lorieEnsureGpuSampleable(pixmap, pvfb->root.legacyDrawing ? LORIEBUFFER_FD : LORIEBUFFER_AHARDWAREBUFFER);
+    if (!pvfb->glamor)
+        lorieEnsureGpuSampleable(pixmap, pvfb->root.legacyDrawing ? LORIEBUFFER_FD : LORIEBUFFER_AHARDWAREBUFFER);
 
     if (desc->type != LORIEBUFFER_FD && desc->type != LORIEBUFFER_AHARDWAREBUFFER)
         return FALSE;

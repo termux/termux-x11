@@ -26,6 +26,9 @@ android {
     //noinspection GrDeprecatedAPIUsage
     compileSdkVersion 34
     ndkVersion termuxX11NdkVersion
+    ndk {
+        abiFilters 'arm64-v8a'
+    }
     defaultConfig {
         minSdkVersion 24
         targetSdkVersion 34

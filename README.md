@@ -25,7 +25,7 @@ git submodule update --init --recursive
 Just like any other X server.
 
 ## Setup Instructions
-Termux:X11 requires Android 8 or later. It consists of an Android app and a companion termux package, and you must install both.
+Termux:X11 requires Android 7 or later. It consists of an Android app and a companion termux package, and you must install both.
 
 The Android app is available via the [nightly release tag](https://github.com/termux/termux-x11/releases/tag/nightly) of this repository. Download and install `termux-x11-universal-debug.apk`.
 

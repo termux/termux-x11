@@ -821,6 +821,8 @@ public class LorieView extends SurfaceView implements InputStub {
     @CriticalNative public static native long getLastInputTimestamp();
     @CriticalNative public static native void markUserActivity();
 
+    static class CriticalNativeProbe { @CriticalNative static native boolean probe(long value); }
+
     static {
         System.loadLibrary("Xlorie");
     }

@@ -6,6 +6,10 @@
     void resetIme();
 }
 
+-keep class com.termux.x11.LorieView$CriticalNativeProbe {
+    native <methods>;
+}
+
 -keep class com.termux.x11.CmdEntryPoint {
     public static void main(java.lang.String[]);
 }

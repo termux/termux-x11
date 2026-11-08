@@ -406,7 +406,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
         }, nullptr);
     }
 
-    static JNINativeMethod methods[] = {
+    static constexpr JNINativeMethod methods[] = {
             {"nativeInit", "()J", (void *)&nativeInit},
             {"nativeDestroy", "(J)V", (void *) +[](__unused JNIEnv *env, __unused jobject thiz, jlong ptr) {
                 auto* r = (LorieViewResources*) ptr;
@@ -540,6 +540,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
             }},
             {"sendTextEvent", "(J[B)V", (void *)&sendTextEvent},
             {"requestConnection", "(J)Z", (void *)&requestConnection},
+            // @CriticalNative without parameters: do not add any or they will break on Android < 8.
             {"getLastInputTimestamp", "()J", (void *) +[](__unused JNIEnv* env, __unused jclass clazz) -> jlong {
                 return (jlong) lastInputTimestampMs;
             }},
@@ -549,7 +550,32 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
     };
     vm->AttachCurrentThread(&env, nullptr);
     jclass cls = env->FindClass("com/termux/x11/LorieView");
+
+    // Checks whether this runtime honors @CriticalNative at all: it does if probe() receives its argument first.
+    constexpr jlong probeValue = 0x7e57;
+    jclass probeCls = env->FindClass("com/termux/x11/LorieView$CriticalNativeProbe");
+    JNINativeMethod probe = {"probe", "(J)Z", (void *) +[](jlong value) -> jboolean { return value == probeValue; }};
+    env->RegisterNatives(probeCls, &probe, 1);
+    bool criticalNativeSupported = env->CallStaticBooleanMethod(probeCls, env->GetStaticMethodID(probeCls, "probe", "(J)Z"), probeValue);
+    env->ExceptionClear();
+
     env->RegisterNatives(cls, methods, sizeof(methods)/sizeof(methods[0]));
+
+    // Runtimes ignoring @CriticalNative pass JNIEnv* and jclass to such natives too, so they get regular JNI adapters.
+    // Indices of the @CriticalNative methods taking parameters in methods[]: update them along with the adapters here.
+    static_assert(!__builtin_strcmp(methods[12].name, "connected") && !__builtin_strcmp(methods[12].signature, "(J)Z") &&
+                  !__builtin_strcmp(methods[25].name, "requestConnection") && !__builtin_strcmp(methods[25].signature, "(J)Z"));
+    if (!criticalNativeSupported) {
+        JNINativeMethod adapters[] = {
+                {methods[12].name, methods[12].signature, (void *) +[](__unused JNIEnv* env, __unused jclass clazz, jlong ptr) -> jboolean {
+                    return ((jboolean (*)(jlong)) methods[12].fnPtr)(ptr);
+                }},
+                {methods[25].name, methods[25].signature, (void *) +[](__unused JNIEnv* env, __unused jclass clazz, jlong ptr) -> jboolean {
+                    return ((jboolean (*)(jlong)) methods[25].fnPtr)(ptr);
+                }},
+        };
+        env->RegisterNatives(cls, adapters, sizeof(adapters)/sizeof(adapters[0]));
+    }
 
     pthread_t freeformLookupThread;
     pthread_create(&freeformLookupThread, nullptr, +[](void* arg) -> void* {

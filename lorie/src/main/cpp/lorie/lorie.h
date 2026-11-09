@@ -36,6 +36,10 @@ void lorieSetStylusEnabled(Bool enabled);
 void lorieSyncLockKeysState(uint8_t state);
 void lorieWakeServer(void);
 void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d);
+Bool lorieGlamorInit(ScreenPtr screen);
+void lorieGlamorFinish(void);
+int lorieGlamorExportFence(void);
+void lorieGlamorSwapRedBlue(unsigned int texture);
 void lorieActivityConnected(void);
 void lorieSendSharedServerState(int memfd);
 void lorieRegisterBuffer(LorieBuffer* buffer);
@@ -195,6 +199,9 @@ struct lorie_shared_server_state {
 
     /* ID of root window texture to be drawn. */
     uint64_t rootWindowTextureID;
+
+    /* ID of the buffer drawn by GL, its channels are already in the order its format describes */
+    volatile uint64_t glDrawnBufferId;
 
     /* A signal to renderer to update root window texture content from shared fragment if needed */
     volatile uint8_t drawRequested;

@@ -57,7 +57,9 @@ set(inc "${CMAKE_CURRENT_BINARY_DIR}"
         "xserver/render"
         "xserver/xfixes"
         "xserver/glx"
-        "xserver/exa")
+        "xserver/exa"
+        "xserver/glamor"
+        "lorie/epoxy")
 
 # C-only: common_compile_options is built from check_c_compiler_flag, and several of its
 # flags (-Wstrict-prototypes, -Wmissing-prototypes, -Wnested-externs, -Wbad-function-cast,
@@ -263,6 +265,18 @@ add_library(xserver_exa STATIC ${EXA_SOURCES})
 target_include_directories(xserver_exa PRIVATE ${inc})
 target_compile_options(xserver_exa PRIVATE ${c_only_compile_options} ${compile_options})
 
+set(GLAMOR_SOURCES
+        glamor.c glamor_copy.c glamor_core.c glamor_dash.c glamor_font.c glamor_composite_glyphs.c
+        glamor_image.c glamor_lines.c glamor_segs.c glamor_render.c glamor_gradient.c glamor_prepare.c
+        glamor_program.c glamor_rects.c glamor_spans.c glamor_text.c glamor_transfer.c glamor_transform.c
+        glamor_trapezoid.c glamor_triangles.c glamor_addtraps.c glamor_glyphblt.c glamor_points.c
+        glamor_pixmap.c glamor_largepixmap.c glamor_picture.c glamor_vbo.c glamor_window.c glamor_fbo.c
+        glamor_compositerects.c glamor_utils.c glamor_sync.c)
+list(TRANSFORM GLAMOR_SOURCES PREPEND "xserver/glamor/")
+add_library(xserver_glamor STATIC ${GLAMOR_SOURCES})
+target_include_directories(xserver_glamor PRIVATE ${inc})
+target_compile_options(xserver_glamor PRIVATE ${c_only_compile_options} ${compile_options} "-Wno-error=nonnull")
+
 set(GLXVND_SOURCES
         vndcmds.c vndext.c vndservermapping.c vndservervendor.c)
 list(TRANSFORM GLXVND_SOURCES PREPEND "xserver/glx/")
@@ -272,7 +286,7 @@ target_compile_options(xserver_glxvnd PRIVATE ${c_only_compile_options} ${compil
 
 set(XSERVER_LIBS tirpc Xdmcp Xau pixman Xfont2 fontenc GLESv2 xshmfence xkbcomp)
 foreach (part glx glxvnd fb mi dix composite damageext dbe randr miext_damage render present xext
-         dri3 miext_sync xfixes xi xkb record xi_stubs xkb_stubs os exa)
+         dri3 miext_sync xfixes xi xkb record xi_stubs xkb_stubs os exa glamor)
     set(XSERVER_LIBS ${XSERVER_LIBS} xserver_${part})
 endforeach ()
 
@@ -283,6 +297,7 @@ add_library(Xlorie SHARED
         "lorie/shm/shmem.c"
         "lorie/clipboard.c"
         "lorie/InitOutput.c"
+        "lorie/glamor_support.c"
         "lorie/InitInput.c"
         "lorie/InputXKB.c"
         "lorie/renderer.cpp"

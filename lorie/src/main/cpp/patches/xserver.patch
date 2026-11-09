@@ -54,7 +54,6 @@
  /*
   * Manage a queue of sleeping clients, awakening them
   * when requested, by using the OS functions IgnoreClient
-
 +++ ./dix/enterleave.c
 @@ -1541,6 +1541,8 @@
      }
@@ -85,7 +84,10 @@
          InputThreadInit();
  
 +++ ./exa/exa_unaccel.c
-@@ -384,10 +384,10 @@
+@@ -381,16 +381,16 @@
+ 
+         exaGetDrawableDeltas(&pWin->drawable, pPixmap, &xoff, &yoff);
+         RegionTranslate(prgnSrc, xoff, yoff);
 -        pExaScr->prepare_access_reg(pPixmap, EXA_PREPARE_SRC, prgnSrc);
 +        pExaScr->prepare_access_reg(pPixmap, EXA_PREPARE_DEST, prgnSrc);
          RegionTranslate(prgnSrc, -xoff, -yoff);
@@ -93,12 +95,15 @@
      else
 -        exaPrepareAccess(pDrawable, EXA_PREPARE_SRC);
 +        exaPrepareAccess(pDrawable, EXA_PREPARE_DEST);
-
+ 
      swap(pExaScr, pScreen, CopyWindow);
      pScreen->CopyWindow(pWin, ptOldOrg, prgnSrc);
      swap(pExaScr, pScreen, CopyWindow);
 -    exaFinishAccess(pDrawable, EXA_PREPARE_SRC);
 +    exaFinishAccess(pDrawable, EXA_PREPARE_DEST);
+     EXA_POST_FALLBACK(pScreen);
+ }
+ 
 +++ ./include/os.h
 @@ -557,6 +557,10 @@
  extern _X_EXPORT void
@@ -306,7 +311,7 @@
      if (*type == 'r') {
          iop = fdopen(pdes[0], type);
          close(pdes[1]);
-@@ -1628,6 +1684,8 @@
+@@ -1641,6 +1697,8 @@
          pid = waitpid(cur->pid, &pstat, 0);
      } while (pid == -1 && errno == EINTR);
  
@@ -335,34 +340,34 @@
      present_check_flip2_ptr             check_flip2;
  
 +++ ./present/present_execute.c
-@@ -34,5 +34,7 @@
+@@ -33,6 +33,8 @@
+     present_vblank_ptr      vblank = param;
      ScreenPtr               screen = vblank->screen;
      present_screen_priv_ptr screen_priv = present_screen_priv(screen);
--
 +    /* lorie: disarm, or miSyncTriggerFence()'s restart-scan re-fires this callback. */
 +    present_fence_set_callback(vblank->wait_fence, NULL, NULL);
-+
+ 
      screen_priv->re_execute(vblank);
  }
 +++ ./present/present_priv.h
 @@ -24,6 +24,7 @@
  #define _PRESENT_PRIV_H_
-
+ 
  #include "dix-config.h"
 +#include <stdbool.h>
  #include <X11/X.h>
  #include "scrnintstr.h"
  #include "misc.h"
-@@ -91,6 +92,9 @@
+@@ -92,6 +93,9 @@
      Bool                has_suboptimal; /* whether client can support SuboptimalCopy mode */
  };
-
+ 
 +extern bool lorieConnectionAlive(int fd);
 +extern volatile int conn_fd;
 +
  typedef struct present_screen_priv present_screen_priv_rec, *present_screen_priv_ptr;
  typedef struct present_window_priv present_window_priv_rec, *present_window_priv_ptr;
-
+ 
 +++ ./present/present_scmd.c
 @@ -599,6 +599,8 @@
                      damage = &window->clipList;

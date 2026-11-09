@@ -1,5 +1,4 @@
 diff --git a/src/Quarks.c b/src/Quarks.c
-index 0dd91968..dbaf5086 100644
 --- a/src/Quarks.c
 +++ b/src/Quarks.c
 @@ -105,6 +105,11 @@ static XrmQuark nextUniq = -1;	/* next quark from XrmUniqueQuark */
@@ -15,7 +14,6 @@ index 0dd91968..dbaf5086 100644
  
  #define WALIGN sizeof(unsigned long)
 diff --git a/src/Xrm.c b/src/Xrm.c
-index a8ebf883..d716fdb0 100644
 --- a/src/Xrm.c
 +++ b/src/Xrm.c
 @@ -301,6 +301,13 @@ typedef unsigned char XrmBits;

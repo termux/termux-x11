@@ -315,7 +315,11 @@ public final class InputEventSender {
     // as real keyboard input.
     private boolean shouldBlockKeyEvent(KeyEvent event) {
         InputDevice device = event.getDevice();
-        int sources = device != null ? device.getSources() : 0;
+        // Keyboard cases with a touchpad are a single device with both sources.
+        if (device == null || device.getKeyboardType() == InputDevice.KEYBOARD_TYPE_ALPHABETIC)
+            return false;
+
+        int sources = device.getSources();
         return (sources & InputDevice.SOURCE_KEYBOARD) != 0
                 && (sources & (InputDevice.SOURCE_TOUCHSCREEN | InputDevice.SOURCE_TOUCHPAD)) != 0
                 && (sources & InputDevice.SOURCE_STYLUS) == 0

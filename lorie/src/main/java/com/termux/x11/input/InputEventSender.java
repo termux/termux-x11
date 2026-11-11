@@ -313,9 +313,15 @@ public final class InputEventSender {
     // input, likely due to a firmware or driver quirk in the underlying
     // input device. Filter these out to avoid having them misinterpreted
     // as real keyboard input.
+    // Devices that report a full alphabetic keyboard are never filtered, since
+    // keyboard cases with a built-in touchpad are exposed to Android as a single
+    // device with both SOURCE_KEYBOARD and SOURCE_TOUCHPAD.
     private boolean shouldBlockKeyEvent(KeyEvent event) {
         InputDevice device = event.getDevice();
-        int sources = device != null ? device.getSources() : 0;
+        if (device == null || device.getKeyboardType() == InputDevice.KEYBOARD_TYPE_ALPHABETIC)
+            return false;
+
+        int sources = device.getSources();
         return (sources & InputDevice.SOURCE_KEYBOARD) != 0
                 && (sources & (InputDevice.SOURCE_TOUCHSCREEN | InputDevice.SOURCE_TOUCHPAD)) != 0
                 && (sources & InputDevice.SOURCE_STYLUS) == 0

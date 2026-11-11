@@ -158,7 +158,8 @@ void OsVendorInit(void) {
     pthread_mutex_init(&lorieScreen.state->cursor.lock, &mutex_attr);
     lorieScreen.state->cursor.visible = TRUE;
 
-    lorieStartRenderer(lorieScreen.state);
+    if (lorieStartRenderer(lorieScreen.state))
+        lorieScreen.root.legacyDrawing = TRUE;
     lorieListenForKnocks(documentTag ? DOCUMENT_PORT_BASE + atoi(display) : PORT, documentTag);
 }
 
@@ -873,7 +874,6 @@ void InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     screen_info->bitmapBitOrder = BITMAP_BIT_ORDER;
     screen_info->numPixmapFormats = ARRAY_SIZE(depths);
 
-    rendererTestCapabilities(&pvfb->root.legacyDrawing);
     xorgGlxCreateVendor();
     lorieInitClipboard();
 

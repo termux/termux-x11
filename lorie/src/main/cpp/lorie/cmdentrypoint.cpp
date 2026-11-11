@@ -514,8 +514,8 @@ void lorieSendSharedServerState(int memfd) {
     }
 }
 
-void lorieStartRenderer(struct lorie_shared_server_state* state) {
-    renderer.init(vm, state);
+bool lorieStartRenderer(struct lorie_shared_server_state* state) {
+    return renderer.init(vm, state);
 }
 
 void lorieWakeRenderer(void) {

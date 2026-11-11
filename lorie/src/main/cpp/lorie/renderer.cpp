@@ -213,19 +213,31 @@ static ANativeWindow* createDefaultWindow(JNIEnv* env) {
 
 void* Renderer::initThread() {
     JavaVMAttachArgs attachArgs = { JNI_VERSION_1_6, "LorieRendererThread", nullptr };
-    if (jvm->AttachCurrentThread(&rendererEnv, &attachArgs) != JNI_OK) {
+    bool ready = jvm->AttachCurrentThread(&rendererEnv, &attachArgs) == JNI_OK;
+    if (!ready)
         log("Failed to attach renderer thread to JVM");
-        return nullptr;
-    }
+
+    ready = ready && initGl();
+    pthread_mutex_lock(&stateLock);
+    legacyDrawingRequired = ready && needsLegacyDrawing();
+    initDone = true;
+    pthread_cond_broadcast(&stateChangeFinishCond);
+    pthread_mutex_unlock(&stateLock);
+
+    if (ready)
+        threadLoop();
+    return nullptr;
+}
+
+bool Renderer::initGl() {
+    EGLint major, minor;
+    EGLint numConfigs;
+    EGLint *const alphaAttrib = &configAttribs[11];
 
     jclass surfaceClass = rendererEnv->FindClass("android/view/Surface");
     surfaceRelease = rendererEnv->GetMethodID(surfaceClass, "release", "()V");
     surfaceDestroy = rendererEnv->GetMethodID(surfaceClass, "destroy", "()V");
     rendererEnv->ExceptionClear();
-
-    EGLint major, minor;
-    EGLint numConfigs;
-    EGLint *const alphaAttrib = &configAttribs[11];
 
     egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (egl_display == EGL_NO_DISPLAY)
@@ -254,7 +266,8 @@ void* Renderer::initThread() {
 
     sfc = defaultSfc = eglCreateWindowSurface(egl_display, cfg, win, nullptr);
 
-    eglMakeCurrent(egl_display, sfc, sfc, ctx);
+    if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE)
+        return printEglError("eglMakeCurrent failed", __LINE__);
     eglSwapInterval(egl_display, 0);
 
     g_texture_program = createProgram(vertexShaderSrc, fragmentShaderSrc);
@@ -273,12 +286,10 @@ void* Renderer::initThread() {
 
     glActiveTexture(GL_TEXTURE0);
     glGenTextures(1, &cursor.id);
-
-    threadLoop();
-    return nullptr;
+    return true;
 }
 
-void Renderer::init(JavaVM* vm, struct lorie_shared_server_state* serverState) {
+bool Renderer::init(JavaVM* vm, struct lorie_shared_server_state* serverState) {
     jvm = vm;
     state = serverState;
 
@@ -293,15 +304,20 @@ void Renderer::init(JavaVM* vm, struct lorie_shared_server_state* serverState) {
     pthread_create(&thread, nullptr, +[](void* cookie) -> void* {
         return ((Renderer*) cookie)->initThread();
     }, this);
+
+    pthread_mutex_lock(&stateLock);
+    while (!initDone)
+        pthread_cond_wait(&stateChangeFinishCond, &stateLock);
+    pthread_mutex_unlock(&stateLock);
+    return legacyDrawingRequired;
 }
 
-void Renderer::testCapabilities(int* legacy_drawing) {
-    // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
+bool Renderer::needsLegacyDrawing() {
+    // Some devices sample an AHardwareBuffer written by the CPU with a different layout, here we are checking it.
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
-    EGLint numConfigs;
     EGLClientBuffer clientBuffer;
     EGLImageKHR img;
-    EGLint major, minor;
+    bool legacyDrawing = false;
     AHardwareBuffer *new_ = nullptr;
     int status;
     AHardwareBuffer_Desc d0 = {
@@ -314,28 +330,14 @@ void Renderer::testCapabilities(int* legacy_drawing) {
 
     if (!__builtin_available(android 26, *)) {
         loge("No AHardwareBuffer on this platform, forcing legacy drawing");
-        *legacy_drawing = 1;
-        return;
+        return true;
     }
-
-    if (egl_display == EGL_NO_DISPLAY) {
-        egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-        if (egl_display == EGL_NO_DISPLAY)
-            return vprintEglError("Got no EGL display", __LINE__);
-    }
-
-    if (eglInitialize(egl_display, &major, &minor) != EGL_TRUE)
-        return vprintEglError("Unable to initialize EGL", __LINE__);
-
-    loge("Xlorie: Initialized EGL version %d.%d\n", major, minor);
-    eglBindAPI(EGL_OPENGL_ES_API);
 
     status = AHardwareBuffer_allocate(&d0, &new_);
     if (status != 0 || new_ == nullptr) {
         loge("Failed to allocate native buffer (%p, error %d)", new_, status);
         loge("Forcing legacy drawing");
-        *legacy_drawing = 1;
-        return;
+        return true;
     }
 
     uint32_t *pixels;
@@ -345,50 +347,25 @@ void Renderer::testCapabilities(int* legacy_drawing) {
     } else {
         loge("Failed to lock native buffer (%p, error %d)", new_, status);
         loge("Forcing legacy drawing");
-        *legacy_drawing = 1;
         AHardwareBuffer_release(new_);
-        return;
+        return true;
     }
 
     clientBuffer = eglGetNativeClientBufferANDROID(new_);
     if (!clientBuffer) {
-        *legacy_drawing = 1;
         AHardwareBuffer_release(new_);
-        return vprintEglError("Failed to obtain EGLClientBuffer from AHardwareBuffer, forcing legacy drawing", __LINE__);
+        printEglError("Failed to obtain EGLClientBuffer from AHardwareBuffer, forcing legacy drawing", __LINE__);
+        return true;
     }
 
     if (!(img = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes))) {
         loge("Failed to obtain EGLImageKHR from EGLClientBuffer");
         loge("Forcing legacy drawing");
-        *legacy_drawing = 1;
-        AHardwareBuffer_release(new_);
+        legacyDrawing = true;
     } else {
-        // For some reason all devices I checked had no GL_EXT_texture_format_BGRA8888 support, but some of them still provided BGRA extension.
-        // EGL does not provide functions to query texture format in runtime.
-        // Workarounds are less performant but at least they let us use Termux:X11 on devices with missing BGRA support.
-        // We handle two cases.
-        // If resulting texture has BGRA format but still drawing RGBA we should flip format to RGBA and flip pixels manually in shader.
-        // In the case if for some reason we can not use HAL_PIXEL_FORMAT_BGRA_8888 we should fallback to legacy drawing method (uploading pixels via glTexImage2D).
-        configAttribs[1] = EGL_PBUFFER_BIT;
-        EGLConfig checkcfg = nullptr;
+        // Reading the pixel back through the GPU must give what the CPU wrote, otherwise we fall back
+        // to legacy drawing (uploading pixels via glTexSubImage2D).
         GLuint fbo = 0, texture = 0;
-        if (eglChooseConfig(egl_display, configAttribs, &checkcfg, 1, &numConfigs) != EGL_TRUE)
-            return vprintEglError("check eglChooseConfig failed", __LINE__);
-
-        EGLContext testctx = eglCreateContext(egl_display, checkcfg, nullptr, ctxattribs);
-        if (testctx == EGL_NO_CONTEXT)
-            return vprintEglError("check eglCreateContext failed", __LINE__);
-
-        const EGLint pbufferAttributes[] = {
-                EGL_WIDTH, 64,
-                EGL_HEIGHT, 64,
-                EGL_NONE,
-        };
-        EGLSurface checksfc = eglCreatePbufferSurface(egl_display, checkcfg, pbufferAttributes);
-
-        if (eglMakeCurrent(egl_display, checksfc, checksfc, testctx) != EGL_TRUE)
-            return vprintEglError("check eglMakeCurrent failed", __LINE__);
-
         glActiveTexture(GL_TEXTURE0); checkGlError();
         glGenTextures(1, &texture); checkGlError();
         bindTexture(texture);
@@ -400,19 +377,16 @@ void Renderer::testCapabilities(int* legacy_drawing) {
         glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel); checkGlError();
         if (pixel[0] != 0xAABBCCDD && pixel[0] != 0xFFBBCCDD) {
             log("Xlorie: GLES receives broken pixels. Forcing legacy drawing. 0x%X\n", pixel[0]);
-            *legacy_drawing = 1;
+            legacyDrawing = true;
         }
-        eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-        eglDestroyContext(egl_display, testctx);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDeleteFramebuffers(1, &fbo);
+        glDeleteTextures(1, &texture);
         eglDestroyImageKHR(egl_display, img);
-        eglDestroySurface(egl_display, checksfc);
-        AHardwareBuffer_release(new_);
     }
-}
 
-void rendererTestCapabilities(int* legacy_drawing) {
-    Renderer scratch;
-    scratch.testCapabilities(legacy_drawing);
+    AHardwareBuffer_release(new_);
+    return legacyDrawing;
 }
 
 void Renderer::addBuffer(LorieBuffer* buf) {

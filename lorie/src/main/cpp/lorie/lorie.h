@@ -41,7 +41,7 @@ void lorieSendSharedServerState(int memfd);
 void lorieRegisterBuffer(LorieBuffer* buffer);
 void lorieUnregisterBuffer(LorieBuffer* buffer);
 bool lorieConnectionAlive(int fd);
-void lorieStartRenderer(struct lorie_shared_server_state* state);
+bool lorieStartRenderer(struct lorie_shared_server_state* state);
 void lorieWakeRenderer(void);
 void lorieSyncRootForGpu(uint64_t id);
 void lorieSendShownChanged(void);
@@ -57,8 +57,6 @@ extern const lorieExtendedKey lorieExtendedKeys[];
 extern const size_t lorieExtendedKeysCount;
 void registerCmdEntryPointNatives(JNIEnv *env);
 void lorieListenForKnocks(int port, const char *tag);
-
-__unused void rendererTestCapabilities(int* legacy_drawing);
 
 typedef enum {
     EVENT_UNKNOWN __unused = 0,
@@ -230,6 +228,7 @@ struct Renderer {
     volatile jint filtering = GL_NEAREST;
 
     pthread_t thread = 0;
+    bool initDone = false, legacyDrawingRequired = false;
     volatile bool windowChanged = false, viewportChanged = false;
     ANativeWindow* pendingWin = nullptr;
     jobject pendingSurface = nullptr;
@@ -277,9 +276,10 @@ struct Renderer {
     uint64_t lastRequestedBufferId = 0;
     uint64_t uploadedBufferId = UINT64_MAX;
 
-    void init(JavaVM* vm, struct lorie_shared_server_state* serverState);
+    bool init(JavaVM* vm, struct lorie_shared_server_state* serverState);
+    bool initGl();
     void* initThread();
-    void testCapabilities(int* legacy_drawing);
+    bool needsLegacyDrawing();
     void addBuffer(LorieBuffer* buf);
     void removeBuffer(uint64_t id);
     void setWindow(JNIEnv* env, jobject jsfc);

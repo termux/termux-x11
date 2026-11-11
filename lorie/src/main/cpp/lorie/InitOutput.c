@@ -153,7 +153,6 @@ void OsVendorInit(void) {
     }
 
     pthread_mutexattr_init(&mutex_attr);
-    pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&lorieScreen.state->lock, &mutex_attr);
     pthread_mutex_init(&lorieScreen.state->cursor.lock, &mutex_attr);
@@ -440,7 +439,7 @@ static void lorieSetCursor(DeviceIntPtr pDev, unused ScreenPtr pScr, CursorPtr p
         // We do not have enough memory allocated for such a big cursor, let's display default "X" cursor
         pCurs = rootCursor;
 
-    lorie_mutex_lock(&pvfb->state->cursor.lock, &pvfb->state->cursor.lockingPid, conn_fd);
+    pthread_mutex_lock(&pvfb->state->cursor.lock);
     if (pCurs && bits) {
         pvfb->state->cursor.xhot = bits->xhot;
         pvfb->state->cursor.yhot = bits->yhot;
@@ -452,7 +451,7 @@ static void lorieSetCursor(DeviceIntPtr pDev, unused ScreenPtr pScr, CursorPtr p
         pvfb->state->cursor.width = pvfb->state->cursor.height = 0;
     }
     pvfb->state->cursor.updated = true;
-    lorie_mutex_unlock(&pvfb->state->cursor.lock, &pvfb->state->cursor.lockingPid);
+    pthread_mutex_unlock(&pvfb->state->cursor.lock);
 
     lorieMoveCursor(NULL, NULL, x0, y0);
 }
@@ -477,7 +476,7 @@ static void loriePerformVblanks(void);
 static void lorieRequestLockTake(void) {
     if (pvfb->requestLockHeld)
         return;
-    lorie_mutex_lock(&pvfb->state->lock, &pvfb->state->lockingPid, conn_fd);
+    pthread_mutex_lock(&pvfb->state->lock);
     pvfb->requestLockHeld = TRUE;
 }
 
@@ -485,7 +484,7 @@ static void lorieRequestLockRelease(void) {
     if (!pvfb->requestLockHeld)
         return;
     pvfb->requestLockHeld = FALSE;
-    lorie_mutex_unlock(&pvfb->state->lock, &pvfb->state->lockingPid);
+    pthread_mutex_unlock(&pvfb->state->lock);
 
     if (!pvfb->state->rendererWaiting)
         return;
@@ -498,7 +497,7 @@ static void lorieRequestLockRelease(void) {
         deadline.tv_nsec -= 1000000000L;
     }
 
-    for (uint32_t v; (v = __atomic_load_n(&pvfb->state->rendererWaiting, __ATOMIC_ACQUIRE)) && lorieConnectionAlive(conn_fd); )
+    for (uint32_t v; (v = __atomic_load_n(&pvfb->state->rendererWaiting, __ATOMIC_ACQUIRE)); )
         if (syscall(SYS_futex, &pvfb->state->rendererWaiting, FUTEX_WAIT_BITSET, v, &deadline, NULL, FUTEX_BITSET_MATCH_ANY) == -1 && errno == ETIMEDOUT)
             break;
 

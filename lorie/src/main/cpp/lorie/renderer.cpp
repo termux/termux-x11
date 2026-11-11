@@ -574,7 +574,7 @@ void Renderer::refreshContext() {
 
 static void lockServerState(struct lorie_shared_server_state *state) {
     state->rendererWaiting = TRUE;
-    lorie_mutex_lock(&state->lock, &state->lockingPid, -1);
+    pthread_mutex_lock(&state->lock);
     __atomic_store_n(&state->rendererWaiting, 0, __ATOMIC_RELEASE);
     syscall(SYS_futex, &state->rendererWaiting, FUTEX_WAKE, 1, nullptr, nullptr, 0);
 }
@@ -729,11 +729,11 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
 
     if (state->cursor.updated) {
         log("Xlorie: updating cursor\n");
-        lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid, -1);
+        pthread_mutex_lock(&state->cursor.lock);
         state->cursor.updated = false;
         bindTexture(cursor.id);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
-        lorie_mutex_unlock(&state->cursor.lock, &state->cursor.lockingPid);
+        pthread_mutex_unlock(&state->cursor.lock);
     }
 
     state->cursor.moved = FALSE;
@@ -743,7 +743,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     // Wait until root window drawing is finished before giving control back to X server
     waitForFence(egl_display, fence, 0);
     state->waitForNextFrame = true;
-    lorie_mutex_unlock(&state->lock, &state->lockingPid);
+    pthread_mutex_unlock(&state->lock);
 
     if (eglSwapBuffers(egl_display, sfc) != EGL_TRUE)
         printEglError("Failed to swap buffers", __LINE__);

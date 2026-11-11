@@ -22,17 +22,8 @@
 #include <android/native_window_jni.h>
 #include <android/log.h>
 #include <media/NdkImageReader.h>
-#include <dlfcn.h>
 #include <cmath>
 #include <cstring>
-#include <fcntl.h>
-#include <limits.h>
-#include <poll.h>
-#include <signal.h>
-#include <spawn.h>
-#include <sys/mman.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
 #include <sys/syscall.h>
 #include <linux/futex.h>
 #include <unistd.h>
@@ -52,15 +43,6 @@ static void waitForFence(EGLDisplay egl_display, EGLSync fence, EGLint flags) {
         loge("GPU fence wasn't signalled within %lldns, proceeding without it", (long long) FENCE_TIMEOUT_NANOS);
     eglDestroySyncKHR(egl_display, fence);
 }
-
-#define withStateLock(body) do { \
-    pthread_mutex_lock(&stateLock); \
-    body \
-    if (state) \
-        state->drawRequested = true; \
-    pthread_cond_signal(stateCond); \
-    pthread_mutex_unlock(&stateLock); \
-} while (0)
 
 static GLuint createProgram(const char* p_vertex_source, const char* p_fragment_source);
 
@@ -155,30 +137,22 @@ void Renderer::bindTexture(GLuint id) const {
 }
 
 void Renderer::reportViewport(int dstX, int dstY, int dstW, int dstH, float left, float top, float width, float height) {
-    JNIEnv* env = rendererEnv;
-    if (!env || !thiz || !setRendererViewportMethod)
-        return;
-
     if (reportedViewportX == dstX && reportedViewportY == dstY &&
         reportedViewportW == dstW && reportedViewportH == dstH &&
         reportedSourceLeft == left && reportedSourceTop == top &&
         reportedSourceWidth == width && reportedSourceHeight == height)
         return;
 
-    env->CallVoidMethod(thiz, setRendererViewportMethod, dstX, dstY, dstW, dstH, left, top, width, height);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        env->ExceptionClear();
-    } else {
-        reportedViewportX = dstX;
-        reportedViewportY = dstY;
-        reportedViewportW = dstW;
-        reportedViewportH = dstH;
-        reportedSourceLeft = left;
-        reportedSourceTop = top;
-        reportedSourceWidth = width;
-        reportedSourceHeight = height;
-    }
+    state->shown.x = reportedViewportX = dstX;
+    state->shown.y = reportedViewportY = dstY;
+    state->shown.width = reportedViewportW = dstW;
+    state->shown.height = reportedViewportH = dstH;
+    state->shown.sourceLeft = reportedSourceLeft = left;
+    state->shown.sourceTop = reportedSourceTop = top;
+    state->shown.sourceWidth = reportedSourceWidth = width;
+    state->shown.sourceHeight = reportedSourceHeight = height;
+    if (!__atomic_exchange_n(&state->shown.reported, 1, __ATOMIC_ACQ_REL))
+        lorieSendShownChanged();
 }
 
 static const EGLint ctxattribs[] = {
@@ -244,13 +218,14 @@ void* Renderer::initThread() {
         return nullptr;
     }
 
+    jclass surfaceClass = rendererEnv->FindClass("android/view/Surface");
+    surfaceRelease = rendererEnv->GetMethodID(surfaceClass, "release", "()V");
+    surfaceDestroy = rendererEnv->GetMethodID(surfaceClass, "destroy", "()V");
+    rendererEnv->ExceptionClear();
+
     EGLint major, minor;
     EGLint numConfigs;
     EGLint *const alphaAttrib = &configAttribs[11];
-
-    xorg_list_init(&addedBuffers);
-    xorg_list_init(&buffers);
-    xorg_list_init(&removedBuffers);
 
     egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (egl_display == EGL_NO_DISPLAY)
@@ -303,164 +278,24 @@ void* Renderer::initThread() {
     return nullptr;
 }
 
-void Renderer::init(JNIEnv* env, jobject view) {
-    if (ctx)
-        return;
-
-    env->GetJavaVM(&jvm);
-    thiz = env->NewGlobalRef(view);
-    jclass clazz = env->FindClass("com/termux/x11/LorieView");
-    lorieViewClass = (jclass) env->NewGlobalRef(clazz);
-    setRendererViewportMethod = env->GetMethodID(lorieViewClass, "setRendererViewport", "(IIIIFFFF)V");
+void Renderer::init(JavaVM* vm, struct lorie_shared_server_state* serverState) {
+    jvm = vm;
+    state = serverState;
 
     pthread_mutex_init(&stateLock, nullptr);
-
-    // Created once, never recreated; only the fd is (re)sent to the X server whenever it (re)connects.
-    pthread_condattr_t cond_attr;
-    pthread_condattr_init(&cond_attr);
-    pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_SHARED);
-    stateCondFd = LorieBuffer_createRegion("renderer-cond", sizeof(pthread_cond_t));
-    stateCond = stateCondFd == -1 ? (pthread_cond_t*) MAP_FAILED : (pthread_cond_t*) mmap(nullptr, sizeof(pthread_cond_t), PROT_READ|PROT_WRITE, MAP_SHARED, stateCondFd, 0);
-    if (stateCond == MAP_FAILED) {
-        loge("Failed to allocate renderer wakeup cond var, aborting");
-        abort();
-    }
-    pthread_cond_init(stateCond, &cond_attr);
-
+    pthread_cond_init(&stateCond, nullptr);
     pthread_cond_init(&stateChangeFinishCond, nullptr);
     pthread_spin_init(&bufferLock, false);
+    xorg_list_init(&addedBuffers);
+    xorg_list_init(&buffers);
+    xorg_list_init(&removedBuffers);
 
-    stopping = false;
     pthread_create(&thread, nullptr, +[](void* cookie) -> void* {
         return ((Renderer*) cookie)->initThread();
     }, this);
 }
 
-void Renderer::destroy() {
-    if (!ctx)
-        return; // never initialized, or already destroyed
-
-    pthread_mutex_lock(&stateLock);
-    stopping = true;
-    pthread_cond_signal(stateCond);
-    pthread_mutex_unlock(&stateLock);
-
-    pthread_join(thread, nullptr);
-    thread = 0;
-    ctx = EGL_NO_CONTEXT; // re-passes init()'s `if (ctx) return;` guard for a future re-init
-}
-
-int Renderer::getWakeupCondFd() const {
-    return stateCondFd;
-}
-
-void Renderer::setFiltering(jint f) {
-    filtering = f;
-}
-
-static const int relockProbeSize = 64;
-static const uint64_t relockProbeCpuUsage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN;
-
-static const uint32_t relockProbeRed = 0xff0000ff, relockProbeBlue = 0xffff0000;
-
-// Probe process: locks the parent's red buffer, paints it blue and sends back verdict bits (locked, saw red).
-int rendererRelockProbeChild(int fd) {
-    AHardwareBuffer *buf = nullptr;
-    AHardwareBuffer_Desc desc;
-    volatile uint32_t *pixels = nullptr;
-    uint8_t verdict = 0;
-
-    if (__builtin_available(android 26, *)) {
-        if (AHardwareBuffer_recvHandleFromUnixSocket(fd, &buf) == 0) {
-            AHardwareBuffer_describe(buf, &desc);
-            if (AHardwareBuffer_lock(buf, relockProbeCpuUsage, -1, nullptr, (void **) &pixels) == 0 && pixels) {
-                verdict = 1;
-                bool red = true;
-                for (int y = 0; y < relockProbeSize; y++)
-                    for (int x = 0; x < relockProbeSize; x++) {
-                        red &= pixels[(size_t) y * desc.stride + x] == relockProbeRed;
-                        pixels[(size_t) y * desc.stride + x] = relockProbeBlue;
-                    }
-                if (red)
-                    verdict |= 2;
-            }
-        }
-    }
-    write(fd, &verdict, 1);
-    pause(); // keeps the lock until the parent kills us
-    return verdict == 3 ? 0 : 1;
-}
-
-// Whether a second process can lock a write-locked AHardwareBuffer coherently.
-static bool rendererCanRelockWhileLocked() {
-    AHardwareBuffer_Desc desc = {.width = relockProbeSize, .height = relockProbeSize, .layers = 1,
-            .format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM,
-            .usage = relockProbeCpuUsage | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER};
-    AHardwareBuffer *buf = nullptr;
-    volatile uint32_t *pixels = nullptr;
-    uint8_t verdict = 0;
-    bool coherent = false;
-    Dl_info info;
-
-    if (!__builtin_available(android 26, *) || !dladdr((void *) rendererCanRelockWhileLocked, &info) || !info.dli_fname)
-        return false;
-    if (AHardwareBuffer_allocate(&desc, &buf) != 0 || !buf)
-        return false;
-    AHardwareBuffer_describe(buf, &desc);
-    if (AHardwareBuffer_lock(buf, relockProbeCpuUsage, -1, nullptr, (void **) &pixels) != 0 || !pixels) {
-        AHardwareBuffer_release(buf);
-        return false;
-    }
-    for (int y = 0; y < relockProbeSize; y++)
-        for (int x = 0; x < relockProbeSize; x++)
-            pixels[(size_t) y * desc.stride + x] = relockProbeRed;
-
-    char preload[PATH_MAX + 16];
-    snprintf(preload, sizeof(preload), "LD_PRELOAD=%s", info.dli_fname);
-    char *env[] = {preload, nullptr};
-    int sv[2];
-    pid_t pid = -1;
-
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0) {
-        if (AHardwareBuffer_sendHandleToUnixSocket(buf, sv[0]) == 0) {
-            char fdArg[16];
-            snprintf(fdArg, sizeof(fdArg), "%d", sv[1]);
-            char *argv[] = {(char *) "sh", (char *) "--relock-probe", fdArg, nullptr};
-            pid = vfork();
-            if (pid == 0) {
-                // Without exec, gfxstream usually crashes the whole emulator on a probe like this.
-#ifdef __LP64__
-                execve("/system/bin/sh", argv, env);
-                execve("/system/bin/app_process64", argv, env);
-#else
-                execve("/system/bin/app_process32", argv, env);
-#endif
-                _exit(1);
-            }
-        }
-        close(sv[1]);
-        if (pid > 0) {
-            struct pollfd pfd = {sv[0], POLLIN, 0};
-            // Both processes still hold their locks here.
-            coherent = poll(&pfd, 1, 3000) > 0 && read(sv[0], &verdict, 1) == 1 && verdict == 3;
-            for (int y = 0; y < relockProbeSize; y++)
-                for (int x = 0; x < relockProbeSize; x++)
-                    coherent &= pixels[(size_t) y * desc.stride + x] == relockProbeBlue;
-            kill(pid, SIGKILL);
-            waitpid(pid, nullptr, 0);
-        }
-        close(sv[0]);
-    }
-
-    AHardwareBuffer_unlock(buf, nullptr);
-    AHardwareBuffer_release(buf);
-    log("Xlorie: second process lock of a write-locked AHardwareBuffer: child verdict %d, data %s in both processes, preload %s",
-        verdict, coherent ? "coherent" : "not coherent", info.dli_fname);
-    return coherent;
-}
-
-void Renderer::testCapabilities(int* legacy_drawing, int* renderer_relock) {
-    *renderer_relock = 0;
+void Renderer::testCapabilities(int* legacy_drawing) {
     // Some devices do not support sampling from HAL_PIXEL_FORMAT_BGRA_8888, here we are checking it.
     const EGLint imageAttributes[] = {EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE};
     EGLint numConfigs;
@@ -554,8 +389,6 @@ void Renderer::testCapabilities(int* legacy_drawing, int* renderer_relock) {
         if (eglMakeCurrent(egl_display, checksfc, checksfc, testctx) != EGL_TRUE)
             return vprintEglError("check eglMakeCurrent failed", __LINE__);
 
-        *renderer_relock = rendererCanRelockWhileLocked();
-
         glActiveTexture(GL_TEXTURE0); checkGlError();
         glGenTextures(1, &texture); checkGlError();
         bindTexture(texture);
@@ -577,37 +410,32 @@ void Renderer::testCapabilities(int* legacy_drawing, int* renderer_relock) {
     }
 }
 
-void rendererTestCapabilities(int* legacy_drawing, int* renderer_relock) {
+void rendererTestCapabilities(int* legacy_drawing) {
     Renderer scratch;
-    scratch.testCapabilities(legacy_drawing, renderer_relock);
-}
-
-void Renderer::setSharedState(struct lorie_shared_server_state* newState) {
-    pthread_mutex_lock(&stateLock);
-    pendingState = newState;
-    stateChanged = true;
-    pthread_cond_signal(stateCond);
-
-    while(stateChanged)
-        pthread_cond_wait(&stateChangeFinishCond, &stateLock);
-
-    pthread_mutex_unlock(&stateLock);
+    scratch.testCapabilities(legacy_drawing);
 }
 
 void Renderer::addBuffer(LorieBuffer* buf) {
+    uint64_t id = LorieBuffer_description(buf)->id;
     pthread_spin_lock(&bufferLock);
-    LorieBuffer_addToList(buf, &addedBuffers);
-    pthread_cond_signal(stateCond);
+    LorieBuffer* removed = LorieBufferList_findById(&removedBuffers, id);
+    if (removed)
+        LorieBuffer_addToList(removed, &buffers); // still attached to GL
+    else if (!LorieBufferList_findById(&addedBuffers, id) && !LorieBufferList_findById(&buffers, id)) {
+        LorieBuffer_acquire(buf);
+        LorieBuffer_addToList(buf, &addedBuffers);
+    }
+    pthread_cond_signal(&stateCond);
     pthread_spin_unlock(&bufferLock);
 }
 
 void Renderer::removeBuffer(uint64_t id) {
     pthread_spin_lock(&bufferLock);
     LorieBuffer* buf = LorieBufferList_findById(&addedBuffers, id);
-    if (buf)
-        // Buffer was not attached to GL yet, it is safe to release it now.
+    if (buf) {
+        LorieBuffer_removeFromList(buf);
         LorieBuffer_release(buf);
-    else {
+    } else {
         buf = LorieBufferList_findById(&buffers, id);
         if (buf) {
             // The buffer is attached to GL so we should release it from renderer thread.
@@ -615,45 +443,29 @@ void Renderer::removeBuffer(uint64_t id) {
             LorieBuffer_addToList(buf, &removedBuffers);
         }
     }
-    pthread_spin_unlock(&bufferLock);
-}
-
-void Renderer::removeAllBuffers() {
-    LorieBuffer *buf = nullptr;
-
-    pthread_spin_lock(&bufferLock);
-    while ((buf = LorieBufferList_first(&addedBuffers))) {
-        // These buffers are not yet attached to GL, it is safe to release them
-        LorieBuffer_release(buf);
-    }
-    while ((buf = LorieBufferList_first(&buffers))) {
-        // These buffers are attached to GL, we must release them from renderer thread.
-        LorieBuffer_removeFromList(buf);
-        LorieBuffer_addToList(buf, &removedBuffers);
-    }
+    pthread_cond_signal(&stateCond);
     pthread_spin_unlock(&bufferLock);
 }
 
 void Renderer::setWindow(JNIEnv *env, jobject jsfc) {
     ANativeWindow* newWin = jsfc ? ANativeWindow_fromSurface(env, jsfc) : nullptr;
-    if (newWin)
-        ANativeWindow_acquire(newWin);
 
     pthread_mutex_lock(&stateLock);
-    if (newWin && pendingWin == newWin) {
+    while(windowChanged)
+        pthread_cond_wait(&stateChangeFinishCond, &stateLock);
+
+    if (newWin && win == newWin) {
         ANativeWindow_release(newWin);
         pthread_mutex_unlock(&stateLock);
         return;
     }
 
-    if (pendingWin)
-        ANativeWindow_release(pendingWin);
-
     pendingWin = newWin;
+    pendingSurface = newWin ? env->NewGlobalRef(jsfc) : nullptr;
     expectedW = expectedH = 0;
     windowChanged = TRUE;
 
-    pthread_cond_signal(stateCond);
+    pthread_cond_signal(&stateCond);
 
     // We should wait until renderer destroys EGLSurface before SurfaceCallback::surfaceDestroyed finishes
     // Otherwise we will have weird errors like
@@ -666,7 +478,7 @@ void Renderer::setWindow(JNIEnv *env, jobject jsfc) {
     pthread_mutex_unlock(&stateLock);
 }
 
-void Renderer::releaseWinAndSurface(ANativeWindow** anw, EGLSurface *esfc) {
+void Renderer::releaseWinAndSurface(ANativeWindow** anw, jobject* jsfc, EGLSurface *esfc) {
     if (esfc && *esfc && *esfc != defaultSfc) {
         // Requeue the dequeued buffer, causes flickering during window reconfiguring
         eglSwapBuffers(egl_display, *esfc);
@@ -681,46 +493,40 @@ void Renderer::releaseWinAndSurface(ANativeWindow** anw, EGLSurface *esfc) {
         ANativeWindow_release(*anw);
         *anw = defaultWin;
     }
+
+    if (jsfc && *jsfc) {
+        rendererEnv->CallVoidMethod(*jsfc, surfaceRelease);
+        if (surfaceDestroy)
+            rendererEnv->CallVoidMethod(*jsfc, surfaceDestroy);
+        rendererEnv->ExceptionClear();
+        rendererEnv->DeleteGlobalRef(*jsfc);
+        *jsfc = nullptr;
+    }
 }
 
-void Renderer::setViewport(int x, int y, int w, int h, int ew, int eh, int hidden) {
-    withStateLock({
-        viewportX = x;
-        viewportY = y;
-        viewportW = w;
-        viewportH = h;
-        expectedW = ew;
-        expectedH = eh;
-        hiddenBottom = hidden;
-        viewportChanged = true;
-        reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
-        reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
-    });
-}
-
-void Renderer::setZoom(int percent) {
-    withStateLock({
-        zoomPercent = percent < 100 ? 100 : (percent > 400 ? 400 : percent);
-        reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
-        reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
-    });
-}
-
-void Renderer::setZoomAnchor(float sourceX, float sourceY, float fracX, float fracY) {
-    withStateLock({
-        pinchAnchorSourceX = sourceX;
-        pinchAnchorSourceY = sourceY;
-        pinchAnchorFracX = fracX;
-        pinchAnchorFracY = fracY;
-    });
-}
-
-void Renderer::clearZoomAnchor() {
-    withStateLock({ pinchAnchorSourceX = -1.f; });
-}
-
-void Renderer::setFollowCursorPan(bool enabled) {
-    withStateLock({ followCursorPan = enabled; });
+void Renderer::applyView() {
+    struct lorie_shared_server_state::lorie_view v = state->view;
+    pthread_mutex_lock(&stateLock);
+    viewportX = v.x;
+    viewportY = v.y;
+    viewportW = v.width;
+    viewportH = v.height;
+    expectedW = v.expectedWidth;
+    expectedH = v.expectedHeight;
+    hiddenBottom = v.hiddenBottom;
+    zoomPercent = v.zoomPercent < 100 ? 100 : (v.zoomPercent > 400 ? 400 : v.zoomPercent);
+    filtering = v.filtering;
+    pinchAnchorSourceX = v.pinchAnchorSourceX;
+    pinchAnchorSourceY = v.pinchAnchorSourceY;
+    pinchAnchorFracX = v.pinchAnchorFracX;
+    pinchAnchorFracY = v.pinchAnchorFracY;
+    followCursorPan = v.followCursorPan;
+    viewportChanged = true;
+    reportedViewportX = reportedViewportY = reportedViewportW = reportedViewportH = -1;
+    reportedSourceLeft = reportedSourceTop = reportedSourceWidth = reportedSourceHeight = -1.f;
+    state->drawRequested = true;
+    pthread_cond_signal(&stateCond);
+    pthread_mutex_unlock(&stateLock);
 }
 
 void Renderer::refreshContext() {
@@ -728,22 +534,23 @@ void Renderer::refreshContext() {
     int height = pendingWin ? ANativeWindow_getHeight(pendingWin) : 0;
     log("rendererSetWindow %p %d %d", pendingWin, width, height);
 
-    releaseWinAndSurface(&win, &sfc);
+    releaseWinAndSurface(&win, &surface, &sfc);
 
     if (pendingWin && (width <= 0 || height <= 0)) {
         log("Xlorie: We've got invalid surface. Probably it became invalid before we started working with it.\n");
-        releaseWinAndSurface(&pendingWin, nullptr);
+        releaseWinAndSurface(&pendingWin, &pendingSurface, nullptr);
     }
 
     win = pendingWin;
+    surface = pendingSurface;
     pendingWin = nullptr;
+    pendingSurface = nullptr;
     windowChanged = FALSE;
 
     if (!win) {
         win = defaultWin;
         eglMakeCurrent(egl_display, defaultSfc, defaultSfc, ctx);
-        if (state)
-            state->surfaceAvailable = false;
+        state->surfaceAvailable = false;
         return;
     }
 
@@ -752,35 +559,24 @@ void Renderer::refreshContext() {
         return vprintEglError("eglCreateWindowSurface failed", __LINE__);
 
     if (eglMakeCurrent(egl_display, sfc, sfc, ctx) != EGL_TRUE) {
-        if (state)
-            state->surfaceAvailable = false;
+        state->surfaceAvailable = false;
         return vprintEglError("eglMakeCurrent failed", __LINE__);
     }
 
     eglSwapInterval(egl_display, 0);
 
     // We should redraw image at least once right after surface change
-    if (state)
-        state->surfaceAvailable = state->drawRequested = state->cursor.updated = win != defaultWin;
+    state->surfaceAvailable = state->drawRequested = state->cursor.updated = win != defaultWin;
 
     glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win));
     log("Xlorie: new surface applied: %p\n", sfc);
 }
 
-static void lockServerState(struct lorie_shared_server_state *state, int connFd) {
+static void lockServerState(struct lorie_shared_server_state *state) {
     state->rendererWaiting = TRUE;
-    lorie_mutex_lock(&state->lock, &state->lockingPid, connFd);
+    lorie_mutex_lock(&state->lock, &state->lockingPid, -1);
     __atomic_store_n(&state->rendererWaiting, 0, __ATOMIC_RELEASE);
     syscall(SYS_futex, &state->rendererWaiting, FUTEX_WAKE, 1, nullptr, nullptr, 0);
-}
-
-static void syncRootForGpu(LorieBuffer *root) {
-    void *mapped;
-    if (LorieBuffer_description(root)->type != LORIEBUFFER_AHARDWAREBUFFER)
-        return;
-    if (LorieBuffer_isLocked(root))
-        LorieBuffer_unlock(root);
-    LorieBuffer_lock(root, &mapped);
 }
 
 // Keeps the shown region still while the cursor stays inside it, panning only when the cursor
@@ -915,9 +711,9 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
                    sourceLeft, sourceTop, logicalSourceWidth, logicalSourceHeight);
 
     // We should signal X server to not use root window while we actively copy it
-    lockServerState(state, connFd());
-    if (state->rendererRelock)
-        syncRootForGpu(buffer);
+    lockServerState(state);
+    if (state->drawRequested)
+        lorieSyncRootForGpu(desc->id);
     state->drawRequested = FALSE;
 
     LorieBuffer_bindTexture(buffer);
@@ -933,7 +729,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
 
     if (state->cursor.updated) {
         log("Xlorie: updating cursor\n");
-        lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid, connFd());
+        lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid, -1);
         state->cursor.updated = false;
         bindTexture(cursor.id);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
@@ -975,17 +771,15 @@ bool Renderer::shouldWait(bool *waitingForBuffers) {
     pthread_spin_lock(&bufferLock);
     buffersChanged = !xorg_list_is_empty(&addedBuffers) || !xorg_list_is_empty(&removedBuffers);
     pthread_spin_unlock(&bufferLock);
-    if (stateChanged || windowChanged || buffersChanged)
+    if (windowChanged || buffersChanged)
         // If there are pending changes we should process them immediately.
         return false;
 
-    if (state) {
-        if (lastRequestedBufferId != state->rootWindowTextureID)
-            *waitingForBuffers = false;
-        lastRequestedBufferId = state->rootWindowTextureID;
-    }
+    if (lastRequestedBufferId != state->rootWindowTextureID)
+        *waitingForBuffers = false;
+    lastRequestedBufferId = state->rootWindowTextureID;
 
-    if (!state || !state->surfaceAvailable || state->waitForNextFrame || *waitingForBuffers)
+    if (!state->surfaceAvailable || state->waitForNextFrame || *waitingForBuffers)
         // Even in the case if there are pending changes, we can not draw it without rendering surface
         return true;
 
@@ -1000,33 +794,10 @@ bool Renderer::shouldWait(bool *waitingForBuffers) {
 void Renderer::threadLoop() {
     LorieBuffer* buf;
     bool waitingForBuffers = false;
-    while (!stopping) {
-        while (!stopping && shouldWait(&waitingForBuffers))
-            pthread_cond_wait(stateCond, &stateLock);
-        if (stopping)
-            break;
-
-        if (stateChanged) {
-            struct lorie_shared_server_state* oldState = nullptr;
-            if (state && pendingState != state)
-                oldState = state;
-
-            state = pendingState;
-            pendingState = nullptr;
-            stateChanged = false;
-            waitingForBuffers = false;
-
-            if (state)
-                state->surfaceAvailable = win != defaultWin;
-            else if (win != defaultWin) {
-                glClearColor(0, 0, 0, 0);
-                glClear(GL_COLOR_BUFFER_BIT);
-                eglSwapBuffers(egl_display, sfc);
-            }
-
-            if (oldState)
-                munmap(oldState, sizeof(*oldState));
-        }
+    pthread_mutex_lock(&stateLock);
+    while (true) {
+        while (shouldWait(&waitingForBuffers))
+            pthread_cond_wait(&stateCond, &stateLock);
 
         if (windowChanged)
             refreshContext();
@@ -1040,48 +811,22 @@ void Renderer::threadLoop() {
         }
         pthread_spin_unlock(&bufferLock);
 
-        pthread_cond_signal(&stateChangeFinishCond);
+        pthread_cond_broadcast(&stateChangeFinishCond);
         pthread_mutex_unlock(&stateLock);
 
-        if (state && state->surfaceAvailable && !state->waitForNextFrame &&
+        if (state->surfaceAvailable && !state->waitForNextFrame &&
             (state->drawRequested || state->cursor.moved || state->cursor.updated))
             redrawLocked(&waitingForBuffers);
 
         pthread_spin_lock(&bufferLock);
-        // Remove all buffers which were attached to GL.
-        while((buf = LorieBufferList_first(&removedBuffers)))
+        while((buf = LorieBufferList_first(&removedBuffers))) {
+            LorieBuffer_removeFromList(buf);
+            LorieBuffer_detachFromGL(buf);
             LorieBuffer_release(buf);
+        }
         pthread_spin_unlock(&bufferLock);
         pthread_mutex_lock(&stateLock);
     }
-    pthread_mutex_unlock(&stateLock);
-
-    // Runs on the renderer thread: safe to touch GL/EGL here, they are thread-affine.
-    removeAllBuffers();
-    pthread_spin_lock(&bufferLock);
-    while ((buf = LorieBufferList_first(&removedBuffers)))
-        LorieBuffer_release(buf);
-    pthread_spin_unlock(&bufferLock);
-
-    if (state) {
-        munmap(state, sizeof(*state));
-        state = nullptr;
-    }
-
-    glDeleteProgram(g_texture_program);
-    glDeleteProgram(g_texture_program_bgra);
-    glDeleteTextures(1, &cursor.id);
-    eglMakeCurrent(egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-    if (sfc != defaultSfc) // defensive; setWindow(nullptr) already reverts this before onDetachedFromWindow runs
-        eglDestroySurface(egl_display, sfc);
-    eglDestroySurface(egl_display, defaultSfc);
-    eglDestroyContext(egl_display, ctx);
-    // Intentionally not calling eglTerminate(egl_display): the EGLDisplay is a process-wide
-    // driver connection, not a per-instance resource.
-    ANativeWindow_release(defaultWin);
-    munmap(stateCond, sizeof(pthread_cond_t));
-    close(stateCondFd);
-    jvm->DetachCurrentThread();
 }
 
 static GLuint loadShader(GLenum shaderType, const char* pSource) {

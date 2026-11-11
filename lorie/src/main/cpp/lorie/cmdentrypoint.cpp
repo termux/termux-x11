@@ -46,8 +46,8 @@ extern "C" void lorieKeysymKeyboardEvent(KeySym keysym, int down);
 char *xtrans_unix_path_x11 = nullptr;
 char *xtrans_unix_dir_x11 = nullptr;
 
-struct xorg_list registeredBuffers;
-
+static Renderer renderer;
+static JavaVM* vm = nullptr;
 static JNIEnv* serverEnv = nullptr;
 static jobject thiz = nullptr;
 static jmethodID sendBroadcast = nullptr;
@@ -56,7 +56,6 @@ static jmethodID setDocumentTag = nullptr;
 
 static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
     pthread_t t;
-    JavaVM* vm = nullptr;
 
     thiz = env->NewGlobalRef(self);
     if (!thiz)
@@ -216,7 +215,6 @@ static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
     // Trigger it first time
     AChoreographer_postFrameCallback(choreographer, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, choreographer);
 
-    xorg_list_init(&registeredBuffers);
     pthread_create(&t, nullptr, +[](void* cookie) -> void* {
         if (((JavaVM*) cookie)->AttachCurrentThread(&serverEnv, nullptr) != JNI_OK)
             FatalError("Failed to attach the X server thread to the JVM");
@@ -266,13 +264,11 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
     valuator_mask_zero(&mask);
 
     if (ready & X_NOTIFY_ERROR) {
-        LorieBuffer* buf;
         InputThreadUnregisterDev(fd);
         close(fd);
         conn_fd = -1;
         lorieEnableClipboardSync(FALSE);
-        while ((buf = LorieBufferList_first(&registeredBuffers)))
-            LorieBuffer_removeFromList(buf);
+        renderer.setWindow(nullptr, nullptr);
         return;
     }
 
@@ -433,10 +429,8 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
                 lorieWakeServer();
                 break;
             }
-            case EVENT_RENDERER_WAKEUP_COND: {
-                int wakeupFd = ancil_recv_fd(fd);
-                if (wakeupFd >= 0)
-                    lorieSetRendererWakeupCond(wakeupFd);
+            case EVENT_VIEW_CHANGED: {
+                renderer.applyView();
                 break;
             }
             case EVENT_SYNC: {
@@ -503,17 +497,6 @@ void lorieRequestClipboard(void) {
     }
 }
 
-// Preloaded by rendererCanRelockWhileLocked(): swaps the executable's main() for the probe.
-extern "C" __attribute__((visibility("default"))) void __libc_init(void *rawArgs, void (*onExit)(void), int (*mainFn)(int, char **, char **), void *structors) {
-    static int (*realMain)(int, char **, char **);
-    realMain = mainFn;
-    ((__typeof__(__libc_init) *) dlsym(RTLD_NEXT, "__libc_init"))(rawArgs, onExit, [](int argc, char **argv, char **envp) {
-        if (argc == 3 && !strcmp(argv[1], "--relock-probe"))
-            return rendererRelockProbeChild(atoi(argv[2]));
-        return realMain(argc, argv, envp);
-    }, structors);
-}
-
 bool lorieConnectionAlive(int fd) {
     if (fd == -1)
         return false;
@@ -531,31 +514,37 @@ void lorieSendSharedServerState(int memfd) {
     }
 }
 
-void lorieRegisterBuffer(LorieBuffer* buffer) {
-    unsigned long id = LorieBuffer_description(buffer)->id;
-    if (conn_fd == -1 || LorieBufferList_findById(&registeredBuffers, id))
-        return; // Already registered
+void lorieStartRenderer(struct lorie_shared_server_state* state) {
+    renderer.init(vm, state);
+}
 
-    if (conn_fd != -1 && buffer) {
-        lorieEvent e = { .type = EVENT_ADD_BUFFER };
-        write(conn_fd, &e, sizeof(e));
-        LorieBuffer_sendHandleToUnixSocket(buffer, conn_fd);
-        LorieBuffer_addToList(buffer, &registeredBuffers);
-        const LorieBuffer_Desc* desc = LorieBuffer_description(buffer);
-        log(INFO, "Sent shared buffer width %d stride %d height %d format %d type %d id %llu", desc->width, desc->stride, desc->height, desc->format, desc->type, desc->id);
-    }
+void lorieWakeRenderer(void) {
+    pthread_cond_signal(&renderer.stateCond);
+}
+
+void lorieRegisterBuffer(LorieBuffer* buffer) {
+    if (buffer)
+        renderer.addBuffer(buffer);
 }
 
 void lorieUnregisterBuffer(LorieBuffer* buffer) {
-    unsigned long id;
-    if (!buffer || (!LorieBufferList_findById(&registeredBuffers, (id = LorieBuffer_description(buffer)->id))))
-        return;  // Not exist or not registered so no need to unregister
+    if (buffer)
+        renderer.removeBuffer(LorieBuffer_description(buffer)->id);
+}
 
-    if (conn_fd != -1 && buffer) {
-        lorieEvent e = { .removeBuffer = { .t = EVENT_REMOVE_BUFFER, .id = id } };
-        write(conn_fd, &e, sizeof(e));
-        LorieBuffer_removeFromList(buffer);
-    }
+void lorieSendShownChanged(void) {
+    QueueWorkProc(+[](__unused ClientPtr pClient, __unused void *closure) -> Bool {
+        if (conn_fd != -1) {
+            lorieEvent e = { .type = EVENT_SHOWN_CHANGED };
+            write(conn_fd, &e, sizeof(e));
+        }
+        return TRUE;
+    }, nullptr, nullptr);
+    lorieWakeServer();
+}
+
+static void windowChanged(JNIEnv *env, __unused jobject cls, jobject surface) {
+    renderer.setWindow(env, surface);
 }
 
 extern "C" void DDXNotifyFocusChanged(void) {
@@ -685,6 +674,7 @@ void registerCmdEntryPointNatives(JNIEnv *env) {
     static JNINativeMethod methods[] = {
             {"start", "([Ljava/lang/String;)Z", (void *) &start},
             {"getXConnection", "()Landroid/os/ParcelFileDescriptor;", (void *) &getXConnection},
+            {"windowChanged", "(Landroid/view/Surface;)V", (void *) &windowChanged},
             {"getLogcatOutput", "()Landroid/os/ParcelFileDescriptor;", (void *) &getLogcatOutput},
             {"reportFatalError", "(Ljava/lang/String;)V", (void *) &reportFatalError},
             {"connected", "()Z", (void *) +[]() -> jboolean { return conn_fd != -1; }}, // @CriticalNative

@@ -159,11 +159,17 @@ void LorieBuffer_recvHandleFromUnixSocket(int socketFd, LorieBuffer* _Nullable *
 
 /**
  * Attach buffer to GL. Must be done on GL thread.
- * After attaching subsequent call to LorieBuffer_release must be done only from GL thread.
  *
  * @param buffer the buffer to be attached.
  */
 void LorieBuffer_attachToGL(LorieBuffer* _Nullable buffer);
+
+/**
+ * Release what LorieBuffer_attachToGL created. Must be done on GL thread.
+ *
+ * @param buffer the buffer to be detached.
+ */
+void LorieBuffer_detachFromGL(LorieBuffer* _Nullable buffer);
 
 /**
  * Call glBindTexture for the buffer.

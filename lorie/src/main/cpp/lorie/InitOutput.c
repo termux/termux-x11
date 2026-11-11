@@ -81,7 +81,6 @@ typedef struct {
     } root;
 
     Bool dri3;
-    int rendererRelock;
 
     uint64_t vblank_interval;
     struct xorg_list vblank_queue;
@@ -103,11 +102,6 @@ static lorieScreenInfo lorieScreen = {
 static char *xstartup = NULL;
 static char **xstartupArgv = NULL;
 static char *documentTag = NULL;
-
-// Owned by the activity process, handed to us over the connection socket. Points at a placeholder until
-// the first connection so callers don't need a NULL check.
-static pthread_cond_t rendererCondPlaceholder = PTHREAD_COND_INITIALIZER;
-static pthread_cond_t* volatile rendererCond = &rendererCondPlaceholder;
 
 typedef struct {
     LorieBuffer *buffer;
@@ -165,41 +159,13 @@ void OsVendorInit(void) {
     pthread_mutex_init(&lorieScreen.state->cursor.lock, &mutex_attr);
     lorieScreen.state->cursor.visible = TRUE;
 
+    lorieStartRenderer(lorieScreen.state);
     lorieListenForKnocks(documentTag ? DOCUMENT_PORT_BASE + atoi(display) : PORT, documentTag);
-}
-
-// Queued from handleLorieEvents (input thread) to run on the main thread, i.e. the same thread that
-// signals rendererCond from lorieRedraw/lorieMoveCursor - so the swap and the unmap below can never race
-// a signal.
-static Bool lorieSetRendererWakeupCondWorkProc(__unused ClientPtr client, void* closure) {
-    int fd = (int) (intptr_t) closure;
-    pthread_cond_t* newCond = mmap(NULL, sizeof(pthread_cond_t), PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-    close(fd); // mmap already keeps the region alive.
-    if (newCond == MAP_FAILED) {
-        log(ERROR, "Failed to map renderer wakeup cond var, keeping the old one");
-        return TRUE;
-    }
-
-    pthread_cond_t* old = rendererCond;
-    rendererCond = newCond;
-    pthread_cond_signal(newCond); // in case a signal was sent to `old` right before this swap
-
-    if (old != &rendererCondPlaceholder)
-        munmap(old, sizeof(pthread_cond_t));
-
-    return TRUE;
-}
-
-void lorieSetRendererWakeupCond(int fd) {
-    QueueWorkProc(lorieSetRendererWakeupCondWorkProc, NULL, (void*) (intptr_t) fd);
-    lorieWakeServer();
 }
 
 void lorieActivityConnected(void) {
     pvfb->state->drawRequested = pvfb->state->cursor.updated = true;
-    pvfb->state->rendererRelock = pvfb->rendererRelock;
     lorieSendSharedServerState(pvfb->stateFd);
-    lorieRegisterBuffer(LORIE_BUFFER_FROM_PIXMAP(pScreenPtr->devPrivate));
 }
 
 static Bool TrueNoop() { return TRUE; }
@@ -423,7 +389,7 @@ static Bool lorieCursorFromMouse(DeviceIntPtr pDev) {
 void lorieSetCursorVisible(Bool visible) {
     pvfb->state->cursor.visible = visible;
     pvfb->state->cursor.moved = TRUE;
-    pthread_cond_signal(rendererCond);
+    lorieWakeRenderer();
 }
 
 static void lorieMoveCursor(DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int y) {
@@ -435,7 +401,7 @@ static void lorieMoveCursor(DeviceIntPtr pDev, unused ScreenPtr pScr, int x, int
     pvfb->state->cursor.moved = TRUE;
     // No need to explicitly lock the mutex, it will cause waiting for rendering to be finished.
     // We are simply signaling the renderer in the case if it sleeps.
-    pthread_cond_signal(rendererCond);
+    lorieWakeRenderer();
 }
 
 static void lorieConvertCursor(CursorPtr pCurs, uint32_t *data) {
@@ -550,8 +516,23 @@ static void lorieBlockHandler(__unused void *data, __unused void *timeout) {
     ddxRequestDone();
 }
 
+// Called by the renderer holding state->lock, right before the GPU reads the root window.
+// Unlocking and locking the buffer is what brings the CPU writes over to the GPU on some devices.
+void lorieSyncRootForGpu(uint64_t id) {
+    PixmapPtr root = pScreenPtr && pScreenPtr->root ? pScreenPtr->GetWindowPixmap(pScreenPtr->root) : NULL;
+    LoriePixmapPriv* priv = LORIE_PIXMAP_PRIV_FROM_PIXMAP(root);
+    const LorieBuffer_Desc* desc = priv && priv->buffer ? LorieBuffer_description(priv->buffer) : NULL;
+
+    if (!desc || desc->id != id || desc->type != LORIEBUFFER_AHARDWAREBUFFER || !priv->locked)
+        return;
+
+    LorieBuffer_unlock(priv->buffer);
+    if (LorieBuffer_lock(priv->buffer, &priv->locked))
+        FatalError("Failed to lock the root window buffer\n");
+}
+
 static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
-    int status, nonEmpty;
+    int nonEmpty;
     LoriePixmapPriv* priv;
     PixmapPtr root = pScreenPtr && pScreenPtr->root ? pScreenPtr->GetWindowPixmap(pScreenPtr->root) : NULL;
 
@@ -572,18 +553,6 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
         return TRUE;
 
     if (nonEmpty && priv->buffer) {
-        // We should unlock and lock buffer in order to update texture content on some devices
-        // In most cases AHardwareBuffer uses DMA memory which is shared between CPU and GPU
-        // and this is not needed. But according to docs we should do it for any case.
-        // Also according to AHardwareBuffer docs simultaneous reading in rendering thread and
-        // locking for writing in other thread is fine. Performing it on renderer side where possible.
-        if (!pvfb->rendererRelock && priv->locked) {
-            LorieBuffer_unlock(priv->buffer);
-            status = LorieBuffer_lock(priv->buffer, &priv->locked);
-            if (status)
-                FatalError("Failed to lock the surface: %d\n", status);
-        }
-
         DamageEmpty(pvfb->damage);
         pvfb->state->drawRequested = TRUE;
     }
@@ -595,7 +564,7 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
         // We do not explicitly lock the pvfb->state->lock here because we do not want to wait
         // for all drawing operations to be finished.
         // Renderer thread will check the `drawRequested` flag right before going to sleep.
-        pthread_cond_signal(rendererCond);
+        lorieWakeRenderer();
     }
 
     return TRUE;
@@ -648,6 +617,7 @@ void lorieSetWindowPixmap(WindowPtr pWindow, PixmapPtr newPixmap) {
     PixmapPtr oldPixmap = isRoot ? pScreenPtr->GetWindowPixmap(pWindow) : NULL;
     LoriePixmapPriv *old, *new;
     if (isRoot) {
+        lorieRequestLockTake(); // the renderer locks the root window buffer too
         old = LORIE_PIXMAP_PRIV_FROM_PIXMAP(oldPixmap);
         new = LORIE_PIXMAP_PRIV_FROM_PIXMAP(newPixmap);
         if (old && old->buffer && old->locked) {
@@ -885,7 +855,7 @@ void InitOutput(ScreenInfo * screen_info, int argc, char **argv) {
     screen_info->bitmapBitOrder = BITMAP_BIT_ORDER;
     screen_info->numPixmapFormats = ARRAY_SIZE(depths);
 
-    rendererTestCapabilities(&pvfb->root.legacyDrawing, &pvfb->rendererRelock);
+    rendererTestCapabilities(&pvfb->root.legacyDrawing);
     xorgGlxCreateVendor();
     lorieInitClipboard();
 

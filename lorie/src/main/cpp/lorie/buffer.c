@@ -278,12 +278,6 @@ __LIBC_HIDDEN__ void __LorieBuffer_free(LorieBuffer* buffer) {
     if (buffer->locked)
         LorieBuffer_unlock(buffer);
 
-    if (eglGetCurrentContext())
-        glDeleteTextures(1, &buffer->id);
-
-    if (eglGetCurrentDisplay() && buffer->image)
-        eglDestroyImageKHR(eglGetCurrentDisplay(), buffer->image);
-
     switch (buffer->desc.type) {
         case LORIEBUFFER_REGULAR:
             free(buffer->desc.data);
@@ -450,6 +444,18 @@ __LIBC_HIDDEN__ void LorieBuffer_attachToGL(LorieBuffer* buffer) {
         // The image will be updated in redraw call because of `drawRequested` flag, so we are not uploading pixels
         glTexImage2D(GL_TEXTURE_2D, 0, format, buffer->desc.stride, buffer->desc.height, 0, format, GL_UNSIGNED_BYTE, NULL);
     }
+}
+
+__LIBC_HIDDEN__ void LorieBuffer_detachFromGL(LorieBuffer* buffer) {
+    if (!buffer)
+        return;
+
+    glDeleteTextures(1, &buffer->id);
+    buffer->id = 0;
+
+    if (buffer->image)
+        eglDestroyImageKHR(eglGetCurrentDisplay(), buffer->image);
+    buffer->image = NULL;
 }
 
 __LIBC_HIDDEN__ void LorieBuffer_bindTexture(LorieBuffer *buffer) {

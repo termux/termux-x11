@@ -298,7 +298,7 @@ public class LorieView extends SurfaceView implements InputStub {
         @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {}
 
         @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int width, int height) {
-            LorieView.this.surfaceChanged(mNativeContext, holder.getSurface());
+            activity.windowChanged(holder.getSurface());
             width = getMeasuredWidth();
             height = getMeasuredHeight();
 
@@ -307,7 +307,7 @@ public class LorieView extends SurfaceView implements InputStub {
         }
 
         @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
-            LorieView.this.surfaceChanged(mNativeContext, null);
+            activity.windowChanged(null);
         }
     };
 
@@ -341,6 +341,12 @@ public class LorieView extends SurfaceView implements InputStub {
     public void setCallback(Callback callback) {
         mCallback = callback;
         triggerCallback();
+    }
+
+    /** Hands the surface over to the X server that has missed it. */
+    void sendSurface() {
+        Surface surface = getHolder().getSurface();
+        activity.windowChanged(surface != null && surface.isValid() ? surface : null);
     }
 
     public void triggerCallback() {
@@ -701,7 +707,6 @@ public class LorieView extends SurfaceView implements InputStub {
 
     @FastNative private native long nativeInit();
     @FastNative private native void nativeDestroy(long ptr);
-    @FastNative private native void surfaceChanged(long ptr, Surface surface);
     @FastNative private native void setFiltering(long ptr, int filtering);
     @FastNative private native void setClipboardSyncEnabled(long ptr, boolean enabled, boolean ignored);
     @FastNative private native void sendClipboardAnnounce(long ptr);

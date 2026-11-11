@@ -41,7 +41,10 @@ void lorieSendSharedServerState(int memfd);
 void lorieRegisterBuffer(LorieBuffer* buffer);
 void lorieUnregisterBuffer(LorieBuffer* buffer);
 bool lorieConnectionAlive(int fd);
-void lorieSetRendererWakeupCond(int fd);
+void lorieStartRenderer(struct lorie_shared_server_state* state);
+void lorieWakeRenderer(void);
+void lorieSyncRootForGpu(uint64_t id);
+void lorieSendShownChanged(void);
 void lorieSetCursorVisible(Bool visible);
 void lorieSendSyncReply(uint32_t serial);
 void lorieSendHeartbeat(void);
@@ -55,8 +58,7 @@ extern const size_t lorieExtendedKeysCount;
 void registerCmdEntryPointNatives(JNIEnv *env);
 void lorieListenForKnocks(int port, const char *tag);
 
-__unused void rendererTestCapabilities(int* legacy_drawing, int* renderer_relock);
-int rendererRelockProbeChild(int fd);
+__unused void rendererTestCapabilities(int* legacy_drawing);
 
 static inline __always_inline void lorie_mutex_lock(pthread_mutex_t* mutex, pid_t* lockingPid, int connFd) {
     // Unfortunately there is no robust mutexes in bionic.
@@ -103,8 +105,8 @@ static inline __always_inline void lorie_mutex_unlock(pthread_mutex_t* mutex, pi
 typedef enum {
     EVENT_UNKNOWN __unused = 0,
     EVENT_SHARED_SERVER_STATE,
-    EVENT_ADD_BUFFER,
-    EVENT_REMOVE_BUFFER,
+    EVENT_VIEW_CHANGED,
+    EVENT_SHOWN_CHANGED,
     EVENT_SCREEN_SIZE,
     EVENT_TOUCH,
     EVENT_MOUSE,
@@ -117,7 +119,6 @@ typedef enum {
     EVENT_CLIPBOARD_REQUEST,
     EVENT_CLIPBOARD_SEND,
     EVENT_WINDOW_FOCUS_CHANGED,
-    EVENT_RENDERER_WAKEUP_COND,
     EVENT_LOCK_KEYS_STATE,
     EVENT_SYNC,
     EVENT_SYNC_REPLY,
@@ -185,8 +186,6 @@ typedef union {
 
 struct lorie_shared_server_state {
     /*
-     * Renderer and X server are separated into 2 different processes.
-     * Root window and cursor content and properties are shared across these 2 processes.
      * Reading/drawing root window in renderer the same time X server writes it can cause
      * tearing, texture garbling and other visual artifacts so we should block X server while we are drawing.
      */
@@ -201,9 +200,6 @@ struct lorie_shared_server_state {
 
     /* Renderer is waiting for `lock`, the X server hands it over when the current request is done */
     volatile uint32_t rendererWaiting;
-
-    /* The renderer may lock the root buffer again while the X server holds it locked for writing */
-    volatile uint8_t rendererRelock;
 
     /* We should avoid triggering renderer if there is no output surface */
     volatile uint8_t surfaceAvailable;
@@ -237,6 +233,22 @@ struct lorie_shared_server_state {
         // Signals to renderer to update cursor's texture or its coordinates
         volatile uint8_t updated, moved, visible;
     } cursor;
+
+    /* Written by the activity, the renderer applies it on EVENT_VIEW_CHANGED */
+    struct lorie_view {
+        int32_t x, y, width, height, expectedWidth, expectedHeight, hiddenBottom;
+        int32_t zoomPercent, filtering;
+        // Source point a pinch wants kept at a given viewport fraction. Negative sourceX = no pinch.
+        float pinchAnchorSourceX, pinchAnchorSourceY, pinchAnchorFracX, pinchAnchorFracY;
+        uint8_t followCursorPan;
+    } view;
+
+    /* The part of the picture the renderer shows and where, the activity maps input with it */
+    struct {
+        int32_t x, y, width, height;
+        float sourceLeft, sourceTop, sourceWidth, sourceHeight;
+        volatile uint8_t reported; // EVENT_SHOWN_CHANGED is on its way
+    } shown;
 };
 
 #ifdef __cplusplus
@@ -254,14 +266,14 @@ struct Renderer {
     EGLSurface defaultSfc = EGL_NO_SURFACE, sfc = EGL_NO_SURFACE;
     EGLConfig cfg = nullptr;
     ANativeWindow *defaultWin = nullptr, *win = nullptr;
+    jobject surface = nullptr; // global ref, kept along with win so the Surface is released right when win is
     struct xorg_list addedBuffers{}, buffers{}, removedBuffers{};
     volatile jint filtering = GL_NEAREST;
 
     pthread_t thread = 0;
-    volatile bool stopping = false;
-    volatile bool stateChanged = false, windowChanged = false, viewportChanged = false;
-    struct lorie_shared_server_state* pendingState = nullptr;
+    volatile bool windowChanged = false, viewportChanged = false;
     ANativeWindow* pendingWin = nullptr;
+    jobject pendingSurface = nullptr;
     volatile int viewportX = 0, viewportY = 0, viewportW = 0, viewportH = 0, expectedW = 0, expectedH = 0;
     volatile int hiddenBottom = 0;
     volatile int zoomPercent = 100;
@@ -274,19 +286,14 @@ struct Renderer {
     bool bottomWasHidden = false;
     JNIEnv* rendererEnv = nullptr;
     JavaVM* jvm = nullptr; // Stashed by init() so initThread() can be reached via `this` from a plain (non-capturing) pthread_create callback.
-    jclass lorieViewClass = nullptr;
-    jobject thiz = nullptr; // global ref to the owning LorieView
-    jmethodID setRendererViewportMethod = nullptr;
+    jmethodID surfaceRelease = nullptr, surfaceDestroy = nullptr;
     int reportedViewportX = -1, reportedViewportY = -1, reportedViewportW = -1, reportedViewportH = -1;
     float reportedSourceLeft = -1.f, reportedSourceTop = -1.f, reportedSourceWidth = -1.f, reportedSourceHeight = -1.f;
 
     pthread_mutex_t stateLock{};
-    // Shared with the X server so it can signal us directly. Only this thread ever waits on it, so stateLock
-    // (the companion mutex) doesn't need to be shared too.
-    pthread_cond_t* stateCond = nullptr;
+    pthread_cond_t stateCond{};
     pthread_cond_t stateChangeFinishCond{};
     pthread_spinlock_t bufferLock{};
-    int stateCondFd = -1;
     struct lorie_shared_server_state* state = nullptr;
     struct {
         GLuint id;
@@ -310,26 +317,14 @@ struct Renderer {
     // they are per-instance state, not per-process.
     uint64_t lastRequestedBufferId = 0;
 
-    volatile int* connFdPtr = nullptr;
-    int connFd() const { return connFdPtr ? *connFdPtr : -1; }
-
-    void init(JNIEnv* env, jobject thiz);
-    void destroy();
+    void init(JavaVM* vm, struct lorie_shared_server_state* serverState);
     void* initThread();
-    int getWakeupCondFd() const;
-    void setFiltering(jint f);
-    void testCapabilities(int* legacy_drawing, int* renderer_relock);
-    void setSharedState(struct lorie_shared_server_state* newState);
+    void testCapabilities(int* legacy_drawing);
     void addBuffer(LorieBuffer* buf);
     void removeBuffer(uint64_t id);
-    void removeAllBuffers();
     void setWindow(JNIEnv* env, jobject jsfc);
-    void setViewport(int x, int y, int w, int h, int ew, int eh, int hidden);
-    void setZoom(int percent);
-    void setZoomAnchor(float sourceX, float sourceY, float fracX, float fracY);
-    void clearZoomAnchor();
-    void setFollowCursorPan(bool enabled);
-    void releaseWinAndSurface(ANativeWindow** anw, EGLSurface* esfc);
+    void applyView();
+    void releaseWinAndSurface(ANativeWindow** anw, jobject* jsfc, EGLSurface* esfc);
     void refreshContext();
     void redrawLocked(bool* waitingForBuffers);
     bool shouldWait(bool* waitingForBuffers);

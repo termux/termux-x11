@@ -764,10 +764,10 @@ public class MainActivity extends AppCompatActivity {
             if (fd != null) {
                 Log.v("MainActivity", "Extracting X connection socket.");
                 getLorieView().connect(fd.detachFd());
+                clientConnectedStateChanged();
                 getLorieView().sendSurface();
                 finishStartupDraw();
                 getLorieView().triggerCallback();
-                clientConnectedStateChanged();
                 getLorieView().reloadPreferences(prefs);
             } else
                 scheduleConnect();

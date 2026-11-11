@@ -347,6 +347,7 @@ public class LorieView extends SurfaceView implements InputStub {
     void sendSurface() {
         Surface surface = getHolder().getSurface();
         activity.windowChanged(surface != null && surface.isValid() ? surface : null);
+        updateViewport();
     }
 
     public void triggerCallback() {

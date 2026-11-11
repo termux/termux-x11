@@ -179,6 +179,15 @@ void LorieBuffer_detachFromGL(LorieBuffer* _Nullable buffer);
 void LorieBuffer_bindTexture(LorieBuffer* _Nullable buffer);
 
 /**
+ * Upload rows [y1, y2) of an fd-backed buffer into its bound texture.
+ *
+ * @param buffer the buffer to be uploaded.
+ * @param y1 the first row.
+ * @param y2 the row after the last one.
+ */
+void LorieBuffer_uploadRows(LorieBuffer* _Nullable buffer, int y1, int y2);
+
+/**
  * Get the GL texture id the buffer is attached to (see LorieBuffer_attachToGL).
  * Returns 0 if the buffer was not attached to GL yet.
  *

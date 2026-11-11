@@ -717,8 +717,10 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     state->drawRequested = FALSE;
 
     LorieBuffer_bindTexture(buffer);
-    if (desc->type == LORIEBUFFER_FD)
+    if (desc->type == LORIEBUFFER_FD) {
+        uploadDamagedRows(buffer);
         xfactor = (float) desc->width/(float) desc->stride;
+    }
     drawRegion(0, -1.f, -1.f, 1.f, 1.f,
                sourceLeft / (float) desc->width * xfactor, sourceTop / (float) desc->height,
                (sourceLeft + sourceWidth) / (float) desc->width * xfactor,
@@ -758,6 +760,29 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     waitForFence(egl_display, fence, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR);
 
     state->renderedFrames++;
+}
+
+void Renderer::uploadDamagedRows(LorieBuffer* buffer) {
+    const LorieBuffer_Desc *desc = LorieBuffer_description(buffer);
+    bool all = uploadedBufferId != desc->id;
+    int start = -1;
+
+    uploadedBufferId = desc->id;
+    for (int word = 0; word * 64 < desc->height; word++) {
+        uint64_t rows = __atomic_exchange_n(&state->damagedRows[word], 0, __ATOMIC_ACQUIRE) | (all ? ~0ULL : 0);
+        for (int bit = 0, y = word * 64; bit < 64 && y < desc->height; bit++, y++) {
+            bool damaged = rows & (1ULL << bit);
+            if (damaged && start < 0)
+                start = y;
+            else if (!damaged && start >= 0) {
+                LorieBuffer_uploadRows(buffer, start, y);
+                start = -1;
+            }
+        }
+    }
+
+    if (start >= 0)
+        LorieBuffer_uploadRows(buffer, start, desc->height);
 }
 
 bool Renderer::shouldWait(bool *waitingForBuffers) {

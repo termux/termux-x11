@@ -155,6 +155,9 @@ struct lorie_shared_server_state {
     /* A signal to renderer to update root window texture content from shared fragment if needed */
     volatile uint8_t drawRequested;
 
+    /* Rows of the fd-backed root window changed since the renderer uploaded them, one bit per row */
+    uint64_t damagedRows[32768 / 64];
+
     /* Renderer is waiting for `lock`, the X server hands it over when the current request is done */
     volatile uint32_t rendererWaiting;
 
@@ -272,6 +275,7 @@ struct Renderer {
     // Formerly function-local statics; moved here for the same reason as everything else above -
     // they are per-instance state, not per-process.
     uint64_t lastRequestedBufferId = 0;
+    uint64_t uploadedBufferId = UINT64_MAX;
 
     void init(JavaVM* vm, struct lorie_shared_server_state* serverState);
     void* initThread();
@@ -283,6 +287,7 @@ struct Renderer {
     void releaseWinAndSurface(ANativeWindow** anw, jobject* jsfc, EGLSurface* esfc);
     void refreshContext();
     void redrawLocked(bool* waitingForBuffers);
+    void uploadDamagedRows(LorieBuffer* buffer);
     bool shouldWait(bool* waitingForBuffers);
     void threadLoop();
     void bindTexture(GLuint id) const;

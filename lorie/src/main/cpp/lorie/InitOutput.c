@@ -530,6 +530,23 @@ void lorieSyncRootForGpu(uint64_t id) {
         FatalError("Failed to lock the root window buffer\n");
 }
 
+static void lorieMarkDamagedRows(RegionPtr region) {
+    BoxPtr box = RegionRects(region);
+    int y1 = -1, y2 = -1;
+
+    for (int n = RegionNumRects(region); n--; box++) {
+        if (box->y1 == y1 && box->y2 == y2)
+            continue;
+
+        y1 = box->y1;
+        y2 = box->y2;
+        for (int y = y1, bits; y < y2; y += bits) {
+            bits = min(64 - y % 64, y2 - y);
+            __atomic_fetch_or(&pvfb->state->damagedRows[y / 64], (bits == 64 ? ~0ULL : (1ULL << bits) - 1) << (y % 64), __ATOMIC_RELEASE);
+        }
+    }
+}
+
 static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     int nonEmpty;
     LoriePixmapPriv* priv;
@@ -552,6 +569,8 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
         return TRUE;
 
     if (nonEmpty && priv->buffer) {
+        if (LorieBuffer_description(priv->buffer)->type == LORIEBUFFER_FD)
+            lorieMarkDamagedRows(DamageRegion(pvfb->damage));
         DamageEmpty(pvfb->damage);
         pvfb->state->drawRequested = TRUE;
     }

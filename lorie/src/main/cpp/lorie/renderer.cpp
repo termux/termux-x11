@@ -20,6 +20,7 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <android/native_window_jni.h>
+#include <android/hardware_buffer_jni.h>
 #include <android/log.h>
 #include <media/NdkImageReader.h>
 #include <cmath>
@@ -286,7 +287,99 @@ bool Renderer::initGl() {
 
     glActiveTexture(GL_TEXTURE0);
     glGenTextures(1, &cursor.id);
+    glGenFramebuffers(1, &cursorFbo);
+    ImageWriter::load(rendererEnv);
     return true;
+}
+
+jclass ImageWriter::writerClass;
+jmethodID ImageWriter::newInstance, ImageWriter::closeWriter, ImageWriter::dequeueInputImage, ImageWriter::queueInputImage, ImageWriter::closeImage;
+jmethodID ImageWriter::getHardwareBuffer, ImageWriter::closeHardwareBuffer;
+jfieldID ImageWriter::nativeBufferField;
+
+void ImageWriter::load(JNIEnv* env) {
+    if (writerClass)
+        return;
+
+    writerClass = (jclass) env->NewGlobalRef(env->FindClass("android/media/ImageWriter"));
+    jclass imageClass = env->FindClass("android/media/ImageWriter$WriterSurfaceImage");
+    // The overload taking a format is hidden before API 29.
+    newInstance = android_get_device_api_level() >= 26
+            ? env->GetStaticMethodID(writerClass, "newInstance", "(Landroid/view/Surface;II)Landroid/media/ImageWriter;")
+            : env->GetStaticMethodID(writerClass, "newInstance", "(Landroid/view/Surface;I)Landroid/media/ImageWriter;");
+    if (lorieClearJniException(env)) {
+        loge("Xlorie: no access to ImageWriter.newInstance, the cursor is not shown");
+        return;
+    }
+    closeWriter = env->GetMethodID(writerClass, "close", "()V");
+    dequeueInputImage = env->GetMethodID(writerClass, "dequeueInputImage", "()Landroid/media/Image;");
+    queueInputImage = env->GetMethodID(writerClass, "queueInputImage", "(Landroid/media/Image;)V");
+    closeImage = env->GetMethodID(imageClass, "close", "()V");
+    if (android_get_device_api_level() >= 28) {
+        getHardwareBuffer = env->GetMethodID(imageClass, "getHardwareBuffer", "()Landroid/hardware/HardwareBuffer;");
+        closeHardwareBuffer = env->GetMethodID(env->FindClass("android/hardware/HardwareBuffer"), "close", "()V");
+    } else
+        nativeBufferField = env->GetFieldID(imageClass, "mNativeBuffer", "J");
+    if (lorieClearJniException(env))
+        loge("Xlorie: no access to ImageWriter images, the cursor is not shown");
+}
+
+bool ImageWriter::create(JNIEnv* env, jobject surface) {
+    if (!newInstance)
+        return false;
+
+    jobject created = android_get_device_api_level() >= 26
+            ? env->CallStaticObjectMethod(writerClass, newInstance, surface, 2, WINDOW_FORMAT_RGBA_8888)
+            : env->CallStaticObjectMethod(writerClass, newInstance, surface, 2);
+    if (created) {
+        writer = env->NewGlobalRef(created);
+        env->DeleteLocalRef(created);
+    }
+    lorieClearJniException(env);
+    return writer != nullptr;
+}
+
+void ImageWriter::close(JNIEnv* env) {
+    if (!writer)
+        return;
+
+    env->CallVoidMethod(writer, closeWriter);
+    env->DeleteGlobalRef(writer);
+    writer = nullptr;
+}
+
+void* ImageWriter::graphicBuffer(JNIEnv* env, jobject image) {
+    AHardwareBuffer* buffer = nullptr;
+    if (!getHardwareBuffer)
+        return nativeBufferField ? (void*) env->GetLongField(image, nativeBufferField) : nullptr;
+
+    jobject hardwareBuffer = env->CallObjectMethod(image, getHardwareBuffer);
+    if (!hardwareBuffer)
+        return nullptr;
+    if (__builtin_available(android 26, *))
+        buffer = AHardwareBuffer_fromHardwareBuffer(env, hardwareBuffer);
+    env->CallVoidMethod(hardwareBuffer, closeHardwareBuffer);
+    env->DeleteLocalRef(hardwareBuffer);
+    return buffer;
+}
+
+static void showCursorBuffer(ASurfaceControl* control, AHardwareBuffer* buffer) {
+    if (!__builtin_available(android 29, *))
+        return;
+
+    ASurfaceTransaction* transaction = ASurfaceTransaction_create();
+    if (buffer) {
+        // The whole buffer is shown, because with a smaller crop the cursor flashes on some HWCs (MediaTek) whenever they compose the layer instead of the GPU.
+        AHardwareBuffer_Desc desc = {};
+        AHardwareBuffer_describe(buffer, &desc);
+        ARect area = {0, 0, (int32_t) desc.width, (int32_t) desc.height};
+        ASurfaceTransaction_setBuffer(transaction, control, buffer, -1);
+        ASurfaceTransaction_setGeometry(transaction, control, area, area, ANATIVEWINDOW_TRANSFORM_IDENTITY);
+        ASurfaceTransaction_setBufferTransparency(transaction, control, ASURFACE_TRANSACTION_TRANSPARENCY_TRANSPARENT);
+    }
+    ASurfaceTransaction_setVisibility(transaction, control, buffer ? ASURFACE_TRANSACTION_VISIBILITY_SHOW : ASURFACE_TRANSACTION_VISIBILITY_HIDE);
+    ASurfaceTransaction_apply(transaction);
+    ASurfaceTransaction_delete(transaction);
 }
 
 bool Renderer::init(JavaVM* vm, struct lorie_shared_server_state* serverState) {
@@ -540,10 +633,229 @@ void Renderer::refreshContext() {
     eglSwapInterval(egl_display, 0);
 
     // We should redraw image at least once right after surface change
-    state->surfaceAvailable = state->drawRequested = state->cursor.updated = win != defaultWin;
+    state->surfaceAvailable = state->drawRequested = win != defaultWin;
 
     glViewport(0, 0, ANativeWindow_getWidth(win), ANativeWindow_getHeight(win));
     log("Xlorie: new surface applied: %p\n", sfc);
+}
+
+void Renderer::setCursorSurface(JNIEnv* env, jobject surface) {
+    pthread_mutex_lock(&stateLock);
+    while(cursorSurfaceChanged)
+        pthread_cond_wait(&stateChangeFinishCond, &stateLock);
+
+    pendingCursorSurface = surface ? env->NewGlobalRef(surface) : nullptr;
+    cursorSurfaceChanged = true;
+    pthread_cond_signal(&stateCond);
+
+    while(cursorSurfaceChanged)
+        pthread_cond_wait(&stateChangeFinishCond, &stateLock);
+
+    pthread_mutex_unlock(&stateLock);
+}
+
+void Renderer::releaseCursorTargets() {
+    for (auto& target : cursorTargets) {
+        if (target.image)
+            eglDestroyImageKHR(egl_display, target.image);
+        if (target.texture)
+            glDeleteTextures(1, &target.texture);
+        if (cursorControl && target.graphicBuffer)
+            if (__builtin_available(android 26, *))
+                AHardwareBuffer_release((AHardwareBuffer*) target.graphicBuffer);
+        target = {};
+    }
+    nextCursorTarget = 0;
+}
+
+void* Renderer::nextCursorBuffer(int w, int h) {
+    if (!__builtin_available(android 26, *))
+        return nullptr;
+
+    w = (w + 31) / 32 * 32;
+    h = (h + 31) / 32 * 32;
+    AHardwareBuffer_Desc desc = {};
+    auto* buffer = (AHardwareBuffer*) cursorTargets[nextCursorTarget].graphicBuffer;
+    if (buffer)
+        AHardwareBuffer_describe(buffer, &desc);
+    if (buffer && ((int) desc.width != w || (int) desc.height != h)) {
+        releaseCursorTargets();
+        buffer = nullptr;
+    }
+
+    if (!buffer) {
+        desc = {};
+        desc.width = w;
+        desc.height = h;
+        desc.layers = 1;
+        desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
+        desc.usage = AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
+        AHardwareBuffer_allocate(&desc, &buffer);
+        if (buffer && !cursorTargetTexture(buffer)) {
+            AHardwareBuffer_release(buffer);
+            return nullptr;
+        }
+    }
+
+    if (buffer)
+        nextCursorTarget = (nextCursorTarget + 1) % (sizeof(cursorTargets) / sizeof(cursorTargets[0]));
+    return buffer;
+}
+
+void Renderer::closeCursorOutput() {
+    releaseCursorTargets();
+    cursorWriter.close(rendererEnv);
+    if (cursorControl) {
+        if (__builtin_available(android 29, *)) {
+            ASurfaceTransaction* transaction = ASurfaceTransaction_create();
+            ASurfaceTransaction_reparent(transaction, cursorControl, nullptr);
+            ASurfaceTransaction_apply(transaction);
+            ASurfaceTransaction_delete(transaction);
+            ASurfaceControl_release(cursorControl);
+        }
+        cursorControl = nullptr;
+    }
+}
+
+// ImageWriter leaks its surface on Android 15 QPR1 and newer, so a child layer is used from API 29.
+void Renderer::refreshCursorOutput() {
+    closeCursorOutput();
+
+    if (pendingCursorSurface) {
+        if (__builtin_available(android 29, *)) {
+            ANativeWindow* window = ANativeWindow_fromSurface(rendererEnv, pendingCursorSurface);
+            if (window) {
+                cursorControl = ASurfaceControl_createFromWindow(window, "cursor");
+                ANativeWindow_release(window);
+            }
+        }
+        if (!cursorControl)
+            cursorWriter.create(rendererEnv, pendingCursorSurface);
+        rendererEnv->DeleteGlobalRef(pendingCursorSurface);
+        pendingCursorSurface = nullptr;
+    }
+
+    cursorSurfaceChanged = false;
+    drawnCursorW = drawnCursorH = -1;
+    state->cursor.updated = true;
+}
+
+// API 24 and 25 have no AHardwareBuffer, there the ANativeWindowBuffer part of the GraphicBuffer follows its RefBase part.
+static EGLClientBuffer graphicBufferToClientBuffer(void* graphicBuffer) {
+    if (__builtin_available(android 26, *))
+        return eglGetNativeClientBufferANDROID((AHardwareBuffer*) graphicBuffer);
+
+    const uint32_t nativeBufferMagic = (uint32_t) '_' << 24 | (uint32_t) 'b' << 16 | (uint32_t) 'f' << 8 | (uint32_t) 'r';
+    for (size_t offset = 0; offset <= 4 * sizeof(void*); offset += sizeof(void*))
+        if (*(uint32_t*) ((char*) graphicBuffer + offset) == nativeBufferMagic)
+            return (char*) graphicBuffer + offset;
+    return nullptr;
+}
+
+GLuint Renderer::cursorTargetTexture(void* graphicBuffer) {
+    const EGLint imageAttributes[] = { EGL_IMAGE_PRESERVED_KHR, EGL_TRUE, EGL_NONE };
+    EGLClientBuffer clientBuffer;
+
+    for (auto& target : cursorTargets)
+        if (target.graphicBuffer == graphicBuffer)
+            return target.texture;
+
+    for (auto& target : cursorTargets) {
+        if (target.graphicBuffer)
+            continue;
+
+        if (!(clientBuffer = graphicBufferToClientBuffer(graphicBuffer)) ||
+            (target.image = eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, imageAttributes)) == EGL_NO_IMAGE_KHR)
+            return 0;
+
+        target.graphicBuffer = graphicBuffer;
+        glGenTextures(1, &target.texture);
+        glBindTexture(GL_TEXTURE_2D, target.texture);
+        glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, target.image);
+        return target.texture;
+    }
+
+    loge("Xlorie: the cursor ImageWriter cycles more than %zu buffers", sizeof(cursorTargets) / sizeof(cursorTargets[0]));
+    return 0;
+}
+
+bool Renderer::drawCursorImage(int w, int h) {
+    JNIEnv* env = rendererEnv;
+    GLuint texture = 0;
+    jobject image = nullptr;
+    void* buffer = nullptr;
+    if (cursorControl && !(w && h)) {
+        showCursorBuffer(cursorControl, nullptr);
+        return true;
+    }
+
+    if (cursorControl)
+        buffer = nextCursorBuffer(w, h);
+    else if ((image = cursorWriter.dequeueImage(env)))
+        buffer = ImageWriter::graphicBuffer(env, image);
+    if (buffer)
+        texture = cursorTargetTexture(buffer);
+
+    if (texture) {
+        glBindFramebuffer(GL_FRAMEBUFFER, cursorFbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            texture = 0;
+    }
+
+    if (texture) {
+        glDisable(GL_SCISSOR_TEST);
+        glClearColor(0.f, 0.f, 0.f, 0.f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        if (w && h) {
+            glViewport(0, 0, w, h);
+            drawRegion(cursor.id, -1.f, 1.f, 1.f, -1.f, 0.f, 0.f, 1.f, 1.f, false);
+        }
+        // ImageWriter takes no fence before API 33.
+        waitForFence(egl_display, eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr), EGL_SYNC_FLUSH_COMMANDS_BIT_KHR);
+        if (cursorControl)
+            showCursorBuffer(cursorControl, (AHardwareBuffer*) buffer);
+        else
+            cursorWriter.queueImage(env, image);
+    } else if (image)
+        ImageWriter::discardImage(env, image);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    if (lorieClearJniException(env))
+        texture = 0;
+    if (image)
+        env->DeleteLocalRef(image);
+    return texture != 0;
+}
+
+void Renderer::updateCursor() {
+    state->cursor.moved = FALSE;
+    if (!cursorWriter && !cursorControl) {
+        state->cursor.updated = FALSE;
+        return;
+    }
+
+    bool visible = state->cursor.visible && state->cursor.width && state->cursor.height;
+    int w = visible ? (int) lroundf((float) state->cursor.width * drawnScaleX) : 0;
+    int h = visible ? (int) lroundf((float) state->cursor.height * drawnScaleY) : 0;
+    if (!state->cursor.updated && w == drawnCursorW && h == drawnCursorH)
+        return;
+
+    if (state->cursor.updated) {
+        pthread_mutex_lock(&state->cursor.lock);
+        state->cursor.updated = false;
+        bindTexture(cursor.id);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
+        pthread_mutex_unlock(&state->cursor.lock);
+    }
+
+    if (!drawCursorImage(w, h)) {
+        loge("Xlorie: failed to draw into the cursor surface, the cursor is not shown");
+        closeCursorOutput();
+        return;
+    }
+    drawnCursorW = w;
+    drawnCursorH = h;
 }
 
 static void lockServerState(struct lorie_shared_server_state *state) {
@@ -562,6 +874,36 @@ static float panToCursor(float offset, float cursor, float shown, float total) {
     else if (cursor > offset + shown - edge)
         offset = cursor - shown + edge;
     return fmaxf(0.f, fminf(offset, total - shown));
+}
+
+void Renderer::computePan(float cursorX, float cursorY, float sourceWidth, float sourceHeight, float* left, float* top) const {
+    if (pinchAnchorSourceX >= 0.f) {
+        *left = fmaxf(0.f, fminf(pinchAnchorSourceX - pinchAnchorFracX * sourceWidth, (float) expectedW - sourceWidth));
+        *top = fmaxf(0.f, fminf(pinchAnchorSourceY - pinchAnchorFracY * sourceHeight, (float) expectedH - sourceHeight));
+        return;
+    }
+
+    // Cursor tracking while zoomed in is opt-out; a vertical shrink caused by the keyboard
+    // hiding the bottom (rather than by zoom) always tracks the cursor regardless of that.
+    bool trackCursor = followCursorPan || zoomPercent == 100;
+
+    // The buffer can be a few pixels narrower than the screen because of the mode granularity,
+    // so panning horizontally only makes sense when zoomed in.
+    *left = zoomPercent > 100 && trackCursor
+            ? panToCursor(panSourceLeft, cursorX, sourceWidth, (float) expectedW)
+            : (zoomPercent > 100 ? panSourceLeft : 0.f);
+    *top = sourceHeight < (float) expectedH && trackCursor
+           ? panToCursor(panSourceTop, cursorY, sourceHeight, (float) expectedH)
+           : (sourceHeight < (float) expectedH ? panSourceTop : 0.f);
+}
+
+bool Renderer::cursorNeedsRedraw() const {
+    float left, top;
+    if (drawnSourceWidth <= 0.f || drawnSourceHeight <= 0.f)
+        return true;
+
+    computePan((float) state->cursor.x, (float) state->cursor.y, drawnSourceWidth, drawnSourceHeight, &left, &top);
+    return left != panSourceLeft || top != panSourceTop;
 }
 
 void Renderer::redrawLocked(bool* waitingForBuffers) {
@@ -654,25 +996,12 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
             panSourceTop = other;
     }
 
-    auto cursorX = (float) state->cursor.x, cursorY = (float) state->cursor.y; // snapshot, cursor.x/y is updated lock-free
-
-    if (pinchAnchorSourceX >= 0.f) {
-        panSourceLeft = fmaxf(0.f, fminf(pinchAnchorSourceX - pinchAnchorFracX * sourceWidth, (float) expectedW - sourceWidth));
-        panSourceTop = fmaxf(0.f, fminf(pinchAnchorSourceY - pinchAnchorFracY * sourceHeight, (float) expectedH - sourceHeight));
-    } else {
-        // Cursor tracking while zoomed in is opt-out; a vertical shrink caused by the keyboard
-        // hiding the bottom (rather than by zoom) always tracks the cursor regardless of that.
-        bool trackCursor = followCursorPan || zoomPercent == 100;
-
-        // The buffer can be a few pixels narrower than the screen because of the mode granularity,
-        // so panning horizontally only makes sense when zoomed in.
-        panSourceLeft = zoomPercent > 100 && trackCursor
-                        ? panToCursor(panSourceLeft, cursorX, sourceWidth, (float) expectedW)
-                        : (zoomPercent > 100 ? panSourceLeft : 0.f);
-        panSourceTop = sourceHeight < (float) expectedH && trackCursor
-                       ? panToCursor(panSourceTop, cursorY, sourceHeight, (float) expectedH)
-                       : (sourceHeight < (float) expectedH ? panSourceTop : 0.f);
-    }
+    // snapshot, cursor.x/y is updated lock-free
+    computePan((float) state->cursor.x, (float) state->cursor.y, sourceWidth, sourceHeight, &panSourceLeft, &panSourceTop);
+    drawnSourceWidth = sourceWidth;
+    drawnSourceHeight = sourceHeight;
+    drawnScaleX = (float) renderViewportW / logicalSourceWidth;
+    drawnScaleY = (float) renderViewportH / logicalSourceHeight;
     float sourceLeft = panSourceLeft, sourceTop = panSourceTop;
 
     glDisable(GL_SCISSOR_TEST);
@@ -705,19 +1034,6 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     fence = desc->type == LORIEBUFFER_FD ? EGL_NO_SYNC_KHR : eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
     glFlush();
 
-    if (state->cursor.updated) {
-        log("Xlorie: updating cursor\n");
-        pthread_mutex_lock(&state->cursor.lock);
-        state->cursor.updated = false;
-        bindTexture(cursor.id);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLsizei) state->cursor.width, (GLsizei) state->cursor.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, state->cursor.bits);
-        pthread_mutex_unlock(&state->cursor.lock);
-    }
-
-    state->cursor.moved = FALSE;
-    drawCursor(sourceWidth, sourceHeight, sourceLeft, sourceTop, cursorX, cursorY);
-    glFlush();
-
     // Wait until root window drawing is finished before giving control back to X server
     if (fence != EGL_NO_SYNC_KHR)
         waitForFence(egl_display, fence, 0);
@@ -736,6 +1052,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
     waitForFence(egl_display, fence, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR);
 
+    updateCursor();
     state->renderedFrames++;
 }
 
@@ -773,7 +1090,7 @@ bool Renderer::shouldWait(bool *waitingForBuffers) {
     pthread_spin_lock(&bufferLock);
     buffersChanged = !xorg_list_is_empty(&addedBuffers) || !xorg_list_is_empty(&removedBuffers);
     pthread_spin_unlock(&bufferLock);
-    if (windowChanged || buffersChanged)
+    if (windowChanged || cursorSurfaceChanged || buffersChanged)
         // If there are pending changes we should process them immediately.
         return false;
 
@@ -804,6 +1121,9 @@ void Renderer::threadLoop() {
         if (windowChanged)
             refreshContext();
 
+        if (cursorSurfaceChanged)
+            refreshCursorOutput();
+
         // Attach all pending buffers to GL.
         pthread_spin_lock(&bufferLock);
         while((buf = LorieBufferList_first(&addedBuffers))) {
@@ -816,9 +1136,15 @@ void Renderer::threadLoop() {
         pthread_cond_broadcast(&stateChangeFinishCond);
         pthread_mutex_unlock(&stateLock);
 
-        if (state->surfaceAvailable && !state->waitForNextFrame &&
-            (state->drawRequested || state->cursor.moved || state->cursor.updated))
-            redrawLocked(&waitingForBuffers);
+        if (state->surfaceAvailable && !state->waitForNextFrame) {
+            bool cursorChanged = state->cursor.moved || state->cursor.updated;
+            if (state->drawRequested || (cursorChanged && cursorNeedsRedraw()))
+                redrawLocked(&waitingForBuffers);
+            else if (cursorChanged) {
+                updateCursor();
+                state->waitForNextFrame = true;
+            }
+        }
 
         pthread_spin_lock(&bufferLock);
         while((buf = LorieBufferList_first(&removedBuffers))) {
@@ -907,20 +1233,4 @@ void Renderer::drawRegion(GLuint id, float x0, float y0, float x1, float y1, flo
     glEnableVertexAttribArray(p);
     glEnableVertexAttribArray(c);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); checkGlError();
-}
-
-void Renderer::drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop, float cursorX, float cursorY) {
-    float x, y, w, h;
-
-    if (!state->cursor.width || !state->cursor.height || !state->cursor.visible)
-        return;
-
-    x = 2.f * (cursorX - sourceLeft - (float) state->cursor.xhot) / displayWidth - 1.f;
-    y = 2.f * (cursorY - sourceTop - (float) state->cursor.yhot) / displayHeight - 1.f;
-    w = 2.f * (float) state->cursor.width / displayWidth;
-    h = 2.f * (float) state->cursor.height / displayHeight;
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    drawRegion(cursor.id, x, y, x + w, y + h, 0.f, 0.f, 1.f, 1.f, false);
-    glDisable(GL_BLEND);
 }

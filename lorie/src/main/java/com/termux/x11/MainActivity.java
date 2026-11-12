@@ -740,6 +740,17 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    void cursorWindowChanged(Surface surface) {
+        if (service == null || serverStalled())
+            return;
+
+        try {
+            service.cursorWindowChanged(surface);
+        } catch (RemoteException e) {
+            Log.e("MainActivity", "Failed to hand the cursor surface over to the X server", e);
+        }
+    }
+
     void disconnectService() {
         service = null;
 

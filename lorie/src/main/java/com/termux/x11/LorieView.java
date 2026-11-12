@@ -5,12 +5,16 @@ import android.content.ClipData;
 import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.PointF;
+import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Region;
 import android.graphics.drawable.ColorDrawable;
 import android.opengl.GLES20;
 import android.os.Build;
@@ -22,11 +26,13 @@ import android.text.InputType;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.Rational;
+import android.view.Choreographer;
 import android.view.KeyEvent;
 import android.view.Display;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.CursorAnchorInfo;
@@ -37,6 +43,8 @@ import android.view.inputmethod.SurroundingText;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
+import android.widget.FrameLayout;
+
 import androidx.core.math.MathUtils;
 
 import com.termux.x11.input.InputStub;
@@ -52,7 +60,7 @@ import dalvik.annotation.optimization.FastNative;
 
 @Keep @SuppressLint("WrongConstant")
 @SuppressWarnings("deprecation")
-public class LorieView extends SurfaceView implements InputStub {
+public class LorieView extends FrameLayout implements InputStub {
     private float rendererZoom = 100f;
     private static final Rect NO_INSETS = new Rect();
 
@@ -294,6 +302,54 @@ public class LorieView extends SurfaceView implements InputStub {
             return requestCursorUpdates(cursorUpdateMode);
         }
     };
+    @SuppressLint({"MissingSuperCall", "ViewConstructor"})
+    private static class HoleSurfaceView extends SurfaceView {
+        private final Rect hole = new Rect();
+        private final int[] location = new int[2];
+
+        HoleSurfaceView(Context context) { super(context); }
+
+        void setHole(Rect rect) {
+            if (hole.equals(rect))
+                return;
+
+            hole.set(rect);
+            invalidate();
+        }
+
+        private void punchHole(Canvas canvas) {
+            if (hole.isEmpty())
+                return;
+
+            canvas.save();
+            canvas.clipRect(hole);
+            canvas.drawColor(0, PorterDuff.Mode.CLEAR);
+            canvas.restore();
+        }
+
+        @Override public void draw(Canvas canvas) { punchHole(canvas); }
+        @Override protected void dispatchDraw(Canvas canvas) { punchHole(canvas); }
+
+        @Override
+        public boolean gatherTransparentRegion(Region region) {
+            if (region != null && !hole.isEmpty()) {
+                getLocationInWindow(location);
+                region.op(location[0] + hole.left, location[1] + hole.top, location[0] + hole.right, location[1] + hole.bottom, Region.Op.UNION);
+            }
+            return true;
+        }
+    }
+
+    private final HoleSurfaceView pictureView = new HoleSurfaceView(getContext());
+    private final HoleSurfaceView cursorView = new HoleSurfaceView(getContext());
+    private final int[] cursorState = new int[6];
+    private final Choreographer.FrameCallback cursorPlacer = new Choreographer.FrameCallback() {
+        @Override public void doFrame(long frameTimeNanos) {
+            placeCursor();
+            Choreographer.getInstance().postFrameCallback(this);
+        }
+    };
+
     private final SurfaceHolder.Callback mSurfaceCallback = new SurfaceHolder.Callback() {
         @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {}
 
@@ -310,11 +366,27 @@ public class LorieView extends SurfaceView implements InputStub {
             activity.windowChanged(null);
         }
     };
+    private final SurfaceHolder.Callback mCursorSurfaceCallback = new SurfaceHolder.Callback() {
+        @Override public void surfaceCreated(@NonNull SurfaceHolder holder) {}
+
+        @Override public void surfaceChanged(@NonNull SurfaceHolder holder, int f, int width, int height) {
+            activity.cursorWindowChanged(holder.getSurface());
+        }
+
+        @Override public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
+            activity.cursorWindowChanged(null);
+        }
+    };
 
     public LorieView(Context context, AttributeSet attrs) { super(context, attrs); }
 
     {
-        getHolder().addCallback(mSurfaceCallback);
+        pictureView.getHolder().addCallback(mSurfaceCallback);
+        cursorView.getHolder().addCallback(mCursorSurfaceCallback);
+        cursorView.getHolder().setFormat(PixelFormat.TRANSLUCENT);
+        cursorView.setZOrderMediaOverlay(true);
+        addView(pictureView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        addView(cursorView, new LayoutParams(32, 32));
         clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
         mNativeContext = nativeInit();
 
@@ -332,8 +404,15 @@ public class LorieView extends SurfaceView implements InputStub {
     }
 
     @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        Choreographer.getInstance().postFrameCallback(cursorPlacer);
+    }
+
+    @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+        Choreographer.getInstance().removeFrameCallback(cursorPlacer);
         nativeDestroy(mNativeContext);
         mNativeContext = 0;
     }
@@ -345,9 +424,28 @@ public class LorieView extends SurfaceView implements InputStub {
 
     /** Hands the surface over to the X server that has missed it. */
     void sendSurface() {
-        Surface surface = getHolder().getSurface();
+        Surface surface = pictureView.getHolder().getSurface();
+        Surface cursorSurface = cursorView.getHolder().getSurface();
         activity.windowChanged(surface != null && surface.isValid() ? surface : null);
+        activity.cursorWindowChanged(cursorSurface != null && cursorSurface.isValid() ? cursorSurface : null);
         updateViewport();
+    }
+
+    private void placeCursor() {
+        if (mNativeContext == 0 || inputSourceWidth <= 0.f || inputSourceHeight <= 0.f || !getCursorState(mNativeContext, cursorState))
+            return;
+
+        float scaleX = inputViewport.width() / inputSourceWidth, scaleY = inputViewport.height() / inputSourceHeight;
+        int w = Math.max(32, (Math.round(cursorState[4] * scaleX) + 31) / 32 * 32);
+        int h = Math.max(32, (Math.round(cursorState[5] * scaleY) + 31) / 32 * 32);
+        ViewGroup.LayoutParams params = cursorView.getLayoutParams();
+        if (params.width != w || params.height != h) {
+            params.width = w;
+            params.height = h;
+            cursorView.setLayoutParams(params);
+        }
+        cursorView.setTranslationX(Math.round(inputViewport.left + (cursorState[0] - cursorState[2] - inputSourceLeft) * scaleX));
+        cursorView.setTranslationY(Math.round(inputViewport.top + (cursorState[1] - cursorState[3] - inputSourceTop) * scaleY));
     }
 
     public void triggerCallback() {
@@ -429,6 +527,7 @@ public class LorieView extends SurfaceView implements InputStub {
     }
 
     private void updateInputTransform() {
+        pictureView.setHole(inputViewport);
         if (mCallback != null)
             mCallback.inputTransformChanged(p.x, p.y, getInputTransform());
     }
@@ -719,6 +818,7 @@ public class LorieView extends SurfaceView implements InputStub {
     @FastNative private native void clearZoomAnchor(long ptr);
     @FastNative private native void setFollowCursorPan(long ptr, boolean enabled);
     @FastNative private native long getCursorPosition(long ptr);
+    @FastNative private native boolean getCursorState(long ptr, int[] state);
     @FastNative private native void sendSync(long ptr, int serial);
 
     // Public API stays free of the native pointer; it's threaded through to an overload below.

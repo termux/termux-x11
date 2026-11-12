@@ -700,7 +700,9 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
                (sourceLeft + sourceWidth) / (float) desc->width * xfactor,
                (sourceTop + sourceHeight) / (float) desc->height,
                LorieBuffer_isRgba(buffer));
-    fence = eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
+    // glTexSubImage2D reads the pixels before it returns, so an fd-backed root is free for the X server
+    // right after the upload and there is nothing to wait for. Other buffers are read by the GPU directly.
+    fence = desc->type == LORIEBUFFER_FD ? EGL_NO_SYNC_KHR : eglCreateSyncKHR(egl_display, EGL_SYNC_FENCE_KHR, nullptr);
     glFlush();
 
     if (state->cursor.updated) {
@@ -717,7 +719,8 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
     glFlush();
 
     // Wait until root window drawing is finished before giving control back to X server
-    waitForFence(egl_display, fence, 0);
+    if (fence != EGL_NO_SYNC_KHR)
+        waitForFence(egl_display, fence, 0);
     state->waitForNextFrame = true;
     pthread_mutex_unlock(&state->lock);
 

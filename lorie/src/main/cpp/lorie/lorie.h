@@ -214,8 +214,42 @@ struct lorie_shared_server_state {
 
 #ifdef __cplusplus
 #include <EGL/egl.h>
+#include <EGL/eglext.h>
 #include <GLES2/gl2.h>
+#include <android/surface_control.h>
 #include "list.h"
+
+static inline __always_inline bool lorieClearJniException(JNIEnv* env) {
+    if (!env->ExceptionCheck())
+        return false;
+
+    env->ExceptionDescribe();
+    env->ExceptionClear();
+    return true;
+}
+
+class ImageWriter {
+public:
+    static void load(JNIEnv* env);
+
+    bool create(JNIEnv* env, jobject surface);
+    void close(JNIEnv* env);
+    explicit operator bool() const { return writer != nullptr; }
+
+    jobject dequeueImage(JNIEnv* env) const { return env->CallObjectMethod(writer, dequeueInputImage); }
+    void queueImage(JNIEnv* env, jobject image) const { env->CallVoidMethod(writer, queueInputImage, image); }
+    static void discardImage(JNIEnv* env, jobject image) { env->CallVoidMethod(image, closeImage); }
+
+    static void* graphicBuffer(JNIEnv* env, jobject image);
+
+private:
+    static jclass writerClass;
+    static jmethodID newInstance, closeWriter, dequeueInputImage, queueInputImage, closeImage;
+    static jmethodID getHardwareBuffer, closeHardwareBuffer;
+    static jfieldID nativeBufferField;
+
+    jobject writer = nullptr;
+};
 
 struct Renderer {
     EGLDisplay egl_display = EGL_NO_DISPLAY;
@@ -229,9 +263,19 @@ struct Renderer {
 
     pthread_t thread = 0;
     bool initDone = false, legacyDrawingRequired = false;
-    volatile bool windowChanged = false, viewportChanged = false;
+    volatile bool windowChanged = false, cursorSurfaceChanged = false, viewportChanged = false;
     ANativeWindow* pendingWin = nullptr;
-    jobject pendingSurface = nullptr;
+    jobject pendingSurface = nullptr, pendingCursorSurface = nullptr;
+    ImageWriter cursorWriter;
+    ASurfaceControl* cursorControl = nullptr;
+    struct {
+        void* graphicBuffer;
+        EGLImageKHR image;
+        GLuint texture;
+    } cursorTargets[4]{};
+    unsigned nextCursorTarget = 0;
+    GLuint cursorFbo = 0;
+    int drawnCursorW = -1, drawnCursorH = -1;
     volatile int viewportX = 0, viewportY = 0, viewportW = 0, viewportH = 0, expectedW = 0, expectedH = 0;
     volatile int hiddenBottom = 0;
     volatile int zoomPercent = 100;
@@ -240,6 +284,7 @@ struct Renderer {
     volatile float pinchAnchorFracX = 0.5f, pinchAnchorFracY = 0.5f;
     volatile bool followCursorPan = true;
     float panSourceLeft = 0.f, panSourceTop = 0.f;
+    float drawnSourceWidth = 0.f, drawnSourceHeight = 0.f, drawnScaleX = 0.f, drawnScaleY = 0.f;
     float hiddenPanSourceTop = -1.f; // the vertical pan of the other keyboard state, negative until there was one
     bool bottomWasHidden = false;
     JNIEnv* rendererEnv = nullptr;
@@ -255,7 +300,6 @@ struct Renderer {
     struct lorie_shared_server_state* state = nullptr;
     struct {
         GLuint id;
-        bool cursorChanged;
     } cursor{};
 
     GLuint g_texture_program = 0, gv_pos = 0, gv_coords = 0;
@@ -286,6 +330,16 @@ struct Renderer {
     void applyView();
     void releaseWinAndSurface(ANativeWindow** anw, jobject* jsfc, EGLSurface* esfc);
     void refreshContext();
+    void setCursorSurface(JNIEnv* env, jobject surface);
+    void closeCursorOutput();
+    void refreshCursorOutput();
+    void releaseCursorTargets();
+    void* nextCursorBuffer(int w, int h);
+    GLuint cursorTargetTexture(void* graphicBuffer);
+    bool drawCursorImage(int w, int h);
+    void updateCursor();
+    void computePan(float cursorX, float cursorY, float sourceWidth, float sourceHeight, float* left, float* top) const;
+    bool cursorNeedsRedraw() const;
     void redrawLocked(bool* waitingForBuffers);
     void uploadDamagedRows(LorieBuffer* buffer);
     bool shouldWait(bool* waitingForBuffers);
@@ -293,7 +347,6 @@ struct Renderer {
     void bindTexture(GLuint id) const;
     void reportViewport(int dstX, int dstY, int dstW, int dstH, float left, float top, float width, float height);
     void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip);
-    void drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop, float cursorX, float cursorY);
 };
 #endif
 

@@ -6,4 +6,5 @@ interface ICmdEntryInterface {
     ParcelFileDescriptor getLogcatOutput();
     void reportFatalError(String message);
     void windowChanged(in Surface surface);
+    void cursorWindowChanged(in Surface surface);
 }

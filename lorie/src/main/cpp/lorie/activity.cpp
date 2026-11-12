@@ -566,6 +566,14 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, __unused void *reserved) {
             {"markUserActivity", "()V", (void *) +[](__unused JNIEnv* env, __unused jclass clazz) {
                 lastInputTimestampMs = nowMs();
             }},
+            {"getCursorState", "(J[I)Z", (void *) +[](JNIEnv *env, __unused jobject thiz, jlong ptr, jintArray out) -> jboolean {
+                auto* r = (LorieViewResources*) ptr;
+                if (!r || r->destroyed || !r->state) return false;
+                jint values[] = { (jint) r->state->cursor.x, (jint) r->state->cursor.y, (jint) r->state->cursor.xhot,
+                                  (jint) r->state->cursor.yhot, (jint) r->state->cursor.width, (jint) r->state->cursor.height };
+                env->SetIntArrayRegion(out, 0, 6, values);
+                return true;
+            }},
     };
     vm->AttachCurrentThread(&env, nullptr);
     jclass cls = env->FindClass("com/termux/x11/LorieView");

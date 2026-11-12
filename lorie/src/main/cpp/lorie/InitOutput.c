@@ -473,6 +473,7 @@ static miPointerScreenFuncRec loriePointerCursorFuncs = {
 };
 
 static void loriePerformVblanks(void);
+static void lorieCollectDamage(void);
 
 static void lorieRequestLockTake(void) {
     if (pvfb->requestLockHeld)
@@ -485,6 +486,9 @@ static void lorieRequestLockRelease(void) {
     if (!pvfb->requestLockHeld)
         return;
     pvfb->requestLockHeld = FALSE;
+    // The renderer uploads only the rows marked damaged, so every row written so far must be marked before it gets the lock.
+    if (pvfb->root.legacyDrawing)
+        lorieCollectDamage();
     pthread_mutex_unlock(&pvfb->state->lock);
 
     if (!pvfb->state->rendererWaiting)
@@ -548,8 +552,20 @@ static void lorieMarkDamagedRows(RegionPtr region) {
     }
 }
 
+static void lorieCollectDamage(void) {
+    PixmapPtr root = pScreenPtr && pScreenPtr->root ? pScreenPtr->GetWindowPixmap(pScreenPtr->root) : NULL;
+    LoriePixmapPriv* priv = root ? exaGetPixmapDriverPrivate(root) : NULL;
+
+    if (!priv || !priv->buffer || !RegionNotEmpty(DamageRegion(pvfb->damage)))
+        return;
+
+    if (LorieBuffer_description(priv->buffer)->type == LORIEBUFFER_FD)
+        lorieMarkDamagedRows(DamageRegion(pvfb->damage));
+    DamageEmpty(pvfb->damage);
+    pvfb->state->drawRequested = TRUE;
+}
+
 static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
-    int nonEmpty;
     LoriePixmapPriv* priv;
     PixmapPtr root = pScreenPtr && pScreenPtr->root ? pScreenPtr->GetWindowPixmap(pScreenPtr->root) : NULL;
 
@@ -562,19 +578,13 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
     if (!lorieConnectionAlive(conn_fd) || !pvfb->state->surfaceAvailable)
         return TRUE;
 
-    nonEmpty = RegionNotEmpty(DamageRegion(pvfb->damage));
     priv = root ? exaGetPixmapDriverPrivate(root) : NULL;
 
     if (!priv)
         // Impossible situation, but let's skip this step
         return TRUE;
 
-    if (nonEmpty && priv->buffer) {
-        if (LorieBuffer_description(priv->buffer)->type == LORIEBUFFER_FD)
-            lorieMarkDamagedRows(DamageRegion(pvfb->damage));
-        DamageEmpty(pvfb->damage);
-        pvfb->state->drawRequested = TRUE;
-    }
+    lorieCollectDamage();
 
     if (pvfb->state->drawRequested || pvfb->state->cursor.moved || pvfb->state->cursor.updated) {
         pvfb->state->rootWindowTextureID = LorieBuffer_description(priv->buffer)->id;

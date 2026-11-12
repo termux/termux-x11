@@ -547,6 +547,10 @@ static void windowChanged(JNIEnv *env, __unused jobject cls, jobject surface) {
     renderer.setWindow(env, surface);
 }
 
+static void cursorWindowChanged(JNIEnv *env, __unused jobject cls, jobject surface) {
+    renderer.setCursorSurface(env, surface);
+}
+
 extern "C" void DDXNotifyFocusChanged(void) {
     if (conn_fd != -1) {
         lorieEvent e = { .type = EVENT_WINDOW_FOCUS_CHANGED };
@@ -675,6 +679,7 @@ void registerCmdEntryPointNatives(JNIEnv *env) {
             {"start", "([Ljava/lang/String;)Z", (void *) &start},
             {"getXConnection", "()Landroid/os/ParcelFileDescriptor;", (void *) &getXConnection},
             {"windowChanged", "(Landroid/view/Surface;)V", (void *) &windowChanged},
+            {"cursorWindowChanged", "(Landroid/view/Surface;)V", (void *) &cursorWindowChanged},
             {"getLogcatOutput", "()Landroid/os/ParcelFileDescriptor;", (void *) &getLogcatOutput},
             {"reportFatalError", "(Ljava/lang/String;)V", (void *) &reportFatalError},
             {"connected", "()Z", (void *) +[]() -> jboolean { return conn_fd != -1; }}, // @CriticalNative

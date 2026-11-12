@@ -625,6 +625,7 @@ static Bool lorieCreateScreenResources(ScreenPtr pScreen) {
 
     DamageRegister(&(*pScreen->GetScreenPixmap)(pScreen)->drawable, pvfb->damage);
     pvfb->fpsTimer = TimerSet(NULL, 0, 5000, lorieFramecounter, pScreen);
+    lorieSendHeartbeat();
     TimerSet(NULL, 0, 1000, lorieHeartbeat, NULL);
     RegisterBlockAndWakeupHandlers(lorieBlockHandler, (ServerWakeupHandlerProcPtr) NoopDDA, NULL);
 

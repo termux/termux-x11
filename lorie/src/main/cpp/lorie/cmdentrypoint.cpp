@@ -268,6 +268,11 @@ void handleLorieEvents(int fd, __unused int ready, __unused void *ignored) {
         close(fd);
         conn_fd = -1;
         lorieEnableClipboardSync(FALSE);
+        QueueWorkProc(+[](__unused ClientPtr pClient, __unused void *closure) -> Bool {
+            lorieReleaseAllKeys();
+            return TRUE;
+        }, nullptr, nullptr);
+        lorieWakeServer();
         renderer.setWindow(nullptr, nullptr);
         return;
     }

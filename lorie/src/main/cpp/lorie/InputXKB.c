@@ -1123,3 +1123,14 @@ void lorieSyncLockKeysState(uint8_t state) {
 	lorieSetLockedMods(master, lorieGetLockKeyModMask(XK_Num_Lock), (state & (1u << 1)) != 0);
 	lorieSetScrollLockIndicator(master, (state & (1u << 2)) != 0);
 }
+
+void lorieReleaseAllKeys(void) {
+	XkbDescPtr xkb = GetMaster(lorieKeyboard, KEYBOARD_OR_FLOAT)->key->xkbInfo->desc;
+	int key;
+
+	for (key = xkb->min_key_code; key <= xkb->max_key_code; key++)
+		if (key_is_down(lorieKeyboard, key, KEY_PROCESSED))
+			QueueKeyboardEvents(lorieKeyboard, KeyRelease, key);
+	memset(pressedKeys, 0, sizeof(pressedKeys));
+	mieqProcessInputEvents();
+}

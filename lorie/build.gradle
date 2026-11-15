@@ -124,3 +124,8 @@ afterEvaluate {
     android.sourceSets.main.res.srcDirs += 'build/generated/templateRes'
     preBuild.dependsOn generateShortcuts
 }
+
+// The release variant reuses the native libraries built for debug (they are built with RelWithDebInfo anyway).
+android.sourceSets.release.jniLibs.srcDir layout.buildDirectory.dir('intermediates/merged_native_libs/debug/mergeDebugNativeLibs/out/lib').get().asFile
+tasks.matching { it.name ==~ /(configure|build)CMakeRelWithDebInfo.*/ }.configureEach { enabled = false }
+tasks.matching { it.name == 'mergeReleaseJniLibFolders' }.configureEach { dependsOn 'mergeDebugNativeLibs' }

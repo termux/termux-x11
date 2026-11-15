@@ -53,7 +53,7 @@ android {
 
     compileOptions.sourceCompatibility JavaVersion.VERSION_1_9
     compileOptions.targetCompatibility JavaVersion.VERSION_1_9
-    buildTypes.debug {
+    buildTypes.configureEach {
         signingConfig signingConfigs.debug
         minifyEnabled true
         shrinkResources true

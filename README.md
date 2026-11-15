@@ -27,7 +27,7 @@ Just like any other X server.
 ## Setup Instructions
 Termux:X11 requires Android 7 or later. It consists of an Android app and a companion termux package, and you must install both.
 
-The Android app is available via the [nightly release tag](https://github.com/termux/termux-x11/releases/tag/nightly) of this repository. Download and install `termux-x11-universal-debug.apk`.
+The Android app is available via the [nightly release tag](https://github.com/termux/termux-x11/releases/tag/nightly) of this repository. Download and install `termux-x11-universal-release.apk`.
 
 The companion termux package is available from the termux graphical repository. You can ensure it's enabled and install this package with `pkg i x11-repo && pkg i termux-x11-nightly`. If you need to, you can also download a `.deb` or `*.tar.xz` from the same nightly release tag as above.
 
@@ -37,7 +37,7 @@ The companion termux package is available from the termux graphical repository. 
 
 Android gives less CPU time to apps that aren't on screen. Once Termux:X11 opens, Android treats Termux itself as no longer being on screen, so things running inside Termux (like your desktop apps) can slow down.
 
-To avoid this, install `termux-x11-universal-sharedUid-debug.apk` instead of the regular one (same [nightly release tag](https://github.com/termux/termux-x11/releases/tag/nightly) or CI artifacts). This variant runs as part of Termux itself, so Android keeps treating it as one app and doesn't slow it down.
+To avoid this, install `termux-x11-universal-sharedUid-release.apk` instead of the regular one (same [nightly release tag](https://github.com/termux/termux-x11/releases/tag/nightly)). This variant runs as part of Termux itself, so Android keeps treating it as one app and doesn't slow it down.
 
 This variant only works with the Termux app installed **from GitHub**, not F-Droid or Google Play — those are signed with different keys, and a shared UID requires matching signatures.
 </details>

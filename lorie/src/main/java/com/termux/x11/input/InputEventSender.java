@@ -11,6 +11,8 @@ import static com.termux.x11.input.InputStub.*;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import android.graphics.PointF;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -111,10 +113,15 @@ public final class InputEventSender {
         }
     }
 
+    private static final long CLICK_RELEASE_DELAY_MS = 30;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private Runnable pendingRelease;
+
     private static final List<Integer> buttons = List.of(BUTTON_UNDEFINED, BUTTON_LEFT, BUTTON_MIDDLE, BUTTON_RIGHT);
     public void sendMouseEvent(PointF pos, int button, boolean down, boolean relative) {
         if (!buttons.contains(button))
             return;
+        flushPendingRelease();
         mInjector.sendMouseEvent(pos != null ? (int) pos.x : 0, pos != null ? (int) pos.y : 0, button, down, relative);
     }
 
@@ -125,23 +132,38 @@ public final class InputEventSender {
     public void sendMouseDown(int button, boolean relative) {
         if (!buttons.contains(button)) 
             return;
+        flushPendingRelease();
         mInjector.sendMouseEvent(0, 0, button, true, relative);
     }
 
     public void sendMouseUp(int button, boolean relative) {
         if (!buttons.contains(button))
             return;
+        flushPendingRelease();
         mInjector.sendMouseEvent(0, 0, button, false, relative);
     }
 
     public void sendMouseClick(int button, boolean relative) {
         if (!buttons.contains(button))
             return;
+        flushPendingRelease();
         mInjector.sendMouseEvent(0, 0, button, true, relative);
-        mInjector.sendMouseEvent(0, 0, button, false, relative);
+        pendingRelease = () -> {
+            pendingRelease = null;
+            mInjector.sendMouseEvent(0, 0, button, false, relative);
+        };
+        handler.postDelayed(pendingRelease, CLICK_RELEASE_DELAY_MS);
+    }
+
+    private void flushPendingRelease() {
+        if (pendingRelease == null)
+            return;
+        handler.removeCallbacks(pendingRelease);
+        pendingRelease.run();
     }
 
     public void sendCursorMove(float x, float y, boolean relative) {
+        flushPendingRelease();
         mInjector.sendMouseEvent(x, y, BUTTON_UNDEFINED, false, relative);
     }
 

@@ -40,9 +40,9 @@ tasks.register('generateWrapperScripts', Copy) {
 }
 
 tasks.register('buildCompanionPackage') {
-    dependsOn tasks.named('assembleDebug'), tasks.named('generateWrapperScripts')
+    dependsOn tasks.named('assembleRelease'), tasks.named('generateWrapperScripts')
 
-    def loaderApk = layout.buildDirectory.file('outputs/apk/debug/shell-loader-debug.apk')
+    def loaderApk = layout.buildDirectory.file('outputs/apk/release/shell-loader.apk')
     def scriptsDir = layout.buildDirectory.dir('generated/scripts')
     inputs.file(loaderApk)
     inputs.dir(scriptsDir)

@@ -9,19 +9,21 @@ else
 android.namespace 'com.termux.x11.shell_loader'
 android.defaultConfig.minSdkVersion 24
 android.compileSdkVersion 34
-android.buildTypes.debug.signingConfig null
-android.buildTypes.debug.minifyEnabled true
-android.buildTypes.debug.shrinkResources true
-android.buildTypes.debug.proguardFiles 'proguard-rules.pro'
+android.buildTypes.configureEach {
+    signingConfig null
+    minifyEnabled true
+    shrinkResources true
+    proguardFiles 'proguard-rules.pro'
+}
 android.buildFeatures.buildConfig true
 android.compileOptions.sourceCompatibility JavaVersion.VERSION_1_8
 android.compileOptions.targetCompatibility JavaVersion.VERSION_1_8
 dependencies.compileOnly project(':shell-loader:stub')
 
 if (!gradle.startParameter.taskNames.isEmpty())
-    androidComponents { onVariants(selector().all()) { outputs.forEach { it.outputFileName.set("shell-loader-debug.apk") } } }
+    androidComponents { onVariants(selector().all()) { outputs.forEach { it.outputFileName.set("shell-loader.apk") } } }
 
-configurations.configureEach { exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib" }
+configurations.matching { it.name ==~ /.*(Compile|Runtime)Classpath/ }.configureEach { exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib" }
 
 def signingConfig = project(':lorie-app').android.signingConfigs.debug
 def keyStore = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
@@ -38,7 +40,7 @@ android.defaultConfig.buildConfigField "String", "CLASS_ID", "\"com.termux.x11.C
 android.defaultConfig.buildConfigField "String", "packageNotInstalledErrorText",
         """\"Termux:X11 application is not found.\\n\" +
         \"You should choose latest release here: \\n https://github.com/termux/termux-x11/releases/tag/nightly\\n\" +
-        \"After this you should download \\"termux-x11-universal-debug.apk\\" and install it.\\n\""""
+        \"After this you should download \\"termux-x11-universal-release.apk\\" and install it.\\n\""""
 android.defaultConfig.buildConfigField "String", "packageSignatureMismatchErrorText",
         "\"Signature verification of target application $targetApplicationId failed.\\nPlease, reinstall both termux-x11 package and Termux:X11 application from the same source\""
 android.defaultConfig.buildConfigField "String", "COMMIT", "\"" + ("git rev-parse HEAD\n".execute().getText().trim() ?: (System.getenv('CURRENT_COMMIT') ?: "NO_COMMIT")) + "\""

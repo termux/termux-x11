@@ -72,6 +72,8 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="lorie_pref_pointerCapture">Capture external pointer devices when possible</string>
     <string name="lorie_pref_pointerCapture_summary">Intercept all hardware pointer events. Pointer is back to Android after pressing Escape key.</string>
     <string name="lorie_pref_transformCapturedPointer">Transform captured pointer movements</string>
+    <string name="lorie_pref_invertScrolling">Invert scrolling direction</string>
+    <string name="lorie_pref_invertScrolling_summary">Invert the direction of the mouse wheel and touchpad scrolling.</string>
     <string name="lorie_pref_capturedPointerSpeedFactor">Captured pointer speed factor, %</string>
     <string name="lorie_pref_tapToMove">Enable tap-to-move for touchpads</string>
     <string name="lorie_pref_ignoreGamepadEvents">Ignore gamepad input events</string>

@@ -301,6 +301,11 @@ public class TouchInputHandler {
                 && (event.getToolType(event.getActionIndex()) == MotionEvent.TOOL_TYPE_FINGER);
     }
 
+    private void sendScrollEvent(MotionEvent event) {
+        float factor = mInjector.invertScrolling ? 100 : -100;
+        mInjector.sendMouseWheelEvent(factor * event.getAxisValue(MotionEvent.AXIS_HSCROLL), factor * event.getAxisValue(MotionEvent.AXIS_VSCROLL));
+    }
+
     public boolean handleTouchEvent(View view0, View view, MotionEvent event) {
         if (ignoreGamepadEvents && (event.isFromSource(InputDevice.SOURCE_GAMEPAD) || event.isFromSource(InputDevice.SOURCE_JOYSTICK)))
             return true;
@@ -383,10 +388,7 @@ public class TouchInputHandler {
                     break;
 
                 case MotionEvent.ACTION_SCROLL:
-                    float scrollY = -100 * event.getAxisValue(MotionEvent.AXIS_VSCROLL);
-                    float scrollX = -100 * event.getAxisValue(MotionEvent.AXIS_HSCROLL);
-
-                    mInjector.sendMouseWheelEvent(scrollX, scrollY);
+                    sendScrollEvent(event);
                     return true;
 
                 case MotionEvent.ACTION_POINTER_DOWN:
@@ -461,6 +463,7 @@ public class TouchInputHandler {
     public void reloadPreferences(Prefs p) {
         setInputMode(Integer.parseInt(p.touchMode.get()));
         mInjector.tapToMove = p.tapToMove.get();
+        mInjector.invertScrolling = p.invertScrolling.get();
         mInjector.preferScancodes = p.preferScancodes.get();
         mInjector.pointerCapture = p.pointerCapture.get();
         mInjector.scaleTouchpad = p.scaleTouchpad.get() &&
@@ -1014,10 +1017,7 @@ public class TouchInputHandler {
         @SuppressLint("ClickableViewAccessibility")
         boolean onTouch(View v, MotionEvent e) {
             if (e.getAction() == MotionEvent.ACTION_SCROLL) {
-                float scrollY = -100 * e.getAxisValue(MotionEvent.AXIS_VSCROLL);
-                float scrollX = -100 * e.getAxisValue(MotionEvent.AXIS_HSCROLL);
-
-                mInjector.sendMouseWheelEvent(scrollX, scrollY);
+                sendScrollEvent(e);
                 return true;
             }
 

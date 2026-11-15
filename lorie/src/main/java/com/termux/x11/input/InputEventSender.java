@@ -43,6 +43,7 @@ public final class InputEventSender {
     private final float[] mappedPoint = new float[2];
 
     public boolean tapToMove = false;
+    public boolean invertScrolling = false;
     public boolean preferScancodes = false;
     public boolean pointerCapture = false;
     public boolean scaleTouchpad = false;

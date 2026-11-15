@@ -91,10 +91,16 @@
     <string-array name="userActionsVolumeDownValues">
         <item>@array/userActionsValues</item>
         <item>send volume down</item>
+        <item>send left mouse button</item>
+        <item>send middle mouse button</item>
+        <item>send right mouse button</item>
     </string-array>
     <string-array name="userActionsVolumeUpValues">
         <item>@array/userActionsValues</item>
         <item>send volume up</item>
+        <item>send left mouse button</item>
+        <item>send middle mouse button</item>
+        <item>send right mouse button</item>
     </string-array>
     <string-array name="userActionsMediaKeyValues">
         <item>@array/userActionsValues</item>

@@ -57,7 +57,17 @@ tasks.register('buildCompanionPackage') {
         def scripts = ['termux-x11', 'termux-x11-preference'].collectEntries {
             ["$prefix/bin/$it".toString(), file("${scriptsDir.get()}/$it").bytes]
         }
-        def content = scripts + [("$prefix/libexec/termux-x11/loader.apk".toString()): loaderApk.get().asFile.bytes]
+        // app_process only reads classes.dex from the classpath, the rest of the apk is dead weight.
+        def loaderDexZip = new ByteArrayOutputStream()
+        new java.util.zip.ZipFile(loaderApk.get().asFile).withCloseable { apk ->
+            new java.util.zip.ZipOutputStream(loaderDexZip).withCloseable { zip ->
+                zip.setLevel(9)
+                zip.putNextEntry(new java.util.zip.ZipEntry('classes.dex').tap { setTimeLocal(java.time.LocalDateTime.of(1980, 1, 1, 0, 0)) })
+                apk.getInputStream(apk.getEntry('classes.dex')).transferTo(zip)
+                zip.closeEntry()
+            }
+        }
+        def content = scripts + [("$prefix/libexec/termux-x11/loader.apk".toString()): loaderDexZip.toByteArray()]
         // Every file plus the directories leading to it; sorting the whole set puts each directory
         // right before its contents, which is the order both archives expect.
         def paths = content.keySet().collectMany { path ->

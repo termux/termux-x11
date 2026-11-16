@@ -527,8 +527,22 @@ public class TouchInputHandler {
             case "send volume up": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_UP, down);
             case "send volume down": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, KEYCODE_VOLUME_DOWN, down);
             case "send media action": return (key, down) -> mActivity.getLorieView().sendKeyEvent(0, key, down);
+            case "send left mouse button": return mouseButtonAction(InputStub.BUTTON_LEFT);
+            case "send middle mouse button": return mouseButtonAction(InputStub.BUTTON_MIDDLE);
+            case "send right mouse button": return mouseButtonAction(InputStub.BUTTON_RIGHT);
             default: return noAction;
         }
+    }
+
+    /** Holds {@code button} down for as long as the key is held, so the key can be used to click and drag. */
+    private BiConsumer<Integer, Boolean> mouseButtonAction(int button) {
+        AtomicBoolean pressed = new AtomicBoolean(false);
+        return (key, down) -> {
+            boolean wasPressed = pressed.getAndSet(down);
+            if (down && wasPressed)
+                return; // ignore auto-repeat
+            mInjector.sendMouseEvent(null, button, down, true);
+        };
     }
 
     public static PendingIntent extractIntentFromPreferences(Context ctx, Prefs p, String name, int requestCode) {

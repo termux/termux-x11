@@ -66,13 +66,14 @@ public class TouchInputHandler {
 
     /** Used to set/store the selected input mode. */
     @SuppressWarnings("unused")
-    @IntDef({InputMode.TRACKPAD, InputMode.SIMULATED_TOUCH, InputMode.TOUCH})
+    @IntDef({InputMode.TRACKPAD, InputMode.SIMULATED_TOUCH, InputMode.TOUCH, InputMode.XR_POINTER})
     @Retention(RetentionPolicy.SOURCE)
     public @interface InputMode {
         // Values are starting from 0 and don't have gaps.
         int TRACKPAD = 1;
         int SIMULATED_TOUCH = 2;
         int TOUCH = 3;
+        int XR_POINTER = 4;
     }
 
     @IntDef({CapturedPointerTransformation.AUTO, CapturedPointerTransformation.NONE, CapturedPointerTransformation.COUNTER_CLOCKWISE, CapturedPointerTransformation.UPSIDE_DOWN, CapturedPointerTransformation.CLOCKWISE})
@@ -92,6 +93,8 @@ public class TouchInputHandler {
     private final TapGestureDetector mTapDetector;
     private final StylusListener mStylusListener = new StylusListener();
     private final HardwareMouseListener mHMListener = new HardwareMouseListener();
+    private final XrPointerListener mXrPointerListener = new XrPointerListener();
+    private boolean mXrPointerMode = false;
     private final DexListener mDexListener;
     private final TouchInputHandler mTouchpadHandler;
 
@@ -354,6 +357,9 @@ public class TouchInputHandler {
             if (isDexEvent(event) && mDexListener.onTouch(view, event))
                 return true;
 
+            if (mXrPointerMode)
+                return mXrPointerListener.onTouch(event);
+
             // Give the underlying input strategy a chance to observe the current motion event before
             // passing it to the gesture detectors.  This allows the input strategy to react to the
             // event or save the payload for use in recreating the gesture remotely.
@@ -417,14 +423,20 @@ public class TouchInputHandler {
     }
 
     public void setInputMode(@InputMode int inputMode) {
+        releaseHeldPointerButtons();
+        mXrPointerMode = mTouchpadHandler != null && inputMode == InputMode.XR_POINTER;
         if (mTouchpadHandler == null)
             mInputStrategy = new InputStrategyInterface.TrackpadInputStrategy(mInjector);
-        else if (inputMode == InputMode.TOUCH)
+        else if (inputMode == InputMode.TOUCH || inputMode == InputMode.XR_POINTER)
             mInputStrategy = new InputStrategyInterface.NullInputStrategy();
         else if (inputMode == InputMode.SIMULATED_TOUCH)
             mInputStrategy = new InputStrategyInterface.SimulatedTouchInputStrategy(mRenderData, mInjector, mActivity);
         else
             mInputStrategy = new InputStrategyInterface.TrackpadInputStrategy(mInjector);
+    }
+
+    public void releaseHeldPointerButtons() {
+        mXrPointerListener.release();
     }
 
     private static boolean hasPointerCapture(View view) {
@@ -993,6 +1005,92 @@ public class TouchInputHandler {
         }
 
         return mInjector.sendKeyEvent(e);
+    }
+
+    /**
+     * Handles the laser pointer of XR headsets, which reports hover as finger events.
+     * Hovering moves the cursor, a press holds still until the ray travels past the click slop,
+     * and a quick second press lands where the first one did so double clicks register.
+     */
+    private class XrPointerListener {
+        private static final float CLICK_SLOP = 18;
+        private static final float DOUBLE_CLICK_SLOP = 32;
+        private static final long DOUBLE_CLICK_TIMEOUT_MS = 350;
+
+        private final PointF pressOrigin = new PointF();
+        private final PointF lastClick = new PointF();
+        private long lastClickTime = 0;
+        private boolean pressed = false;
+        private boolean dragging = false;
+
+        boolean onTouch(MotionEvent e) {
+            mRenderData.mapScreenPoint(e.getX(), e.getY(), mappedPoint);
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_HOVER_ENTER:
+                case MotionEvent.ACTION_HOVER_MOVE:
+                    if (!pressed)
+                        moveCursor(mappedPoint[0], mappedPoint[1]);
+                    break;
+
+                case MotionEvent.ACTION_DOWN:
+                    pressOrigin.set(mappedPoint[0], mappedPoint[1]);
+                    if (e.getEventTime() - lastClickTime < DOUBLE_CLICK_TIMEOUT_MS
+                            && distance(pressOrigin, lastClick) < DOUBLE_CLICK_SLOP)
+                        pressOrigin.set(lastClick);
+                    moveCursor(pressOrigin.x, pressOrigin.y);
+                    mInjector.sendMouseEvent(null, InputStub.BUTTON_LEFT, true, true);
+                    pressed = true;
+                    dragging = false;
+                    break;
+
+                case MotionEvent.ACTION_MOVE:
+                    if (!pressed)
+                        break;
+                    if (!dragging && Math.hypot(mappedPoint[0] - pressOrigin.x, mappedPoint[1] - pressOrigin.y) > CLICK_SLOP)
+                        dragging = true;
+                    if (dragging)
+                        moveCursor(mappedPoint[0], mappedPoint[1]);
+                    break;
+
+                case MotionEvent.ACTION_UP:
+                    if (pressed && !dragging) {
+                        lastClick.set(pressOrigin);
+                        lastClickTime = e.getEventTime();
+                    } else
+                        lastClickTime = 0;
+                    release();
+                    break;
+
+                case MotionEvent.ACTION_CANCEL:
+                    lastClickTime = 0;
+                    release();
+                    break;
+
+                case MotionEvent.ACTION_SCROLL:
+                    sendScrollEvent(e);
+                    break;
+
+                default:
+                    break;
+            }
+            return true;
+        }
+
+        void release() {
+            if (pressed)
+                mInjector.sendMouseEvent(null, InputStub.BUTTON_LEFT, false, true);
+            pressed = false;
+            dragging = false;
+        }
+
+        private void moveCursor(float x, float y) {
+            if (mRenderData.setCursorPosition(x, y))
+                mInjector.sendCursorMove(x, y, false);
+        }
+
+        private double distance(PointF a, PointF b) {
+            return Math.hypot(a.x - b.x, a.y - b.y);
+        }
     }
 
     private class HardwareMouseListener {

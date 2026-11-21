@@ -4,11 +4,13 @@
         <item>Trackpad</item>
         <item>Simulated touchscreen</item>
         <item>Direct touch</item>
+        <item>XR pointer</item>
     </string-array>
     <string-array name="touchscreenInputModesValues">
         <item>1</item>
         <item>2</item>
         <item>3</item>
+        <item>4</item>
     </string-array>
     <string-array name="screenIdleTimeoutEntries">
         <item>Never (keep screen on)</item>

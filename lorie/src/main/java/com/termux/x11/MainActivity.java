@@ -313,7 +313,7 @@ public class MainActivity extends AppCompatActivity {
 
         prefs = app.getPrefs(this);
         int modeValue = Integer.parseInt(prefs.touchMode.get()) - 1;
-        if (modeValue > 2)
+        if (modeValue > 3)
             prefs.touchMode.put("1");
 
         oldFullscreen = prefs.fullscreen.get();
@@ -890,6 +890,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         getLorieView().setKeyboardVisible(false);
+        mInputHandler.releaseHeldPointerButtons();
 
         handler.removeCallbacks(serverWatchdog);
         findViewById(R.id.no_server_signal).setVisibility(View.GONE);
@@ -1070,6 +1071,9 @@ public class MainActivity extends AppCompatActivity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         KeyInterceptor.recheck();
+
+        if (!hasFocus && mInputHandler != null)
+            mInputHandler.releaseHeldPointerButtons();
 
         // The system bars come back when the window loses focus.
         if (hasFocus && !redirected) {

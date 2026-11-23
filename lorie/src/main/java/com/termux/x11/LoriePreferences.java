@@ -263,7 +263,7 @@ public class LoriePreferences extends AppCompatActivity implements PreferenceFra
         public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
             getPreferenceManager().setPreferenceDataStore(prefs());
 
-            if ((Integer.parseInt(prefs().touchMode.get()) - 1) > 2)
+            if ((Integer.parseInt(prefs().touchMode.get()) - 1) > 3)
                 prefs().touchMode.put("1");
 
             setPreferencesFromResource(R.xml.preferences, root == null ? "main" : root);

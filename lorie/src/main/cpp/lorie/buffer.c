@@ -18,6 +18,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <errno.h>
+#include <poll.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
@@ -34,6 +35,7 @@ struct LorieBuffer {
     LorieBuffer_Desc desc;
 
     int8_t locked;
+    bool importedFd;
     void* lockedData;
 
     // file descriptor of shared memory fragment for shared memory backed buffer
@@ -200,7 +202,22 @@ __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_allocate(int32_t width, int32_t height,
 }
 
 __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapFileDescriptor(int32_t width, int32_t stride, int32_t height, int8_t format, int fd, off_t offset) {
-    return allocate(width, stride, height, format, LORIEBUFFER_FD, NULL, fd, stride * height * sizeof(uint32_t), offset, false);
+    LorieBuffer *buffer = allocate(width, stride, height, format, LORIEBUFFER_FD, NULL, fd, stride * height * sizeof(uint32_t), offset, false);
+    if (buffer)
+        buffer->importedFd = true;
+    return buffer;
+}
+
+__LIBC_HIDDEN__ void LorieBuffer_waitFence(LorieBuffer* buffer) {
+    if (!buffer || !buffer->importedFd ||
+        buffer->desc.type != LORIEBUFFER_FD || buffer->fd < 0)
+        return;
+
+    struct pollfd pfd = { .fd = buffer->fd, .events = POLLIN };
+    int ret;
+    do {
+        ret = poll(&pfd, 1, 250);
+    } while (ret < 0 && errno == EINTR);
 }
 
 __LIBC_HIDDEN__ LorieBuffer* LorieBuffer_wrapAHardwareBuffer(AHardwareBuffer* buffer) {

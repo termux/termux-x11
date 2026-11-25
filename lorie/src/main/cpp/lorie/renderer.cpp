@@ -1059,6 +1059,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
 void Renderer::uploadDamagedRows(LorieBuffer* buffer) {
     const LorieBuffer_Desc *desc = LorieBuffer_description(buffer);
     bool all = uploadedBufferId != desc->id;
+    bool wait = true;
     int start = -1;
 
     uploadedBufferId = desc->id;
@@ -1066,9 +1067,13 @@ void Renderer::uploadDamagedRows(LorieBuffer* buffer) {
         uint64_t rows = __atomic_exchange_n(&state->damagedRows[word], 0, __ATOMIC_ACQUIRE) | (all ? ~0ULL : 0);
         for (int bit = 0, y = word * 64; bit < 64 && y < desc->height; bit++, y++) {
             bool damaged = rows & (1ULL << bit);
-            if (damaged && start < 0)
+            if (damaged && start < 0) {
+                if (wait) {
+                    LorieBuffer_waitFence(buffer);
+                    wait = false;
+                }
                 start = y;
-            else if (!damaged && start >= 0) {
+            } else if (!damaged && start >= 0) {
                 LorieBuffer_uploadRows(buffer, start, y);
                 start = -1;
             }

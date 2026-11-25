@@ -1051,6 +1051,9 @@ Bool loriePrepareAccess(PixmapPtr pPix, int index) {
     } else
         priv->wasLocked = TRUE;
 
+    if (priv->imported && !priv->mem)
+        LorieBuffer_waitFence(priv->buffer);
+
     pPix->devPrivate.ptr = priv->locked ?: priv->mem;
     return TRUE;
 }

@@ -258,6 +258,13 @@ void LorieBuffer_describeAHardwareBuffer(AHardwareBuffer* _Nonnull buffer, AHard
  */
 void LorieBuffer_releaseAHardwareBuffer(AHardwareBuffer* _Nonnull buffer);
 
+/**
+ * Waits for the implicit fence of an imported file descriptor-backed buffer.
+ *
+ * @param buffer the buffer to wait on
+ */
+void LorieBuffer_waitFence(LorieBuffer* _Nullable buffer);
+
 #undef STATIC_INLINE
 
 int ancil_send_fd(int sock, int fd);
